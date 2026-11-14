@@ -53,6 +53,7 @@ bool GameWindow::open(const BackendConfig& config, SDL_WindowFlags api_flags) {
     }
     pc_menu_ = config.pc_menu;
     pc_menu_shown_ = config.pc_menu_shown;
+    pc_menu_event_ = config.pc_menu_event;
     menu_font_ = config.menu_font;
     return true;
 }
@@ -95,6 +96,7 @@ bool GameWindow::pump_events() {
     SDL_Event event;
     while (SDL_PollEvent(&event)) {
         if (event.type == SDL_EVENT_QUIT || event.type == SDL_EVENT_WINDOW_CLOSE_REQUESTED) return false;
+        if (menu_open_ && pc_menu_event_ && pc_menu_event_(&event)) continue;
         if (event.type == SDL_EVENT_KEY_DOWN && !event.key.repeat && pc_menu_ &&
             (event.key.scancode == SDL_SCANCODE_GRAVE || (menu_open_ && event.key.scancode == SDL_SCANCODE_ESCAPE))) {
             set_menu_open(!menu_open_);

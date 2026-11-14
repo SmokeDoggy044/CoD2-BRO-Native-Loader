@@ -397,7 +397,7 @@ TitlePatchConfig::ButtonPrompts g_button_prompts = TitlePatchConfig::ButtonPromp
 constexpr input::Action kPadActions[] = {
     input::Action::Use,   input::Action::Crouch,  input::Action::Reload,          input::Action::Jump,
     input::Action::Melee, input::Action::Grenade, input::Action::Aim,             input::Action::Fire,
-    input::Action::RightStickClick, input::Action::Sprint, input::Action::NextWeapon, input::Action::DpadDown,
+    input::Action::AimToggle, input::Action::Sprint, input::Action::NextWeapon, input::Action::Count,  // D-pad down: none
     input::Action::LeanLeft, input::Action::LeanRight,
 };
 static_assert(std::size(kPadActions) == std::size(kPadControls));
@@ -433,6 +433,7 @@ void update_button_prompts() {
                                    [](const PadControl& control) { return *key_binding(control.key_code) != 0; });
     for (size_t i = 0; i < std::size(kPadControls); ++i) {
         const PadControl& from = kPadControls[i];
+        if (kPadActions[i] == input::Action::Count) continue;
         const std::string key = input::prompt_label(input::bindings()[kPadActions[i]][0]);
         if (key.empty()) continue;
         // Where remap_keyboard_actions sends this key's control.

@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <cctype>
 #include <cstring>
+#include <mutex>
 
 namespace input {
 
@@ -32,8 +33,7 @@ constexpr ActionInfo kActions[] = {
     {"next-weapon", "Next weapon"},
     {"lean-left", "Lean left"},
     {"lean-right", "Lean right"},
-    {"right-stick-click", "Right stick click"},
-    {"dpad-down", "D-pad down"},
+    {"aim-toggle", "Aim down sights (toggle)"},
 };
 static_assert(std::size(kActions) == kActionCount);
 
@@ -67,7 +67,8 @@ std::optional<InputCode> input_from_token(std::string_view token) {
     return std::nullopt;
 }
 
-Bindings g_bindings = default_bindings();
+std::mutex g_bindings_mutex;
+Bindings g_bindings = default_bindings();  // guarded by g_bindings_mutex
 
 }  // namespace
 
@@ -89,13 +90,12 @@ Bindings default_bindings() {
     b[Action::NextWeapon] = {key(SDL_SCANCODE_1), kWheel};
     b[Action::LeanLeft] = {key(SDL_SCANCODE_Q)};
     b[Action::LeanRight] = {key(SDL_SCANCODE_E)};
-    b[Action::RightStickClick] = {key(SDL_SCANCODE_X)};
-    b[Action::DpadDown] = {};
+    b[Action::AimToggle] = {key(SDL_SCANCODE_X)};
     return b;
 }
 
-bool parse_bindings(std::string_view text, Bindings& bindings, std::string* error) {
-    bindings = default_bindings();
+bool parse_bindings(std::string_view text, Bindings& bindings, std::string* error, bool onto) {
+    if (!onto) bindings = default_bindings();
     std::array<size_t, kActionCount> seen{};  // inputs read per action
     bool ok = true;
     auto fail = [&](std::string_view word, const char* why) {
@@ -117,11 +117,14 @@ bool parse_bindings(std::string_view text, Bindings& bindings, std::string* erro
             continue;
         }
         const std::string_view name = word.substr(0, equals);
+        // Older names: right-stick-click is the toggled aim (the default layout's R3); dpad-down did nothing.
+        const std::string_view token = name == "right-stick-click" ? std::string_view("aim-toggle") : name;
         const auto action = std::find_if(std::begin(kActions), std::end(kActions),
-                                         [&](const ActionInfo& a) { return name == a.token; });
+                                         [&](const ActionInfo& a) { return token == a.token; });
         const std::optional<InputCode> input = input_from_token(word.substr(equals + 1));
         if (action == std::end(kActions)) {
-            if (name.substr(0, 5) == "look-") continue;  // the look keys of older settings (removed in 0.6c)
+            // Removed actions of older settings: the look keys (0.6c), D-pad down (0.6d).
+            if (name.substr(0, 5) == "look-" || name == "dpad-down") continue;
             fail(word, "unknown action");
             continue;
         }
@@ -177,8 +180,8 @@ std::string input_name(InputCode input) {
 }
 
 bool is_reserved(InputCode input) {
-    for (SDL_Scancode code : {SDL_SCANCODE_ESCAPE, SDL_SCANCODE_TAB, SDL_SCANCODE_F10, SDL_SCANCODE_F11,
-                              SDL_SCANCODE_F12})
+    for (SDL_Scancode code : {SDL_SCANCODE_ESCAPE, SDL_SCANCODE_TAB, SDL_SCANCODE_GRAVE, SDL_SCANCODE_F10,
+                              SDL_SCANCODE_F11, SDL_SCANCODE_F12})  // ` opens the PC menu
         if (input == key(code)) return true;
     return false;
 }
@@ -224,7 +227,14 @@ std::string prompt_label(InputCode input) {
     return name;
 }
 
-void set_bindings(const Bindings& bindings) { g_bindings = bindings; }
-const Bindings& bindings() { return g_bindings; }
+void set_bindings(const Bindings& bindings) {
+    std::lock_guard lock(g_bindings_mutex);
+    g_bindings = bindings;
+}
+
+Bindings bindings() {
+    std::lock_guard lock(g_bindings_mutex);
+    return g_bindings;
+}
 
 }  // namespace input

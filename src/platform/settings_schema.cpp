@@ -1,5 +1,6 @@
 #include "settings_schema.h"
 
+#include <algorithm>
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
@@ -175,7 +176,24 @@ const SettingDef kSettings[] = {
      "degrees the view turns per mouse count (default 0.11)"},
     {"keys", "LIST", T::Text, G::Controls, 0, 0, 0, nullptr, "",
      "keyboard and mouse bindings that differ from the defaults, e.g. \"fire=mouse1 jump=space crouch=left-ctrl "
-     "crouch=c\" (the launcher's Controls tab writes them; src/input/bindings.h)"},
+     "crouch=c\" (src/input/bindings.h); settings.ini keeps them as one key-<action> line each"},
+    {"key-move-forward", "KEYS", T::Text, G::Controls, kLive | kHidden, 0, 0, nullptr, "", "", "keys", "move-forward"},
+    {"key-move-back", "KEYS", T::Text, G::Controls, kLive | kHidden, 0, 0, nullptr, "", "", "keys", "move-back"},
+    {"key-move-left", "KEYS", T::Text, G::Controls, kLive | kHidden, 0, 0, nullptr, "", "", "keys", "move-left"},
+    {"key-move-right", "KEYS", T::Text, G::Controls, kLive | kHidden, 0, 0, nullptr, "", "", "keys", "move-right"},
+    {"key-fire", "KEYS", T::Text, G::Controls, kLive | kHidden, 0, 0, nullptr, "", "", "keys", "fire"},
+    {"key-aim", "KEYS", T::Text, G::Controls, kLive | kHidden, 0, 0, nullptr, "", "", "keys", "aim"},
+    {"key-use", "KEYS", T::Text, G::Controls, kLive | kHidden, 0, 0, nullptr, "", "", "keys", "use"},
+    {"key-reload", "KEYS", T::Text, G::Controls, kLive | kHidden, 0, 0, nullptr, "", "", "keys", "reload"},
+    {"key-jump", "KEYS", T::Text, G::Controls, kLive | kHidden, 0, 0, nullptr, "", "", "keys", "jump"},
+    {"key-crouch", "KEYS", T::Text, G::Controls, kLive | kHidden, 0, 0, nullptr, "", "", "keys", "crouch"},
+    {"key-sprint", "KEYS", T::Text, G::Controls, kLive | kHidden, 0, 0, nullptr, "", "", "keys", "sprint"},
+    {"key-melee", "KEYS", T::Text, G::Controls, kLive | kHidden, 0, 0, nullptr, "", "", "keys", "melee"},
+    {"key-grenade", "KEYS", T::Text, G::Controls, kLive | kHidden, 0, 0, nullptr, "", "", "keys", "grenade"},
+    {"key-next-weapon", "KEYS", T::Text, G::Controls, kLive | kHidden, 0, 0, nullptr, "", "", "keys", "next-weapon"},
+    {"key-lean-left", "KEYS", T::Text, G::Controls, kLive | kHidden, 0, 0, nullptr, "", "", "keys", "lean-left"},
+    {"key-lean-right", "KEYS", T::Text, G::Controls, kLive | kHidden, 0, 0, nullptr, "", "", "keys", "lean-right"},
+    {"key-aim-toggle", "KEYS", T::Text, G::Controls, kLive | kHidden, 0, 0, nullptr, "", "", "keys", "aim-toggle"},
     {"aim-assist", "on|off", T::Switch, G::Controls, 0, 0, 0, nullptr, "on",
      "the view following an enemy under the crosshair (default on)"},
     {"mounted-gun-fix", "on|off", T::Switch, G::Controls, 0, 0, 0, nullptr, "on",
@@ -408,7 +426,7 @@ const SettingUi kUi[] = {
 };
 
 bool is_combined(std::string_view key) {
-    return key == "graphics-features" || key == "volume" || key == "reverb" || key == "enhanced";
+    return key == "graphics-features" || key == "volume" || key == "reverb" || key == "enhanced" || key == "keys";
 }
 
 std::vector<std::pair<std::string, std::string>> words(const std::string& text) {
@@ -565,27 +583,34 @@ std::string settings_help(const char* program) {
         }
     }
     out += "\nOlder combined forms are still read: --graphics-features, --volume, --reverb and --enhanced \"key=value "
-           "...\".\n";
+           "...\"; --keys \"action=key ...\" is the command-line form of the key-<action> lines.\n";
     return out;
 }
 
 bool upgrade_settings(Settings& settings) {
     bool changed = false;
-    for (const char* combined : {"graphics-features", "volume", "reverb", "enhanced"}) {
+    for (const char* combined : {"graphics-features", "volume", "reverb", "enhanced", "keys"}) {
         const std::optional<std::string> text = settings.get(combined);
         if (!text) continue;
         settings.erase(combined);
         changed = true;
-        for (const auto& [part, value] : words(*text))
+        std::vector<std::string> named;  // parts this line names: a repeat adds a word ("crouch=c crouch=left-ctrl")
+        for (auto [part, value] : words(*text)) {
+            if (part == "right-stick-click") part = "aim-toggle";  // keys: the toggled aim's name before 0.6d
             for (const SettingDef& def : kSettings) {
                 if (!def.part_of || std::string_view(def.part_of) != combined || part != def.part_key) continue;
                 const std::optional<std::string> normal = check_setting(def, value);
                 if (!normal) break;
-                if (same_value(def, *normal, def.default_value))
+                const bool again = std::find(named.begin(), named.end(), def.key) != named.end();
+                named.emplace_back(def.key);
+                if (again)
+                    settings.set(def.key, settings.get(def.key).value_or("") + " " + *normal);
+                else if (same_value(def, *normal, def.default_value))
                     settings.erase(def.key);
                 else
                     settings.set(def.key, *normal);
             }
+        }
     }
     return changed;
 }
@@ -596,8 +621,11 @@ std::optional<std::string> combined_setting(const Settings& settings, std::strin
     for (const SettingDef& def : kSettings) {
         if (!def.part_of || std::string_view(def.part_of) != combined) continue;
         if (auto value = settings.get(def.key)) {
-            if (!text.empty()) text += ' ';
-            text += std::string(def.part_key) + "=" + *value;
+            std::istringstream in(*value);  // several words: the part once per word ("key-crouch = c left-ctrl")
+            for (std::string word; in >> word;) {
+                if (!text.empty()) text += ' ';
+                text += std::string(def.part_key) + "=" + word;
+            }
         }
     }
     if (text.empty()) return std::nullopt;

@@ -1,5 +1,7 @@
 #include "settings_widgets.h"
 
+#include <SDL3/SDL_events.h>
+
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
@@ -196,6 +198,101 @@ bool draw_settings(std::initializer_list<platform::SettingGroup> groups, platfor
         ImGui::PopID();
     }
     return any;
+}
+
+bool key_table_event(KeyTable& table, input::Bindings& bindings, const void* raw, bool& changed) {
+    if (!table.waiting) return false;
+    const SDL_Event& event = *static_cast<const SDL_Event*>(raw);
+    input::InputCode input = 0;
+    switch (event.type) {
+        case SDL_EVENT_KEY_DOWN:
+            if (event.key.repeat) return true;
+            if (event.key.scancode == SDL_SCANCODE_ESCAPE) {
+                table.waiting.reset();
+                return true;
+            }
+            input = static_cast<input::InputCode>(event.key.scancode);
+            break;
+        case SDL_EVENT_MOUSE_BUTTON_DOWN:
+            if (event.button.button < 1 || event.button.button > 5) return true;
+            input = static_cast<input::InputCode>(input::kMouseButton + event.button.button);
+            break;
+        case SDL_EVENT_MOUSE_WHEEL:
+            if (event.wheel.y == 0.0f) return true;
+            input = event.wheel.y > 0.0f ? input::kWheelUp : input::kWheelDown;
+            break;
+        case SDL_EVENT_KEY_UP:
+        case SDL_EVENT_MOUSE_BUTTON_UP:
+            return true;
+        default:
+            return false;
+    }
+    if (input::is_reserved(input)) {
+        table.notice = input::input_name(input) + " is kept for the menus and the game's own keys.";
+    } else {
+        table.notice.clear();
+        for (size_t a = 0; a < input::kActionCount; ++a) {
+            const auto other = static_cast<input::Action>(a);
+            if (other == table.waiting->first) continue;
+            for (input::InputCode had : bindings[other])
+                if (had == input)
+                    table.notice = input::input_name(input) + " moved here from " + input::action_label(other) + ".";
+        }
+        input::bind(bindings, table.waiting->first, table.waiting->second, input);
+        changed = true;
+    }
+    table.waiting.reset();
+    return true;
+}
+
+bool draw_key_table(KeyTable& table, input::Bindings& bindings) {
+    bool changed = false;
+    ImGui::TextWrapped("Click a key, then press the new key or mouse button (Esc cancels, right-click clears it).");
+    help_marker("Each key keeps its action whatever controller style is chosen in the game's options (styles change "
+                "the gamepad only). The arrow keys, Enter and Backspace always work in the menus. Fixed: Esc (pause), "
+                "Tab (objectives), ` (this menu in the game), F10 (frees the mouse), F11, F12.");
+    if (!table.notice.empty()) ImGui::TextColored(ImVec4(1.0f, 0.6f, 0.3f, 1), "%s", table.notice.c_str());
+    if (ImGui::BeginTable("keys", 3, ImGuiTableFlags_RowBg | ImGuiTableFlags_SizingStretchSame)) {
+        ImGui::TableSetupColumn("Action");
+        ImGui::TableSetupColumn("Key");
+        ImGui::TableSetupColumn("Other key");
+        ImGui::TableHeadersRow();
+        for (size_t a = 0; a < input::kActionCount; ++a) {
+            const auto action = static_cast<input::Action>(a);
+            ImGui::TableNextRow();
+            ImGui::TableNextColumn();
+            ImGui::AlignTextToFramePadding();
+            ImGui::TextUnformatted(input::action_label(action));
+            const bool unbound = !bindings[action][0] && !bindings[action][1];
+            for (size_t slot = 0; slot < input::kInputsPerAction; ++slot) {
+                ImGui::TableNextColumn();
+                ImGui::PushID(static_cast<int>(a * input::kInputsPerAction + slot));
+                const bool waiting = table.waiting && table.waiting->first == action && table.waiting->second == slot;
+                const std::string name = input::input_name(bindings[action][slot]);
+                const std::string label = waiting ? "Press a key..." : name.empty() ? "-" : name;
+                if (unbound && slot == 0) ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.6f, 0.3f, 1));
+                if (ImGui::Button(label.c_str(), ImVec2(-FLT_MIN, 0))) {
+                    table.waiting.emplace(action, slot);
+                    table.notice.clear();
+                }
+                if (unbound && slot == 0) ImGui::PopStyleColor();
+                if (ImGui::IsItemClicked(ImGuiMouseButton_Right)) {
+                    input::bind(bindings, action, slot, 0);
+                    table.waiting.reset();
+                    changed = true;
+                }
+                ImGui::PopID();
+            }
+        }
+        ImGui::EndTable();
+    }
+    if (ImGui::Button("Default keys")) {
+        bindings = input::default_bindings();
+        table.waiting.reset();
+        table.notice.clear();
+        changed = true;
+    }
+    return changed;
 }
 
 }  // namespace ui

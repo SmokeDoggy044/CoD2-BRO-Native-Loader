@@ -200,6 +200,7 @@ void configure_title_services(const Options& options, const fs::path& assets, co
     }
     d3d_config.backend.pc_menu = &loader::pc_menu;
     d3d_config.backend.pc_menu_shown = &loader::pc_menu_shown;
+    d3d_config.backend.pc_menu_event = &loader::pc_menu_event;
     // The front-end menus' PC rows (src/engine/client/fe_pc.h); --compare and --pc-patches off: the original menus.
     if (options.pc_patches.value_or(!options.compare)) loader::install_menu_settings();
     d3d_config.backend.menu_font = (platform::executable_dir() / "fonts" / "Jost-500-Medium.ttf").string();

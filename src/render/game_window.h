@@ -85,6 +85,7 @@ private:
 
     bool (*pc_menu_)() = nullptr;
     void (*pc_menu_shown_)(bool) = nullptr;
+    bool (*pc_menu_event_)(const void*) = nullptr;
     std::string menu_font_;
     std::function<bool()> init_menu_renderer_;
     std::function<void()> shutdown_menu_renderer_;

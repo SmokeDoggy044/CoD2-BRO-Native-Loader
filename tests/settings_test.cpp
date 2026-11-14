@@ -88,13 +88,16 @@ int main() {
         "volume = close_gunfire=4 music=100\n"
         "reverb = amount=-3\n"
         "enhanced = reverb=0\n"
-        "keys = melee=v\n");
+        "keys = melee=v crouch=c crouch=left-ctrl right-stick-click=x\n");
     CHECK(platform::upgrade_settings(old));
     CHECK(!old.get("graphics-features") && !old.get("volume") && !old.get("reverb") && !old.get("enhanced"));
     CHECK(old.get("sharpness") == "0.3" && old.get("vibrance-amount") == "0.01" && old.get("fxaa") == "off");
     CHECK(!old.get("anisotropic") && !old.get("volume-music"));
     CHECK(old.get("close-gunfire") == "4" && old.get("reverb-amount") == "-3" && old.get("room-reverb") == "off");
-    CHECK(old.get("keys") == "melee=v");
+    // keys: one key-<action> line each, an action named twice keeps both inputs (names are checked by the game).
+    CHECK(!old.get("keys") && old.get("key-melee") == "v" && old.get("key-crouch") == "c left-ctrl" &&
+          old.get("key-aim-toggle") == "x");
+    CHECK(platform::combined_setting(old, "keys") == "crouch=c crouch=left-ctrl melee=v aim-toggle=x");
     CHECK(!platform::upgrade_settings(old));
     // ... and read back as the combined text the structs parse.
     CHECK(platform::combined_setting(old, "graphics-features") == "fxaa=off sharpness=0.3 vibrance_amount=0.01");

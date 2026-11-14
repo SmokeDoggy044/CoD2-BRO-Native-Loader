@@ -22,7 +22,7 @@ namespace input {
 enum class Action : uint8_t {
     MoveForward, MoveBack, MoveLeft, MoveRight,
     Fire, Aim, Use, Reload, Jump, Crouch, Sprint, Melee, Grenade,
-    NextWeapon, LeanLeft, LeanRight, RightStickClick, DpadDown,
+    NextWeapon, LeanLeft, LeanRight, AimToggle,
     Count
 };
 constexpr size_t kActionCount = static_cast<size_t>(Action::Count);
@@ -47,7 +47,8 @@ Bindings default_bindings();
 // The `keys` setting: parse starts from the defaults; false (and `error` says why) for
 // a word it does not know, the others still apply. format writes only the actions that
 // differ from the defaults ("" when none do).
-bool parse_bindings(std::string_view text, Bindings& bindings, std::string* error = nullptr);
+// `onto`: start from `bindings` as they are (an action named replaces its inputs) instead of the defaults.
+bool parse_bindings(std::string_view text, Bindings& bindings, std::string* error = nullptr, bool onto = false);
 std::string format_bindings(const Bindings& bindings);
 
 // For the launcher: the action as shown, and what it does in the default layout.
@@ -57,7 +58,7 @@ const char* action_token(Action action);
 std::optional<Action> action_from_token(std::string_view token);
 // An input as shown ("Left Shift", "Mouse 4", "Wheel up"); "" for none.
 std::string input_name(InputCode input);
-// The keys that cannot be bound: Escape, Tab and the loader's own keys.
+// The keys that cannot be bound: Escape, Tab, ` (the PC menu) and the loader's own keys (F10-F12).
 bool is_reserved(InputCode input);
 // Some action has `input`.
 bool is_bound(const Bindings& bindings, InputCode input);
@@ -69,9 +70,9 @@ void bind(Bindings& bindings, Action action, size_t slot, InputCode input);
 // short key name; "" for none.
 std::string prompt_label(InputCode input);
 
-// The bindings the game reads its keyboard and mouse with (devices.h). Set once at
-// startup, before the title polls input.
+// The bindings the game reads its keyboard and mouse with (devices.h). Set at startup
+// and by the PC menu's Controls tab; any thread.
 void set_bindings(const Bindings& bindings);
-const Bindings& bindings();
+Bindings bindings();  // a copy: the PC menu may change them while the title polls
 
 }  // namespace input

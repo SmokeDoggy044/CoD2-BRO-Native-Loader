@@ -16,5 +16,7 @@ void install_menu_settings();
 // The menu opened or closed: blocks the title's input while it is open, and saves
 // what changed to settings.ini when it closes.
 void pc_menu_shown(bool open);
+// A window event while the menu is open (an SDL_Event): true if the menu took it (the Controls tab's key capture).
+bool pc_menu_event(const void* sdl_event);
 
 }  // namespace loader

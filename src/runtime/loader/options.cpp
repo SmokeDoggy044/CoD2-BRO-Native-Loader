@@ -98,7 +98,12 @@ bool apply_setting(Options& o, Combined& combined, const platform::SettingDef& d
     const bool on = v == "on" || v == "true";
     const auto f = [&] { return std::strtof(v.c_str(), nullptr); };
     const auto u = [&] { return static_cast<uint32_t>(std::strtoul(v.c_str(), nullptr, 10)); };
-    if (def.part_of) {
+    if (def.part_of && std::string_view(def.part_of) == "keys") {  // key-<action> = "c left-ctrl": replaces its keys
+        std::string text;
+        std::istringstream in(v);
+        for (std::string word; in >> word;) text += std::string(" ") + def.part_key + "=" + word;
+        input::parse_bindings(text, o.bindings, &o.bindings_error, true);
+    } else if (def.part_of) {
         const std::string_view part_of = def.part_of;
         std::string& text = part_of == "graphics-features" ? combined.graphics_features
                             : part_of == "volume"          ? combined.volume
@@ -184,9 +189,8 @@ bool apply_setting(Options& o, Combined& combined, const platform::SettingDef& d
         o.audio_device = v;
     } else if (key == "mouse-sensitivity") {
         o.mouse_sensitivity = f();
-    } else if (key == "keys") {
-        o.bindings_error.clear();
-        input::parse_bindings(v, o.bindings, &o.bindings_error);
+    } else if (key == "keys") {  // the combined form (command line, recordings): onto what came before
+        input::parse_bindings(v, o.bindings, &o.bindings_error, true);
     } else if (key == "aim-assist") {
         o.aim_assist = on;
     } else if (key == "mounted-gun-fix") {

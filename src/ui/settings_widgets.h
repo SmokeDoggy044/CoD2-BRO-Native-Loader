@@ -10,6 +10,10 @@
 #include <string>
 #include <string_view>
 
+#include <optional>
+#include <utility>
+
+#include "bindings.h"
 #include "settings.h"
 #include "settings_schema.h"
 
@@ -39,5 +43,19 @@ bool setting_enabled(const platform::Settings& values, std::string_view key);
 void help_marker(const char* text);
 // A number as settings.ini keeps it ("0.3", "12").
 std::string number_text(double value);
+
+// The keyboard and mouse bindings (src/input/bindings.h) as a table, for the launcher's and the PC menu's Controls
+// tabs: click a cell, then press the new key or mouse button or turn the wheel (Esc cancels); right-click clears a
+// cell. An input another action had moves to this one (shown in the notice). The owner passes its SDL events to
+// key_table_event while capturing() so that the key reaches the table, not the UI.
+struct KeyTable {
+    std::optional<std::pair<input::Action, size_t>> waiting;  // the cell waiting for its key
+    std::string notice;
+    bool capturing() const { return waiting.has_value(); }
+};
+// `event` is an SDL_Event (kept out of this header). True if the table took it; `changed` when the bindings did.
+bool key_table_event(KeyTable& table, input::Bindings& bindings, const void* event, bool& changed);
+// True when the bindings changed (cleared cell, defaults).
+bool draw_key_table(KeyTable& table, input::Bindings& bindings);
 
 }  // namespace ui

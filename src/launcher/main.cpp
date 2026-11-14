@@ -80,7 +80,7 @@ class Launcher {
 public:
     explicit Launcher(SDL_Window* window)
         : window_(window), settings_(platform::load_settings()) {
-        if (auto keys = settings_.get("keys")) input::parse_bindings(*keys, bindings_);
+        if (auto keys = platform::combined_setting(settings_, "keys")) input::parse_bindings(*keys, bindings_);
         launcher::remove_update_leftovers(platform::executable_dir());
         if (check_updates()) update_.emplace(COD_BRO_RELEASES, COD_BRO_VERSION);
     }
@@ -88,40 +88,10 @@ public:
     // While a key cell waits for its key (controls()): takes key presses, mouse buttons
     // and the wheel before the UI sees them. True if it took `event`.
     bool capture_event(const SDL_Event& event) {
-        if (!capturing_) return false;
-        input::InputCode input = 0;
-        switch (event.type) {
-            case SDL_EVENT_KEY_DOWN:
-                if (event.key.repeat) return true;
-                if (event.key.scancode == SDL_SCANCODE_ESCAPE) {
-                    capturing_.reset();
-                    return true;
-                }
-                input = static_cast<input::InputCode>(event.key.scancode);
-                break;
-            case SDL_EVENT_MOUSE_BUTTON_DOWN:
-                if (event.button.button < 1 || event.button.button > 5) return true;
-                input = static_cast<input::InputCode>(input::kMouseButton + event.button.button);
-                break;
-            case SDL_EVENT_MOUSE_WHEEL:
-                if (event.wheel.y == 0.0f) return true;
-                input = event.wheel.y > 0.0f ? input::kWheelUp : input::kWheelDown;
-                break;
-            case SDL_EVENT_KEY_UP:
-            case SDL_EVENT_MOUSE_BUTTON_UP:
-                return true;
-            default:
-                return false;
-        }
-        if (input::is_reserved(input)) {
-            key_notice_ = input::input_name(input) + " is kept for the menus and the loader.";
-        } else {
-            input::bind(bindings_, capturing_->first, capturing_->second, input);
-            store_bindings();
-            key_notice_.clear();
-        }
-        capturing_.reset();
-        return true;
+        bool changed = false;
+        const bool taken = ui::key_table_event(key_table_, bindings_, &event, changed);
+        if (changed) store_bindings();
+        return taken;
     }
 
     // One frame of the UI. Returns false once the launcher should close.
@@ -270,8 +240,8 @@ private:
 
     bool check_updates() const { return ui::setting_value(settings_, "check-updates") == "true"; }
 
-    // settings.ini's keys line from the bindings (none when they are the defaults).
-    void store_bindings() { ui::put_setting(settings_, "keys", input::format_bindings(bindings_)); }
+    // settings.ini's key-<action> lines from the bindings (none for actions with their default keys).
+    void store_bindings() { platform::set_combined_setting(settings_, "keys", input::format_bindings(bindings_)); }
 
     // The screen's own shape, when it is wider than 16:9 (3440x1440 is a little wider than 21:9); "" otherwise.
     std::string screen_shape() const {
@@ -399,53 +369,10 @@ private:
         keys();
     }
 
-    // The keyboard and mouse bindings (src/input/bindings.h): click a cell, then press a key,
-    // a mouse button or turn the wheel; right-click clears it.
+    // The keyboard and mouse bindings (src/input/bindings.h), the PC menu's table.
     void keys() {
         ImGui::SeparatorText("Keys");
-        ImGui::TextWrapped("Click a key, then press the new key or mouse button (Esc cancels, right-click "
-                           "clears it).");
-        help_marker("The actions of the game's Default controller style. With another style chosen in the "
-                    "game's options, each key keeps its action. The arrow keys, Enter and Backspace always "
-                    "work in the menus. Fixed: Esc (pause), Tab (objectives), F10 (frees the mouse).");
-        if (!key_notice_.empty()) ImGui::TextColored(ImVec4(1.0f, 0.6f, 0.3f, 1), "%s", key_notice_.c_str());
-        if (!ImGui::BeginTable("keys", 3, ImGuiTableFlags_RowBg | ImGuiTableFlags_SizingStretchSame)) return;
-        ImGui::TableSetupColumn("Action");
-        ImGui::TableSetupColumn("Key");
-        ImGui::TableSetupColumn("Other key");
-        ImGui::TableHeadersRow();
-        for (size_t a = 0; a < input::kActionCount; ++a) {
-            const auto action = static_cast<input::Action>(a);
-            ImGui::TableNextRow();
-            ImGui::TableNextColumn();
-            ImGui::AlignTextToFramePadding();
-            ImGui::TextUnformatted(input::action_label(action));
-            if (action == input::Action::DpadDown) help_marker("Nothing in the Default style; other styles use it.");
-            for (size_t slot = 0; slot < input::kInputsPerAction; ++slot) {
-                ImGui::TableNextColumn();
-                ImGui::PushID(static_cast<int>(a * input::kInputsPerAction + slot));
-                const bool waiting = capturing_ && capturing_->first == action && capturing_->second == slot;
-                const std::string name = input::input_name(bindings_[action][slot]);
-                const std::string label = waiting ? "Press a key..." : name.empty() ? "-" : name;
-                if (ImGui::Button(label.c_str(), ImVec2(-FLT_MIN, 0))) {
-                    capturing_.emplace(action, slot);
-                    key_notice_.clear();
-                }
-                if (ImGui::IsItemClicked(ImGuiMouseButton_Right)) {
-                    input::bind(bindings_, action, slot, 0);
-                    store_bindings();
-                    capturing_.reset();
-                }
-                ImGui::PopID();
-            }
-        }
-        ImGui::EndTable();
-        if (ImGui::Button("Default keys")) {
-            bindings_ = input::default_bindings();
-            store_bindings();
-            capturing_.reset();
-            key_notice_.clear();
-        }
+        if (ui::draw_key_table(key_table_, bindings_)) store_bindings();
     }
 
     void sound() {
@@ -575,8 +502,7 @@ private:
     std::optional<std::vector<std::string>> audio_devices_;  // listed once
     bool restarted_ = false;
     bool profile_ = false;  // Measure performance: --profile auto, not saved
-    std::optional<std::pair<input::Action, size_t>> capturing_;  // the key cell waiting for a key
-    std::string key_notice_;
+    ui::KeyTable key_table_;
 };
 
 }  // namespace

@@ -10,6 +10,7 @@
 #include <string>
 #include <string_view>
 
+#include "bindings.h"
 #include "devices.h"
 #include "enhanced_graphics.h"
 #include "fe_pc.h"
@@ -29,6 +30,7 @@ namespace {
 
 constexpr int kGameFov = 70;  // cg_fov's default (cgame cvarTable)
 platform::Settings g_on_open;  // the live settings when the menu opened (what closing saves against)
+ui::KeyTable g_key_table;     // the Controls tab (events and drawing both on the presenting thread)
 
 // The settings the menu changes while playing (platform::kLive), as settings.ini text, from what runs now.
 platform::Settings live_values() {
@@ -41,6 +43,7 @@ platform::Settings live_values() {
     platform::set_combined_setting(v, "reverb", game::SndEnv_Tuning().format());
     if (const float fov = field_of_view(); fov > 0) ui::put_setting(v, "fov", std::to_string(std::lround(fov)));
     ui::put_setting(v, "mouse-sensitivity", ui::number_text(mouse_sensitivity()));
+    platform::set_combined_setting(v, "keys", input::format_bindings(input::bindings()));
     return v;
 }
 
@@ -60,6 +63,11 @@ void apply_live(const platform::Settings& before, const platform::Settings& afte
     if (differs_combined("volume")) audio::set_category_volumes(audio::CategoryVolumes::parse(combined(after, "volume")));
     if (differs_combined("reverb")) game::SndEnv_SetTuning(audio::ReverbTuning::parse(combined(after, "reverb")));
     if (differs("fov")) set_field_of_view(std::strtof(ui::setting_value(after, "fov").c_str(), nullptr));
+    if (differs_combined("keys")) {
+        input::Bindings bindings;
+        input::parse_bindings(combined(after, "keys"), bindings);
+        input::set_bindings(bindings);
+    }
     if (differs("mouse-sensitivity"))
         set_mouse_sensitivity(std::strtof(ui::setting_value(after, "mouse-sensitivity").c_str(), nullptr));
 }
@@ -113,7 +121,7 @@ bool pc_menu() {
     if (ImGui::BeginTabBar("pc_menu_tabs")) {
         using G = platform::SettingGroup;
         if (ImGui::BeginTabItem("General")) {
-            live_tab({G::Display, G::Controls});
+            live_tab({G::Display});
             ImGui::EndTabItem();
         }
         if (ImGui::BeginTabItem("Graphics")) {
@@ -124,6 +132,15 @@ bool pc_menu() {
             live_tab({G::Sound});
             ImGui::EndTabItem();
         }
+        if (ImGui::BeginTabItem("Controls")) {
+            live_tab({G::Controls});
+            ImGui::SeparatorText("Keys");
+            input::Bindings bindings = input::bindings();
+            if (ui::draw_key_table(g_key_table, bindings)) input::set_bindings(bindings);
+            ImGui::EndTabItem();
+        } else {
+            g_key_table.waiting.reset();
+        }
         ImGui::EndTabBar();
     }
 
@@ -133,8 +150,17 @@ bool pc_menu() {
     return open;
 }
 
+bool pc_menu_event(const void* sdl_event) {
+    input::Bindings bindings = input::bindings();
+    bool changed = false;
+    const bool taken = ui::key_table_event(g_key_table, bindings, sdl_event, changed);
+    if (changed) input::set_bindings(bindings);
+    return taken;
+}
+
 void pc_menu_shown(bool open) {
     input::set_game_input_blocked(open);
+    g_key_table = {};
     if (open) {
         g_on_open = live_values();
         return;

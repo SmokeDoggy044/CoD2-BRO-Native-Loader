@@ -46,9 +46,9 @@ const char* native_key_command(int32_t key) {
         "+forward", "+back", "+moveleft", "+moveright",                       // move
         "+attack", "+speed", "+activate", "+reload", "+moveup", "lowerstance", // fire, aim, use, reload, jump, crouch
         "+sprint", "+melee", "+grenadeattack", "weapnext",                    // sprint, melee, grenade, next weapon
-        "+leanleft", "+leanright", "toggle cl_run",                           // lean (style A's plain lean: the
-        // default layout's +lean*switchnext switch weapons unless aiming), right stick click
-        nullptr,                                                              // D-pad down (unbound in the default)
+        "+leanleft", "+leanright",  // lean (style A's plain lean: the default's +lean*switchnext switch weapons
+                                    // unless aiming)
+        "toggle cl_run",            // toggled aim: flips the walking bit +speed holds (CL_KeyMove), as the default R3
     };
     const char* command = kCommands[key - kNativeKeyFirst];
     // The toggled-aim option: Key_Bind_f turns a binding with "+speed" into "toggle cl_run" while 0x008dce70 is set.

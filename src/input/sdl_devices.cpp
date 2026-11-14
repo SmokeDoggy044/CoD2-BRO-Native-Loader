@@ -239,6 +239,7 @@ struct ActionKeys {
     const bool* keys = nullptr;
     SDL_MouseButtonFlags mouse = 0;
     bool wheel_up = false, wheel_down = false;
+    Bindings bound = bindings();
 
     explicit ActionKeys(bool menus) {
         keys = SDL_GetKeyboardState(&key_count);
@@ -249,7 +250,7 @@ struct ActionKeys {
     }
     bool key(SDL_Scancode code) const { return code < key_count && keys[code]; }
     bool held(Action action) const {
-        for (InputCode input : bindings()[action]) {
+        for (InputCode input : bound[action]) {
             if (!input) continue;
             if (input < kMouseButton) {
                 if (key(static_cast<SDL_Scancode>(input))) return true;
@@ -272,7 +273,7 @@ void read_keyboard_mouse(PadState& state) {
     const bool menus = menu_mode();
     const ActionKeys input(menus);
     const auto key = [&](SDL_Scancode code) { return input.key(code); };
-    const Bindings& bound = bindings();
+    const Bindings& bound = input.bound;
     // Action keys in the default layout; with native actions only in menus (in play the title reads them as key
     // events of their own, held_actions).
     const bool pad_actions = menus || !g_native_actions.load();
@@ -298,8 +299,8 @@ void read_keyboard_mouse(PadState& state) {
 
     PadState actions;
     const std::pair<Action, uint16_t> digital[] = {
-        {Action::NextWeapon, kDpadUp},     {Action::DpadDown, kDpadDown},   {Action::LeanLeft, kDpadLeft},
-        {Action::LeanRight, kDpadRight},   {Action::Sprint, kLeftThumb},    {Action::RightStickClick, kRightThumb},
+        {Action::NextWeapon, kDpadUp},   {Action::LeanLeft, kDpadLeft}, {Action::LeanRight, kDpadRight},
+        {Action::Sprint, kLeftThumb},    {Action::AimToggle, kRightThumb},
     };
     for (auto [action, bit] : digital)
         if (held(action)) actions.buttons |= bit;

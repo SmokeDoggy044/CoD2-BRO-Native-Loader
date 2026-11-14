@@ -71,8 +71,8 @@ for b in "${builds[@]}"; do
     name=${b%%=*}
     [ -f "$out/$name.exit" ] || continue
     log="$out/$name.txt"
-    result=$(grep -m1 -oE '(all [0-9]+ frames matched|[0-9]+ of [0-9]+ frames differed, the first at frame [0-9]+)' "$log")
-    crash=$(grep -m1 -oE 'Segmentation fault at .*|unimplemented .*' "$log")
+    result=$(grep -a -m1 -oE '(all [0-9]+ frames matched|[0-9]+ of [0-9]+ frames differed, the first at frame [0-9]+)' "$log")
+    crash=$(grep -a -m1 -oE 'Segmentation fault at .*|unimplemented .*' "$log")
     [ -z "$result" ] && result="no replay result (see $log)"
     [[ $result == all*matched && -z $crash ]] || failed=1
     printf '%-10s %-8s %s%s\n' "$name" "$(cat "$out/$name.exit")" "$result" "${crash:+; then CRASH: $crash}"
