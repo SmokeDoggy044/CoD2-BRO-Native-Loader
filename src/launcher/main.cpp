@@ -7,6 +7,7 @@
 #include <SDL3/SDL_main.h>  // WinMain on Windows
 
 #include <algorithm>
+#include <atomic>
 #include <cstdlib>
 #include <cmath>
 #include <cstdio>
@@ -65,6 +66,14 @@ void open_folder(const fs::path& dir) {
     std::string url = fs::absolute(dir, ec).generic_string();
     url = (url.starts_with("/") ? "file://" : "file:///") + url;
     if (!SDL_OpenURL(url.c_str())) LOG_WARN("launcher", "cannot open %s: %s", url.c_str(), SDL_GetError());
+}
+
+// The borderless window moves when dragged by an empty part of the page (set each frame; SDL asks from its
+// event handling, which may be another thread).
+std::atomic<bool> g_draggable{false};
+
+SDL_HitTestResult SDLCALL hit_test(SDL_Window*, const SDL_Point*, void*) {
+    return g_draggable.load() ? SDL_HITTEST_DRAGGABLE : SDL_HITTEST_NORMAL;
 }
 
 // SDL's folder dialog answers from another thread.
@@ -136,8 +145,36 @@ public:
             tech_support();
         else
             options();
+        // Borderless window: empty parts of the page (not a child window's, so no scroll bars) move it.
+        g_draggable = ImGui::IsWindowHovered() && !ImGui::IsAnyItemHovered() && !ImGui::IsAnyItemActive() &&
+                      !ImGui::IsPopupOpen("", ImGuiPopupFlags_AnyPopupId);
         ImGui::End();
+        if (!window_buttons()) keep_open = !save();
         return keep_open && !restart_after_update();
+    }
+
+    // The borderless window's own minimise and close buttons, top right on every page. False = close.
+    bool window_buttons() {
+        const ImGuiViewport* viewport = ImGui::GetMainViewport();
+        const float size = ImGui::GetFrameHeight();
+        const float gap = ImGui::GetStyle().ItemSpacing.x;
+        ImGui::SetNextWindowPos(ImVec2(viewport->Pos.x + viewport->Size.x - 2 * size - gap - 4, viewport->Pos.y + 4));
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
+        ImGui::Begin("window buttons", nullptr,
+                     ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings |
+                         ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_AlwaysAutoResize |
+                         ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoNav);
+        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.1f, 0.1f, 0.1f, 0.6f));
+        if (ImGui::Button("_", ImVec2(size, size))) SDL_MinimizeWindow(window_);
+        ImGui::SetItemTooltip("Minimise");
+        ImGui::SameLine();
+        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.75f, 0.15f, 0.12f, 1.0f));
+        const bool close = ImGui::Button("X", ImVec2(size, size));
+        ImGui::SetItemTooltip("Close (saves the options)");
+        ImGui::PopStyleColor(2);
+        ImGui::End();
+        ImGui::PopStyleVar();
+        return !close;
     }
 
 private:
@@ -682,13 +719,14 @@ int main(int, char**) {
     if (SDL_Rect usable; SDL_GetDisplayUsableBounds(SDL_GetPrimaryDisplay(), &usable))
         height = std::min(height, usable.h - static_cast<int>(40 * ui_scale));
     SDL_Window* window = SDL_CreateWindow("Call of Duty 2: Big Red One", static_cast<int>(700 * ui_scale), height,
-                                          SDL_WINDOW_HIGH_PIXEL_DENSITY);
+                                          SDL_WINDOW_HIGH_PIXEL_DENSITY | SDL_WINDOW_BORDERLESS);
     SDL_Renderer* renderer = window ? SDL_CreateRenderer(window, nullptr) : nullptr;
     if (!renderer) {
         LOG_ERROR("launcher", "window: %s", SDL_GetError());
         return 1;
     }
     SDL_SetRenderVSync(renderer, 1);
+    if (!SDL_SetWindowHitTest(window, hit_test, nullptr)) LOG_WARN("launcher", "window dragging: %s", SDL_GetError());
 
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
