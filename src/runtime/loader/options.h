@@ -45,7 +45,7 @@ struct Options {
     uint32_t scale = 2;
     uint32_t anisotropy = 16;
     render::BackendConfig::D3D9 d3d9 = render::BackendConfig::D3D9::Auto;
-    render::BackendConfig::Api renderer = render::BackendConfig::Api::D3D9;
+    render::BackendConfig::Api renderer = render::BackendConfig::Api::Vulkan;  // D3D9 = fallback
     bool vulkan_validation = false;
     float brightness = 1.0f;
     bool sharp_text = true;

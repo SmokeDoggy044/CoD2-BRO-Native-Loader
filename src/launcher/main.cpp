@@ -50,7 +50,7 @@ struct Choices {
     std::string graphics = "enhanced";  // original, enhanced
     render::GraphicsFeatures graphics_features;
     int fps = 0;  // 0 = the display's rate (--fps display), 30 = as on the Xbox, else a limit
-    std::string renderer = "d3d9";  // d3d9, vulkan (own engine 0.5, in progress)
+    std::string renderer = "vulkan";  // vulkan (default), d3d9 (fallback)
     std::string d3d9 = "auto";  // auto, dxvk, system (Windows only)
     float mouse_sensitivity = 0.11f;
     input::Bindings bindings = input::default_bindings();
@@ -99,7 +99,7 @@ Choices read_choices(const platform::Settings& settings) {
     if (auto v = settings.get("graphics"); v && *v == "original") c.graphics = *v;
     if (auto v = settings.get("graphics-features")) c.graphics_features = render::GraphicsFeatures::parse(*v);
     if (auto v = settings.get("fps")) c.fps = *v == "display" ? 0 : std::clamp(std::atoi(v->c_str()), 30, 1000);
-    if (auto v = settings.get("renderer"); v && *v == "vulkan") c.renderer = *v;
+    if (auto v = settings.get("renderer"); v && (*v == "vulkan" || *v == "d3d9")) c.renderer = *v;
     if (auto v = settings.get("d3d9"); v && (*v == "dxvk" || *v == "system")) c.d3d9 = *v;
     if (auto v = settings.get("mouse-sensitivity"))
         c.mouse_sensitivity = std::clamp(std::strtof(v->c_str(), nullptr), 0.01f, 10.0f);
@@ -511,13 +511,13 @@ private:
         ImGui::Unindent();
         ImGui::EndDisabled();
 
-        static constexpr const char* kRenderers[] = {"d3d9", "vulkan"};
-        int renderer = choices_.renderer == "vulkan" ? 1 : 0;
-        ImGui::Combo("Renderer", &renderer, "Direct3D 9\0" "Vulkan (in development)\0");
+        static constexpr const char* kRenderers[] = {"vulkan", "d3d9"};
+        int renderer = choices_.renderer == "d3d9" ? 1 : 0;
+        ImGui::Combo("Renderer", &renderer, "Vulkan\0" "Direct3D 9\0");
         choices_.renderer = kRenderers[renderer];
-        help_marker("Direct3D 9 is the tested renderer. Vulkan is the new renderer of our own engine, still "
-                    "being built: it does not draw the game yet. Without a Vulkan 1.3 graphics driver the game "
-                    "uses Direct3D 9.");
+        help_marker("Vulkan is the renderer of our own engine (needs a Vulkan 1.3 graphics driver; without one "
+                    "the game uses Direct3D 9 by itself). Choose Direct3D 9 if the picture or the speed is wrong "
+                    "with Vulkan.");
 #ifdef _WIN32
         ImGui::BeginDisabled(choices_.renderer != "d3d9");
         static constexpr const char* kD3D9[] = {"auto", "dxvk", "system"};
