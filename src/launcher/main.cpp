@@ -32,6 +32,7 @@
 #include "reverb_tuning.h"
 #include "paths.h"
 #include "program.h"
+#include "mod_list.h"
 #include "settings.h"
 #include "settings_schema.h"
 #include "settings_widgets.h"
@@ -99,10 +100,14 @@ public:
         load_pictures();
     }
 
-    // Developer (COD_BRO_LAUNCHER_PAGE): opens "options" or "tech" instead of the front page.
+    // Developer (COD_BRO_LAUNCHER_PAGE): opens "options", "mods" or "tech" instead of the front page.
     void show_page(std::string_view page) {
         if (page == "options") page_ = Page::Options;
         if (page == "tech") page_ = Page::TechSupport;
+        if (page == "mods") {
+            page_ = Page::DataFiles;
+            scan_mods();
+        }
     }
 
     ~Launcher() {
@@ -144,6 +149,8 @@ public:
             keep_open = front();
         else if (page_ == Page::TechSupport)
             tech_support();
+        else if (page_ == Page::DataFiles)
+            data_files();
         else
             options();
         // Borderless window: empty parts of the page (not a child window's, so no scroll bars) move it.
@@ -179,7 +186,7 @@ public:
     }
 
 private:
-    enum class Page { Front, Options, TechSupport };
+    enum class Page { Front, Options, DataFiles, TechSupport };
 
     // The picture's texture and the shape it is shown at.
     struct Shown {
@@ -265,7 +272,7 @@ private:
         const ImGuiViewport* viewport = ImGui::GetMainViewport();
         const bool files = platform::has_game_files(asset_dir(settings_));
         const bool multiplayer_files = has_multiplayer(asset_dir(settings_));
-        const int rows = 4 + (multiplayer_files ? 1 : 0);
+        const int rows = 5 + (multiplayer_files ? 1 : 0);
         const float column = ImGui::GetFontSize() * 10;
         const float row = ImGui::GetFrameHeight() * 1.5f + ImGui::GetStyle().ItemSpacing.y;
         const float x = viewport->Size.x - column - ImGui::GetFontSize() * 2;
@@ -283,6 +290,10 @@ private:
         if (multiplayer_files) multiplayer = front_button("Multiplayer");
         ImGui::EndDisabled();
         if (front_button("Options")) page_ = Page::Options;
+        if (front_button("Data Files")) {
+            page_ = Page::DataFiles;
+            scan_mods();
+        }
         if (front_button("Tech Support")) page_ = Page::TechSupport;
         quit = front_button("Exit");
         ImGui::EndGroup();
@@ -324,6 +335,106 @@ private:
         if (platform::start_program(game, args)) return true;
         error_ = "Cannot start " + game.string();
         return false;
+    }
+
+    // The mods folder (`data = DIR` moves it with the saves, as the game's --data).
+    fs::path mods_dir() const {
+        const std::optional<std::string> data = settings_.get("data");
+        return (data ? fs::path(*data) : platform::user_data_dir()) / "mods";
+    }
+
+    struct ModRow {
+        platform::ModInfo info;
+        size_t textures = 0;
+    };
+
+    void scan_mods() {
+        mods_.clear();
+        const std::optional<std::string> list = settings_.get("mod-list");
+        for (platform::ModInfo& info : platform::scan_mods(mods_dir(), list ? *list : std::string{})) {
+            const size_t textures = platform::count_mod_textures(mods_dir() / info.folder);
+            mods_.push_back({std::move(info), textures});
+        }
+    }
+
+    // settings.ini's mod-list from the rows (none when all are on in folder-name order).
+    void store_mod_list() {
+        std::vector<platform::ModInfo> infos;
+        for (const ModRow& row : mods_) infos.push_back(row.info);
+        const std::string text = platform::format_mod_list(infos);
+        if (text.empty())
+            settings_.erase("mod-list");
+        else
+            settings_.set("mod-list", text);
+    }
+
+    // Data Files: the mods folder's mods - on/off and load order (mod-list in settings.ini, platform/mod_list.h).
+    void data_files() {
+        ImGui::TextWrapped("Mods in %s. Where two mods replace the same texture, the one higher in the list wins.",
+                           mods_dir().string().c_str());
+        ImGui::BeginChild("mods", ImVec2(0, -(ImGui::GetFrameHeightWithSpacing() + ImGui::GetStyle().ItemSpacing.y)));
+        if (mods_.empty()) {
+            ImGui::TextDisabled("No mods yet. A mod is a folder with a mod.ini (and textures/ for a texture pack).");
+        } else if (ImGui::BeginTable("mod table", 6, ImGuiTableFlags_RowBg | ImGuiTableFlags_BordersInnerH)) {
+            ImGui::TableSetupColumn("On", ImGuiTableColumnFlags_WidthFixed);
+            ImGui::TableSetupColumn("Mod", ImGuiTableColumnFlags_WidthStretch);
+            ImGui::TableSetupColumn("Version", ImGuiTableColumnFlags_WidthFixed);
+            ImGui::TableSetupColumn("Author", ImGuiTableColumnFlags_WidthFixed);
+            ImGui::TableSetupColumn("Textures", ImGuiTableColumnFlags_WidthFixed);
+            ImGui::TableSetupColumn("Order", ImGuiTableColumnFlags_WidthFixed);
+            ImGui::TableHeadersRow();
+            bool changed = false;
+            int move_from = -1, move_to = -1;
+            for (size_t i = 0; i < mods_.size(); ++i) {
+                ModRow& row = mods_[i];
+                ImGui::PushID(static_cast<int>(i));
+                ImGui::TableNextRow();
+                ImGui::TableNextColumn();
+                changed |= ImGui::Checkbox("##on", &row.info.on);
+                ImGui::TableNextColumn();
+                ImGui::BeginDisabled(!row.info.on);
+                ImGui::TextUnformatted(row.info.name.c_str());
+                if (ImGui::IsItemHovered() && !row.info.source.empty())
+                    ImGui::SetTooltip("%s\nFolder: %s", row.info.source.c_str(), row.info.folder.c_str());
+                ImGui::TableNextColumn();
+                ImGui::TextUnformatted(row.info.version.c_str());
+                ImGui::TableNextColumn();
+                ImGui::TextUnformatted(row.info.author.c_str());
+                ImGui::TableNextColumn();
+                if (row.textures) ImGui::Text("%zu", row.textures);
+                ImGui::EndDisabled();
+                ImGui::TableNextColumn();
+                ImGui::BeginDisabled(i == 0);
+                if (ImGui::ArrowButton("##up", ImGuiDir_Up)) move_from = static_cast<int>(i), move_to = move_from - 1;
+                ImGui::EndDisabled();
+                ImGui::SameLine();
+                ImGui::BeginDisabled(i + 1 == mods_.size());
+                if (ImGui::ArrowButton("##down", ImGuiDir_Down))
+                    move_from = static_cast<int>(i), move_to = move_from + 1;
+                ImGui::EndDisabled();
+                ImGui::PopID();
+            }
+            ImGui::EndTable();
+            if (move_from >= 0) {
+                std::swap(mods_[move_from], mods_[move_to]);
+                changed = true;
+            }
+            if (changed) store_mod_list();
+        }
+        ImGui::EndChild();
+        ImGui::Separator();
+        if (ImGui::Button("Back", ImVec2(ImGui::GetFontSize() * 7, 0))) {
+            save();
+            page_ = Page::Front;
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("Open mods folder")) {
+            std::error_code ec;
+            fs::create_directories(mods_dir(), ec);
+            open_folder(mods_dir());
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("Refresh")) scan_mods();
     }
 
     // Tech Support: what a problem report needs, the version and updates.
@@ -693,6 +804,7 @@ private:
     SDL_Window* window_;
     SDL_Renderer* renderer_;
     Page page_ = Page::Front;
+    std::vector<ModRow> mods_;  // Data Files page
     Shown picture_, logo_;
     fs::path pictures_for_;        // the game files folder the pictures came from
     platform::Settings settings_;  // what the tabs edit, saved on Play/Quit
@@ -742,7 +854,7 @@ int main(int, char**) {
 
     Launcher launcher(window, renderer);
     // Developer: COD_BRO_LAUNCHER_SHOT=FILE saves the window as a BMP after a few frames and exits
-    // (COD_BRO_LAUNCHER_PAGE=options|tech picks the page) - for checking the look without a person.
+    // (COD_BRO_LAUNCHER_PAGE=options|mods|tech picks the page) - for checking the look without a person.
     const char* shot = std::getenv("COD_BRO_LAUNCHER_SHOT");
     if (const char* page = std::getenv("COD_BRO_LAUNCHER_PAGE")) launcher.show_page(page);
     for (int frames = 0, running = 1; running; ++frames) {

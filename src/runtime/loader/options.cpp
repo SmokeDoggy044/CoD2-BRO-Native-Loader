@@ -160,6 +160,8 @@ bool apply_setting(Options& o, Combined& combined, const platform::SettingDef& d
         o.mods = on;
     } else if (key == "mods-dir") {
         o.mods_dir = fs::path(v);
+    } else if (key == "mod-list") {
+        o.mod_list = v;
     } else if (key == "sharp-text") {
         o.sharp_text = on;
     } else if (key == "button-prompts") {

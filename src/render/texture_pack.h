@@ -9,6 +9,7 @@
 #include <filesystem>
 #include <memory>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include "backend.h"
@@ -20,9 +21,10 @@ struct Mod {
     size_t textures = 0;
 };
 
-// Scans `mods_dir`: every folder with a mod.ini and a textures/ folder, in name order; when two mods cover the same
-// texture the first wins. Starts the loading thread. Returns the mods found (logged).
-std::vector<Mod> open(const std::filesystem::path& mods_dir, const std::vector<std::string>& disabled = {});
+// Scans `mods_dir` (platform::scan_mods: every folder with a mod.ini, ordered and switched by the mod-list setting
+// `mod_list`); when two mods cover the same texture the earlier one wins. Starts the loading thread. Returns the mods
+// that are on (logged).
+std::vector<Mod> open(const std::filesystem::path& mods_dir, std::string_view mod_list = {});
 
 // Stops the loading thread and forgets every mod.
 void close();

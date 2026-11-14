@@ -8,6 +8,7 @@
 #include <string>
 #include <vector>
 
+#include "mod_list.h"
 #include "settings.h"
 #include "settings_schema.h"
 #include "settings_widgets.h"
@@ -148,6 +149,41 @@ int main() {
     ui::put_setting(edit, "graphics", "original");
     CHECK(!ui::setting_enabled(edit, "sharpness") && !ui::setting_enabled(edit, "fxaa"));
     CHECK(ui::number_text(0.30000001f) == "0.3" && ui::number_text(12) == "12");
+
+    // mod-list (platform/mod_list.h): order, '-' = off, unnamed mods after, in folder-name order.
+    {
+        namespace fs = std::filesystem;
+        const fs::path dir = fs::temp_directory_path() / "cod_bro_mod_list_test";
+        fs::remove_all(dir);
+        for (const char* name : {"alpha", "beta", "gamma"}) {
+            fs::create_directories(dir / name / "textures");
+            std::FILE* ini = std::fopen((dir / name / "mod.ini").string().c_str(), "w");
+            if (ini) std::fprintf(ini, "name = %s pack\nversion=0.%zu\n", name, std::strlen(name)), std::fclose(ini);
+            std::FILE* dds = std::fopen((dir / name / "textures" / "0123456789abcdef.dds").string().c_str(), "w");
+            if (dds) std::fclose(dds);
+        }
+        fs::create_directories(dir / "no_ini");
+        auto folders = [](const std::vector<platform::ModInfo>& mods) {
+            std::string text;
+            for (const auto& m : mods) text += (m.on ? "+" : "-") + m.folder + " ";
+            return text;
+        };
+        auto plain = platform::scan_mods(dir);
+        CHECK(folders(plain) == "+alpha +beta +gamma ");
+        CHECK(plain[0].name == "alpha pack" && plain[0].version == "0.5");
+        CHECK(platform::format_mod_list(plain).empty());
+        auto listed = platform::scan_mods(dir, " gamma , -alpha, gone ");
+        CHECK(folders(listed) == "+gamma -alpha +beta ");
+        CHECK(platform::format_mod_list(listed) == "gamma, -alpha, beta");
+        CHECK(platform::count_mod_textures(dir / "beta") == 1);
+        CHECK(platform::scan_mods(dir / "missing").empty());
+        std::string value = "a,-b ,, c";
+        CHECK(platform::check_mod_list(value, nullptr) && value == "a, -b, c");
+        value = "../x";
+        CHECK(!platform::check_mod_list(value, nullptr));
+        CHECK(platform::check_setting(*platform::find_setting("mod-list"), "x,-y") == "x, -y");
+        fs::remove_all(dir);
+    }
 
     if (g_failures == 0) std::printf("settings_test: all passed\n");
     return g_failures == 0 ? 0 : 1;

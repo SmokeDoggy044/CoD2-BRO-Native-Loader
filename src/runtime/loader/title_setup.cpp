@@ -201,7 +201,8 @@ void configure_title_services(const Options& options, const fs::path& assets, co
     // Texture packs (phase 1b): outside the Enhanced switch, never in --compare runs.
     const bool packs =
         options.mods && !options.compare &&
-        !render::texture_pack::open(options.mods_dir.value_or(options.data.value_or(platform::user_data_dir()) / "mods"))
+        !render::texture_pack::open(options.mods_dir.value_or(options.data.value_or(platform::user_data_dir()) / "mods"),
+                                    options.mod_list)
              .empty();
     if (sharp_text || key_prompts || packs)
         d3d_config.backend.replace_texture = [sharp_text, key_prompts, packs](uint64_t content, float render_scale) {

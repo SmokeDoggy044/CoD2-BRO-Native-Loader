@@ -1,5 +1,6 @@
 add_library(platform STATIC
     log.cpp
+    mod_list.cpp
     paths.cpp
     program.cpp
     settings.cpp

@@ -1,5 +1,7 @@
 #include "texture_pack.h"
 
+#include "mod_list.h"
+
 #include <algorithm>
 #include <condition_variable>
 #include <cstdlib>
@@ -62,21 +64,6 @@ bool parse_hex(const std::string& s, uint64_t& out) {
 }
 
 // mod.ini: key=value lines (name, version, author; others ignored).
-void read_ini(const fs::path& file, Mod& mod) {
-    std::ifstream in(file);
-    std::string line;
-    while (std::getline(in, line)) {
-        if (!line.empty() && line.back() == '\r') line.pop_back();
-        const size_t eq = line.find('=');
-        if (eq == std::string::npos || line[0] == '#' || line[0] == ';') continue;
-        const std::string key = line.substr(0, eq), value = line.substr(eq + 1);
-        if (key == "name") mod.name = value;
-        else if (key == "version") mod.version = value;
-        else if (key == "author") mod.author = value;
-    }
-    if (mod.name.empty()) mod.name = mod.folder_name;
-}
-
 void work() {
     std::unique_lock lock(g_mutex);
     for (;;) {
@@ -130,24 +117,22 @@ std::shared_ptr<TextureReplacement> read_dds(const fs::path& file) {
     return picture->levels.empty() ? nullptr : picture;
 }
 
-std::vector<Mod> open(const fs::path& mods_dir, const std::vector<std::string>& disabled) {
+std::vector<Mod> open(const fs::path& mods_dir, std::string_view mod_list) {
     close();
     std::vector<Mod> mods;
     std::error_code ec;
-    if (!fs::is_directory(mods_dir, ec)) return mods;
-    std::vector<fs::path> folders;
-    for (const auto& entry : fs::directory_iterator(mods_dir, ec))
-        if (entry.is_directory() && fs::exists(entry.path() / "mod.ini")) folders.push_back(entry.path());
-    std::sort(folders.begin(), folders.end());
     std::lock_guard lock(g_mutex);
-    for (const fs::path& folder : folders) {
+    for (const platform::ModInfo& info : platform::scan_mods(mods_dir, mod_list)) {
         Mod mod;
-        mod.folder_name = folder.filename().string();
-        read_ini(folder / "mod.ini", mod);
-        if (std::find(disabled.begin(), disabled.end(), mod.folder_name) != disabled.end()) {
+        mod.folder_name = info.folder;
+        mod.name = info.name;
+        mod.version = info.version;
+        mod.author = info.author;
+        if (!info.on) {
             LOG_INFO("mods", "%s: off", mod.name.c_str());
             continue;
         }
+        const fs::path folder = mods_dir / info.folder;
         for (const auto& entry : fs::directory_iterator(folder / "textures", ec)) {
             uint64_t content;
             if (entry.path().extension() != ".dds" || !parse_hex(entry.path().stem().string(), content)) continue;

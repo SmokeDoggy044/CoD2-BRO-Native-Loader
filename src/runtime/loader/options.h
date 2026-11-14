@@ -51,6 +51,7 @@ struct Options {
     bool sharp_text = true;
     bool mods = true;                  // --mods (phase 1b texture packs)
     std::optional<fs::path> mods_dir;  // --mods-dir
+    std::string mod_list;              // --mod-list (platform/mod_list.h)
     loader::TitlePatchConfig::ButtonPrompts button_prompts = loader::TitlePatchConfig::ButtonPrompts::Auto;
     float render_scale = 0;  // 0: the window's (fullscreen: the screen's) height
     bool fullscreen = false;
