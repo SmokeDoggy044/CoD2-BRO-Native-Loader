@@ -13,10 +13,13 @@
 #include <filesystem>
 #include <mutex>
 #include <optional>
+#include <random>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include "bindings.h"
+#include "front_picture.h"
 #include "imgui.h"
 #include "imgui_impl_sdl3.h"
 #include "imgui_impl_sdlrenderer3.h"
@@ -78,11 +81,23 @@ using ui::help_marker;
 
 class Launcher {
 public:
-    explicit Launcher(SDL_Window* window)
-        : window_(window), settings_(platform::load_settings()) {
+    Launcher(SDL_Window* window, SDL_Renderer* renderer)
+        : window_(window), renderer_(renderer), settings_(platform::load_settings()) {
         if (auto keys = platform::combined_setting(settings_, "keys")) input::parse_bindings(*keys, bindings_);
         launcher::remove_update_leftovers(platform::executable_dir());
         if (check_updates()) update_.emplace(COD_BRO_RELEASES, COD_BRO_VERSION);
+        load_pictures();
+    }
+
+    // Developer (COD_BRO_LAUNCHER_PAGE): opens "options" or "tech" instead of the front page.
+    void show_page(std::string_view page) {
+        if (page == "options") page_ = Page::Options;
+        if (page == "tech") page_ = Page::TechSupport;
+    }
+
+    ~Launcher() {
+        for (SDL_Texture* texture : {picture_.texture, logo_.texture})
+            if (texture) SDL_DestroyTexture(texture);
     }
 
     // While a key cell waits for its key (controls()): takes key presses, mouse buttons
@@ -106,11 +121,185 @@ public:
                 g_picked.reset();
             }
         }
+        if (pictures_for_ != asset_dir(settings_)) load_pictures();  // the game files folder changed
         const ImGuiViewport* viewport = ImGui::GetMainViewport();
         ImGui::SetNextWindowPos(viewport->WorkPos);
         ImGui::SetNextWindowSize(viewport->WorkSize);
-        ImGui::Begin("launcher", nullptr,
-                     ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings);
+        const ImGuiWindowFlags flags = ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove |
+                                       ImGuiWindowFlags_NoSavedSettings |
+                                       (page_ == Page::Front ? ImGuiWindowFlags_NoBackground : 0);
+        ImGui::Begin("launcher", nullptr, flags);
+        bool keep_open = true;
+        if (page_ == Page::Front)
+            keep_open = front();
+        else if (page_ == Page::TechSupport)
+            tech_support();
+        else
+            options();
+        ImGui::End();
+        return keep_open && !restart_after_update();
+    }
+
+private:
+    enum class Page { Front, Options, TechSupport };
+
+    // The picture's texture and the shape it is shown at.
+    struct Shown {
+        SDL_Texture* texture = nullptr;
+        float aspect = 1.0f;
+    };
+
+    Shown make_texture(const std::optional<launcher::Picture>& picture) {
+        if (!picture) return {};
+        SDL_Texture* texture = SDL_CreateTexture(renderer_, SDL_PIXELFORMAT_RGBA32, SDL_TEXTUREACCESS_STATIC,
+                                                 picture->width, picture->height);
+        if (!texture) {
+            LOG_WARN("launcher", "picture texture: %s", SDL_GetError());
+            return {};
+        }
+        SDL_UpdateTexture(texture, nullptr, picture->rgba.data(), picture->width * 4);
+        SDL_SetTextureBlendMode(texture, SDL_BLENDMODE_BLEND);
+        SDL_SetTextureScaleMode(texture, SDL_SCALEMODE_LINEAR);
+        return {texture, picture->aspect};
+    }
+
+    // The front page's picture: unlocked concept art (the saves' profiles) or the main menu's, and the logo.
+    void load_pictures() {
+        for (SDL_Texture* texture : {picture_.texture, logo_.texture})
+            if (texture) SDL_DestroyTexture(texture);
+        picture_ = logo_ = {};
+        pictures_for_ = asset_dir(settings_);
+        if (!platform::has_game_files(pictures_for_)) return;
+        const int chapters = launcher::unlocked_concept_chapters(save_dir());
+        const std::vector<fs::path> art = launcher::unlocked_concept_art(pictures_for_, chapters);
+        std::mt19937 random(std::random_device{}());
+        const std::optional<launcher::Picture> picture = launcher::front_picture(pictures_for_, art, random);
+        picture_ = make_texture(picture);
+        logo_ = make_texture(launcher::game_logo(pictures_for_));
+        LOG_INFO("launcher", "picture: %s (%d concept chapters unlocked, %zu images)",
+                 picture ? picture->source.c_str() : "none", chapters, art.size());
+    }
+
+    // The saves' folder (`data = DIR` in settings.ini moves them, as --data).
+    fs::path save_dir() const {
+        const std::optional<std::string> data = settings_.get("data");
+        return (data ? fs::path(*data) : platform::user_data_dir()) / "E" / "UDATA";
+    }
+
+    // Draws the picture over the whole window (cut to the window's shape), darker towards the buttons.
+    void draw_picture() {
+        const ImGuiViewport* viewport = ImGui::GetMainViewport();
+        ImDrawList* draw = ImGui::GetBackgroundDrawList();
+        const ImVec2 lo = viewport->Pos;
+        const ImVec2 hi(lo.x + viewport->Size.x, lo.y + viewport->Size.y);
+        if (picture_.texture) {
+            const float window = viewport->Size.x / viewport->Size.y;
+            ImVec2 uv0(0, 0), uv1(1, 1);
+            if (picture_.aspect > window) {
+                const float cut = (1.0f - window / picture_.aspect) / 2;
+                uv0.x = cut;
+                uv1.x = 1 - cut;
+            } else {
+                const float cut = (1.0f - picture_.aspect / window) / 2;
+                uv0.y = cut;
+                uv1.y = 1 - cut;
+            }
+            draw->AddImage(reinterpret_cast<ImTextureID>(picture_.texture), lo, hi, uv0, uv1);
+        }
+        const float x = lo.x + viewport->Size.x * 0.45f;
+        draw->AddRectFilledMultiColor(ImVec2(x, lo.y), hi, IM_COL32(0, 0, 0, 0), IM_COL32(0, 0, 0, 200),
+                                      IM_COL32(0, 0, 0, 200), IM_COL32(0, 0, 0, 0));
+        if (logo_.texture) {
+            const float w = viewport->Size.x * 0.42f;  // top right, above the buttons
+            const ImVec2 at(hi.x - w - viewport->Size.x * 0.02f, lo.y + viewport->Size.y * 0.04f);
+            draw->AddImage(reinterpret_cast<ImTextureID>(logo_.texture), at, ImVec2(at.x + w, at.y + w / logo_.aspect));
+        }
+    }
+
+    // A big button in the front page's column.
+    bool front_button(const char* label) {
+        return ImGui::Button(label, ImVec2(ImGui::GetFontSize() * 10, ImGui::GetFrameHeight() * 1.5f));
+    }
+
+    // The front page: the picture, Play (and Multiplayer), Options, Tech Support, Exit. Returns false to close.
+    bool front() {
+        draw_picture();
+        const ImGuiViewport* viewport = ImGui::GetMainViewport();
+        const bool files = platform::has_game_files(asset_dir(settings_));
+        const bool multiplayer_files = has_multiplayer(asset_dir(settings_));
+        const int rows = 4 + (multiplayer_files ? 1 : 0);
+        const float column = ImGui::GetFontSize() * 10;
+        const float row = ImGui::GetFrameHeight() * 1.5f + ImGui::GetStyle().ItemSpacing.y;
+        const float x = viewport->Size.x - column - ImGui::GetFontSize() * 2;
+        float y = viewport->Size.y * 0.42f;
+        y = std::min(y, viewport->Size.y - rows * row - ImGui::GetFontSize() * 2);
+        bool campaign = false, multiplayer = false, quit = false;
+        ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 2.0f);
+        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.12f, 0.12f, 0.12f, 0.85f));
+        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.55f, 0.12f, 0.10f, 0.95f));
+        ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.70f, 0.15f, 0.12f, 1.0f));
+        ImGui::SetCursorPos(ImVec2(x, y));
+        ImGui::BeginGroup();
+        ImGui::BeginDisabled(!files || updating());
+        campaign = front_button("Play");
+        if (multiplayer_files) multiplayer = front_button("Multiplayer");
+        ImGui::EndDisabled();
+        if (front_button("Options")) page_ = Page::Options;
+        if (front_button("Tech Support")) page_ = Page::TechSupport;
+        quit = front_button("Exit");
+        ImGui::EndGroup();
+        ImGui::PopStyleColor(3);
+        ImGui::PopStyleVar();
+
+        // Bottom left: what needs doing first, the update notice, the version.
+        const float lines = 2 + (error_.empty() ? 0 : 1);
+        ImGui::SetCursorPos(ImVec2(ImGui::GetStyle().WindowPadding.x,
+                                   viewport->Size.y - lines * ImGui::GetTextLineHeightWithSpacing() -
+                                       ImGui::GetStyle().WindowPadding.y));
+        ImGui::BeginGroup();
+        if (!files)
+            ImGui::TextColored(ImVec4(1.0f, 0.6f, 0.3f, 1), "No game files yet: Options, General, Game files.");
+        update_notice();
+        if (!error_.empty()) ImGui::TextColored(ImVec4(1.0f, 0.4f, 0.4f, 1), "%s", error_.c_str());
+        ImGui::TextColored(ImVec4(0.9f, 0.9f, 0.9f, 0.75f), "Version %s", COD_BRO_VERSION);
+        ImGui::EndGroup();
+
+        if (campaign || multiplayer) return !start_game(multiplayer);
+        if (quit) return !save();
+        return true;
+    }
+
+    // Saves the options; false (and the error shown) when it cannot.
+    bool save() {
+        if (platform::save_settings(settings_)) return true;
+        error_ = "Cannot save " + platform::settings_path().string();
+        return false;
+    }
+
+    // Saves and starts the game; true when it started (the launcher then closes).
+    bool start_game(bool multiplayer) {
+        if (!save()) return false;
+        const fs::path game = platform::sibling_executable(COD_BRO_GAME_EXECUTABLE);
+        std::vector<std::string> args;
+        if (multiplayer) args.push_back("--multiplayer");
+        if (profile_) args.insert(args.end(), {"--profile", "auto"});
+        if (platform::start_program(game, args)) return true;
+        error_ = "Cannot start " + game.string();
+        return false;
+    }
+
+    // Tech Support: what a problem report needs, the version and updates.
+    void tech_support() {
+        ImGui::BeginChild("tech", ImVec2(0, -(ImGui::GetFrameHeightWithSpacing() + ImGui::GetStyle().ItemSpacing.y)));
+        reporting();
+        updates();
+        ImGui::EndChild();
+        ImGui::Separator();
+        if (ImGui::Button("Back", ImVec2(ImGui::GetFontSize() * 7, 0))) page_ = Page::Front;
+    }
+
+    // Options: the settings tabs; Back saves them.
+    void options() {
         update_notice();
         if (!platform::has_game_files(asset_dir(settings_)))
             ImGui::TextColored(ImVec4(1.0f, 0.6f, 0.3f, 1), "No game files yet: see Game files on the General tab.");
@@ -125,15 +314,11 @@ public:
             tab("Sound", [&] { sound(); });
             tab("Controls", [&] { controls(); });
             tab("Multiplayer", [&] { system_link(); });
-            tab("Help", [&] { reporting(); });
             ImGui::EndTabBar();
         }
-        const bool keep_open = buttons();
-        ImGui::End();
-        return keep_open && !restart_after_update();
+        buttons();
     }
 
-private:
     // A tab: the tab bar stays put, the tab's settings scroll above the buttons.
     template <typename Body>
     void tab(const char* name, Body body) {
@@ -151,7 +336,6 @@ private:
     void general() {
         game_files();
         ui::draw_settings({platform::SettingGroup::Files}, settings_);
-        updates();
     }
 
     // At the top while a newer release is out: a link to it and, in an installed
@@ -447,19 +631,13 @@ private:
                     "It is not saved; tick it again for later reports.");
     }
 
-    bool buttons() {
+    // Options' footer: Back (saves, to the front page) and Reset to defaults.
+    void buttons() {
         ImGui::Separator();
-        const bool ready = platform::has_game_files(asset_dir(settings_)) && !updating();
-        ImGui::BeginDisabled(!ready);
-        const bool campaign = ImGui::Button("Play", ImVec2(ImGui::GetFontSize() * 7, 0));
-        ImGui::SameLine();
-        ImGui::BeginDisabled(!has_multiplayer(asset_dir(settings_)));
-        const bool multiplayer = ImGui::Button("Multiplayer", ImVec2(ImGui::GetFontSize() * 7, 0));
-        ImGui::EndDisabled();
-        ImGui::EndDisabled();
-        const bool play = campaign || multiplayer;
-        ImGui::SameLine();
-        const bool quit = ImGui::Button("Quit");
+        if (ImGui::Button("Back", ImVec2(ImGui::GetFontSize() * 7, 0)) && save()) {
+            key_table_.waiting.reset();
+            page_ = Page::Front;
+        }
         const char* reset_label = "Reset to defaults";
         ImGui::SameLine(ImGui::GetContentRegionMax().x - ImGui::CalcTextSize(reset_label).x -
                         ImGui::GetStyle().FramePadding.x * 2);
@@ -472,27 +650,13 @@ private:
         }
         ImGui::SetItemTooltip("Every option on every tab back to its default; the game files folder stays.");
         if (!error_.empty()) ImGui::TextColored(ImVec4(1.0f, 0.4f, 0.4f, 1), "%s", error_.c_str());
-
-        if (play || quit) {
-            if (!platform::save_settings(settings_)) {
-                error_ = "Cannot save " + platform::settings_path().string();
-                return true;
-            }
-        }
-        if (play) {
-            const fs::path game = platform::sibling_executable(COD_BRO_GAME_EXECUTABLE);
-            std::vector<std::string> args;
-            if (multiplayer) args.push_back("--multiplayer");
-            if (profile_) args.insert(args.end(), {"--profile", "auto"});
-            if (!platform::start_program(game, args)) {
-                error_ = "Cannot start " + game.string();
-                return true;
-            }
-        }
-        return !(play || quit);
     }
 
     SDL_Window* window_;
+    SDL_Renderer* renderer_;
+    Page page_ = Page::Front;
+    Shown picture_, logo_;
+    fs::path pictures_for_;        // the game files folder the pictures came from
     platform::Settings settings_;  // what the tabs edit, saved on Play/Quit
     float footer_ = 0;             // the buttons' height below the tabs
     input::Bindings bindings_ = input::default_bindings();
@@ -517,7 +681,7 @@ int main(int, char**) {
     int height = static_cast<int>(440 * ui_scale);
     if (SDL_Rect usable; SDL_GetDisplayUsableBounds(SDL_GetPrimaryDisplay(), &usable))
         height = std::min(height, usable.h - static_cast<int>(40 * ui_scale));
-    SDL_Window* window = SDL_CreateWindow("Call of Duty 2: Big Red One", static_cast<int>(560 * ui_scale), height,
+    SDL_Window* window = SDL_CreateWindow("Call of Duty 2: Big Red One", static_cast<int>(700 * ui_scale), height,
                                           SDL_WINDOW_HIGH_PIXEL_DENSITY);
     SDL_Renderer* renderer = window ? SDL_CreateRenderer(window, nullptr) : nullptr;
     if (!renderer) {
@@ -537,11 +701,15 @@ int main(int, char**) {
     ImGui_ImplSDL3_InitForSDLRenderer(window, renderer);
     ImGui_ImplSDLRenderer3_Init(renderer);
 
-    Launcher launcher(window);
-    for (bool running = true; running;) {
+    Launcher launcher(window, renderer);
+    // Developer: COD_BRO_LAUNCHER_SHOT=FILE saves the window as a BMP after a few frames and exits
+    // (COD_BRO_LAUNCHER_PAGE=options|tech picks the page) - for checking the look without a person.
+    const char* shot = std::getenv("COD_BRO_LAUNCHER_SHOT");
+    if (const char* page = std::getenv("COD_BRO_LAUNCHER_PAGE")) launcher.show_page(page);
+    for (int frames = 0, running = 1; running; ++frames) {
         SDL_Event event;
         while (SDL_PollEvent(&event)) {
-            if (event.type == SDL_EVENT_QUIT) running = false;
+            if (event.type == SDL_EVENT_QUIT) running = 0;
             if (!launcher.capture_event(event)) ImGui_ImplSDL3_ProcessEvent(&event);
         }
         if (SDL_GetWindowFlags(window) & SDL_WINDOW_MINIMIZED) {
@@ -551,12 +719,19 @@ int main(int, char**) {
         ImGui_ImplSDLRenderer3_NewFrame();
         ImGui_ImplSDL3_NewFrame();
         ImGui::NewFrame();
-        if (!launcher.frame()) running = false;
+        if (!launcher.frame()) running = 0;
         ImGui::Render();
         SDL_SetRenderScale(renderer, io.DisplayFramebufferScale.x, io.DisplayFramebufferScale.y);
         SDL_SetRenderDrawColor(renderer, 20, 20, 20, 255);
         SDL_RenderClear(renderer);
         ImGui_ImplSDLRenderer3_RenderDrawData(ImGui::GetDrawData(), renderer);
+        if (shot && frames == 5) {
+            if (SDL_Surface* surface = SDL_RenderReadPixels(renderer, nullptr)) {
+                SDL_SaveBMP(surface, shot);
+                SDL_DestroySurface(surface);
+            }
+            running = 0;
+        }
         SDL_RenderPresent(renderer);
     }
 
