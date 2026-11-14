@@ -90,30 +90,53 @@ int main() {
         CHECK(run(v, {0, 1, 2, 3}, q, Topology::Quads, o) && q.indices.size() == 18 * 3);
     }
 
-    // An octahedron, every face with its own vertices (unwelded) and smooth normals (= direction):
-    // curved, and edge vertices of neighbouring faces on exactly the same points.
+    // An icosahedron, every face with its own vertices (unwelded) and smooth normals (= direction): curved
+    // outwards (but not past the sphere), and edge vertices of neighbouring faces on exactly the same points.
     {
-        const float P[6][3] = {{1, 0, 0}, {-1, 0, 0}, {0, 1, 0}, {0, -1, 0}, {0, 0, 1}, {0, 0, -1}};
-        const int F[8][3] = {{0, 2, 4}, {2, 1, 4}, {1, 3, 4}, {3, 0, 4}, {2, 0, 5}, {1, 2, 5}, {3, 1, 5}, {0, 3, 5}};
+        const float g = 1.6180339887f;
+        const float P[12][3] = {{-1, g, 0}, {1, g, 0}, {-1, -g, 0}, {1, -g, 0}, {0, -1, g}, {0, 1, g},
+                                {0, -1, -g}, {0, 1, -g}, {g, 0, -1}, {g, 0, 1}, {-g, 0, -1}, {-g, 0, 1}};
+        const int F[20][3] = {{0, 11, 5}, {0, 5, 1}, {0, 1, 7}, {0, 7, 10}, {0, 10, 11}, {1, 5, 9}, {5, 11, 4},
+                              {11, 10, 2}, {10, 7, 6}, {7, 1, 8}, {3, 9, 4}, {3, 4, 2}, {3, 2, 6}, {3, 6, 8},
+                              {3, 8, 9}, {4, 9, 5}, {2, 4, 11}, {6, 2, 10}, {8, 6, 7}, {9, 8, 1}};
+        const float r = std::sqrt(1 + g * g);
         std::vector<CharVertex> v;
         for (const auto& f : F)
-            for (int k : f) v.push_back(make(P[k][0], P[k][1], P[k][2], P[k][0], P[k][1], P[k][2]));
-        Result r;
-        CHECK(run(v, {}, r));
-        CHECK(r.straight_edges == 0 && r.curved_edges == 12, "%u %u", r.straight_edges, r.curved_edges);
-        // Distinct positions: 6 corners + 12 edges * 2 + 8 faces * 1.
+            for (int k : f) v.push_back(make(P[k][0] / r, P[k][1] / r, P[k][2] / r, P[k][0] / r, P[k][1] / r, P[k][2] / r));
+        Result r1, flat;
+        Options none;
+        none.strength = 0;
+        CHECK(run(v, {}, r1) && run(v, {}, flat, Topology::Triangles, none));
+        CHECK(r1.straight_edges == 0 && r1.curved_edges == 30, "%u %u", r1.straight_edges, r1.curved_edges);
         std::set<std::tuple<float, float, float>> distinct;
+        for (uint32_t i = 0; i < r1.vertex_count; ++i) distinct.insert({at(r1, i).p[0], at(r1, i).p[1], at(r1, i).p[2]});
+        CHECK(distinct.size() == 12 + 60 + 20, "%zu distinct positions", distinct.size());
+        CHECK(r1.vertex_count == flat.vertex_count);
+        for (uint32_t i = 60; i < r1.vertex_count; ++i) {
+            auto radius = [](const float* p) { return std::sqrt(p[0] * p[0] + p[1] * p[1] + p[2] * p[2]); };
+            const float curved = radius(at(r1, i).p), plain = radius(at(flat, i).p);
+            CHECK(curved > plain + 0.005f && curved < 1.005f, "vertex %u radius %g (flat %g)", i, curved, plain);
+        }
+    }
+
+    // The rifle case: a box with averaged (corner) normals, welded. Without the guards it balloons; it must
+    // stay a box.
+    {
+        std::vector<CharVertex> v;
+        for (int k = 0; k < 8; ++k) {
+            const float x = k & 1 ? 1.0f : -1.0f, y = k & 2 ? 1.0f : -1.0f, z = k & 4 ? 1.0f : -1.0f;
+            const float n = 1.0f / std::sqrt(3.0f);
+            v.push_back(make(x, y, z, x * n, y * n, z * n));
+        }
+        const std::vector<uint16_t> idx = {0, 2, 3, 0, 3, 1, 4, 5, 7, 4, 7, 6, 0, 1, 5, 0, 5, 4,
+                                           2, 6, 7, 2, 7, 3, 0, 4, 6, 0, 6, 2, 1, 3, 7, 1, 7, 5};
+        Result r;
+        CHECK(run(v, idx, r));
+        CHECK(r.curved_edges == 0, "%u curved edges on a box", r.curved_edges);
         for (uint32_t i = 0; i < r.vertex_count; ++i) {
             const float* p = at(r, i).p;
-            distinct.insert({p[0], p[1], p[2]});
-        }
-        CHECK(distinct.size() == 6 + 24 + 8, "%zu distinct positions", distinct.size());
-        // Flat faces would put the edge thirds at radius ~0.745 and the face centres at ~0.577; curved:
-        // further out (a coarse octahedron's PN patches are not spheres: centres ~0.77), inside the sphere.
-        for (uint32_t i = 24; i < r.vertex_count; ++i) {
-            const float* p = at(r, i).p;
-            const float radius = std::sqrt(p[0] * p[0] + p[1] * p[1] + p[2] * p[2]);
-            CHECK(radius > 0.76f && radius < 1.01f, "vertex %u radius %g", i, radius);
+            const float m = std::max({std::fabs(p[0]), std::fabs(p[1]), std::fabs(p[2])});
+            CHECK(std::fabs(m - 1.0f) < 1e-5f, "box vertex %u off the box (%g)", i, m);
         }
     }
 

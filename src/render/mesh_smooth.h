@@ -9,7 +9,8 @@
 //   normals only, averaged over the triangles on that edge and always computed in one direction, so every
 //   triangle on an edge places its new vertices on exactly the same points (bit for bit).
 // - Straight (linear) edges: creases (the triangles' normals at an end differ by more than the crease
-//   angle), edges with more than two triangles, edges at a vertex without a usable normal and, unless
+//   angle), folds (the faces meet at a sharp angle), a vertex normal leaning far from its face, edges with
+//   more than two triangles, edges at a vertex without a usable normal and, unless
 //   `smooth_open_edges`, open edges (a section's border: the next section may have other normals there).
 //   A triangle with three straight edges stays flat.
 // - Normals: the PN quadratic, straight edges interpolated linearly; all other attributes linearly
@@ -55,6 +56,12 @@ enum class Topology : uint8_t { Triangles, Strip, Quads };
 struct Options {
     uint32_t segments = 3;         // per original edge (1: no change)
     float crease_cos = 0.5f;       // normals further apart than this (cos of the angle): a crease
+    // Hard-surface guards (low-poly boxes with averaged normals bulge otherwise): an edge whose two faces meet
+    // at more than this angle (cos) is straight, and so is a triangle edge at a vertex whose normal leans further
+    // from the triangle's own face than `lean_cos`.
+    float fold_cos = 0.42f;        // ~65 degrees
+    float lean_cos = 0.766f;       // ~40 degrees
+    float strength = 0.75f;        // 0: flat, 1: full PN curvature
     bool smooth_open_edges = false;
     uint32_t max_vertices = 65535; // 16-bit indices
 };

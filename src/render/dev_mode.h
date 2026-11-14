@@ -20,6 +20,8 @@ std::vector<std::string> frame(Backend& backend, void (*pause)(bool paused));
 
 // Pauses or resumes the game as F7 does (the object viewer pauses while it shows a model).
 void set_paused(bool paused);
+// F7 holds the game paused.
+bool paused();
 
 // More of developer mode from outside the render library (the object viewer): called each frame with the keys
 // pressed (bit n-1 = Fn); returns lines for the overlay.

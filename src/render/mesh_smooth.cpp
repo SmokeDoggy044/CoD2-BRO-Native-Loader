@@ -96,6 +96,7 @@ struct EdgeHash {
 struct Edge {
     uint32_t triangles = 0;
     V3 normal_a, normal_b;     // the first triangle's normals at a and b
+    V3 face;                   // the first triangle's face normal
     V3 sum_c1, sum_c2;         // the PN control points (near a, near b), summed over the triangles
     bool straight = false;
     V3 c1, c2;                 // final (after averaging)
@@ -210,16 +211,28 @@ struct Smoother {
 
     void build_edges() {
         for (const auto& t : triangles) {
+            const V3 e1 = positions[t[1]] - positions[t[0]], e2 = positions[t[2]] - positions[t[0]];
+            const V3 cross{e1.y * e2.z - e1.z * e2.y, e1.z * e2.x - e1.x * e2.z, e1.x * e2.y - e1.y * e2.x};
+            const bool has_face = dot(cross, cross) > 1e-20f;
+            const V3 face = normalized(cross);
             for (int e = 0; e < 3; ++e) {
                 uint32_t u = t[e], v = t[(e + 1) % 3];
                 bool flipped;
                 Edge& edge = edge_of(u, v, flipped);
                 if (flipped) std::swap(u, v);  // u = the canonical a
                 if (!normal_ok[u] || !normal_ok[v]) edge.straight = true;
+                // Either winding (two-sided materials need not match their normals).
+                if (has_face && (std::fabs(dot(normals[u], face)) < options.lean_cos ||
+                                 std::fabs(dot(normals[v], face)) < options.lean_cos))
+                    edge.straight = true;
                 if (edge.triangles == 0) {
                     edge.normal_a = normals[u], edge.normal_b = normals[v];
+                    edge.face = has_face ? face : V3{};
                 } else if (dot(edge.normal_a, normals[u]) < options.crease_cos ||
                            dot(edge.normal_b, normals[v]) < options.crease_cos) {
+                    edge.straight = true;
+                } else if (edge.triangles == 1 && has_face && dot(edge.face, edge.face) > 0 &&
+                           std::fabs(dot(edge.face, face)) < options.fold_cos) {
                     edge.straight = true;
                 }
                 ++edge.triangles;
@@ -234,14 +247,14 @@ struct Smoother {
         for (auto& [key, edge] : edges) {
             if (edge.triangles > 2 || (edge.triangles == 1 && !options.smooth_open_edges)) edge.straight = true;
             const V3 a = positions[any_vertex[key.a]], b = positions[any_vertex[key.b]];
+            const V3 line1 = a + (b - a) * (1.0f / 3.0f), line2 = a + (b - a) * (2.0f / 3.0f);
             if (edge.straight) {
-                edge.c1 = a + (b - a) * (1.0f / 3.0f);
-                edge.c2 = a + (b - a) * (2.0f / 3.0f);
+                edge.c1 = line1, edge.c2 = line2;
                 ++result.straight_edges;
             } else {
                 const float share = 1.0f / static_cast<float>(edge.triangles);
-                edge.c1 = edge.sum_c1 * share;
-                edge.c2 = edge.sum_c2 * share;
+                edge.c1 = line1 + (edge.sum_c1 * share - line1) * options.strength;
+                edge.c2 = line2 + (edge.sum_c2 * share - line2) * options.strength;
                 ++result.curved_edges;
             }
         }

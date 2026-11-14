@@ -469,7 +469,7 @@ std::vector<std::string> diagnostics() {
         g_unmeasured_until.store(INT64_MAX, std::memory_order_relaxed);
         const auto note = g.backend->prompt({"MARK " + std::to_string(marks) + " saved - game paused",
                                              "What is wrong here? (one or two sentences)"});
-        if (g.config.pause_audio) g.config.pause_audio(false);
+        if (g.config.pause_audio && !dev::paused()) g.config.pause_audio(false);  // F7's pause stays
         g_unmeasured_until.store(session_second() + 1, std::memory_order_relaxed);
         std::string text = note ? *note : "";
         if (g.config.dev) text += " [dev: " + dev::state_text() + "]";

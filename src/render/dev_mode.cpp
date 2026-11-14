@@ -238,6 +238,8 @@ std::vector<std::string> frame(Backend& backend, void (*pause)(bool)) {
     return lines;
 }
 
+bool paused() { return g_paused; }
+
 void set_paused(bool paused) {
     if (paused == g_paused || !g_pause) return;
     g_paused = paused;
