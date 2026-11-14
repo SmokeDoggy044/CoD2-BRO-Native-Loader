@@ -14,6 +14,7 @@
 #include "log.h"
 #include "patches.h"
 #include "settings.h"
+#include "settings_schema.h"
 #include "snd_env.h"
 #include "sound_engine.h"
 
@@ -271,10 +272,7 @@ void pc_menu_shown(bool open) {
         !(features == g_graphics_features_on_open)) {
         platform::Settings settings = platform::load_settings();
         const std::string text = features.format();
-        if (text.empty())
-            settings.erase("graphics-features");
-        else
-            settings.set("graphics-features", text);
+        platform::set_combined_setting(settings, "graphics-features", text);
         if (platform::save_settings(settings))
             LOG_INFO("loader", "enhanced graphics saved: %s", text.empty() ? "the defaults" : text.c_str());
         else
@@ -282,10 +280,8 @@ void pc_menu_shown(bool open) {
     }
     if (const audio::CategoryVolumes volumes = audio::category_volumes(); !(volumes == g_volumes_on_open)) {
         platform::Settings settings = platform::load_settings();
-        if (const std::string text = volumes.format(); text.empty())
-            settings.erase("volume");
-        else
-            settings.set("volume", text);
+        const std::string text = volumes.format();
+        platform::set_combined_setting(settings, "volume", text);
         if (platform::save_settings(settings))
             LOG_INFO("loader", "volumes saved: %s", volumes.format().c_str());
         else
@@ -293,10 +289,8 @@ void pc_menu_shown(bool open) {
     }
     if (const audio::ReverbTuning reverb = game::SndEnv_Tuning(); !(reverb == g_reverb_on_open)) {
         platform::Settings settings = platform::load_settings();
-        if (const std::string text = reverb.format(); text.empty())
-            settings.erase("reverb");
-        else
-            settings.set("reverb", text);
+        const std::string text = reverb.format();
+        platform::set_combined_setting(settings, "reverb", text);
         if (platform::save_settings(settings))
             LOG_INFO("loader", "reverb adjustments saved: %s", reverb.format().c_str());
         else
@@ -304,10 +298,8 @@ void pc_menu_shown(bool open) {
     }
     if (const audio::EnhancedFeatures features = audio::enhanced_features(); !(features == g_features_on_open)) {
         platform::Settings settings = platform::load_settings();
-        if (const std::string text = features.format(); text.empty())
-            settings.erase("enhanced");
-        else
-            settings.set("enhanced", text);
+        const std::string text = features.format();
+        platform::set_combined_setting(settings, "enhanced", text);
         if (platform::save_settings(settings))
             LOG_INFO("loader", "enhanced sound's improvements saved: %s", text_or_all(features).c_str());
         else

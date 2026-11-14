@@ -29,6 +29,7 @@
 #include "paths.h"
 #include "program.h"
 #include "settings.h"
+#include "settings_schema.h"
 #include "update_check.h"
 #include "updater.h"
 
@@ -97,7 +98,7 @@ Choices read_choices(const platform::Settings& settings) {
     if (auto v = settings.get("brightness")) c.brightness = std::clamp(std::strtof(v->c_str(), nullptr), 0.5f, 2.0f);
     if (auto v = settings.get("sharp-text")) c.sharp_text = *v != "off";
     if (auto v = settings.get("graphics"); v && *v == "original") c.graphics = *v;
-    if (auto v = settings.get("graphics-features")) c.graphics_features = render::GraphicsFeatures::parse(*v);
+    if (auto v = platform::combined_setting(settings, "graphics-features")) c.graphics_features = render::GraphicsFeatures::parse(*v);
     if (auto v = settings.get("fps")) c.fps = *v == "display" ? 0 : std::clamp(std::atoi(v->c_str()), 30, 1000);
     if (auto v = settings.get("renderer"); v && (*v == "vulkan" || *v == "d3d9")) c.renderer = *v;
     if (auto v = settings.get("d3d9"); v && (*v == "dxvk" || *v == "system")) c.d3d9 = *v;
@@ -112,9 +113,9 @@ Choices read_choices(const platform::Settings& settings) {
         v && (*v == "stereo" || *v == "headphones" || *v == "quad" || *v == "5.1" || *v == "7.1"))
         c.speakers = *v;
     if (auto v = settings.get("audio-device")) c.audio_device = *v;
-    if (auto v = settings.get("reverb")) c.reverb = audio::ReverbTuning::parse(*v);
-    if (auto v = settings.get("volume")) c.volumes = audio::CategoryVolumes::parse(*v);
-    if (auto v = settings.get("enhanced")) c.features = audio::EnhancedFeatures::parse(*v);
+    if (auto v = platform::combined_setting(settings, "reverb")) c.reverb = audio::ReverbTuning::parse(*v);
+    if (auto v = platform::combined_setting(settings, "volume")) c.volumes = audio::CategoryVolumes::parse(*v);
+    if (auto v = platform::combined_setting(settings, "enhanced")) c.features = audio::EnhancedFeatures::parse(*v);
     if (auto v = settings.get("language")) c.language = *v;
     if (auto v = settings.get("net-port")) c.net_port = std::clamp(std::atoi(v->c_str()), 1024, 65532);
     if (auto v = settings.get("check-updates")) c.check_updates = *v != "false";
@@ -139,7 +140,7 @@ void write_choices(const Choices& c, platform::Settings& settings) {
     put("brightness", c.brightness == d.brightness, number(c.brightness));
     put("sharp-text", c.sharp_text == d.sharp_text, c.sharp_text ? "on" : "off");
     put("graphics", c.graphics == d.graphics, c.graphics);
-    put("graphics-features", c.graphics_features == d.graphics_features, c.graphics_features.format());
+    platform::set_combined_setting(settings, "graphics-features", c.graphics_features.format());
     put("fps", c.fps == d.fps, c.fps ? std::to_string(c.fps) : "display");
     put("renderer", c.renderer == d.renderer, c.renderer);
     put("d3d9", c.d3d9 == d.d3d9, c.d3d9);
@@ -151,9 +152,9 @@ void write_choices(const Choices& c, platform::Settings& settings) {
     put("audio", c.audio == d.audio, c.audio);
     put("speakers", c.speakers == d.speakers, c.speakers);
     put("audio-device", c.audio_device.empty(), c.audio_device);
-    put("reverb", c.reverb == d.reverb, c.reverb.format());
-    put("volume", c.volumes == d.volumes, c.volumes.format());
-    put("enhanced", c.features == d.features, c.features.format());
+    platform::set_combined_setting(settings, "reverb", c.reverb.format());
+    platform::set_combined_setting(settings, "volume", c.volumes.format());
+    platform::set_combined_setting(settings, "enhanced", c.features.format());
     put("language", c.language == d.language, c.language);
     put("net-port", c.net_port == d.net_port, std::to_string(c.net_port));
     put("check-updates", c.check_updates == d.check_updates, "false");

@@ -6,6 +6,7 @@
 
 #include "log.h"
 #include "paths.h"
+#include "settings_schema.h"
 
 namespace fs = std::filesystem;
 
@@ -59,7 +60,7 @@ Settings Settings::parse(const std::string& text) {
 std::string Settings::format() const {
     std::string text =
         "# Call of Duty 2: Big Red One settings, written by cod_bro_launcher.\n"
-        "# Keys are the game's command-line options; options given there win.\n";
+        "# One line per setting; each is also a command-line option (cod_bro_loader --help), which wins.\n";
     for (const auto& [key, value] : entries_) text += key + " = " + value + "\n";
     return text;
 }
@@ -68,6 +69,7 @@ std::vector<std::string> Settings::as_args() const {
     std::vector<std::string> args;
     for (const auto& [key, value] : entries_) {
         if (value == "false") continue;
+        if (const SettingDef* def = find_setting(key); def && (def->flags & kLauncher)) continue;  // not the game's
         args.push_back("--" + key);
         if (value != "true") args.push_back(value);
     }
@@ -81,7 +83,10 @@ Settings load_settings(const fs::path& path) {
     if (!file) return {};
     std::ostringstream text;
     text << file.rdbuf();
-    return Settings::parse(text.str());
+    // Older combined lines (graphics-features = ...) read as one line per setting; written so on the next save.
+    Settings settings = Settings::parse(text.str());
+    upgrade_settings(settings);
+    return settings;
 }
 
 bool save_settings(const Settings& settings, const fs::path& path) {
