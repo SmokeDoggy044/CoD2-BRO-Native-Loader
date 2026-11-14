@@ -227,9 +227,10 @@ const SettingDef kSettings[] = {
      "developer mode: an overlay (frame time, GPU memory, texture packs) and keys: F1 overlay on/off, F2 mods on/off, "
      "F3 enhanced graphics on/off, F4 next enhanced feature, F5 that feature on/off, F6 textures under the "
      "crosshair (Vulkan), F7 pause; with --diag, F12 marks note what was switched and picked"},
-    {"viewer", "M1,M2", T::Text, G::Testing, kCli, 0, 0, nullptr, "",
+    {"viewer", "M1,M2|@FILE", T::Text, G::Testing, kCli, 0, 0, nullptr, "",
      "object viewer (developer mode): F8 shows the next of these models (base names of the mission's .xbmesh "
-     "files) in front of the player and pauses the game, F9 turns it round"},
+     "files; @FILE: a list, e.g. tools/model_index.py UNPACKED --level N) in front of the camera and pauses the game, "
+     "F9 turns it round"},
     {"screenshots", "N DIR", T::Custom, G::Testing, kCli, 0, 0, nullptr, "",
      "save every Nth frame as DIR/frame_<n>.bmp (debugging)"},
     {"profile", "auto[,S]", T::Text, G::Testing, kCli, 0, 0, nullptr, "",

@@ -18,7 +18,7 @@ namespace {
 
 uint32_t g_handle = 0;  // the viewer's script_model (entity handle), 0 = none
 // Where the camera was when the viewer started (the model stands in front of it), and the shown model's box.
-float g_view[2] = {}, g_dir[2] = {1, 0}, g_ground_from = 0, g_feet = 0, g_base_yaw = 0;
+float g_view[3] = {}, g_dir[2] = {1, 0}, g_ground_from = 0, g_base_yaw = 0;
 float g_mins[3] = {}, g_maxs[3] = {};
 float g_distance = 0;
 int32_t g_zone_set = 0;
@@ -54,6 +54,7 @@ bool viewer_show(const char* model, float distance, std::string& why) {
         g_dir[1] = flat > 0.001f ? forward[1] / flat : 0.0f;
         g_view[0] = view[0];
         g_view[1] = view[1];
+        g_view[2] = view[2];
         g_ground_from = reinterpret_cast<const float*>(player + 0x140)[2];
         g_base_yaw = std::atan2(g_dir[1], g_dir[0]) * 180.0f / 3.14159265f + 180.0f;  // facing the camera
         ScriptString classname{};
@@ -89,7 +90,8 @@ bool viewer_show(const char* model, float distance, std::string& why) {
     }
     G_DObjUpdate(ent);
     g_zone_set = found;
-    // Far enough to see all of it (its box's half diagonal, a 65 degree view), at least `distance`.
+    // Far enough to see all of it: its box's half diagonal inside an 18 degree half-height view (16:9 at the
+    // game's 65 degrees, with room), at least 40% of `distance`.
     const auto* obj = *reinterpret_cast<const DObj* const*>(ent + 0x22c);
     g_mins[0] = g_mins[1] = g_mins[2] = -16;
     g_maxs[0] = g_maxs[1] = g_maxs[2] = 16;
@@ -97,23 +99,11 @@ bool viewer_show(const char* model, float distance, std::string& why) {
     float radius = 0;
     for (int i = 0; i < 3; ++i) radius += (g_maxs[i] - g_mins[i]) * (g_maxs[i] - g_mins[i]);
     radius = std::sqrt(radius) * 0.5f;
-    g_distance = std::max(distance * 0.4f, radius / std::tan(32.5f * 3.14159265f / 180.0f) + radius);
-    // Stood on the ground under its middle (a point trace down from above the player's feet; else at their height).
-    {
-        const float x = g_view[0] + g_dir[0] * g_distance, y = g_view[1] + g_dir[1] * g_distance;
-        alignas(16) float start[4] = {x, y, g_ground_from + 64, 0}, end[4] = {x, y, g_ground_from - 2048, 0};
-        alignas(16) float zero[4] = {};
-        alignas(16) uint8_t trace[0x80] = {};
-        auto address = [](const void* p) { return static_cast<uint32_t>(reinterpret_cast<uintptr_t>(p)); };
-        G_Trace(address(trace), address(start), address(zero), address(zero), address(end), 0, 1);  // solid
-        const float fraction = *reinterpret_cast<const float*>(trace + 0x20);
-        g_feet = fraction < 1.0f ? reinterpret_cast<const float*>(trace)[2] : g_ground_from;
-    }
+    g_distance = std::max(distance * 0.4f, radius / std::tan(18.0f * 3.14159265f / 180.0f) + radius * 0.2f);
     viewer_turn(0, 0);
     char where[192];
-    std::snprintf(where, sizeof(where), "zone set %d, box %.0f x %.0f x %.0f (bottom %.0f), %.0f units away, ground %.0f "
-                  "(player %.0f)", g_zone_set, g_maxs[0] - g_mins[0], g_maxs[1] - g_mins[1], g_maxs[2] - g_mins[2],
-                  g_mins[2], g_distance, g_feet, g_ground_from);
+    std::snprintf(where, sizeof(where), "zone set %d, box %.0f x %.0f x %.0f, %.0f units away", g_zone_set,
+                  g_maxs[0] - g_mins[0], g_maxs[1] - g_mins[1], g_maxs[2] - g_mins[2], g_distance);
     why = where;
     return true;
 }
@@ -121,12 +111,14 @@ bool viewer_show(const char* model, float distance, std::string& why) {
 void viewer_turn(float yaw, float pitch) {
     uint8_t* const ent = viewer_entity();
     if (!ent) return;
-    // Turned about the middle of its box, which stays on the camera's line; its bottom at the player's feet.
+    // Turned about the middle of its box, which stays on the camera's line (in the air for small models: the
+    // view is level, framing beats standing on the ground here).
     const float angles[3] = {pitch, g_base_yaw + yaw, 0};
     const float a = angles[1] * 3.14159265f / 180.0f, c = std::cos(a), s = std::sin(a);
     const float mid_x = (g_mins[0] + g_maxs[0]) * 0.5f, mid_y = (g_mins[1] + g_maxs[1]) * 0.5f;
     const float origin[3] = {g_view[0] + g_dir[0] * g_distance - (c * mid_x - s * mid_y),
-                             g_view[1] + g_dir[1] * g_distance - (s * mid_x + c * mid_y), g_feet - g_mins[2]};
+                             g_view[1] + g_dir[1] * g_distance - (s * mid_x + c * mid_y),
+                             g_view[2] - (g_mins[2] + g_maxs[2]) * 0.5f};
     G_SetAngle(ent, 0, angles);
     G_SetOrigin(ent, 0, origin);
     G_DObjUpdate(ent);

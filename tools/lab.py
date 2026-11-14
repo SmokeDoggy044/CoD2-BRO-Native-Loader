@@ -5,6 +5,7 @@ usage:
   tools/lab.py run OUT [--mission m0 ...] [--variant NAME="OPTIONS" ...] [--loader PATH] [--speed N] [--jobs N]
   tools/lab.py compare OUT [--baseline NAME]
   tools/lab.py crop OUT VARIANT MISSION FRAME X Y W H [--scale N]
+  tools/lab.py viewer OUT --model M [M ...] [--mission m0] [--at FRAME] [--steps 8] [--variant ...] [--loader PATH]
 
 run: every mission's recording (recordings/<m>/*.rep, the first) is replayed once per variant with
   --replay-no-draw --replay-shots (only the frames just before each picture are drawn), so a 8-minute mission takes a
@@ -16,6 +17,12 @@ run: every mission's recording (recordings/<m>/*.rep, the first) is replayed onc
 compare: per capture point and variant against the baseline: share of pixels that differ (largest channel > 8),
   PSNR, sharpness (mean absolute Laplacian, variant / baseline), mean brightness change. Writes OUT/report.html
   (side by side + amplified difference, for the user), OUT/metrics.csv, and prints a short table.
+viewer: the object viewer's turntable (phase 1.0d): the mission's recording cut after frame --at (default 6000) and
+  replayed (--replay-continue: live and without input from there), at --at + 10 F8 shows the model, the game pauses
+  30 frames later and the model holds --steps angles (360/steps apart) 60 frames each, a picture at the end of each.
+  Pictures in OUT/<variant>/<model>/shot_<frame>.bmp (labels.csv names the angles), then compare as for run, but
+  only inside the model's box (what moves between the baseline's angles).
+  Variants as for run; e.g. a="--mods off" b="--mods-dir DIR".
 crop: a cut-out of one picture as PNG (OUT/crops/...), to look at a detail without opening the whole frame.
 
 Pictures are judged by their numbers first: opening an image sends it to the model's API.
@@ -118,6 +125,99 @@ def cmd_run(args):
     cmd_compare(args)
 
 
+def model_box(shots):
+    """Viewer runs: where the model is - the pixels that change between the baseline's angles (the rest stands
+    still while the game is paused), as x0, y0, x1, y1 with a margin; None if nothing moved."""
+    if len(shots) < 2:
+        return None
+    first = load(shots[0])
+    moved = np.zeros(first.shape[:2], bool)
+    for other in shots[1:]:
+        moved |= np.abs(load(other) - first).max(axis=2) > 8
+    ys, xs = np.nonzero(moved)
+    if not len(xs):
+        return None
+    m = 8
+    h, w = moved.shape
+    return max(0, xs.min() - m), max(0, ys.min() - m), min(w, xs.max() + 1 + m), min(h, ys.max() + 1 + m)
+
+
+def cut_recording(rep, frames, path):
+    """A copy of the recording that ends after `frames` frames ('F' records; see tools/replay_info.py)."""
+    import struct
+    data = rep.read_bytes()
+    i, seen = 12, 0
+    while i + 3 <= len(data):
+        tag, length = data[i], struct.unpack_from("<H", data, i + 1)[0]
+        if tag == ord("F"):
+            seen += 1
+            if seen > frames:
+                break
+        i += 3 + length
+    path.write_bytes(data[:i])
+
+
+VIEWER_STEP_FRAMES = 60
+VIEWER_PAUSE_AFTER = 30  # src/runtime/loader/viewer.cpp kPauseAfter
+
+
+def viewer_one(args, out, variant, model, rep, recorded_mission, cut):
+    name, options = variant
+    folder = out / name / model
+    shutil.rmtree(folder, ignore_errors=True)
+    folder.mkdir(parents=True)
+    saves = rep.with_suffix(".saves")
+    if not saves.is_dir():
+        saves = rep.parent / "saves"
+    data = folder / "data"
+    shutil.copytree(saves, data, symlinks=True)
+    press = args.at + 10
+    shots = [press + VIEWER_PAUSE_AFTER + VIEWER_STEP_FRAMES * k + VIEWER_STEP_FRAMES - 1 for k in range(args.steps)]
+    with open(folder / "labels.csv", "w", newline="") as f:
+        w = csv.writer(f)
+        w.writerow(["frame", "label"])
+        w.writerows((frame, f"{model} {360 * k // args.steps} deg") for k, frame in enumerate(shots))
+    level = [] if recorded_mission == "-" else ["--level", recorded_mission]
+    command = [str(args.loader), "--data", str(data), "--silent", *level, "--replay", str(cut), "--replay-continue",
+               "--replay-no-draw", "--replay-speed", str(args.speed),
+               "--replay-shots", ",".join(map(str, shots)), str(folder), "--viewer", model, *options]
+    env = dict(os.environ, COD_BRO_DEV_KEYS=f"8@{press}",
+               COD_BRO_VIEWER_TURNTABLE=f"{args.steps},{VIEWER_STEP_FRAMES}")
+    seconds = int(args.at / 60 / min(args.speed, 2) + 120)
+    with open(folder / "log.txt", "w") as log:
+        log.write(" ".join(command) + "\n")
+        log.flush()
+        try:
+            code = subprocess.run(command, stdout=log, stderr=subprocess.STDOUT, timeout=seconds, env=env).returncode
+        except subprocess.TimeoutExpired:
+            code = "timeout"
+    shutil.rmtree(data, ignore_errors=True)
+    shown = "shown" if "viewer turntable done" in (folder / "log.txt").read_text(errors="replace") else "NOT shown"
+    pictures = len(list(folder.glob("shot_*.bmp")))
+    return f"{name:12} {model:24} exit {code}, {shown}, {pictures}/{len(shots)} pictures"
+
+
+def cmd_viewer(args):
+    out = Path(args.out).resolve()
+    out.mkdir(parents=True, exist_ok=True)
+    variants = parse_variants(args.variant)
+    rep = recording_for(args.mission)
+    frames, recorded_mission = recording_info(rep)
+    if args.at + 1000 > frames:
+        sys.exit(f"--at {args.at}: the recording has {frames} frames")
+    cut = out / f"{args.mission}_cut_{args.at}.rep"
+    cut_recording(rep, args.at, cut)
+    with open(out / "variants.txt", "w") as f:
+        f.writelines(f"{name}={' '.join(options)}\n" for name, options in variants)
+    jobs = [(v, m) for m in args.model for v in variants]
+    print(f"{len(jobs)} runs, {args.jobs} at a time")
+    with ThreadPoolExecutor(args.jobs) as pool:
+        for line in pool.map(lambda j: viewer_one(args, out, j[0], j[1], rep, recorded_mission, cut), jobs):
+            print(line)
+    args.baseline = variants[0][0]
+    cmd_compare(args)
+
+
 def load(path):
     return np.asarray(Image.open(path).convert("RGB"), dtype=np.float32)
 
@@ -159,9 +259,17 @@ def cmd_compare(args):
         if not mission_dir.is_dir():
             continue
         mission = mission_dir.name
-        labels = dict((str(f), l) for f, l in capture_points(mission, 10 ** 9)) if POINTS.exists() else {}
+        box = None
+        if (mission_dir / "labels.csv").exists():  # viewer runs: the turntable's angles
+            with open(mission_dir / "labels.csv", newline="") as f:
+                labels = {r["frame"]: r["label"] for r in csv.DictReader(f)}
+            box = model_box(sorted(mission_dir.glob("shot_*.bmp")))
+        else:
+            labels = dict((str(f), l) for f, l in capture_points(mission, 10 ** 9)) if POINTS.exists() else {}
         for shot in sorted(mission_dir.glob("shot_*.bmp"), key=lambda p: int(p.stem[5:])):
             a = load(shot)
+            if box:
+                a = a[box[1]:box[3], box[0]:box[2]]
             frame = shot.stem[5:]
             for v in variants:
                 if v == base:
@@ -171,6 +279,8 @@ def cmd_compare(args):
                     rows.append({"mission": mission, "frame": frame, "variant": v, "missing": True})
                     continue
                 b = load(other)
+                if box:
+                    b = b[box[1]:box[3], box[0]:box[2]]
                 m = metrics(a, b)
                 pair = out / "pairs" / f"{mission}_{frame}_{base}_vs_{v}.png"
                 pair.parent.mkdir(exist_ok=True)
@@ -243,8 +353,18 @@ def main():
     for name in ("x", "y", "w", "h"):
         k.add_argument(name, type=int)
     k.add_argument("--scale", type=int, default=1)
+    v = sub.add_parser("viewer")
+    v.add_argument("out")
+    v.add_argument("--model", nargs="+", required=True)
+    v.add_argument("--mission", default="m0")
+    v.add_argument("--at", type=int, default=6000)
+    v.add_argument("--steps", type=int, default=8)
+    v.add_argument("--variant", action="append")
+    v.add_argument("--loader", type=Path, default=DEFAULT_LOADER)
+    v.add_argument("--speed", type=float, default=3)
+    v.add_argument("--jobs", type=int, default=max(1, min(4, (os.cpu_count() or 4) // 4)))
     args = p.parse_args()
-    {"run": cmd_run, "compare": cmd_compare, "crop": cmd_crop}[args.cmd](args)
+    {"run": cmd_run, "compare": cmd_compare, "crop": cmd_crop, "viewer": cmd_viewer}[args.cmd](args)
 
 
 if __name__ == "__main__":

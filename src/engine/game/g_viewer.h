@@ -10,7 +10,7 @@
 namespace game {
 
 // Shows `model` (a base name, as setmodel takes: the .xbmesh's name without the extension) `distance` units in
-// front of the player, standing where the player stands. The same entity is reused for the next model. False
+// front of the camera, the middle of its box on the camera's level line. The same entity is reused for the next model. False
 // (and why; on success where) when there is no player or the loaded zones have no such model.
 bool viewer_show(const char* model, float distance, std::string& why);
 // The shown model's yaw and pitch in degrees (its place stays).

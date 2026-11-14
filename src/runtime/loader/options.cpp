@@ -221,9 +221,17 @@ bool apply_setting(Options& o, Combined& combined, const platform::SettingDef& d
         o.dev = on;
     } else if (key == "viewer") {
         o.dev = true;
-        for (size_t at = 0; at <= v.size();) {
-            const size_t comma = std::min(v.find(',', at), v.size());
-            if (comma > at) o.viewer_models.push_back(v.substr(at, comma - at));
+        std::string list = v;
+        if (!v.empty() && v[0] == '@') {  // a file: names separated by commas, blanks or lines
+            std::ifstream in(v.substr(1));
+            list.assign(std::istreambuf_iterator<char>(in), std::istreambuf_iterator<char>());
+            if (!in) std::fprintf(stderr, "--viewer: cannot read %s\n", v.c_str() + 1);
+        }
+        for (char& c : list)
+            if (c == '\n' || c == '\r' || c == ' ' || c == '\t') c = ',';
+        for (size_t at = 0; at <= list.size();) {
+            const size_t comma = std::min(list.find(',', at), list.size());
+            if (comma > at) o.viewer_models.push_back(list.substr(at, comma - at));
             at = comma + 1;
         }
     } else if (key == "any-release") {
