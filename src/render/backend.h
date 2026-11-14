@@ -81,6 +81,9 @@ struct BackendConfig {
     bool (*pc_menu)() = nullptr;
     void (*pc_menu_shown)(bool open) = nullptr;
     std::string menu_font;  // a TTF for the menu; empty: Dear ImGui's own
+    // Vulkan: where compiled pipelines are kept between runs (loaded at start, saved while playing and at
+    // exit); empty: none kept. Data for another GPU or driver is ignored.
+    std::string pipeline_cache_path;
     // Anisotropic filtering for mipmapped textures the title filters linearly (PC
     // option; the Xbox titles rarely used it). 1 = the title's own filters.
     uint32_t anisotropy = 1;
@@ -164,6 +167,8 @@ public:
     // The frame is drawn: last passes on the back buffer itself (enhanced graphics' post passes),
     // before screenshots and present().
     virtual void finish_picture() {}
+    // Kept data written out now (the Vulkan pipeline cache); before the process ends. Any thread.
+    virtual void save_caches() {}
 
     // Shows the back buffer.
     virtual void present() = 0;

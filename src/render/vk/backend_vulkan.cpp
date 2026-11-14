@@ -137,6 +137,11 @@ public:
         return ok;
     }
 
+    void save_caches() override {
+        std::lock_guard lock(mutex_);
+        if (gfx_) gfx_->save_caches();
+    }
+
     void finish_picture() override {
         // Enhanced graphics' post passes, on frames with a 3D scene (menus stay untouched).
         std::lock_guard lock(mutex_);

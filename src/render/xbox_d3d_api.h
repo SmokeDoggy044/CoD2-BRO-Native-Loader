@@ -55,6 +55,9 @@ void configure(const D3DConfig& config);
 // opens it again - on the same window and back end, with frame buffers from the (reset) title memory again.
 void restart_title();
 
+// The back end's kept data (Vulkan pipeline cache) written out; before the process ends (window closed, Ctrl+C).
+void save_caches();
+
 // Frames shown in the last whole second (0 before the first), and frames shown so
 // far. Any thread (the profiler's automatic start reads them).
 uint32_t frames_last_second();

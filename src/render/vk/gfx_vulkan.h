@@ -30,6 +30,8 @@ public:
     virtual uint32_t unsupported_draws() const = 0;
     // Called once a frame was presented.
     virtual void end_frame() = 0;
+    // The pipeline cache to its file when it has new pipelines.
+    virtual void save_caches() = 0;
     // An in-process title restart: the back buffer and depth buffer stand for this memory now.
     virtual void set_frame_buffers(const SurfaceDesc& back, const SurfaceDesc& depth) = 0;
     // Everything made from title memory goes (targets other than the frame buffers included).

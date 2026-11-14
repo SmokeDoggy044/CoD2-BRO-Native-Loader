@@ -581,6 +581,7 @@ uint32_t present_frame() {
     g.backend->present();
     if (!g.backend->pump_events()) {
         LOG_INFO("render", "window closed");
+        g.backend->save_caches();
         std::exit(0);
     }
     device_field<uint32_t>(kDeviceSwapCount) = ++g.swap_count;
@@ -676,6 +677,10 @@ void resource_destroyed(XbPtr /*resource*/) {}
 Backend* backend() { return g.backend.get(); }
 
 uint32_t show_frame() { return present_frame(); }
+
+void save_caches() {
+    if (g.backend) g.backend->save_caches();
+}
 
 void restart_title() {
     if (!g.device_open) return;

@@ -4,6 +4,9 @@
 #include "gfx_vulkan.h"
 
 #include <algorithm>
+#include <chrono>
+#include <cstdio>
+#include <filesystem>
 #include <cmath>
 #include <cstdlib>
 #include <cstring>
@@ -205,6 +208,7 @@ public:
                           ? std::min<uint32_t>(config.anisotropy,
                                                static_cast<uint32_t>(vk_.limits().maxSamplerAnisotropy))
                           : 1;
+        pipeline_cache_path_ = config.pipeline_cache_path;
         create_draw_objects();
         // A new back buffer is black, not undefined.
         clear(kGfxClearColor | kGfxClearDepth | kGfxClearStencil, 0xFF000000u, 1.0f, 0);
@@ -223,6 +227,7 @@ public:
         vk_.destroy_image(dummy_texture_);
         if (default_vertex_.buffer) vk_.defer_destroy(default_vertex_.buffer, default_vertex_.allocation);
         if (quad_indices_.buffer) vk_.defer_destroy(quad_indices_.buffer, quad_indices_.allocation);
+        save_pipeline_cache();
         if (pipeline_cache_) vkDestroyPipelineCache(vk_.device(), pipeline_cache_, nullptr);
         if (pipeline_layout_) vkDestroyPipelineLayout(vk_.device(), pipeline_layout_, nullptr);
         if (set_layout_) vkDestroyDescriptorSetLayout(vk_.device(), set_layout_, nullptr);
@@ -699,11 +704,15 @@ public:
     uint32_t flat_frames_before() const override { return flat_frames_; }
     uint32_t unsupported_draws() const override { return unsupported_draws_; }
 
+    void save_caches() override { save_pipeline_cache(); }
+
     void end_frame() override {
         flat_frames_ = frame_is_flat() ? flat_frames_ + 1 : 0;
         frame_writes_depth_ = false;
         unsupported_draws_ = 0;
         ++frame_;
+        // New pipelines are saved every 30 s or so (a crash or a killed process loses little).
+        if (frame_ % 1800 == 0 && pipelines_new_) save_pipeline_cache();
         // Kept vertices unused for a while go.
         if (frame_ % 60 == 0)
             for (auto it = kept_.begin(); it != kept_.end();) {
@@ -896,6 +905,89 @@ private:
 
     static bool no_alpha(Format f) { return f == Format::BGRX8 || f == Format::BGRX5 || f == Format::B5G6R5; }
 
+    // --- Pipeline cache on disk ---
+
+    // The kept pipelines when the file was written for this GPU and driver (Vulkan's cache header: vendor,
+    // device, pipeline cache UUID), else an empty cache.
+    void create_pipeline_cache() {
+        std::vector<char> data;
+        if (!pipeline_cache_path_.empty()) {
+            if (std::FILE* f = std::fopen(pipeline_cache_path_.c_str(), "rb")) {
+                std::fseek(f, 0, SEEK_END);
+                const long size = std::ftell(f);
+                std::fseek(f, 0, SEEK_SET);
+                if (size > 0) {
+                    data.resize(static_cast<size_t>(size));
+                    if (std::fread(data.data(), 1, data.size(), f) != data.size()) data.clear();
+                }
+                std::fclose(f);
+            }
+        }
+        VkPhysicalDeviceProperties properties{};
+        vkGetPhysicalDeviceProperties(vk_.physical(), &properties);
+        VkPipelineCacheHeaderVersionOne header{};
+        bool usable = data.size() >= sizeof header;
+        if (usable) {
+            std::memcpy(&header, data.data(), sizeof header);
+            usable = header.headerVersion == VK_PIPELINE_CACHE_HEADER_VERSION_ONE &&
+                     header.vendorID == properties.vendorID && header.deviceID == properties.deviceID &&
+                     std::memcmp(header.pipelineCacheUUID, properties.pipelineCacheUUID, VK_UUID_SIZE) == 0;
+            if (!usable)
+                LOG_INFO("render", "Vulkan: the kept pipelines are for another GPU or driver; starting afresh");
+        }
+        VkPipelineCacheCreateInfo cache{VK_STRUCTURE_TYPE_PIPELINE_CACHE_CREATE_INFO};
+        if (usable) {
+            cache.initialDataSize = data.size();
+            cache.pInitialData = data.data();
+        }
+        if (vkCreatePipelineCache(vk_.device(), &cache, nullptr, &pipeline_cache_) != VK_SUCCESS && usable) {
+            cache.initialDataSize = 0;
+            cache.pInitialData = nullptr;
+            vkCreatePipelineCache(vk_.device(), &cache, nullptr, &pipeline_cache_);
+        } else if (usable) {
+            saved_bytes_ = data.size();
+            LOG_INFO("render", "Vulkan: kept pipelines loaded (%zu KB)", data.size() / 1024);
+        }
+    }
+
+    // Written to a temporary file, then renamed over the old one (never a half-written cache).
+    void save_pipeline_cache() {
+        if (!pipeline_cache_ || pipeline_cache_path_.empty() || !pipelines_new_) return;
+        size_t size = 0;
+        if (vkGetPipelineCacheData(vk_.device(), pipeline_cache_, &size, nullptr) != VK_SUCCESS || !size) return;
+        std::vector<char> data(size);
+        if (vkGetPipelineCacheData(vk_.device(), pipeline_cache_, &size, data.data()) != VK_SUCCESS) return;
+        data.resize(size);
+        if (size == saved_bytes_) {  // only cache hits since the last save
+            pipelines_new_ = 0;
+            pipelines_ms_ = pipelines_slowest_ms_ = 0;
+            return;
+        }
+        namespace fs = std::filesystem;
+        const fs::path path(pipeline_cache_path_);
+        std::error_code ec;
+        fs::create_directories(path.parent_path(), ec);
+        const fs::path temporary = path.string() + ".new";
+        std::FILE* f = std::fopen(temporary.string().c_str(), "wb");
+        if (!f) {
+            LOG_WARN("render", "Vulkan: cannot write the pipeline cache %s", temporary.string().c_str());
+            pipeline_cache_path_.clear();  // once
+            return;
+        }
+        const bool written = std::fwrite(data.data(), 1, data.size(), f) == data.size();
+        std::fclose(f);
+        if (written) fs::rename(temporary, path, ec);
+        if (!written || ec) {
+            fs::remove(temporary, ec);
+            return;
+        }
+        saved_bytes_ = size;
+        LOG_INFO("render", "Vulkan: pipeline cache saved (%zu KB; %u pipelines made since, %.0f ms in all, slowest %.0f ms)",
+                 data.size() / 1024, pipelines_new_, pipelines_ms_, pipelines_slowest_ms_);
+        pipelines_new_ = 0;
+        pipelines_ms_ = pipelines_slowest_ms_ = 0;
+    }
+
     // --- Draw objects ---
 
     void create_draw_objects() {
@@ -918,8 +1010,7 @@ private:
         layout.setLayoutCount = 1;
         layout.pSetLayouts = &set_layout_;
         vkCreatePipelineLayout(vk_.device(), &layout, nullptr, &pipeline_layout_);
-        VkPipelineCacheCreateInfo cache{VK_STRUCTURE_TYPE_PIPELINE_CACHE_CREATE_INFO};
-        vkCreatePipelineCache(vk_.device(), &cache, nullptr, &pipeline_cache_);
+        create_pipeline_cache();
 
         // An unbound texture reads opaque black.
         TextureImageDesc dummy;
@@ -1205,11 +1296,17 @@ private:
         info.pDynamicState = &dynamic;
         info.layout = pipeline_layout_;
         VkPipeline pipeline = VK_NULL_HANDLE;
+        const auto start = std::chrono::steady_clock::now();
         if (VkResult r = vkCreateGraphicsPipelines(vk_.device(), pipeline_cache_, 1, &info, nullptr, &pipeline);
             r != VK_SUCCESS) {
             LOG_ERROR("render", "gfx: Vulkan pipeline: %s", result_name(r));
             pipeline = VK_NULL_HANDLE;
         }
+        const double ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - start).count();
+        ++pipelines_new_;
+        pipelines_ms_ += ms;
+        pipelines_slowest_ms_ = std::max(pipelines_slowest_ms_, ms);
+        if (ms >= 50.0) LOG_INFO("render", "Vulkan: a new pipeline took %.0f ms (not in the pipeline cache yet)", ms);
         pipelines_[key] = pipeline;
         return pipeline;
     }
@@ -1417,6 +1514,10 @@ private:
     VkDescriptorSetLayout set_layout_ = VK_NULL_HANDLE;
     VkPipelineLayout pipeline_layout_ = VK_NULL_HANDLE;
     VkPipelineCache pipeline_cache_ = VK_NULL_HANDLE;
+    std::string pipeline_cache_path_;
+    uint32_t pipelines_new_ = 0;  // made since the last save (cache hits too)
+    size_t saved_bytes_ = 0;      // the cache data's size when it was last loaded or saved
+    double pipelines_ms_ = 0, pipelines_slowest_ms_ = 0;
     Image dummy_texture_;
     VkBuf default_vertex_, quad_indices_;
     SamplerState sampler_states_[kGfxTextureSlots];

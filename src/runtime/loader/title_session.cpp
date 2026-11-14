@@ -283,6 +283,7 @@ bool start_session(const Options& options, int argc, char** argv) {
     }
     loader::set_fatal_exit_hook([](bool error) {
         loader::compare::flush();
+        if (!error) render::save_caches();  // a crash may have left the GPU device unusable
         if (g_diag_dir) loader::write_diag_summary(*g_diag_dir);
         if (error) tell_player("The game stopped after an error.");
     });
