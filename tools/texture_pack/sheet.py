@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Phase 1.0c curation sheet: original vs upscaled per texture as a local HTML page for the user.
 
-usage: tools/texture_pack/sheet.py WORK [--size 384] [--source REGEX] [--jobs N]
+usage: tools/texture_pack/sheet.py WORK [--size 384] [--source REGEX] [--jobs N] [--serve PORT]
 
 Writes WORK/sheet/index.html plus WebP previews (WORK/sheet/img/<sha1>_o.webp original enlarged with nearest
 neighbour, _u.webp the pack picture as encoded, both --size pixels on the long side, and _uz.webp a 1:1 crop of the
@@ -9,7 +9,9 @@ pack picture's centre for zooming). Per texture: upscale / conservative / skip b
 choices stay in the browser (localStorage) and "Export curation.csv" saves a file for build.py --curation (masks are
 typed as 'x0 y0 x1 y1;...' in original texels). Filter by folder, alpha kind or text; sort by size or change.
 
-The page is for the user's own browser (file://) - it holds the game's textures, so it is never published, and the
+Open it through --serve (http://127.0.0.1:PORT/, bound to this machine only): a Flatpak browser handed the
+file from a file manager sees only index.html, not img/, and shows empty pictures (user's Firefox, 11-14).
+The page is for the user's own browser - it holds the game's textures, so it is never published, and the
 assistant does not open the pictures.
 """
 import argparse
@@ -160,6 +162,7 @@ def main():
     p.add_argument("--size", type=int, default=384)
     p.add_argument("--source", default="")
     p.add_argument("--jobs", type=int, default=os.cpu_count())
+    p.add_argument("--serve", type=int, default=0, help="then serve the sheet on 127.0.0.1:PORT until stopped")
     args = p.parse_args()
     by_sha1 = {}
     with open(args.manifest, newline="") as f:
@@ -187,7 +190,14 @@ def main():
                      "action": s["action"], "masks": s["masks"], "psnr": psnr[s["content_sha1"]]})
     page = PAGE.replace("__ROWS__", json.dumps(data)).replace("__TAG__", json.dumps(args.work.resolve().name))
     (args.work / "sheet" / "index.html").write_text(page)
-    print(f"sheet: {args.work / 'sheet' / 'index.html'} ({len(data)} textures)")
+    print(f"sheet: {args.work / 'sheet' / 'index.html'} ({len(data)} textures)", flush=True)
+    if args.serve:
+        import functools
+        from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
+        handler = functools.partial(SimpleHTTPRequestHandler, directory=str(args.work / "sheet"))
+        handler.log_message = lambda *a: None
+        print(f"serving http://127.0.0.1:{args.serve}/ (Ctrl+C stops)", flush=True)
+        ThreadingHTTPServer(("127.0.0.1", args.serve), handler).serve_forever()
     return 0
 
 
