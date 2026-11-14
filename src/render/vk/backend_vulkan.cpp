@@ -486,10 +486,10 @@ private:
 
     // --- Render graph (0.5b) ---
 
-    // The world's format for the next frame: 16-bit float with enhanced graphics' HDR (and its resolve pass).
+    // The world's format for the next frame: 16-bit float (HDR) whenever enhanced graphics is on (no switch of
+    // its own: it is the base the later lighting passes draw on), with its resolve pass.
     VkFormat scene_format() const {
-        return resolve_pipeline_ && active_graphics_features().hdr ? VK_FORMAT_R16G16B16A16_SFLOAT
-                                                                   : VK_FORMAT_UNDEFINED;
+        return resolve_pipeline_ && graphics_enhanced() ? VK_FORMAT_R16G16B16A16_SFLOAT : VK_FORMAT_UNDEFINED;
     }
 
     // Where the world ends: the HDR scene (when it was drawn into one) resolved into the picture, then enhanced

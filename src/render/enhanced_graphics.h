@@ -23,7 +23,6 @@ struct GraphicsFeatures {
     bool sharpen = true;         // contrast-adaptive sharpening, by `sharpness`
     bool vibrance = true;        // stronger colours where they are weak, by `vibrance_amount`
     bool texture_detail = true;  // sharper textures in the distance, by `lod_bias`
-    bool hdr = true;             // Vulkan: the 3D picture drawn in 16-bit floating point (no banding)
     float sharpness = 0.0f;        // 0..1
     float vibrance_amount = 0.0f;  // -1 (greyer) .. 1
     float lod_bias = 0.0f;         // -2 (sharpest) .. 0 (the game's)
@@ -40,7 +39,6 @@ struct GraphicsFeatures {
         {"sharpen", &GraphicsFeatures::sharpen},
         {"vibrance", &GraphicsFeatures::vibrance},
         {"texture_detail", &GraphicsFeatures::texture_detail},
-        {"hdr", &GraphicsFeatures::hdr},
     };
     struct Amount {
         const char* key;
