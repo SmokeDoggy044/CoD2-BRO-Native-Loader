@@ -33,7 +33,7 @@ add_library(render STATIC
     d3d9_post.cpp
     graphics_settings.cpp
 )
-target_include_directories(render PUBLIC ${CMAKE_CURRENT_SOURCE_DIR} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/vk)
+target_include_directories(render PUBLIC ${CMAKE_CURRENT_SOURCE_DIR} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/vk ${PROJECT_SOURCE_DIR}/src/ui)
 
 # Vulkan's create-info structs are initialized as {sType} by design.
 if(NOT MSVC)

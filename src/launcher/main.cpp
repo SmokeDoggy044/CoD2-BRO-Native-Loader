@@ -35,6 +35,7 @@
 #include "settings.h"
 #include "settings_schema.h"
 #include "settings_widgets.h"
+#include "ui_theme.h"
 #include "update_check.h"
 #include "updater.h"
 
@@ -733,7 +734,7 @@ int main(int, char**) {
     ImGuiIO& io = ImGui::GetIO();
     io.IniFilename = nullptr;
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard | ImGuiConfigFlags_NavEnableGamepad;
-    ImGui::StyleColorsDark();
+    ui::apply_theme();
     ImGui::GetStyle().ScaleAllSizes(ui_scale);
     io.FontGlobalScale = ui_scale;
     ImGui_ImplSDL3_InitForSDLRenderer(window, renderer);

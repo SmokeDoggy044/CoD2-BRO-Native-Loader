@@ -8,6 +8,7 @@
 #include <cstring>
 #include <utility>
 
+#include "ui_theme.h"
 #include "imgui.h"
 #include "imgui_impl_sdl3.h"
 #include "log.h"
@@ -211,7 +212,7 @@ bool GameWindow::init_menu() {
     ImGuiIO& io = ImGui::GetIO();
     io.IniFilename = nullptr;
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard | ImGuiConfigFlags_NavEnableGamepad;
-    ImGui::StyleColorsDark();
+    ui::apply_theme();  // the launcher's look
     int window_width = 0, window_height = 0;
     SDL_GetWindowSize(window_, &window_width, &window_height);
     const float size = std::clamp(static_cast<float>(window_height) / 34.0f, 15.0f, 48.0f);
