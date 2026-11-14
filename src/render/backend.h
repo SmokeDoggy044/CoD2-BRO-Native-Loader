@@ -29,7 +29,33 @@ struct SurfaceDesc {
 struct TextureReplacement {
     uint32_t width = 0, height = 0;
     std::vector<uint32_t> pixels;  // A8R8G8B8, width * height; mipmaps are made from it
+    // Or ready-made blocks (texture packs, src/platform/mods.h): DXT1/DXT5, levels[0] = width x height, each next
+    // level half the size; `pixels` then stays empty. Fewer levels than a full chain is fine.
+    enum class Compression : uint8_t { None, Dxt1, Dxt5 };
+    Compression compression = Compression::None;
+    std::vector<std::vector<uint8_t>> levels;
 };
+
+// Bytes per row of 4x4 blocks and rows of blocks of a compressed level.
+inline uint32_t replacement_block_row_bytes(TextureReplacement::Compression c, uint32_t width) {
+    return (width + 3) / 4 * (c == TextureReplacement::Compression::Dxt1 ? 8u : 16u);
+}
+
+// Whether a picture is usable: a size, and pixels or every compressed level of the right size.
+inline bool replacement_valid(const TextureReplacement& r) {
+    if (!r.width || !r.height) return false;
+    if (r.compression == TextureReplacement::Compression::None)
+        return r.pixels.size() >= static_cast<size_t>(r.width) * r.height;
+    if (r.levels.empty()) return false;
+    uint32_t w = r.width, h = r.height;
+    for (const auto& level : r.levels) {
+        if (level.size() < static_cast<size_t>(replacement_block_row_bytes(r.compression, w)) * ((h + 3) / 4))
+            return false;
+        w = w > 1 ? w / 2 : 1;
+        h = h > 1 ? h / 2 : 1;
+    }
+    return true;
+}
 
 // How to narrow one draw of UI laid out for a narrower shape than the picture's
 // (BackendConfig::narrow_ui_draw): x' = a w + (x - a w) * factor.

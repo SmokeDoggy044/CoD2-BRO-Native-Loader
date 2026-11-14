@@ -28,6 +28,7 @@ add_library(render STATIC
     shader.cpp
     state.cpp
     texture.cpp
+    texture_pack.cpp
     ${CMAKE_CURRENT_BINARY_DIR}/title_shaders.cpp
     ${CMAKE_CURRENT_BINARY_DIR}/post_shaders.cpp
     d3d9_post.cpp

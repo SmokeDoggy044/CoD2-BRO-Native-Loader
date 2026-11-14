@@ -673,6 +673,13 @@ IDirect3DTexture9* D3D9Draw::replacement_texture(uint64_t content, bool mipmaps)
     return entry.texture;
 }
 
+void D3D9Draw::release_replacement(uint64_t content, bool mipmaps) {
+    auto it = caches_->replacements.find(content << 1 | (mipmaps ? 1 : 0));
+    if (it == caches_->replacements.end()) return;
+    release(it->second.texture);
+    caches_->replacements.erase(it);
+}
+
 IDirect3DTexture9* D3D9Draw::sample_target(uint32_t data) {
     auto it = caches_->targets.find(data);
     if (it == caches_->targets.end()) return nullptr;
@@ -777,6 +784,44 @@ D3D9Draw::CachedTexture* D3D9Draw::texture_for(uint32_t data, uint32_t format, u
 }
 
 bool D3D9Draw::upload_replacement(CachedTexture& entry, const TextureReplacement& replacement, bool mipmaps) {
+    if (!replacement_valid(replacement)) {
+        entry.texture = nullptr;
+        return false;
+    }
+    if (replacement.compression != TextureReplacement::Compression::None) {
+        // Pack pictures: video memory only (DEFAULT pool, no managed copy in our 32-bit address space), filled
+        // through a system-memory copy that is released at once.
+        const D3DFORMAT format =
+            replacement.compression == TextureReplacement::Compression::Dxt1 ? D3DFMT_DXT1 : D3DFMT_DXT5;
+        const UINT levels = mipmaps ? static_cast<UINT>(replacement.levels.size()) : 1;
+        IDirect3DTexture9* staging = nullptr;
+        if (FAILED(device_->CreateTexture(replacement.width, replacement.height, levels, 0, format, D3DPOOL_SYSTEMMEM,
+                                          &staging, nullptr)) ||
+            FAILED(device_->CreateTexture(replacement.width, replacement.height, levels, 0, format, D3DPOOL_DEFAULT,
+                                          &entry.texture, nullptr))) {
+            LOG_ERROR("render", "CreateTexture %ux%u for a pack picture failed", replacement.width, replacement.height);
+            if (staging) staging->Release();
+            entry.texture = nullptr;
+            return false;
+        }
+        uint32_t width = replacement.width, height = replacement.height;
+        for (UINT i = 0; i < levels; ++i) {
+            const uint32_t row = replacement_block_row_bytes(replacement.compression, width);
+            D3DLOCKED_RECT locked;
+            if (SUCCEEDED(staging->LockRect(i, &locked, nullptr, 0))) {
+                for (uint32_t y = 0; y < (height + 3) / 4; ++y)
+                    std::memcpy(static_cast<uint8_t*>(locked.pBits) + static_cast<size_t>(y) * locked.Pitch,
+                                replacement.levels[i].data() + static_cast<size_t>(y) * row, row);
+                staging->UnlockRect(i);
+            }
+            width = std::max(width / 2, 1u);
+            height = std::max(height / 2, 1u);
+        }
+        device_->UpdateTexture(staging, entry.texture);
+        staging->Release();
+        entry.scale[0] = entry.scale[1] = 1.0f;
+        return true;
+    }
     if (FAILED(device_->CreateTexture(replacement.width, replacement.height, mipmaps ? 0 : 1, 0, D3DFMT_A8R8G8B8,
                                       D3DPOOL_MANAGED, &entry.texture, nullptr))) {
         LOG_ERROR("render", "CreateTexture %ux%u for a replacement failed", replacement.width, replacement.height);

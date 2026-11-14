@@ -156,6 +156,10 @@ bool apply_setting(Options& o, Combined& combined, const platform::SettingDef& d
         o.frame_rate = v == "display" ? 0 : std::atoi(v.c_str());
     } else if (key == "late-frames") {
         o.late_frames_wait = v == "wait";
+    } else if (key == "mods") {
+        o.mods = on;
+    } else if (key == "mods-dir") {
+        o.mods_dir = fs::path(v);
     } else if (key == "sharp-text") {
         o.sharp_text = on;
     } else if (key == "button-prompts") {

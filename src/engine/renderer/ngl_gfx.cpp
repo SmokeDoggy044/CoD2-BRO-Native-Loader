@@ -331,13 +331,13 @@ void log_texture(uint64_t content, uint32_t format, const render::TextureLayout&
     static FILE* file = [] {
         const char* path = std::getenv("COD_BRO_TEXTURE_LOG");
         FILE* f = path && *path ? std::fopen(path, "w") : nullptr;
-        if (f) std::fprintf(f, "content,format,kind,width,height,levels,size,linear,palette\n");
+        if (f) std::fprintf(f, "content,format,kind,width,height,levels,size,linear,palette,cube\n");
         return f;
     }();
     if (!file) return;
     static std::unordered_set<uint64_t> logged;
     if (!logged.insert(content).second) return;
-    std::fprintf(file, "%016llx,%08x,%d,%u,%u,%u,%u,%d,%d\n", static_cast<unsigned long long>(content), format,
+    std::fprintf(file, "%016llx,%08x,%d,%u,%u,%u,%u,%d,%d,%d\n", static_cast<unsigned long long>(content), format,
                  static_cast<int>(layout.kind), layout.width, layout.height, layout.levels, size, layout.linear ? 1 : 0,
                  palette ? 1 : 0, layout.cube ? 1 : 0);
     std::fflush(file);

@@ -538,6 +538,7 @@ public:
     void set_fog(const Fog& fog) override { fog_ = fog; }
     void set_texture(uint32_t slot, TextureId texture) override {
         if (slot < kGfxTextureSlots) bound_textures_[slot] = texture;
+        if (texture < replacement_bound_.size()) replacement_bound_[texture] = frames_;
     }
     void set_sampler(uint32_t slot, const SamplerState& state) override {
         if (slot < kGfxTextureSlots) sampler_states_[slot] = state;
@@ -670,18 +671,36 @@ public:
         r.version = version;
         if (!r.id) {
             r.id = next_id_++;
+            if (replacement_bound_.size() <= r.id) replacement_bound_.resize(r.id + 1, 0);
+            replacement_bound_[r.id] = frames_;
             Texture& t = textures_[r.id];
             t.replacement = content;
             t.mipmaps = mipmaps;
         }
         Texture& t = textures_[r.id];
         const std::shared_ptr<const TextureReplacement> picture = replace_texture_(content, scale_y_);
-        if (!picture || !picture->width || !picture->height ||
-            picture->pixels.size() < static_cast<size_t>(picture->width) * picture->height)
-            return 0;
+        if (!picture || !replacement_valid(*picture)) return 0;
         TextureImageDesc image;
         image.width = picture->width;
         image.height = picture->height;
+        if (picture->compression != TextureReplacement::Compression::None) {
+            const bool dxt1 = picture->compression == TextureReplacement::Compression::Dxt1;
+            image.format = dxt1 ? VK_FORMAT_BC1_RGBA_UNORM_BLOCK : VK_FORMAT_BC3_UNORM_BLOCK;
+            image.levels = mipmaps ? static_cast<uint32_t>(picture->levels.size()) : 1;
+            if (!vk_.create_texture_image(t.image, image)) return 0;
+            t.desc.format = dxt1 ? Format::DXT1 : Format::DXT5;
+            t.desc.width = image.width;
+            t.desc.height = image.height;
+            t.desc.levels = image.levels;
+            uint32_t width = image.width, height = image.height;
+            for (uint32_t i = 0; i < image.levels; ++i) {
+                const uint32_t row = replacement_block_row_bytes(picture->compression, width);
+                vk_.upload_level(t.image, i, 0, picture->levels[i].data(), row, (height + 3) / 4, row, 0);
+                width = std::max(width / 2, 1u);
+                height = std::max(height / 2, 1u);
+            }
+            return r.id;
+        }
         image.levels = mipmaps ? full_chain(image.width, image.height, 1) : 1;
         if (!vk_.create_texture_image(t.image, image)) return 0;
         t.desc.width = image.width;
@@ -759,6 +778,7 @@ public:
 
     void end_frame() override {
         flat_frames_ = frame_is_flat() ? flat_frames_ + 1 : 0;
+        if (++frames_ % 60 == 0) free_idle_replacements();
         if (redirected_) {  // presented without finish_picture: the back buffer is the 8-bit image again
             Target& back = targets_[back_buffer_];
             std::swap(back.image, scene_);
@@ -861,6 +881,16 @@ private:
         TextureId id = 0;
         uint32_t version = 0;
     };
+    // Frames shown, and the frame each replacement id was last bound (indexed by id; kReplacementIdleFrames).
+    uint32_t frames_ = 0;
+    std::vector<uint32_t> replacement_bound_;
+    void free_idle_replacements() {
+        std::vector<TextureId> idle;
+        for (const auto& [key, r] : replacements_)
+            if (r.id < replacement_bound_.size() && frames_ - replacement_bound_[r.id] > kReplacementIdleFrames)
+                idle.push_back(r.id);
+        for (TextureId id : idle) destroy_texture(id);
+    }
     struct VkBuf {
         VkBuffer buffer = VK_NULL_HANDLE;
         VmaAllocation allocation = nullptr;

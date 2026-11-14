@@ -31,6 +31,7 @@
 #include "gfx_verify.h"
 #include "ngl.h"
 #include "ngl_gfx.h"
+#include "texture_pack.h"
 #include "snd.h"
 #include "title_xapi.h"
 #include "title_host.h"
@@ -194,14 +195,27 @@ void configure_title_services(const Options& options, const fs::path& assets, co
         options.sharp_text && text::prepare_sharp_text(assets, platform::executable_dir() / "fonts") > 0;
     const bool key_prompts = options.button_prompts != loader::TitlePatchConfig::ButtonPrompts::Controller &&
                              text::prepare_key_prompts(assets, platform::executable_dir() / "fonts") > 0;
-    if (sharp_text || key_prompts)
-        d3d_config.backend.replace_texture = [sharp_text, key_prompts](uint64_t content, float render_scale) {
+    // Texture packs (phase 1b): outside the Enhanced switch, never in --compare runs.
+    const bool packs =
+        options.mods && !options.compare &&
+        !render::texture_pack::open(options.mods_dir.value_or(options.data.value_or(platform::user_data_dir()) / "mods"))
+             .empty();
+    if (sharp_text || key_prompts || packs)
+        d3d_config.backend.replace_texture = [sharp_text, key_prompts, packs](uint64_t content, float render_scale) {
             std::shared_ptr<const render::TextureReplacement> replacement;
             if (key_prompts) replacement = text::key_prompt_replacement(content, render_scale);
             if (!replacement && sharp_text) replacement = text::sharp_text_replacement(content, render_scale);
+            if (!replacement && packs) replacement = render::texture_pack::replacement(content);
             return replacement;
         };
-    if (key_prompts) d3d_config.backend.replacement_version = &text::key_prompt_version;
+    if (key_prompts && packs)
+        d3d_config.backend.replacement_version = [](uint64_t content) {
+            return text::key_prompt_version(content) * 0x10000u + render::texture_pack::version(content);
+        };
+    else if (key_prompts)
+        d3d_config.backend.replacement_version = &text::key_prompt_version;
+    else if (packs)
+        d3d_config.backend.replacement_version = &render::texture_pack::version;
     if (options.widescreen) {
         d3d_config.backend.display_aspect = aspect;
         d3d_config.backend.pillarbox_flat_frames = true;  // the menus are 4:3 layouts

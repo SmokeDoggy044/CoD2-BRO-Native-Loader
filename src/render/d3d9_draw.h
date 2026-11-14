@@ -53,6 +53,8 @@ public:
     // BackendConfig::replace_texture's picture for texture contents `content` as a D3D9 texture
     // (kept while its replacement version stays), or null for none.
     IDirect3DTexture9* replacement_texture(uint64_t content, bool mipmaps);
+    // Frees that picture (GfxD3D9's idle replacements); asked again it is made again.
+    void release_replacement(uint64_t content, bool mipmaps);
     // The render target at `data` to sample (a copy while it is the one drawn into).
     IDirect3DTexture9* sample_target(uint32_t data);
     // A draw wrote depth (the frame is not flat) / needed something untranslated.

@@ -232,8 +232,13 @@ public:
     void present() override { show_frame(); }
 
     void end_frame() override {
-        // Kept vertices unused for a while go.
+        // Kept vertices and replacement pictures unused for a while go.
         if (draw_.frame() % 60) return;
+        std::vector<TextureId> idle;
+        for (const auto& [key, id] : replacements_)
+            if (id < replacement_bound_.size() && draw_.frame() - replacement_bound_[id] > kReplacementIdleFrames)
+                idle.push_back(id);
+        for (TextureId id : idle) destroy_texture(id);
         for (auto it = kept_.begin(); it != kept_.end();) {
             if (draw_.frame() - it->second.used_frame > 300) {
                 if (it->second.buffer) kept_bytes_ -= it->second.bytes;
@@ -330,7 +335,10 @@ public:
         if (it == textures_.end()) return;
         unbind_texture(id);
         release(it->second.texture);
-        if (it->second.replacement) replacements_.erase(replacement_key(it->second.replacement, it->second.mipmaps));
+        if (it->second.replacement) {
+            draw_.release_replacement(it->second.replacement, it->second.mipmaps);
+            replacements_.erase(replacement_key(it->second.replacement, it->second.mipmaps));
+        }
         textures_.erase(it);
     }
 
@@ -577,6 +585,7 @@ public:
     void set_fog(const Fog& fog) override { fog_ = fog; }
     void set_texture(uint32_t slot, TextureId texture) override {
         if (slot < kGfxTextureSlots) bound_textures_[slot] = texture;
+        if (texture < replacement_bound_.size()) replacement_bound_[texture] = draw_.frame();
     }
     void set_sampler(uint32_t slot, const SamplerState& state) override {
         if (slot < kGfxTextureSlots) samplers_[slot] = state;
@@ -744,6 +753,8 @@ public:
         TextureId& id = replacements_[replacement_key(content, mipmaps)];
         if (!id) {
             id = next_id_++;
+            if (replacement_bound_.size() <= id) replacement_bound_.resize(id + 1, 0);
+            replacement_bound_[id] = draw_.frame();
             Texture t;
             t.replacement = content;
             t.mipmaps = mipmaps;
@@ -1066,6 +1077,7 @@ private:
     uint32_t next_id_ = 1;  // one sequence for every kind of id
     std::unordered_map<TextureId, Texture> textures_;
     std::unordered_map<uint64_t, TextureId> replacements_;  // by replacement_key
+    std::vector<uint32_t> replacement_bound_;  // the frame each replacement id was last bound (by id)
     std::unordered_map<BufferId, Buffer> buffers_;
     std::unordered_map<ShaderId, Shader> shaders_;
     std::vector<IDirect3DVertexDeclaration9*> layouts_;  // LayoutId - 1

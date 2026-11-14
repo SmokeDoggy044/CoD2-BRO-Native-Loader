@@ -83,6 +83,10 @@ const SettingDef kSettings[] = {
     {"late-frames", "show|wait", T::Choice, G::Display, 0, 0, 0, "show|wait", "show",
      "a frame that missed its vertical blank is shown at once (default) or waits for the next one (as on the "
      "Xbox: 30 fps drops to 20)"},
+    {"mods", "on|off", T::Switch, G::Graphics, kCli, 0, 0, nullptr, "on",
+     "texture packs and other mods from the mods folder of the data folder (default on; never with --compare)"},
+    {"mods-dir", "DIR", T::Path, G::Developer, kCli, 0, 0, nullptr, "",
+     "mods from DIR instead of <data folder>/mods"},
     {"sharp-text", "on|off", T::Switch, G::Display, 0, 0, 0, nullptr, "on",
      "the game's text drawn again at the render resolution from free look-alike fonts (src/text/fonts/ next to "
      "the loader; default on)"},

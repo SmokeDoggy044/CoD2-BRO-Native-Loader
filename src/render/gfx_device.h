@@ -30,6 +30,9 @@ inline bool g_skip_gpu_draws = false;
 // While g_skip_gpu_draws: still upload textures and buffers, so drawing can resume later with complete contents
 // (--replay-no-draw with --replay-shots draws only the frames before each picture).
 inline bool g_skip_keeps_uploads = false;
+// Replacement pictures (texture packs) not bound for this many frames are freed on the GPU; asked again they are
+// made again. Longer than ngl_gfx's kUnusedTextureFrames, so no title texture still refers to a freed one.
+constexpr uint32_t kReplacementIdleFrames = 1800;
 
 class GfxDevice;
 
