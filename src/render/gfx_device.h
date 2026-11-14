@@ -21,6 +21,7 @@
 // - Vertex inputs are numbered 0..15 (HLSL semantic TEXCOORDn), as the NV2A's v0..v15.
 
 #include <cstdint>
+#include <vector>
 
 namespace render {
 
@@ -336,6 +337,21 @@ public:
         uint64_t gpu_available = 0;             // D3D9: GetAvailableTextureMem (a rough figure)
     };
     virtual Stats stats() { return {}; }
+
+    // Developer mode's texture picker (--dev, F6). pick() arms it: during the next frame each draw into the full
+    // picture is counted at the title pixel (x, y) - that frame shows only that pixel. take_pick() then gives the
+    // draws that reached it, in drawing order (the last on top), once the GPU has counted (false until then).
+    struct PickHit {
+        uint64_t content[4] = {};  // texture slots 0-3: title texture contents (label_texture), 0 = none/unknown
+        bool replaced[4] = {};     // a replacement picture (texture pack, sharp text)
+        uint32_t width[4] = {}, height[4] = {};
+        bool depth_test = false, depth_write = false, blend = false;
+        uint32_t samples = 0;
+    };
+    virtual bool pick(uint32_t /*x*/, uint32_t /*y*/) { return false; }  // false: this back end cannot
+    virtual bool take_pick(std::vector<PickHit>& /*hits*/) { return false; }
+    // The title texture contents (render::hash_bytes) `texture` now holds, for the picker.
+    virtual void label_texture(TextureId /*texture*/, uint64_t /*content*/) {}
     // The target's pixels at the title's size (A8R8G8B8, width * height); false on failure.
     virtual bool read_target(TargetId target, uint32_t* pixels, uint32_t width, uint32_t height) = 0;
 

@@ -225,8 +225,8 @@ const SettingDef kSettings[] = {
      "exit"},
     {"dev", "", T::Flag, G::Testing, kCli, 0, 0, nullptr, "false",
      "developer mode: an overlay (frame time, GPU memory, texture packs) and keys: F1 overlay on/off, F2 mods on/off, "
-     "F3 enhanced graphics on/off, F4 next enhanced feature, F5 that feature on/off, F7 pause; with --diag, F12 marks "
-     "note what was switched"},
+     "F3 enhanced graphics on/off, F4 next enhanced feature, F5 that feature on/off, F6 textures under the "
+     "crosshair (Vulkan), F7 pause; with --diag, F12 marks note what was switched and picked"},
     {"screenshots", "N DIR", T::Custom, G::Testing, kCli, 0, 0, nullptr, "",
      "save every Nth frame as DIR/frame_<n>.bmp (debugging)"},
     {"profile", "auto[,S]", T::Text, G::Testing, kCli, 0, 0, nullptr, "",

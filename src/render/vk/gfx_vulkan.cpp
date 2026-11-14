@@ -219,6 +219,7 @@ public:
 
     ~Device() override {
         vk_.wait_idle();
+        if (pick_pool_) vkDestroyQueryPool(vk_.device(), pick_pool_, nullptr);
         for (auto& [id, target] : targets_) vk_.destroy_image(target.image);
         for (auto& [id, texture] : textures_) vk_.destroy_image(texture.image);
         for (auto& [id, buffer] : buffers_) release_buffer(buffer);
@@ -563,6 +564,7 @@ public:
     void draw(Primitive primitive, uint32_t first_vertex, uint32_t vertex_count) override {
         if (g_skip_gpu_draws || !enough_vertices(primitive, vertex_count)) return;
         if (!bind_streams() || !prepare(primitive)) return;
+        const PickScope pick_scope(*this);
         if (primitive == Primitive::Quads) {
             draw_quads(first_vertex, vertex_count);
             return;
@@ -583,6 +585,7 @@ public:
         VkBuf& b = buffer_for_draw(ib->second);
         vkCmdBindIndexBuffer(vk_.cmd(), b.buffer, 0,
                              ib->second.desc.kind == BufferKind::Index16 ? VK_INDEX_TYPE_UINT16 : VK_INDEX_TYPE_UINT32);
+        const PickScope pick_scope(*this);
         vkCmdDrawIndexed(vk_.cmd(), index_count, 1, first_index, base_vertex, 0);
     }
 
@@ -624,6 +627,7 @@ public:
         const VkDeviceSize stride64 = stride;
         vkCmdBindVertexBuffers2(vk_.cmd(), 0, 1, &buffer, &offset, nullptr,
                                 vk_.pipeline_libraries() ? nullptr : &stride64);
+        const PickScope pick_scope(*this);
         if (primitive == Primitive::Quads) {
             draw_quads(0, vertex_count);
             return;
@@ -789,9 +793,47 @@ public:
         return s;
     }
 
+    void label_texture(TextureId texture, uint64_t content) override {
+        auto it = textures_.find(texture);
+        if (it != textures_.end()) it->second.content = content;
+    }
+
+    bool pick(uint32_t x, uint32_t y) override {
+        if (pick_state_ != PickState::Off || !pick_pool()) return false;
+        pick_rect_ = {static_cast<int32_t>(x), static_cast<int32_t>(y), static_cast<int32_t>(x) + 1,
+                      static_cast<int32_t>(y) + 1};
+        pick_state_ = PickState::Armed;
+        return true;
+    }
+
+    bool take_pick(std::vector<PickHit>& hits) override {
+        if (pick_state_ != PickState::Waiting) return false;
+        std::vector<uint64_t> samples(pick_hits_.size());
+        if (!samples.empty()) {
+            const VkResult r = vkGetQueryPoolResults(vk_.device(), pick_pool_, 0, static_cast<uint32_t>(samples.size()),
+                                                     samples.size() * 8, samples.data(), 8, VK_QUERY_RESULT_64_BIT);
+            if (r == VK_NOT_READY) return false;
+            if (r != VK_SUCCESS) samples.assign(samples.size(), 0);
+        }
+        hits.clear();
+        for (size_t i = 0; i < pick_hits_.size(); ++i)
+            if (samples[i]) {
+                hits.push_back(pick_hits_[i]);
+                hits.back().samples = static_cast<uint32_t>(samples[i]);
+            }
+        pick_state_ = PickState::Off;
+        return true;
+    }
+
     void save_caches() override { save_pipeline_cache(); }
 
     void end_frame() override {
+        if (pick_state_ == PickState::Picking) pick_state_ = PickState::Waiting;
+        if (pick_state_ == PickState::Armed) {
+            pick_state_ = PickState::Picking;
+            pick_reset_ = false;
+            pick_hits_.clear();
+        }
         flat_frames_ = frame_is_flat() ? flat_frames_ + 1 : 0;
         if (++frames_ % 60 == 0) free_idle_replacements();
         if (redirected_) {  // presented without finish_picture: the back buffer is the 8-bit image again
@@ -885,12 +927,52 @@ private:
         Image copy;  // what was drawn, for sampling it while it is the target drawn into
         TextureId texture[2] = {0, 0};  // normalized, texel coordinates
     };
+    // --- The texture picker (pick / take_pick) ---
+    static constexpr uint32_t kPickQueries = 8192;
+    enum class PickState : uint8_t { Off, Armed, Picking, Waiting };
+    PickState pick_state_ = PickState::Off;
+    Rect pick_rect_;
+    VkQueryPool pick_pool_ = VK_NULL_HANDLE;
+    bool pick_reset_ = false, pick_this_draw_ = false, pick_open_ = false;
+    PickHit pick_next_;
+    std::vector<PickHit> pick_hits_;
+    bool pick_pool() {
+        if (pick_pool_) return true;
+        VkQueryPoolCreateInfo info{VK_STRUCTURE_TYPE_QUERY_POOL_CREATE_INFO};
+        info.queryType = VK_QUERY_TYPE_OCCLUSION;
+        info.queryCount = kPickQueries;
+        if (vkCreateQueryPool(vk_.device(), &info, nullptr, &pick_pool_) != VK_SUCCESS) {
+            pick_pool_ = VK_NULL_HANDLE;
+            LOG_WARN("render", "Vulkan: no query pool for the texture picker");
+            return false;
+        }
+        return true;
+    }
+    // Counts the draw recorded in its lifetime when prepare() chose it for the picker.
+    struct PickScope {
+        Device& d;
+        explicit PickScope(Device& device) : d(device) {
+            if (!d.pick_this_draw_) return;
+            vkCmdBeginQuery(d.vk_.cmd(), d.pick_pool_, static_cast<uint32_t>(d.pick_hits_.size()), 0);
+            d.pick_open_ = true;
+        }
+        ~PickScope() {
+            if (!d.pick_open_) return;
+            vkCmdEndQuery(d.vk_.cmd(), d.pick_pool_, static_cast<uint32_t>(d.pick_hits_.size()));
+            d.pick_hits_.push_back(d.pick_next_);
+            d.pick_open_ = d.pick_this_draw_ = false;
+        }
+        PickScope(const PickScope&) = delete;
+        PickScope& operator=(const PickScope&) = delete;
+    };
+
     struct Texture {
         TextureDesc desc;
         Image image;                // ours / a replacement's
         TargetId target = 0;        // a render target's picture
         uint64_t replacement = 0;   // a replacement picture, by content
         bool mipmaps = false;
+        uint64_t content = 0;       // label_texture's
     };
     struct Replacement {
         TextureId id = 0;
@@ -1707,6 +1789,7 @@ private:
     // here).
     bool prepare(Primitive primitive, const float* range = nullptr, bool user = false, uint32_t user_stride = 0) {
         begin_draw();
+        pick_this_draw_ = false;
         auto vs = shaders_.find(vertex_shader_);
         auto ps = shaders_.find(pixel_shader_);
         auto color = targets_.find(color_);
@@ -1728,6 +1811,20 @@ private:
         in.viewport = viewport_;
         in.scissor = scissor_on_ ? &scissor_ : nullptr;
         const bool full_picture = target.width == back_width_ && target.height == back_height_;
+        Rect pick_scissor;
+        if (pick_state_ == PickState::Picking && full_picture) {
+            // The picker's frame: only the picked pixel is drawn, each draw counted (PickScope).
+            pick_scissor = pick_rect_;
+            if (scissor_on_) {
+                pick_scissor.left = std::max(pick_scissor.left, scissor_.left);
+                pick_scissor.top = std::max(pick_scissor.top, scissor_.top);
+                pick_scissor.right = std::min(pick_scissor.right, scissor_.right);
+                pick_scissor.bottom = std::min(pick_scissor.bottom, scissor_.bottom);
+            }
+            if (pick_scissor.left >= pick_scissor.right || pick_scissor.top >= pick_scissor.bottom) return false;
+            in.scissor = &pick_scissor;
+            pick_this_draw_ = pick_hits_.size() < kPickQueries && pick_pool();
+        }
         in.narrow = ui_narrowing(narrow_ui_draw_, range, frame_is_flat(), full_picture, back_width_);
         in.range = range;
         in.full_picture = full_picture;
@@ -1813,6 +1910,26 @@ private:
         }
 
         // Record.
+        if (pick_this_draw_) {
+            if (!pick_reset_) {  // outside a rendering
+                vk_.end_rendering();
+                vkCmdResetQueryPool(vk_.cmd(), pick_pool_, 0, kPickQueries);
+                pick_reset_ = true;
+            }
+            PickHit& hit = pick_next_;
+            hit = {};
+            for (uint32_t slot = 0; slot < 4; ++slot) {
+                auto t = textures_.find(bound_textures_[slot]);
+                if (t == textures_.end()) continue;
+                hit.replaced[slot] = t->second.replacement != 0;
+                hit.content[slot] = t->second.replacement ? t->second.replacement : t->second.content;
+                hit.width[slot] = t->second.desc.width;
+                hit.height[slot] = t->second.desc.height;
+            }
+            hit.depth_test = depth_stencil_.depth_test;
+            hit.depth_write = depth_stencil_.depth_write;
+            hit.blend = blend_.enable;
+        }
         if (!vk_.begin_rendering()) return false;
         VkCommandBuffer cmd = vk_.cmd();
         vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);

@@ -413,6 +413,7 @@ render::TextureId texture_for(DeviceObjects& o, uint32_t header, uint32_t palett
         render::decode_level(layout, level, memory, palette, o.decoded.data(), pitch);
         o.device->update_texture(t.own, level, 0, o.decoded.data(), pitch, 0);
     }
+    o.device->label_texture(t.own, content);
     return t.shown = t.own;
 }
 
