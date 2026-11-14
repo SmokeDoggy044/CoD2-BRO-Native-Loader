@@ -227,6 +227,13 @@ int32_t cvar_integer(uint32_t cvar_pointer) { return title<int32_t>(title<uint32
 
 float g_mouse_degrees_per_count = 0.11f;
 
+}  // namespace
+
+void set_mouse_sensitivity(float degrees_per_count) { g_mouse_degrees_per_count = degrees_per_count; }
+float mouse_sensitivity() { return g_mouse_degrees_per_count; }
+
+namespace {
+
 void XB_CDECL mouse_look() {
     float dx, dy;
     input::take_mouse_motion(dx, dy);

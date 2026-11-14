@@ -108,6 +108,10 @@ void set_field_of_view(float degrees);
 float field_of_view();       // what was asked for; 0: the game's own
 float game_field_of_view();  // cg_fov now; 0 before the game has set it up
 bool field_of_view_supported();
+// Mouse look's degrees per mouse count (TitlePatchConfig::mouse_degrees_per_count), changed while playing (the PC
+// menu); the title's thread.
+void set_mouse_sensitivity(float degrees_per_count);
+float mouse_sensitivity();
 
 // The campaign mission being played (0-13, 0 = prologue; the level index New Game and
 // the mission screens set), -1 in multiplayer. Any thread.

@@ -58,7 +58,24 @@ struct SettingDef {
     bool (*check)(std::string& value, std::string* error) = nullptr;
 };
 
+// How a setting shows in the launcher and the PC menu (src/ui/settings_widgets.h draws them in this table's order).
+struct SettingUi {
+    const char* key;
+    const char* section;  // separator title the setting starts (nullptr: under the one before)
+    const char* label;
+    const char* tip;                      // tooltip (nullptr: none)
+    const char* choice_labels = nullptr;  // Choice: shown names, in `choices` order ("Vulkan|Direct3D 9")
+    const char* format = nullptr;         // slider format ("%.0f%%", "%+.1f dB")
+    // Shown under (indented) and enabled only while another setting is on: "sharpen" (a switch or flag) or
+    // "graphics=enhanced" (a value).
+    const char* parent = nullptr;
+    const char* checkbox_value = nullptr;  // a two-way Choice drawn as a checkbox: its value when ticked
+    bool logarithmic = false;
+};
+
 std::span<const SettingDef> setting_defs();
+std::span<const SettingUi> setting_uis();
+const SettingUi* setting_ui(std::string_view key);
 // By key (without "--"); nullptr when there is none.
 const SettingDef* find_setting(std::string_view key);
 const char* setting_group_name(SettingGroup group);

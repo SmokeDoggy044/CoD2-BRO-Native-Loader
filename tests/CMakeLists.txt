@@ -3,7 +3,7 @@
 #
 # Portable tests (any build).
 add_executable(settings_test settings_test.cpp)
-target_link_libraries(settings_test PRIVATE platform)
+target_link_libraries(settings_test PRIVATE platform settings_ui)
 add_test(NAME settings_test COMMAND settings_test)
 
 add_executable(reverb_tuning_test reverb_tuning_test.cpp)

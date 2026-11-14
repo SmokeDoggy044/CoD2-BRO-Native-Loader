@@ -1,13 +1,16 @@
 // settings.ini: parsing, writing back, and the command-line options it stands for.
 // Portable (no src/runtime/xbox/), so it runs on every preset.
 
+#include <algorithm>
 #include <cstdio>
+#include <cstring>
 #include <filesystem>
 #include <string>
 #include <vector>
 
 #include "settings.h"
 #include "settings_schema.h"
+#include "settings_widgets.h"
 
 namespace {
 
@@ -107,6 +110,41 @@ int main() {
     parts.set("check-updates", "true");
     CHECK((parts.as_args() == std::vector<std::string>{"--fxaa", "off"}));
     CHECK(platform::settings_help("cod_bro").find("--lod-bias X") != std::string::npos);
+
+    // The UI table: every row names a setting once, its parents exist, choice labels match the choices.
+    for (const platform::SettingUi& ui : platform::setting_uis()) {
+        const platform::SettingDef* def = find_setting(ui.key);
+        if (!def) {
+            std::printf("FAIL ui row without a setting: %s\n", ui.key), ++g_failures;
+            continue;
+        }
+        if (ui.parent) {
+            const std::string parent = ui.parent;
+            if (!find_setting(parent.substr(0, parent.find('='))) || !platform::setting_ui(parent.substr(0, parent.find('='))))
+                std::printf("FAIL parent of %s\n", ui.key), ++g_failures;
+        }
+        if (ui.choice_labels) {
+            const auto bars = [](const char* t) { return std::count(t, t + std::strlen(t), '|'); };
+            if (!def->choices || bars(def->choices) != bars(ui.choice_labels))
+                std::printf("FAIL choice labels of %s\n", ui.key), ++g_failures;
+        }
+        int rows = 0;
+        for (const platform::SettingUi& other : platform::setting_uis()) rows += std::string(other.key) == ui.key;
+        if (rows != 1) std::printf("FAIL %s has %d ui rows\n", ui.key, rows), ++g_failures;
+    }
+    // Values as the widgets edit them: defaults removed, parents decide what is enabled.
+    Settings edit;
+    ui::put_setting(edit, "sharpness", "0.4");
+    ui::put_setting(edit, "scale", "2");  // the default
+    CHECK(edit.get("sharpness") == "0.4" && !edit.get("scale"));
+    CHECK(ui::setting_value(edit, "scale") == "2" && ui::setting_value(edit, "graphics") == "enhanced");
+    CHECK(ui::setting_enabled(edit, "sharpness"));
+    ui::put_setting(edit, "sharpen", "off");
+    CHECK(!ui::setting_enabled(edit, "sharpness") && ui::setting_enabled(edit, "fxaa"));
+    ui::put_setting(edit, "sharpen", "on");
+    ui::put_setting(edit, "graphics", "original");
+    CHECK(!ui::setting_enabled(edit, "sharpness") && !ui::setting_enabled(edit, "fxaa"));
+    CHECK(ui::number_text(0.30000001f) == "0.3" && ui::number_text(12) == "12");
 
     if (g_failures == 0) std::printf("settings_test: all passed\n");
     return g_failures == 0 ? 0 : 1;

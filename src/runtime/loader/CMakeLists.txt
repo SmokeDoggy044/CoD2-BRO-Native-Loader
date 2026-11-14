@@ -30,7 +30,7 @@ if(WIN32)
     # Two DLLs share the runtime library: cod_bro_loader_core.dll (main.cpp + the kernel) and
     # cod_bro_core.dll (our own engine, host_main.cpp, xbox_host only - no kernel).
     add_library(cod_bro_runtime STATIC ${loader_sources} compare_win32.cpp crash_win32.cpp text_trap_win32.cpp os_win32.cpp profiler_win32.cpp thread_env_win32.cpp)
-    target_link_libraries(cod_bro_runtime PUBLIC game_code audio input online render text xbox_host platform shell32 user32 winmm)
+    target_link_libraries(cod_bro_runtime PUBLIC game_code audio input online render text xbox_host platform settings_ui shell32 user32 winmm)
     set(loader_core cod_bro_runtime)
 
     add_library(cod_bro_loader_core SHARED main.cpp entry_loader_win32.cpp)
@@ -69,7 +69,7 @@ if(WIN32)
 else()
     # The loader's code as a library: cod_bro_loader (main.cpp) and our own engine cod_bro (host_main.cpp) share it.
     add_library(cod_bro_runtime STATIC ${loader_sources} compare_linux.cpp crash_posix.cpp text_trap_linux.cpp os_linux.cpp profiler_linux.cpp thread_env_linux.cpp)
-    target_link_libraries(cod_bro_runtime PUBLIC game_code audio input online render text xbox_host platform)
+    target_link_libraries(cod_bro_runtime PUBLIC game_code audio input online render text xbox_host platform settings_ui)
     add_executable(cod_bro_loader main.cpp entry_loader_linux.cpp)
     target_link_libraries(cod_bro_loader PRIVATE cod_bro_runtime xbox)  # cod_bro: no kernel (xbox_host only)
     add_executable(cod_bro host_main.cpp entry_host_linux.cpp)

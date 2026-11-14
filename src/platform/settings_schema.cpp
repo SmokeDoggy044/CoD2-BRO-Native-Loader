@@ -70,7 +70,7 @@ const SettingDef kSettings[] = {
      "16:9 (default: the game's widescreen mode, wider view and HUD) or 4:3; wider, e.g. 21:9, 32:9 or 3440:1440, "
      "is experimental (wider view, the HUD stays 16:9 in the middle)",
      nullptr, nullptr, check_aspect},
-    {"fov", "DEG", T::Float, G::Display, kLiveIni, 50, 120, nullptr, "",
+    {"fov", "DEG", T::Float, G::Display, kLiveIni, 50, 120, nullptr, "70",
      "field of view in degrees across a 4:3 picture (50-120, default 70 as the game; campaign); also in the PC "
      "menu (` key while playing)"},
     {"brightness", "X", T::Float, G::Display, 0, 0.5, 2, nullptr, "1",
@@ -85,7 +85,7 @@ const SettingDef kSettings[] = {
     {"sharp-text", "on|off", T::Switch, G::Display, 0, 0, 0, nullptr, "on",
      "the game's text drawn again at the render resolution from free look-alike fonts (src/text/fonts/ next to "
      "the loader; default on)"},
-    {"button-prompts", "auto|keyboard|controller", T::Choice, G::Display, 0, 0, 0, "auto|keyboard|controller",
+    {"button-prompts", "auto|keyboard|controller", T::Choice, G::Controls, 0, 0, 0, "auto|keyboard|controller",
      "auto",
      "the game's button pictures as keys and mouse buttons while the keyboard/mouse is used (auto, default), "
      "always, or the original controller buttons"},
@@ -171,7 +171,7 @@ const SettingDef kSettings[] = {
      "enhanced reverb: absorption of what the probe's rays do not see (0..0.3)", "reverb", "clutter"},
 
     // --- Controls
-    {"mouse-sensitivity", "DEG", T::Float, G::Controls, 0, 0.01, 10, nullptr, "0.11",
+    {"mouse-sensitivity", "DEG", T::Float, G::Controls, kLiveIni, 0.01, 10, nullptr, "0.11",
      "degrees the view turns per mouse count (default 0.11)"},
     {"keys", "LIST", T::Text, G::Controls, 0, 0, 0, nullptr, "",
      "keyboard and mouse bindings that differ from the defaults, e.g. \"fire=mouse1 jump=space crouch=left-ctrl "
@@ -283,6 +283,130 @@ const SettingDef kSettings[] = {
      "older form of resampler, more-voices, room-reverb, occlusion, close-boost"},
 };
 
+// Launcher and PC menu, in drawing order (per group: the tabs pick groups).
+const SettingUi kUi[] = {
+    // Game
+    {"language", "Language", "Language",
+     "The Xbox's language setting. The game can only use languages that are on your disc: the North American "
+     "Standard Edition disc is English only, a European disc has its own languages (and may have no English). The "
+     "log lists the disc's languages.",
+     "English|German|French|Spanish|Italian"},
+    // Display
+    {"aspect", "Window", "Aspect ratio", nullptr},
+    {"fullscreen", nullptr, "Fullscreen", "Alt+Enter switches between window and fullscreen while playing."},
+    {"scale", nullptr, "Window size", nullptr, nullptr, "x%d", "fullscreen=false"},
+    {"render-scale", "Picture", "Render scale", nullptr},
+    {"anisotropy", nullptr, "Texture filtering", nullptr},
+    {"fps", nullptr, "Frame rate", nullptr},
+    {"brightness", nullptr, "Brightness",
+     "1.00 looks as on the Xbox. Higher brightens the midtones (dark interiors, night missions); black and white "
+     "stay as they are.",
+     nullptr, "%.2f"},
+    {"sharp-text", nullptr, "Sharper text",
+     "Draws the game's text again at the render resolution, from free fonts that look like the original ones "
+     "(included with the game). Off: the original low-resolution letters."},
+    {"fov", "View", "Field of view",
+     "Degrees across a 4:3 picture, as the game counts them (default 70); wider pictures see more at the sides. "
+     "Campaign only.",
+     nullptr, "%.0f"},
+    // Graphics
+    {"graphics", "Enhanced graphics", "Enhanced graphics",
+     "Off: the picture as on the Xbox (at your resolution). On: the improvements below that are switched on. Also "
+     "switchable while playing in the PC menu (` key), each one too.",
+     nullptr, nullptr, nullptr, "enhanced"},
+    {"fxaa", nullptr, "Anti-aliasing (FXAA)", "Smooths jagged edges in the 3D picture. Menus and the HUD are left as "
+     "they are.", nullptr, nullptr, "graphics=enhanced"},
+    {"anisotropic", nullptr, "Anisotropic filtering",
+     "Sharp textures on the ground and walls seen at a slant, at the Texture filtering level (launcher: Graphics).",
+     nullptr, nullptr, "graphics=enhanced"},
+    {"sharpen", nullptr, "Sharpening",
+     "Contrast-adaptive sharpening of the 3D picture: more detail without halos at hard edges.", nullptr, nullptr,
+     "graphics=enhanced"},
+    {"sharpness", nullptr, "Sharpness", "0 = none (the default).", nullptr, "%.2f", "sharpen"},
+    {"vibrance", nullptr, "Colour vibrance",
+     "Stronger colours where they are weak (the game's palette is muted); below 0 greyer.", nullptr, nullptr,
+     "graphics=enhanced"},
+    {"vibrance-amount", nullptr, "Vibrance", "0 = the game's colours (the default).", nullptr, "%+.2f", "vibrance"},
+    {"texture-detail", nullptr, "Texture detail",
+     "Sharper textures in the distance (finer mipmaps); too far below 0 they shimmer when moving.", nullptr, nullptr,
+     "graphics=enhanced"},
+    {"lod-bias", nullptr, "Detail bias", "0 = the game's choice (the default); lower is sharper.", nullptr, "%.2f",
+     "texture-detail"},
+    {"renderer", "Renderer", "Renderer",
+     "Vulkan is the renderer of our own engine (needs a Vulkan 1.3 graphics driver; without one the game uses "
+     "Direct3D 9 by itself). Choose Direct3D 9 if the picture or the speed is wrong with Vulkan.",
+     "Vulkan|Direct3D 9"},
+    {"d3d9", nullptr, "Direct3D 9 through",
+     "Automatic uses Vulkan through the included DXVK and falls back to the Direct3D 9 that comes with Windows when "
+     "Vulkan is not available. Choose one yourself if the picture or the speed is wrong with the other.",
+     "Automatic|Vulkan (DXVK)|Direct3D 9 (Windows)", nullptr, "renderer=d3d9"},
+    // Sound
+    {"speakers", "Output", "Speakers",
+     "Automatic: what your output device has, with 3D sound for headphones when the game's own settings ask for "
+     "headphones. Otherwise this layout, whatever the game's settings say. Headphones (3D sound) places sounds "
+     "around you, also above and behind (HRTF).",
+     "Automatic|Stereo speakers|Headphones (3D sound)|Quad (4.0)|Surround 5.1|Surround 7.1"},
+    {"audio-device", nullptr, "Output device", "A device that is gone when the game starts falls back to the system "
+     "default."},
+    {"silent", nullptr, "Mute sound", nullptr},
+    {"volume-effects", "Volume", "Effects volume", "Gunfire, explosions, vehicles, footsteps, the menus' sounds.",
+     nullptr, "%.0f%%"},
+    {"volume-ambience", nullptr, "Ambience volume", "The levels' background: distant battle, wind, rain, the hum of "
+     "a room.", nullptr, "%.0f%%"},
+    {"volume-dialogue", nullptr, "Dialogue volume", "Orders, squad chatter, briefings.", nullptr, "%.0f%%"},
+    {"volume-music", nullptr, "Music volume",
+     "On top of the game's own volume setting, for Original and Enhanced sound alike.", nullptr, "%.0f%%"},
+    {"audio", "Enhanced sound", "Enhanced sound",
+     "Off: the sound as on the Xbox. On: the improvements below that are switched on. Also switchable while playing "
+     "in the PC menu (` key), each improvement too; switch while standing still to compare.",
+     nullptr, nullptr, nullptr, "enhanced"},
+    {"resampler", nullptr, "Finer resampling", "OpenAL's best resampler (23rd order Sinc) instead of its default.",
+     nullptr, nullptr, "audio=enhanced"},
+    {"more-voices", nullptr, "More voices",
+     "Up to 192 sounds placed in the world at once instead of the Xbox's 36, and effects drop fewer of their sounds "
+     "in busy fights.",
+     nullptr, nullptr, "audio=enhanced"},
+    {"room-reverb", nullptr, "Reverb",
+     "Reverb that follows the place you are in: room size, walls, stone or wood, open sky.", nullptr, nullptr,
+     "audio=enhanced"},
+    {"reverb-amount", nullptr, "Reverb amount", "The reverb's overall level.", nullptr, "%+.1f dB", "room-reverb"},
+    {"reverb-decay", nullptr, "Reverb decay",
+     "How long the reverb lasts, times what the room's size and materials give.", nullptr, "x%.2f", "room-reverb",
+     nullptr, true},
+    {"reverb-brightness", nullptr, "Reverb brightness",
+     "Below 1 the reverb's highs die away sooner (darker), above 1 later (brighter).", nullptr, "x%.2f",
+     "room-reverb", nullptr, true},
+    {"reverb-reflections", nullptr, "Early reflections", "The first echoes off nearby walls.", nullptr, "%+.1f dB",
+     "room-reverb"},
+    {"reverb-clutter", nullptr, "Room clutter",
+     "What soaks up sound besides the walls the game knows about (furniture, debris, openings). Lower makes rooms "
+     "ring longer. Default 0.07.",
+     nullptr, "%.2f", "room-reverb"},
+    {"occlusion", nullptr, "Occlusion", "Sounds behind walls and buildings muffled; in view, heard in full.", nullptr,
+     nullptr, "audio=enhanced"},
+    {"close-boost", nullptr, "Close-range boost",
+     "Gunfire and bullets louder near you: full within 15 m, fading to the game's own level at 30 m (your own "
+     "gunfire always full). The game mixes them quietly; 0 dB = its level.",
+     nullptr, nullptr, "audio=enhanced"},
+    {"close-gunfire", nullptr, "Others' gunfire", nullptr, nullptr, "%+.1f dB", "close-boost"},
+    {"own-gunfire", nullptr, "Your gunfire", nullptr, nullptr, "%+.1f dB", "close-boost"},
+    {"close-bullets", nullptr, "Bullet impacts and flybys", nullptr, nullptr, "%+.1f dB", "close-boost"},
+    // Controls
+    {"mouse-sensitivity", "Mouse and keyboard", "Mouse sensitivity", "Degrees the view turns per mouse count.",
+     nullptr, "%.2f", nullptr, nullptr, true},
+    {"aim-assist", nullptr, "Aim assist",
+     "The view follows an enemy under the crosshair, as on the Xbox. Applies to the controller and the mouse alike, "
+     "in the campaign and in multiplayer."},
+    {"button-prompts", "On screen", "Button prompts",
+     "The buttons the game shows in its hints and menus: keys and mouse buttons, or the Xbox controller's. They "
+     "follow the controller style chosen in the game's options.",
+     "Follow the last used device|Keyboard and mouse|Controller"},
+    // Network
+    {"net-port", "System Link", "System Link port",
+     "Use the same port on every PC. A firewall has to let these UDP ports through on the local network (Windows "
+     "asks the first time you play)."},
+};
+
 bool is_combined(std::string_view key) {
     return key == "graphics-features" || key == "volume" || key == "reverb" || key == "enhanced";
 }
@@ -323,6 +447,13 @@ void wrap(std::string& out, const std::string& text, size_t indent, size_t width
 }  // namespace
 
 std::span<const SettingDef> setting_defs() { return kSettings; }
+std::span<const SettingUi> setting_uis() { return kUi; }
+
+const SettingUi* setting_ui(std::string_view key) {
+    for (const SettingUi& ui : kUi)
+        if (key == ui.key) return &ui;
+    return nullptr;
+}
 
 const SettingDef* find_setting(std::string_view key) {
     for (const SettingDef& def : kSettings)

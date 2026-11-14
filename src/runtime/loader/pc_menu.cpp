@@ -4,7 +4,11 @@
 #include "pc_menu.h"
 
 #include <cmath>
+#include <cstdlib>
+#include <initializer_list>
+#include <optional>
 #include <string>
+#include <string_view>
 
 #include "devices.h"
 #include "enhanced_graphics.h"
@@ -15,6 +19,7 @@
 #include "patches.h"
 #include "settings.h"
 #include "settings_schema.h"
+#include "settings_widgets.h"
 #include "snd_env.h"
 #include "sound_engine.h"
 
@@ -23,196 +28,75 @@ namespace loader {
 namespace {
 
 constexpr int kGameFov = 70;  // cg_fov's default (cgame cvarTable)
-constexpr int kMinFov = 50, kMaxFov = 120;
-float g_fov_on_open = 0;
-bool g_enhanced_on_open = false;
-audio::ReverbTuning g_reverb_on_open;
-audio::CategoryVolumes g_volumes_on_open;
-audio::EnhancedFeatures g_features_on_open;
-bool g_graphics_on_open = false;
-render::GraphicsFeatures g_graphics_features_on_open;
+platform::Settings g_on_open;  // the live settings when the menu opened (what closing saves against)
 
-// The volume per kind of sound's sliders (audio::CategoryVolumes); true if one moved.
-bool volume_sliders(audio::CategoryVolumes& v) {
-    bool changed = false;
-    const float width = ImGui::GetFontSize() * 14;
-    ImGui::SetNextItemWidth(width);
-    changed |= ImGui::SliderFloat("Effects volume", &v.effects, 0.0f, 100.0f, "%.0f%%", ImGuiSliderFlags_AlwaysClamp);
-    ImGui::SetNextItemWidth(width);
-    changed |= ImGui::SliderFloat("Ambience volume", &v.ambience, 0.0f, 100.0f, "%.0f%%", ImGuiSliderFlags_AlwaysClamp);
-    ImGui::SetNextItemWidth(width);
-    changed |= ImGui::SliderFloat("Dialogue volume", &v.dialogue, 0.0f, 100.0f, "%.0f%%", ImGuiSliderFlags_AlwaysClamp);
-    ImGui::SetNextItemWidth(width);
-    changed |= ImGui::SliderFloat("Music volume", &v.music, 0.0f, 100.0f, "%.0f%%", ImGuiSliderFlags_AlwaysClamp);
-    return changed;
+// The settings the menu changes while playing (platform::kLive), as settings.ini text, from what runs now.
+platform::Settings live_values() {
+    platform::Settings v;
+    ui::put_setting(v, "graphics", render::graphics_enhanced() ? "enhanced" : "original");
+    platform::set_combined_setting(v, "graphics-features", render::graphics_features().format());
+    ui::put_setting(v, "audio", audio::enhanced() ? "enhanced" : "original");
+    platform::set_combined_setting(v, "enhanced", audio::enhanced_features().format());
+    platform::set_combined_setting(v, "volume", audio::category_volumes().format());
+    platform::set_combined_setting(v, "reverb", game::SndEnv_Tuning().format());
+    if (const float fov = field_of_view(); fov > 0) ui::put_setting(v, "fov", std::to_string(std::lround(fov)));
+    ui::put_setting(v, "mouse-sensitivity", ui::number_text(mouse_sensitivity()));
+    return v;
 }
 
-// The close-range boosts' sliders (enhanced, CategoryVolumes::close_*); true if one moved.
-bool boost_sliders(audio::CategoryVolumes& v) {
-    bool changed = false;
-    const float width = ImGui::GetFontSize() * 14;
-    ImGui::SetNextItemWidth(width);
-    changed |= ImGui::SliderFloat("Others' gunfire", &v.close_gunfire, 0.0f, 12.0f, "%+.1f dB",
-                                  ImGuiSliderFlags_AlwaysClamp);
-    ImGui::SetNextItemWidth(width);
-    changed |= ImGui::SliderFloat("Your gunfire", &v.own_gunfire, 0.0f, 12.0f, "%+.1f dB", ImGuiSliderFlags_AlwaysClamp);
-    ImGui::SetNextItemWidth(width);
-    changed |= ImGui::SliderFloat("Bullet impacts and flybys", &v.close_bullets, 0.0f, 12.0f, "%+.1f dB",
-                                  ImGuiSliderFlags_AlwaysClamp);
-    return changed;
+std::string combined(const platform::Settings& v, const char* name) {
+    return platform::combined_setting(v, name).value_or("");
 }
 
-// The reverb adjustments' sliders (audio::ReverbTuning); true if one moved.
-bool reverb_sliders(audio::ReverbTuning& t) {
-    bool changed = false;
-    const float width = ImGui::GetFontSize() * 14;
-    ImGui::SetNextItemWidth(width);
-    changed |= ImGui::SliderFloat("Amount", &t.amount, -12.0f, 12.0f, "%+.1f dB", ImGuiSliderFlags_AlwaysClamp);
-    ImGui::SetNextItemWidth(width);
-    changed |= ImGui::SliderFloat("Decay", &t.decay, 0.25f, 4.0f, "x%.2f",
-                                  ImGuiSliderFlags_AlwaysClamp | ImGuiSliderFlags_Logarithmic);
-    ImGui::SetNextItemWidth(width);
-    changed |= ImGui::SliderFloat("Brightness", &t.brightness, 0.5f, 2.0f, "x%.2f",
-                                  ImGuiSliderFlags_AlwaysClamp | ImGuiSliderFlags_Logarithmic);
-    ImGui::SetNextItemWidth(width);
-    changed |= ImGui::SliderFloat("Early reflections", &t.reflections, -12.0f, 12.0f, "%+.1f dB",
-                                  ImGuiSliderFlags_AlwaysClamp);
-    ImGui::SetNextItemWidth(width);
-    changed |= ImGui::SliderFloat("Room clutter", &t.clutter, 0.0f, 0.3f, "%.2f", ImGuiSliderFlags_AlwaysClamp);
-    if (ImGui::Button("Default reverb")) {
-        t = audio::ReverbTuning{};
+// Applies what differs between two live_values() forms.
+void apply_live(const platform::Settings& before, const platform::Settings& after) {
+    const auto differs = [&](const char* key) { return before.get(key) != after.get(key); };
+    const auto differs_combined = [&](const char* name) { return combined(before, name) != combined(after, name); };
+    if (differs("graphics") || differs_combined("graphics-features"))
+        render::set_graphics(ui::setting_value(after, "graphics") == "enhanced",
+                             render::GraphicsFeatures::parse(combined(after, "graphics-features")));
+    if (differs("audio")) audio::set_enhanced(ui::setting_value(after, "audio") == "enhanced");
+    if (differs_combined("enhanced")) audio::set_enhanced_features(audio::EnhancedFeatures::parse(combined(after, "enhanced")));
+    if (differs_combined("volume")) audio::set_category_volumes(audio::CategoryVolumes::parse(combined(after, "volume")));
+    if (differs_combined("reverb")) game::SndEnv_SetTuning(audio::ReverbTuning::parse(combined(after, "reverb")));
+    if (differs("fov")) set_field_of_view(std::strtof(ui::setting_value(after, "fov").c_str(), nullptr));
+    if (differs("mouse-sensitivity"))
+        set_mouse_sensitivity(std::strtof(ui::setting_value(after, "mouse-sensitivity").c_str(), nullptr));
+}
+
+// The field of view: the game's own value until one is chosen, campaign only.
+bool fov_widget(const platform::SettingUi& ui, platform::Settings& values, bool& changed) {
+    if (!field_of_view_supported()) {
+        ImGui::TextDisabled("Field of view: campaign only for now.");
+        return true;
+    }
+    const float game = game_field_of_view();
+    const std::optional<std::string> asked = values.get("fov");
+    int fov = asked ? std::atoi(asked->c_str()) : game > 0 ? static_cast<int>(std::lround(game)) : kGameFov;
+    if (ImGui::SliderInt(ui.label, &fov, 50, 120, "%d", ImGuiSliderFlags_AlwaysClamp)) {
+        ui::put_setting(values, "fov", std::to_string(fov));
         changed = true;
     }
-    return changed;
-}
-
-void general_tab() {
-    if (field_of_view_supported()) {
-        const float asked = field_of_view();
-        const float game = game_field_of_view();
-        int fov = static_cast<int>(std::lround(asked > 0 ? asked : game > 0 ? game : kGameFov));
-        ImGui::SetNextItemWidth(ImGui::GetFontSize() * 16);
-        if (ImGui::SliderInt("Field of view", &fov, kMinFov, kMaxFov, "%d", ImGuiSliderFlags_AlwaysClamp))
-            set_field_of_view(static_cast<float>(fov));
-        ImGui::SameLine();
-        if (ImGui::Button("Default")) set_field_of_view(static_cast<float>(kGameFov));
-        ImGui::TextDisabled("Degrees across a 4:3 picture, as the game counts them (default %d);\n"
-                            "wider pictures see more at the sides.", kGameFov);
-        if (game <= 0) ImGui::TextDisabled("Applies once a mission is running.");
-    } else {
-        ImGui::TextDisabled("Field of view: campaign only for now.");
-    }
-}
-
-// The improvements switched off, for the log.
-std::string text_or_all(const audio::EnhancedFeatures& f) {
-    const std::string text = f.format();
-    return text.empty() ? "all on" : text;
-}
-
-// One improvement's switch (and its help); true if it moved.
-bool feature_switch(const char* label, bool& on, const char* help) {
-    const bool changed = ImGui::Checkbox(label, &on);
     ImGui::SameLine();
-    ImGui::TextDisabled("(?)");
-    if (ImGui::IsItemHovered()) ImGui::SetTooltip("%s", help);
-    return changed;
-}
-
-void sound_tab() {
-    ImGui::SeparatorText("Volume");
-    audio::CategoryVolumes volumes = audio::category_volumes();
-    if (volume_sliders(volumes)) audio::set_category_volumes(volumes);
-    ImGui::TextDisabled("On top of the game's own volume setting.");
-
-    ImGui::SeparatorText("Enhanced sound");
-    bool enhanced = audio::enhanced();
-    if (ImGui::Checkbox("Enhanced sound", &enhanced)) audio::set_enhanced(enhanced);
-    ImGui::TextDisabled("Off: the sound as on the Xbox. On: the improvements below that are\n"
-                        "switched on. Switch while standing still to compare.");
-    ImGui::BeginDisabled(!enhanced);
-    ImGui::Indent();
-    audio::EnhancedFeatures f = audio::enhanced_features();
-    bool changed = false;
-    changed |= feature_switch("Finer resampling", f.resampler,
-                              "OpenAL's best resampler (23rd order Sinc) instead of its default.");
-    changed |= feature_switch("More voices", f.voices,
-                              "Up to 192 sounds placed in the world at once instead of the Xbox's 36,\n"
-                              "and effects drop fewer of their sounds in busy fights.");
-    changed |= feature_switch("Reverb", f.reverb,
-                              "Reverb that follows the place you are in: room size, walls, stone or\n"
-                              "wood, open sky.");
-    if (f.reverb && ImGui::TreeNode("Advanced reverb")) {
-        audio::ReverbTuning tuning = game::SndEnv_Tuning();
-        if (reverb_sliders(tuning)) game::SndEnv_SetTuning(tuning);
-        ImGui::TextDisabled("Room clutter: what soaks up sound besides the walls (furniture,\n"
-                            "debris); lower makes rooms ring longer.");
-        ImGui::TreePop();
+    if (ImGui::Button("Default") && asked) {
+        values.set("fov", std::to_string(kGameFov));  // asked for again: back to the game's own
+        changed = true;
     }
-    changed |= feature_switch("Occlusion", f.occlusion,
-                              "Sounds behind walls and buildings muffled; in view, heard in full.");
-    changed |= feature_switch("Close-range boost", f.close_boost,
-                              "Gunfire and bullets louder near you (the game mixes them quietly).\n"
-                              "0 dB = the game's own level.");
-    if (f.close_boost) {
-        ImGui::Indent();
-        if (boost_sliders(volumes)) audio::set_category_volumes(volumes);
-        ImGui::TextDisabled("Full within 15 m, fading to the game's level at 30 m\n"
-                            "(your own gunfire: always full).");
-        ImGui::Unindent();
-    }
-    if (changed) audio::set_enhanced_features(f);
-    ImGui::Unindent();
-    ImGui::EndDisabled();
+    ui::help_marker(ui.tip);
+    if (game <= 0) ImGui::TextDisabled("Applies once a mission is running.");
+    return true;
 }
 
-// One amount's slider under its switch; true if it moved.
-bool amount_slider(const char* label, float& value, float low, float high, const char* format, const char* help) {
-    ImGui::Indent();
-    ImGui::SetNextItemWidth(ImGui::GetFontSize() * 14);
-    const bool changed = ImGui::SliderFloat(label, &value, low, high, format, ImGuiSliderFlags_AlwaysClamp);
-    ImGui::SameLine();
-    ImGui::TextDisabled("(?)");
-    if (ImGui::IsItemHovered()) ImGui::SetTooltip("%s", help);
-    ImGui::Unindent();
-    return changed;
-}
-
-void graphics_tab() {
-    ImGui::SeparatorText("Enhanced graphics");
-    bool enhanced = render::graphics_enhanced();
-    render::GraphicsFeatures f = render::graphics_features();
-    bool changed = ImGui::Checkbox("Enhanced graphics", &enhanced);
-    ImGui::TextDisabled("Off: the picture as on the Xbox (at your resolution). On: the improvements\n"
-                        "below that are switched on. Changes show at once.");
-    ImGui::BeginDisabled(!enhanced);
-    ImGui::Indent();
-    changed |= feature_switch("Anti-aliasing (FXAA)", f.fxaa,
-                              "Smooths jagged edges in the 3D picture. Menus are left as they are.");
-    changed |= feature_switch("Anisotropic filtering", f.anisotropic,
-                              "Sharp textures on the ground and walls seen at a slant. Its level is\n"
-                              "chosen in the launcher (Graphics: Texture filtering).");
-    changed |= feature_switch("Sharpening", f.sharpen,
-                              "Contrast-adaptive sharpening of the 3D picture: more detail without\n"
-                              "halos at hard edges. 0 = none.");
-    if (f.sharpen)
-        changed |= amount_slider("Sharpness", f.sharpness, 0.0f, 1.0f, "%.2f",
-                                 "How strong the sharpening is (0: none, the default).");
-    changed |= feature_switch("Colour vibrance", f.vibrance,
-                              "Stronger colours where they are weak (the game's palette is muted);\n"
-                              "below 0 greyer. 0 = the game's colours.");
-    if (f.vibrance)
-        changed |= amount_slider("Vibrance", f.vibrance_amount, -1.0f, 1.0f, "%+.2f",
-                                 "0 = the game's colours (the default).");
-    changed |= feature_switch("Texture detail", f.texture_detail,
-                              "Sharper textures in the distance (finer mipmaps). Too far below 0\n"
-                              "makes them shimmer when moving. 0 = the game's choice.");
-    if (f.texture_detail)
-        changed |= amount_slider("Detail bias", f.lod_bias, -2.0f, 0.0f, "%.2f",
-                                 "Mipmap bias: lower is sharper (0: the game's, the default).");
-    ImGui::Unindent();
-    ImGui::EndDisabled();
-    if (changed) render::set_graphics(enhanced, f);
+void live_tab(std::initializer_list<platform::SettingGroup> groups) {
+    const platform::Settings before = live_values();
+    platform::Settings values = before;
+    ui::DrawOptions options;
+    options.require_flags = platform::kLive;
+    options.custom = [](const platform::SettingDef& def, const platform::SettingUi& ui, platform::Settings& v,
+                        bool& changed) { return std::string_view(def.key) == "fov" && fov_widget(ui, v, changed); };
+    ImGui::PushItemWidth(ImGui::GetFontSize() * 14);
+    if (ui::draw_settings(groups, values, options)) apply_live(before, values);
+    ImGui::PopItemWidth();
 }
 
 }  // namespace
@@ -225,18 +109,19 @@ bool pc_menu() {
     ImGui::Begin("PC settings", &open,
                  ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoSavedSettings |
                      ImGuiWindowFlags_NoMove);
-    ImGui::TextDisabled("The game keeps running. ` or Escape closes this menu.");
+    ImGui::TextDisabled("The game keeps running. ` or Escape closes this menu; changes are saved.");
     if (ImGui::BeginTabBar("pc_menu_tabs")) {
+        using G = platform::SettingGroup;
         if (ImGui::BeginTabItem("General")) {
-            general_tab();
+            live_tab({G::Display, G::Controls});
             ImGui::EndTabItem();
         }
         if (ImGui::BeginTabItem("Graphics")) {
-            graphics_tab();
+            live_tab({G::Graphics});
             ImGui::EndTabItem();
         }
         if (ImGui::BeginTabItem("Sound")) {
-            sound_tab();
+            live_tab({G::Sound});
             ImGui::EndTabItem();
         }
         ImGui::EndTabBar();
@@ -251,80 +136,26 @@ bool pc_menu() {
 void pc_menu_shown(bool open) {
     input::set_game_input_blocked(open);
     if (open) {
-        g_fov_on_open = field_of_view();
-        g_enhanced_on_open = audio::enhanced();
-        g_reverb_on_open = game::SndEnv_Tuning();
-        g_volumes_on_open = audio::category_volumes();
-        g_features_on_open = audio::enhanced_features();
-        g_graphics_on_open = render::graphics_enhanced();
-        g_graphics_features_on_open = render::graphics_features();
+        g_on_open = live_values();
         return;
     }
-    if (const bool graphics = render::graphics_enhanced(); graphics != g_graphics_on_open) {
-        platform::Settings settings = platform::load_settings();
-        settings.set("graphics", graphics ? "enhanced" : "original");
-        if (platform::save_settings(settings))
-            LOG_INFO("loader", "%s graphics saved", graphics ? "enhanced" : "original");
+    // What changed goes into settings.ini, one line per setting (the defaults removed).
+    const platform::Settings now = live_values();
+    platform::Settings file = platform::load_settings();
+    std::string saved;
+    for (const platform::SettingDef& def : platform::setting_defs()) {
+        if (!(def.flags & platform::kLive) || now.get(def.key) == g_on_open.get(def.key)) continue;
+        if (const std::optional<std::string> value = now.get(def.key))
+            file.set(def.key, *value);
         else
-            LOG_WARN("loader", "cannot save the graphics setting to %s", platform::settings_path().string().c_str());
+            file.erase(def.key);
+        saved += std::string(saved.empty() ? "" : " ") + def.key + "=" + ui::setting_value(now, def.key);
     }
-    if (const render::GraphicsFeatures features = render::graphics_features();
-        !(features == g_graphics_features_on_open)) {
-        platform::Settings settings = platform::load_settings();
-        const std::string text = features.format();
-        platform::set_combined_setting(settings, "graphics-features", text);
-        if (platform::save_settings(settings))
-            LOG_INFO("loader", "enhanced graphics saved: %s", text.empty() ? "the defaults" : text.c_str());
-        else
-            LOG_WARN("loader", "cannot save the graphics settings to %s", platform::settings_path().string().c_str());
-    }
-    if (const audio::CategoryVolumes volumes = audio::category_volumes(); !(volumes == g_volumes_on_open)) {
-        platform::Settings settings = platform::load_settings();
-        const std::string text = volumes.format();
-        platform::set_combined_setting(settings, "volume", text);
-        if (platform::save_settings(settings))
-            LOG_INFO("loader", "volumes saved: %s", volumes.format().c_str());
-        else
-            LOG_WARN("loader", "cannot save the volumes to %s", platform::settings_path().string().c_str());
-    }
-    if (const audio::ReverbTuning reverb = game::SndEnv_Tuning(); !(reverb == g_reverb_on_open)) {
-        platform::Settings settings = platform::load_settings();
-        const std::string text = reverb.format();
-        platform::set_combined_setting(settings, "reverb", text);
-        if (platform::save_settings(settings))
-            LOG_INFO("loader", "reverb adjustments saved: %s", reverb.format().c_str());
-        else
-            LOG_WARN("loader", "cannot save the reverb adjustments to %s", platform::settings_path().string().c_str());
-    }
-    if (const audio::EnhancedFeatures features = audio::enhanced_features(); !(features == g_features_on_open)) {
-        platform::Settings settings = platform::load_settings();
-        const std::string text = features.format();
-        platform::set_combined_setting(settings, "enhanced", text);
-        if (platform::save_settings(settings))
-            LOG_INFO("loader", "enhanced sound's improvements saved: %s", text_or_all(features).c_str());
-        else
-            LOG_WARN("loader", "cannot save the enhanced sound settings to %s", platform::settings_path().string().c_str());
-    }
-    const bool enhanced = audio::enhanced();
-    if (enhanced != g_enhanced_on_open) {
-        platform::Settings settings = platform::load_settings();
-        settings.set("audio", enhanced ? "enhanced" : "original");
-        if (platform::save_settings(settings))
-            LOG_INFO("loader", "%s sound saved", enhanced ? "enhanced" : "original");
-        else
-            LOG_WARN("loader", "cannot save the sound setting to %s", platform::settings_path().string().c_str());
-    }
-    const float fov = field_of_view();
-    if (fov == g_fov_on_open) return;
-    platform::Settings settings = platform::load_settings();
-    if (fov <= 0 || std::lround(fov) == kGameFov)
-        settings.erase("fov");
+    if (saved.empty()) return;
+    if (platform::save_settings(file))
+        LOG_INFO("loader", "PC menu saved: %s", saved.c_str());
     else
-        settings.set("fov", std::to_string(std::lround(fov)));
-    if (platform::save_settings(settings))
-        LOG_INFO("loader", "field of view %.0f saved", static_cast<double>(fov));
-    else
-        LOG_WARN("loader", "cannot save the field of view to %s", platform::settings_path().string().c_str());
+        LOG_WARN("loader", "cannot save the PC menu's settings to %s", platform::settings_path().string().c_str());
 }
 
 void install_menu_settings() {

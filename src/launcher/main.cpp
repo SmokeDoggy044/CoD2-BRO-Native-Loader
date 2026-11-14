@@ -30,45 +30,13 @@
 #include "program.h"
 #include "settings.h"
 #include "settings_schema.h"
+#include "settings_widgets.h"
 #include "update_check.h"
 #include "updater.h"
 
 namespace fs = std::filesystem;
 
 namespace {
-
-// The game's defaults (Options in src/runtime/loader/main.cpp); only other values are saved, so
-// a changed default still reaches players who never touched that setting.
-struct Choices {
-    std::string assets;  // empty: <executable dir>/assets
-    std::string aspect = "16:9";  // 4:3, 16:9, or wider W:H (experimental)
-    bool fullscreen = false;
-    int scale = 2;
-    float render_scale = 0;  // 0: the window's (fullscreen: the screen's) height
-    int anisotropy = 16;
-    float brightness = 1.0f;
-    bool sharp_text = true;
-    std::string graphics = "enhanced";  // original, enhanced
-    render::GraphicsFeatures graphics_features;
-    int fps = 0;  // 0 = the display's rate (--fps display), 30 = as on the Xbox, else a limit
-    std::string renderer = "vulkan";  // vulkan (default), d3d9 (fallback)
-    std::string d3d9 = "auto";  // auto, dxvk, system (Windows only)
-    float mouse_sensitivity = 0.11f;
-    input::Bindings bindings = input::default_bindings();
-    bool aim_assist = true;
-    std::string button_prompts = "auto";  // auto, keyboard, controller
-    bool silent = false;
-    std::string audio = "enhanced";  // original, enhanced
-    std::string speakers = "auto";   // auto, stereo, headphones, quad, 5.1, 7.1
-    std::string audio_device;        // empty: the system's
-    audio::ReverbTuning reverb;
-    audio::CategoryVolumes volumes;
-    audio::EnhancedFeatures features;
-    std::string language = "english";  // the console's: english, german, french, spanish, italian
-    int net_port = 3074;  // system link: UDP net_port .. net_port + 3
-    // Launcher only: saved as "false" (which the game skips) when off.
-    bool check_updates = true;
-};
 
 // The width over the height of an aspect setting ("W:H"), or 0 if it is not one.
 float aspect_ratio(const std::string& aspect) {
@@ -78,89 +46,10 @@ float aspect_ratio(const std::string& aspect) {
     return w / h;
 }
 
-std::string number(float value) {
-    char text[32];
-    std::snprintf(text, sizeof(text), "%g", value);
-    return text;
+fs::path asset_dir(const platform::Settings& settings) {
+    const std::optional<std::string> assets = settings.get("assets");
+    return !assets || assets->empty() ? platform::default_asset_dir() : fs::path(*assets);
 }
-
-Choices read_choices(const platform::Settings& settings) {
-    Choices c;
-    if (auto v = settings.get("assets")) c.assets = *v;
-    // What the game takes (--aspect): 4:3, or 16:9 up to 4:1.
-    if (auto v = settings.get("aspect");
-        v && (*v == "4:3" || (aspect_ratio(*v) >= 16.0f / 9.0f - 0.001f && aspect_ratio(*v) <= 4.0f)))
-        c.aspect = *v;
-    if (auto v = settings.get("fullscreen")) c.fullscreen = *v == "true";
-    if (auto v = settings.get("scale")) c.scale = std::clamp(std::atoi(v->c_str()), 1, 8);
-    if (auto v = settings.get("render-scale")) c.render_scale = std::clamp(std::strtof(v->c_str(), nullptr), 0.5f, 8.0f);
-    if (auto v = settings.get("anisotropy")) c.anisotropy = std::clamp(std::atoi(v->c_str()), 1, 16);
-    if (auto v = settings.get("brightness")) c.brightness = std::clamp(std::strtof(v->c_str(), nullptr), 0.5f, 2.0f);
-    if (auto v = settings.get("sharp-text")) c.sharp_text = *v != "off";
-    if (auto v = settings.get("graphics"); v && *v == "original") c.graphics = *v;
-    if (auto v = platform::combined_setting(settings, "graphics-features")) c.graphics_features = render::GraphicsFeatures::parse(*v);
-    if (auto v = settings.get("fps")) c.fps = *v == "display" ? 0 : std::clamp(std::atoi(v->c_str()), 30, 1000);
-    if (auto v = settings.get("renderer"); v && (*v == "vulkan" || *v == "d3d9")) c.renderer = *v;
-    if (auto v = settings.get("d3d9"); v && (*v == "dxvk" || *v == "system")) c.d3d9 = *v;
-    if (auto v = settings.get("mouse-sensitivity"))
-        c.mouse_sensitivity = std::clamp(std::strtof(v->c_str(), nullptr), 0.01f, 10.0f);
-    if (auto v = settings.get("keys")) input::parse_bindings(*v, c.bindings);
-    if (auto v = settings.get("aim-assist")) c.aim_assist = *v != "off";
-    if (auto v = settings.get("button-prompts"); v && (*v == "keyboard" || *v == "controller")) c.button_prompts = *v;
-    if (auto v = settings.get("silent")) c.silent = *v == "true";
-    if (auto v = settings.get("audio"); v && *v == "original") c.audio = *v;
-    if (auto v = settings.get("speakers");
-        v && (*v == "stereo" || *v == "headphones" || *v == "quad" || *v == "5.1" || *v == "7.1"))
-        c.speakers = *v;
-    if (auto v = settings.get("audio-device")) c.audio_device = *v;
-    if (auto v = platform::combined_setting(settings, "reverb")) c.reverb = audio::ReverbTuning::parse(*v);
-    if (auto v = platform::combined_setting(settings, "volume")) c.volumes = audio::CategoryVolumes::parse(*v);
-    if (auto v = platform::combined_setting(settings, "enhanced")) c.features = audio::EnhancedFeatures::parse(*v);
-    if (auto v = settings.get("language")) c.language = *v;
-    if (auto v = settings.get("net-port")) c.net_port = std::clamp(std::atoi(v->c_str()), 1024, 65532);
-    if (auto v = settings.get("check-updates")) c.check_updates = *v != "false";
-    return c;
-}
-
-// Keeps keys the launcher does not know (added by hand).
-void write_choices(const Choices& c, platform::Settings& settings) {
-    const Choices d;
-    auto put = [&](const char* key, bool is_default, const std::string& value) {
-        if (is_default)
-            settings.erase(key);
-        else
-            settings.set(key, value);
-    };
-    put("assets", c.assets.empty(), c.assets);
-    put("aspect", c.aspect == d.aspect, c.aspect);
-    put("fullscreen", c.fullscreen == d.fullscreen, c.fullscreen ? "true" : "false");
-    put("scale", c.scale == d.scale, std::to_string(c.scale));
-    put("render-scale", c.render_scale == d.render_scale, number(c.render_scale));
-    put("anisotropy", c.anisotropy == d.anisotropy, std::to_string(c.anisotropy));
-    put("brightness", c.brightness == d.brightness, number(c.brightness));
-    put("sharp-text", c.sharp_text == d.sharp_text, c.sharp_text ? "on" : "off");
-    put("graphics", c.graphics == d.graphics, c.graphics);
-    platform::set_combined_setting(settings, "graphics-features", c.graphics_features.format());
-    put("fps", c.fps == d.fps, c.fps ? std::to_string(c.fps) : "display");
-    put("renderer", c.renderer == d.renderer, c.renderer);
-    put("d3d9", c.d3d9 == d.d3d9, c.d3d9);
-    put("mouse-sensitivity", c.mouse_sensitivity == d.mouse_sensitivity, number(c.mouse_sensitivity));
-    put("keys", c.bindings == d.bindings, input::format_bindings(c.bindings));
-    put("aim-assist", c.aim_assist == d.aim_assist, c.aim_assist ? "on" : "off");
-    put("button-prompts", c.button_prompts == d.button_prompts, c.button_prompts);
-    put("silent", c.silent == d.silent, c.silent ? "true" : "false");
-    put("audio", c.audio == d.audio, c.audio);
-    put("speakers", c.speakers == d.speakers, c.speakers);
-    put("audio-device", c.audio_device.empty(), c.audio_device);
-    platform::set_combined_setting(settings, "reverb", c.reverb.format());
-    platform::set_combined_setting(settings, "volume", c.volumes.format());
-    platform::set_combined_setting(settings, "enhanced", c.features.format());
-    put("language", c.language == d.language, c.language);
-    put("net-port", c.net_port == d.net_port, std::to_string(c.net_port));
-    put("check-updates", c.check_updates == d.check_updates, "false");
-}
-
-fs::path asset_dir(const Choices& c) { return c.assets.empty() ? platform::default_asset_dir() : fs::path(c.assets); }
 
 bool has_multiplayer(const fs::path& dir) {
     std::error_code ec;
@@ -185,23 +74,15 @@ void SDLCALL folder_picked(void*, const char* const* files, int) {
     g_picked = files[0];
 }
 
-void help_marker(const char* text) {
-    ImGui::SameLine();
-    ImGui::TextDisabled("(?)");
-    if (ImGui::BeginItemTooltip()) {
-        ImGui::PushTextWrapPos(ImGui::GetFontSize() * 30);
-        ImGui::TextUnformatted(text);
-        ImGui::PopTextWrapPos();
-        ImGui::EndTooltip();
-    }
-}
+using ui::help_marker;
 
 class Launcher {
 public:
     explicit Launcher(SDL_Window* window)
-        : window_(window), settings_(platform::load_settings()), choices_(read_choices(settings_)) {
+        : window_(window), settings_(platform::load_settings()) {
+        if (auto keys = settings_.get("keys")) input::parse_bindings(*keys, bindings_);
         launcher::remove_update_leftovers(platform::executable_dir());
-        if (choices_.check_updates) update_.emplace(COD_BRO_RELEASES, COD_BRO_VERSION);
+        if (check_updates()) update_.emplace(COD_BRO_RELEASES, COD_BRO_VERSION);
     }
 
     // While a key cell waits for its key (controls()): takes key presses, mouse buttons
@@ -235,7 +116,8 @@ public:
         if (input::is_reserved(input)) {
             key_notice_ = input::input_name(input) + " is kept for the menus and the loader.";
         } else {
-            input::bind(choices_.bindings, capturing_->first, capturing_->second, input);
+            input::bind(bindings_, capturing_->first, capturing_->second, input);
+            store_bindings();
             key_notice_.clear();
         }
         capturing_.reset();
@@ -247,7 +129,10 @@ public:
         {
             std::lock_guard lock(g_picked_mutex);
             if (g_picked) {
-                choices_.assets = fs::path(*g_picked) == platform::default_asset_dir() ? "" : *g_picked;
+                if (fs::path(*g_picked) == platform::default_asset_dir())
+                    settings_.erase("assets");
+                else
+                    settings_.set("assets", *g_picked);
                 g_picked.reset();
             }
         }
@@ -257,13 +142,13 @@ public:
         ImGui::Begin("launcher", nullptr,
                      ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings);
         update_notice();
-        if (!platform::has_game_files(asset_dir(choices_)))
+        if (!platform::has_game_files(asset_dir(settings_)))
             ImGui::TextColored(ImVec4(1.0f, 0.6f, 0.3f, 1), "No game files yet: see Game files on the General tab.");
-        // The tabs scroll on their own; the buttons stay at the bottom.
+        // The tab bar and the buttons stay; each tab's settings scroll between them.
         const ImGuiStyle& style = ImGui::GetStyle();
         float footer = ImGui::GetFrameHeight() + style.ItemSpacing.y * 2 + style.SeparatorTextBorderSize;
         if (!error_.empty()) footer += ImGui::GetTextLineHeightWithSpacing();
-        ImGui::BeginChild("tabs", ImVec2(0, -footer));
+        footer_ = footer;
         if (ImGui::BeginTabBar("sections")) {
             tab("General", [&] { general(); });
             tab("Graphics", [&] { graphics(); });
@@ -273,28 +158,29 @@ public:
             tab("Help", [&] { reporting(); });
             ImGui::EndTabBar();
         }
-        ImGui::EndChild();
         const bool keep_open = buttons();
         ImGui::End();
         return keep_open && !restart_after_update();
     }
 
 private:
+    // A tab: the tab bar stays put, the tab's settings scroll above the buttons.
     template <typename Body>
-    static void tab(const char* name, Body body) {
+    void tab(const char* name, Body body) {
         if (!ImGui::BeginTabItem(name)) return;
+        ImGui::BeginChild(name, ImVec2(0, -footer_));
         ImGui::Spacing();
         // Controls get the left 60%, labels the rest.
         ImGui::PushItemWidth(ImGui::GetContentRegionAvail().x * 0.6f);
         body();
         ImGui::PopItemWidth();
+        ImGui::EndChild();
         ImGui::EndTabItem();
     }
 
     void general() {
         game_files();
-        ImGui::SeparatorText("Language");
-        language();
+        ui::draw_settings({platform::SettingGroup::Files}, settings_);
         updates();
     }
 
@@ -332,7 +218,6 @@ private:
     bool restart_after_update() {
         if (!updater_ || restarted_ || updater_->result().status != launcher::Updater::Status::Installed) return false;
         restarted_ = true;
-        write_choices(choices_, settings_);
         platform::save_settings(settings_);
         if (platform::start_program(platform::sibling_executable("cod_bro_launcher"))) return true;
         error_ = "The update is installed; start the launcher again to use it.";
@@ -341,14 +226,17 @@ private:
 
     void updates() {
         ImGui::SeparatorText("Updates");
-        if (ImGui::Checkbox("Check for updates", &choices_.check_updates) && choices_.check_updates && !update_)
-            update_.emplace(COD_BRO_RELEASES, COD_BRO_VERSION);
+        bool check = check_updates();
+        if (ImGui::Checkbox("Check for updates", &check)) {
+            ui::put_setting(settings_, "check-updates", check ? "true" : "false");
+            if (check && !update_) update_.emplace(COD_BRO_RELEASES, COD_BRO_VERSION);
+        }
         help_marker("When the launcher opens, asks GitHub for the newest release and shows a link to it "
                     "if it is newer. Update now downloads and installs it, then restarts the launcher; your "
                     "game files, saves and settings stay as they are. Nothing is installed by itself.");
         ImGui::SameLine();
         const char* status = "";
-        if (update_ && choices_.check_updates) {
+        if (update_ && check_updates()) {
             switch (update_->result().status) {
                 case launcher::UpdateCheck::Status::Checking: status = ": checking..."; break;
                 case launcher::UpdateCheck::Status::UpToDate: status = ": up to date"; break;
@@ -361,7 +249,7 @@ private:
 
     void game_files() {
         ImGui::SeparatorText("Game files");
-        const fs::path dir = asset_dir(choices_);
+        const fs::path dir = asset_dir(settings_);
         const bool found = platform::has_game_files(dir);
         ImGui::TextWrapped("%s", dir.string().c_str());
         if (found)
@@ -374,182 +262,141 @@ private:
             const std::string start = dir.string();
             SDL_ShowOpenFolderDialog(folder_picked, nullptr, window_, start.c_str(), false);
         }
-        if (!choices_.assets.empty()) {
+        if (settings_.get("assets")) {
             ImGui::SameLine();
-            if (ImGui::Button("Use the assets folder")) choices_.assets.clear();
+            if (ImGui::Button("Use the assets folder")) settings_.erase("assets");
         }
+    }
+
+    bool check_updates() const { return ui::setting_value(settings_, "check-updates") == "true"; }
+
+    // settings.ini's keys line from the bindings (none when they are the defaults).
+    void store_bindings() { ui::put_setting(settings_, "keys", input::format_bindings(bindings_)); }
+
+    // The screen's own shape, when it is wider than 16:9 (3440x1440 is a little wider than 21:9); "" otherwise.
+    std::string screen_shape() const {
+        if (const SDL_DisplayMode* display = SDL_GetDesktopDisplayMode(SDL_GetDisplayForWindow(window_)))
+            if (display->h > 0 && display->w * 9 > display->h * 16 + 9)
+                return std::to_string(display->w) + ":" + std::to_string(display->h);
+        return {};
+    }
+
+    // The Display and Graphics settings the table's standard widgets do not fit.
+    bool picture_widget(const platform::SettingDef& def, platform::Settings& values, bool& changed) {
+        const std::string_view key = def.key;
+        const std::string aspect = ui::setting_value(values, "aspect");
+        const float ratio = aspect == "4:3" ? 4.0f / 3.0f : std::max(aspect_ratio(aspect), 16.0f / 9.0f);
+        const bool fullscreen = ui::setting_value(values, "fullscreen") == "true";
+        const int scale = std::atoi(ui::setting_value(values, "scale").c_str());
+        if (key == "aspect") {
+            std::vector<std::pair<std::string, std::string>> aspects = {
+                {"16:9", "16:9 (widescreen)"},
+                {"4:3", "4:3 (original)"},
+                {"21:9", "21:9 ultrawide (experimental)"},
+                {"32:9", "32:9 super ultrawide (experimental)"}};
+            if (const std::string screen = screen_shape(); !screen.empty() && screen != "21:9" && screen != "32:9")
+                aspects.push_back({screen, "Your screen, " + screen + " (experimental)"});
+            if (std::none_of(aspects.begin(), aspects.end(), [&](const auto& a) { return a.first == aspect; }))
+                aspects.push_back({aspect, aspect + " (experimental)"});
+            const auto current = std::find_if(aspects.begin(), aspects.end(), [&](const auto& a) { return a.first == aspect; });
+            if (ImGui::BeginCombo("Aspect ratio", current->second.c_str())) {
+                for (const auto& [value, label] : aspects)
+                    if (ImGui::Selectable(label.c_str(), value == aspect) && value != aspect) {
+                        ui::put_setting(values, "aspect", value);
+                        changed = true;
+                    }
+                ImGui::EndCombo();
+            }
+            if (ratio > 16.0f / 9.0f + 0.001f)
+                help_marker("Experimental. The view gets wider; the HUD and the menus keep their 16:9 and 4:3 "
+                            "places in the middle. Campaign only: multiplayer stays 16:9. Some screens may "
+                            "not look right yet (please report them).");
+            return true;
+        }
+        if (key == "scale") {
+            int n = scale;
+            if (ImGui::SliderInt("Window size", &n, 1, 8, "x%d", ImGuiSliderFlags_AlwaysClamp)) {
+                ui::put_setting(values, "scale", std::to_string(n));
+                changed = true;
+            }
+            ImGui::SameLine();
+            ImGui::TextDisabled("%dx%d", static_cast<int>(480 * n * ratio + 0.5f), 480 * n);
+            return true;
+        }
+        if (key == "render-scale") {
+            // What "render at window/screen size" means in render scale (the game's 480 lines).
+            float native_scale = static_cast<float>(scale);
+            if (fullscreen)
+                if (const SDL_DisplayMode* display = SDL_GetDesktopDisplayMode(SDL_GetDisplayForWindow(window_)))
+                    native_scale = std::round(display->h * std::max(display->pixel_density, 1.0f) / 48.0f) / 10.0f;
+            const std::string value = ui::setting_value(values, "render-scale");
+            bool match = value.empty();
+            if (ImGui::Checkbox(fullscreen ? "Render at screen size" : "Render at window size", &match)) {
+                if (match)
+                    values.erase("render-scale");
+                else
+                    values.set("render-scale", ui::number_text(std::clamp(native_scale, 0.5f, 8.0f)));
+                changed = true;
+            }
+            help_marker("Off: choose the render resolution yourself. Above the window size it smooths edges "
+                        "(supersampling), below it runs faster.");
+            if (!match) {
+                float x = std::strtof(value.c_str(), nullptr);
+                if (ImGui::SliderFloat("Render scale", &x, 0.5f, 8.0f, "x%.1f", ImGuiSliderFlags_AlwaysClamp)) {
+                    values.set("render-scale", ui::number_text(x));
+                    changed = true;
+                }
+                const int render_height = static_cast<int>(480 * x + 0.5f);
+                ImGui::SameLine();
+                ImGui::TextDisabled("%dx%d", static_cast<int>(render_height * ratio + 0.5f), render_height);
+            }
+            return true;
+        }
+        if (key == "anisotropy") {
+            static constexpr int kAnisotropy[] = {1, 2, 4, 8, 16};
+            int index = 0;
+            while (index < 4 && kAnisotropy[index] < std::atoi(ui::setting_value(values, "anisotropy").c_str())) ++index;
+            if (ImGui::Combo("Texture filtering", &index, "Original\0" "Anisotropic x2\0" "Anisotropic x4\0"
+                             "Anisotropic x8\0" "Anisotropic x16\0")) {
+                ui::put_setting(values, "anisotropy", std::to_string(kAnisotropy[index]));
+                changed = true;
+            }
+            return true;
+        }
+        if (key == "fps") {
+            // Display (paced by the display), 60 (our own clock), 30 (as on the Xbox); another --fps limit from
+            // settings.ini shows as a fourth entry so it is kept.
+            const std::string value = ui::setting_value(values, "fps");
+            const bool custom = value != "display" && value != "60" && value != "30";
+            const std::string custom_label = custom ? "At most " + value + " fps" : "";
+            const char* labels[] = {"Display's refresh rate", "60 fps", "30 fps (original)", custom_label.c_str()};
+            static constexpr const char* kValues[] = {"display", "60", "30"};
+            int fps = value == "display" ? 0 : value == "60" ? 1 : value == "30" ? 2 : 3;
+            if (ImGui::Combo("Frame rate", &fps, labels, custom ? 4 : 3) && fps < 3) {
+                ui::put_setting(values, "fps", kValues[fps]);
+                changed = true;
+            }
+            help_marker("The game runs at the same speed either way. Display's refresh rate: each frame "
+                        "waits for the display (smoothest). 60 fps keeps its own clock; 30 fps is the "
+                        "Xbox's rate and needs about half the processor and graphics time.");
+            return true;
+        }
+#ifndef _WIN32
+        if (key == "d3d9") return true;  // Windows only
+#endif
+        return false;
     }
 
     void graphics() {
-        ImGui::SeparatorText("Window");
-        // The screen's own shape, offered when it is wider than 16:9 (3440x1440 is a little
-        // wider than 21:9).
-        std::string screen;
-        if (const SDL_DisplayMode* display = SDL_GetDesktopDisplayMode(SDL_GetDisplayForWindow(window_)))
-            if (display->h > 0 && display->w * 9 > display->h * 16 + 9)
-                screen = std::to_string(display->w) + ":" + std::to_string(display->h);
-        std::vector<std::pair<std::string, std::string>> aspects = {
-            {"16:9", "16:9 (widescreen)"},
-            {"4:3", "4:3 (original)"},
-            {"21:9", "21:9 ultrawide (experimental)"},
-            {"32:9", "32:9 super ultrawide (experimental)"}};
-        if (!screen.empty() && screen != "21:9" && screen != "32:9")
-            aspects.push_back({screen, "Your screen, " + screen + " (experimental)"});
-        if (std::none_of(aspects.begin(), aspects.end(), [&](const auto& a) { return a.first == choices_.aspect; }))
-            aspects.push_back({choices_.aspect, choices_.aspect + " (experimental)"});
-        if (ImGui::BeginCombo("Aspect ratio", std::find_if(aspects.begin(), aspects.end(), [&](const auto& a) {
-                                                  return a.first == choices_.aspect;
-                                              })->second.c_str())) {
-            for (const auto& [value, label] : aspects)
-                if (ImGui::Selectable(label.c_str(), value == choices_.aspect)) choices_.aspect = value;
-            ImGui::EndCombo();
-        }
-        const float ratio = aspect_ratio(choices_.aspect);
-        if (ratio > 16.0f / 9.0f + 0.001f)
-            help_marker("Experimental. The view gets wider; the HUD and the menus keep their 16:9 and 4:3 "
-                        "places in the middle. Campaign only: multiplayer stays 16:9. Some screens may "
-                        "not look right yet (please report them).");
-
-        int mode = choices_.fullscreen ? 1 : 0;
-        ImGui::Combo("Display mode", &mode, "Window\0" "Fullscreen\0");
-        choices_.fullscreen = mode == 1;
-        help_marker("Alt+Enter switches between the two while playing.");
-
-        const int height = 480 * choices_.scale;
-        const int width = static_cast<int>(height * ratio + 0.5f);
-        ImGui::BeginDisabled(choices_.fullscreen);
-        ImGui::SliderInt("Window size", &choices_.scale, 1, 8, "x%d", ImGuiSliderFlags_AlwaysClamp);
-        ImGui::SameLine();
-        ImGui::TextDisabled("%dx%d", width, height);
-        ImGui::EndDisabled();
-
-        ImGui::SeparatorText("Picture");
-        // What "render at window/screen size" means in render scale (the game's 480 lines).
-        float native_scale = static_cast<float>(choices_.scale);
-        if (choices_.fullscreen)
-            if (const SDL_DisplayMode* display = SDL_GetDesktopDisplayMode(SDL_GetDisplayForWindow(window_)))
-                native_scale = std::round(display->h * std::max(display->pixel_density, 1.0f) / 48.0f) / 10.0f;
-        bool match = choices_.render_scale == 0;
-        if (ImGui::Checkbox(choices_.fullscreen ? "Render at screen size" : "Render at window size", &match))
-            choices_.render_scale = match ? 0 : std::clamp(native_scale, 0.5f, 8.0f);
-        help_marker("Off: choose the render resolution yourself. Above the window size it smooths edges "
-                    "(supersampling), below it runs faster.");
-        if (!match) {
-            ImGui::SliderFloat("Render scale", &choices_.render_scale, 0.5f, 8.0f, "x%.1f",
-                               ImGuiSliderFlags_AlwaysClamp);
-            const int render_height = static_cast<int>(480 * choices_.render_scale + 0.5f);
-            ImGui::SameLine();
-            ImGui::TextDisabled("%dx%d", static_cast<int>(render_height * ratio + 0.5f),
-                                render_height);
-        }
-
-        static constexpr int kAnisotropy[] = {1, 2, 4, 8, 16};
-        int index = 0;
-        while (index < 4 && kAnisotropy[index] < choices_.anisotropy) ++index;
-        ImGui::Combo("Texture filtering", &index, "Original\0" "Anisotropic x2\0" "Anisotropic x4\0"
-                     "Anisotropic x8\0" "Anisotropic x16\0");
-        choices_.anisotropy = kAnisotropy[index];
-
-        // Display (paced by the display), 60 (our own clock), 30 (as on the Xbox); another --fps limit from
-        // settings.ini shows as a fourth entry so it is kept.
-        const bool custom = choices_.fps != 0 && choices_.fps != 60 && choices_.fps != 30;
-        const std::string custom_label = custom ? "At most " + std::to_string(choices_.fps) + " fps" : "";
-        const char* labels[] = {"Display's refresh rate", "60 fps", "30 fps (original)", custom_label.c_str()};
-        int fps = choices_.fps == 0 ? 0 : choices_.fps == 60 ? 1 : choices_.fps == 30 ? 2 : 3;
-        ImGui::Combo("Frame rate", &fps, labels, custom ? 4 : 3);
-        if (fps < 3) choices_.fps = fps == 0 ? 0 : fps == 1 ? 60 : 30;
-        help_marker("The game runs at the same speed either way. Display's refresh rate: each frame "
-                    "waits for the display (smoothest). 60 fps keeps its own clock; 30 fps is the "
-                    "Xbox's rate and needs about half the processor and graphics time.");
-
-        ImGui::SliderFloat("Brightness", &choices_.brightness, 0.5f, 2.0f, "%.2f", ImGuiSliderFlags_AlwaysClamp);
-        help_marker("1.00 looks as on the Xbox. Higher brightens the midtones (dark interiors, night "
-                    "missions); black and white stay as they are.");
-
-        ImGui::Checkbox("Sharper text", &choices_.sharp_text);
-        help_marker("Draws the game's text again at the render resolution, from free fonts that look like "
-                    "the original ones (included with the game). Off: the original low-resolution letters.");
-
-        ImGui::SeparatorText("Enhanced graphics");
-        bool enhanced = choices_.graphics == "enhanced";
-        ImGui::Checkbox("Enhanced graphics", &enhanced);
-        choices_.graphics = enhanced ? "enhanced" : "original";
-        help_marker("Off: the picture as on the Xbox (at your resolution). On: the improvements below that "
-                    "are switched on. Also switchable while playing in the PC menu (` key), each one too.");
-        ImGui::BeginDisabled(!enhanced);
-        ImGui::Indent();
-        render::GraphicsFeatures& g = choices_.graphics_features;
-        ImGui::Checkbox("Anti-aliasing (FXAA)", &g.fxaa);
-        help_marker("Smooths jagged edges in the 3D picture. Menus are left as they are.");
-        ImGui::Checkbox("Anisotropic filtering", &g.anisotropic);
-        help_marker("Sharp textures on the ground and walls seen at a slant, at the Texture filtering level "
-                    "above.");
-        ImGui::Checkbox("Sharpening", &g.sharpen);
-        help_marker("Contrast-adaptive sharpening of the 3D picture: more detail without halos at hard edges.");
-        ImGui::BeginDisabled(!g.sharpen);
-        ImGui::Indent();
-        ImGui::SliderFloat("Sharpness", &g.sharpness, 0.0f, 1.0f, "%.2f", ImGuiSliderFlags_AlwaysClamp);
-        help_marker("0 = none (the default).");
-        ImGui::Unindent();
-        ImGui::EndDisabled();
-        ImGui::Checkbox("Colour vibrance", &g.vibrance);
-        help_marker("Stronger colours where they are weak (the game's palette is muted); below 0 greyer.");
-        ImGui::BeginDisabled(!g.vibrance);
-        ImGui::Indent();
-        ImGui::SliderFloat("Vibrance", &g.vibrance_amount, -1.0f, 1.0f, "%+.2f", ImGuiSliderFlags_AlwaysClamp);
-        help_marker("0 = the game's colours (the default).");
-        ImGui::Unindent();
-        ImGui::EndDisabled();
-        ImGui::Checkbox("Texture detail", &g.texture_detail);
-        help_marker("Sharper textures in the distance (finer mipmaps); too far below 0 they shimmer when "
-                    "moving.");
-        ImGui::BeginDisabled(!g.texture_detail);
-        ImGui::Indent();
-        ImGui::SliderFloat("Detail bias", &g.lod_bias, -2.0f, 0.0f, "%.2f", ImGuiSliderFlags_AlwaysClamp);
-        help_marker("0 = the game's choice (the default); lower is sharper.");
-        ImGui::Unindent();
-        ImGui::EndDisabled();
-        ImGui::Unindent();
-        ImGui::EndDisabled();
-
-        static constexpr const char* kRenderers[] = {"vulkan", "d3d9"};
-        int renderer = choices_.renderer == "d3d9" ? 1 : 0;
-        ImGui::Combo("Renderer", &renderer, "Vulkan\0" "Direct3D 9\0");
-        choices_.renderer = kRenderers[renderer];
-        help_marker("Vulkan is the renderer of our own engine (needs a Vulkan 1.3 graphics driver; without one "
-                    "the game uses Direct3D 9 by itself). Choose Direct3D 9 if the picture or the speed is wrong "
-                    "with Vulkan.");
-#ifdef _WIN32
-        ImGui::BeginDisabled(choices_.renderer != "d3d9");
-        static constexpr const char* kD3D9[] = {"auto", "dxvk", "system"};
-        int d3d9 = 0;
-        while (d3d9 < 2 && choices_.d3d9 != kD3D9[d3d9]) ++d3d9;
-        ImGui::Combo("Graphics", &d3d9, "Automatic\0" "Vulkan (DXVK)\0" "Direct3D 9 (Windows)\0");
-        choices_.d3d9 = kD3D9[d3d9];
-        help_marker("Automatic uses Vulkan through the included DXVK and falls back to the Direct3D 9 that "
-                    "comes with Windows when Vulkan is not available. Choose one yourself if the picture "
-                    "or the speed is wrong with the other.");
-        ImGui::EndDisabled();
-#endif
+        ui::DrawOptions options;
+        options.custom = [&](const platform::SettingDef& def, const platform::SettingUi&, platform::Settings& values,
+                             bool& changed) { return picture_widget(def, values, changed); };
+        ui::draw_settings({platform::SettingGroup::Display, platform::SettingGroup::Graphics}, settings_, options);
     }
 
     void controls() {
-        ImGui::SeparatorText("Mouse and keyboard");
-        ImGui::SliderFloat("Mouse sensitivity", &choices_.mouse_sensitivity, 0.01f, 1.0f, "%.2f",
-                           ImGuiSliderFlags_AlwaysClamp | ImGuiSliderFlags_Logarithmic);
-        help_marker("Degrees the view turns per mouse count.");
-        ImGui::Checkbox("Aim assist", &choices_.aim_assist);
-        help_marker("The view follows an enemy under the crosshair, as on the Xbox. Applies to the "
-                    "controller and the mouse alike, in the campaign and in multiplayer.");
+        ui::draw_settings({platform::SettingGroup::Controls}, settings_);
         keys();
-        ImGui::SeparatorText("On screen");
-        static constexpr const char* kPrompts[] = {"auto", "keyboard", "controller"};
-        int prompts = 0;
-        while (prompts < 2 && choices_.button_prompts != kPrompts[prompts]) ++prompts;
-        ImGui::Combo("Button prompts", &prompts, "Follow the last used device\0" "Keyboard and mouse\0" "Controller\0");
-        choices_.button_prompts = kPrompts[prompts];
-        help_marker("The buttons the game shows in its hints and menus: keys and mouse buttons, or the Xbox "
-                    "controller's. They follow the controller style chosen in the game's options.");
     }
 
     // The keyboard and mouse bindings (src/input/bindings.h): click a cell, then press a key,
@@ -578,14 +425,15 @@ private:
                 ImGui::TableNextColumn();
                 ImGui::PushID(static_cast<int>(a * input::kInputsPerAction + slot));
                 const bool waiting = capturing_ && capturing_->first == action && capturing_->second == slot;
-                const std::string name = input::input_name(choices_.bindings[action][slot]);
+                const std::string name = input::input_name(bindings_[action][slot]);
                 const std::string label = waiting ? "Press a key..." : name.empty() ? "-" : name;
                 if (ImGui::Button(label.c_str(), ImVec2(-FLT_MIN, 0))) {
                     capturing_.emplace(action, slot);
                     key_notice_.clear();
                 }
                 if (ImGui::IsItemClicked(ImGuiMouseButton_Right)) {
-                    input::bind(choices_.bindings, action, slot, 0);
+                    input::bind(bindings_, action, slot, 0);
+                    store_bindings();
                     capturing_.reset();
                 }
                 ImGui::PopID();
@@ -593,120 +441,36 @@ private:
         }
         ImGui::EndTable();
         if (ImGui::Button("Default keys")) {
-            choices_.bindings = input::default_bindings();
+            bindings_ = input::default_bindings();
+            store_bindings();
             capturing_.reset();
             key_notice_.clear();
         }
     }
 
-    void language() {
-        static constexpr const char* kLanguages[] = {"english", "german", "french", "spanish", "italian"};
-        int language = 0;
-        while (language < 4 && choices_.language != kLanguages[language]) ++language;
-        ImGui::Combo("Language", &language, "English\0" "German\0" "French\0" "Spanish\0" "Italian\0");
-        choices_.language = kLanguages[language];
-        help_marker("The Xbox's language setting. The game can only use languages that are on your disc: "
-                    "the North American Standard Edition disc is English only, a European disc has its own languages (and may "
-                    "have no English). The log lists the disc's languages.");
-    }
-
     void sound() {
-        ImGui::SeparatorText("Output");
-        static constexpr std::pair<const char*, const char*> kSpeakers[] = {
-            {"auto", "Automatic"}, {"stereo", "Stereo speakers"}, {"headphones", "Headphones (3D sound)"},
-            {"quad", "Quad (4.0)"}, {"5.1", "Surround 5.1"},       {"7.1", "Surround 7.1"}};
-        const auto* speakers = std::find_if(std::begin(kSpeakers), std::end(kSpeakers),
-                                            [&](const auto& l) { return choices_.speakers == l.first; });
-        if (ImGui::BeginCombo("Speakers", speakers->second)) {
-            for (const auto& [value, label] : kSpeakers)
-                if (ImGui::Selectable(label, value == choices_.speakers)) choices_.speakers = value;
-            ImGui::EndCombo();
-        }
-        help_marker("Automatic: what your output device has, with 3D sound for headphones when the "
-                    "game's own settings ask for headphones. Otherwise this layout, whatever the game's "
-                    "settings say. Headphones (3D sound) places sounds around you, also above and "
-                    "behind (HRTF).");
-
-        if (!audio_devices_) audio_devices_ = audio::output_devices();
-        if (ImGui::BeginCombo("Output device",
-                              choices_.audio_device.empty() ? "System default" : choices_.audio_device.c_str())) {
-            if (ImGui::Selectable("System default", choices_.audio_device.empty())) choices_.audio_device.clear();
-            for (const std::string& name : *audio_devices_)
-                if (ImGui::Selectable(name.c_str(), name == choices_.audio_device)) choices_.audio_device = name;
-            ImGui::EndCombo();
-        }
-        help_marker("A device that is gone when the game starts falls back to the system default.");
-        ImGui::Checkbox("Mute sound", &choices_.silent);
-
-        ImGui::SeparatorText("Volume");
-        ImGui::SliderFloat("Effects volume", &choices_.volumes.effects, 0.0f, 100.0f, "%.0f%%",
-                           ImGuiSliderFlags_AlwaysClamp);
-        help_marker("Gunfire, explosions, vehicles, footsteps, the menus' sounds.");
-        ImGui::SliderFloat("Ambience volume", &choices_.volumes.ambience, 0.0f, 100.0f, "%.0f%%",
-                           ImGuiSliderFlags_AlwaysClamp);
-        help_marker("The levels' background: distant battle, wind, rain, the hum of a room.");
-        ImGui::SliderFloat("Dialogue volume", &choices_.volumes.dialogue, 0.0f, 100.0f, "%.0f%%",
-                           ImGuiSliderFlags_AlwaysClamp);
-        help_marker("Orders, squad chatter, briefings.");
-        ImGui::SliderFloat("Music volume", &choices_.volumes.music, 0.0f, 100.0f, "%.0f%%",
-                           ImGuiSliderFlags_AlwaysClamp);
-        help_marker("On top of the game's own volume setting, for Original and Enhanced sound "
-                    "alike. Also adjustable while playing: PC menu (` key).");
-        ImGui::SeparatorText("Enhanced sound");
-        bool enhanced = choices_.audio == "enhanced";
-        ImGui::Checkbox("Enhanced sound", &enhanced);
-        choices_.audio = enhanced ? "enhanced" : "original";
-        help_marker("Off: the sound as on the Xbox. On: the improvements below that are switched on. Also "
-                    "switchable while playing in the PC menu (` key), each improvement too.");
-        ImGui::BeginDisabled(!enhanced);
-        ImGui::Indent();
-        audio::EnhancedFeatures& f = choices_.features;
-        ImGui::Checkbox("Finer resampling", &f.resampler);
-        help_marker("OpenAL's best resampler (23rd order Sinc) instead of its default.");
-        ImGui::Checkbox("More voices", &f.voices);
-        help_marker("Up to 192 sounds placed in the world at once instead of the Xbox's 36, and effects "
-                    "drop fewer of their sounds in busy fights.");
-        ImGui::Checkbox("Reverb", &f.reverb);
-        help_marker("Reverb that follows the place you are in: room size, walls, stone or wood, open sky.");
-        ImGui::BeginDisabled(!f.reverb);
-        if (ImGui::TreeNode("Advanced reverb")) {
-            audio::ReverbTuning& t = choices_.reverb;
-            ImGui::SliderFloat("Amount", &t.amount, -12.0f, 12.0f, "%+.1f dB", ImGuiSliderFlags_AlwaysClamp);
-            help_marker("The reverb's overall level.");
-            ImGui::SliderFloat("Decay", &t.decay, 0.25f, 4.0f, "x%.2f",
-                               ImGuiSliderFlags_AlwaysClamp | ImGuiSliderFlags_Logarithmic);
-            help_marker("How long the reverb lasts, times what the room's size and materials give.");
-            ImGui::SliderFloat("Brightness", &t.brightness, 0.5f, 2.0f, "x%.2f",
-                               ImGuiSliderFlags_AlwaysClamp | ImGuiSliderFlags_Logarithmic);
-            help_marker("Below 1 the reverb's highs die away sooner (darker), above 1 later (brighter).");
-            ImGui::SliderFloat("Early reflections", &t.reflections, -12.0f, 12.0f, "%+.1f dB",
-                               ImGuiSliderFlags_AlwaysClamp);
-            help_marker("The first echoes off nearby walls.");
-            ImGui::SliderFloat("Room clutter", &t.clutter, 0.0f, 0.3f, "%.2f", ImGuiSliderFlags_AlwaysClamp);
-            help_marker("What soaks up sound besides the walls the game knows about (furniture, debris, "
-                        "openings). Lower makes rooms ring longer. Default 0.07.");
-            if (ImGui::Button("Default reverb")) t = audio::ReverbTuning{};
-            ImGui::TextDisabled("Also adjustable while playing: PC menu (` key).");
-            ImGui::TreePop();
-        }
-        ImGui::EndDisabled();
-        ImGui::Checkbox("Occlusion", &f.occlusion);
-        help_marker("Sounds behind walls and buildings muffled; in view, heard in full.");
-        ImGui::Checkbox("Close-range boost", &f.close_boost);
-        help_marker("Gunfire and bullets louder near you: full within 15 m, fading to the game's own level "
-                    "at 30 m (your own gunfire always full). The game mixes them quietly; 0 dB = its level.");
-        ImGui::BeginDisabled(!f.close_boost);
-        ImGui::Indent();
-        ImGui::SliderFloat("Others' gunfire", &choices_.volumes.close_gunfire, 0.0f, 12.0f, "%+.1f dB",
-                           ImGuiSliderFlags_AlwaysClamp);
-        ImGui::SliderFloat("Your gunfire", &choices_.volumes.own_gunfire, 0.0f, 12.0f, "%+.1f dB",
-                           ImGuiSliderFlags_AlwaysClamp);
-        ImGui::SliderFloat("Bullet impacts and flybys", &choices_.volumes.close_bullets, 0.0f, 12.0f, "%+.1f dB",
-                           ImGuiSliderFlags_AlwaysClamp);
-        ImGui::Unindent();
-        ImGui::EndDisabled();
-        ImGui::Unindent();
-        ImGui::EndDisabled();
+        ui::DrawOptions options;
+        options.custom = [&](const platform::SettingDef& def, const platform::SettingUi& ui, platform::Settings& values,
+                             bool& changed) {
+            if (std::string_view(def.key) != "audio-device") return false;
+            if (!audio_devices_) audio_devices_ = audio::output_devices();
+            const std::string device = ui::setting_value(values, "audio-device");
+            if (ImGui::BeginCombo(ui.label, device.empty() ? "System default" : device.c_str())) {
+                if (ImGui::Selectable("System default", device.empty()) && !device.empty()) {
+                    values.erase("audio-device");
+                    changed = true;
+                }
+                for (const std::string& name : *audio_devices_)
+                    if (ImGui::Selectable(name.c_str(), name == device) && name != device) {
+                        values.set("audio-device", name);
+                        changed = true;
+                    }
+                ImGui::EndCombo();
+            }
+            help_marker(ui.tip);
+            return true;
+        };
+        ui::draw_settings({platform::SettingGroup::Sound}, settings_, options);
     }
 
     // Multiplayer over the local network (src/online/lan.h): every game on the LAN has to use
@@ -715,13 +479,22 @@ private:
         ImGui::SeparatorText("System Link");
         ImGui::TextWrapped("System Link plays with other PCs on your local network, or with a second copy "
                            "of the game on this PC. Xbox Live is not available.");
-        ImGui::SetNextItemWidth(ImGui::GetFontSize() * 7);
-        if (ImGui::InputInt("System Link port", &choices_.net_port, 1, 10))
-            choices_.net_port = std::clamp(choices_.net_port, 1024, 65532);
-        ImGui::SameLine();
-        ImGui::TextDisabled("UDP %d-%d", choices_.net_port, choices_.net_port + 3);
-        help_marker("Use the same port on every PC. A firewall has to let these UDP ports through on the "
-                    "local network (Windows asks the first time you play).");
+        ui::DrawOptions options;
+        options.custom = [&](const platform::SettingDef& def, const platform::SettingUi& ui, platform::Settings& values,
+                             bool& changed) {
+            if (std::string_view(def.key) != "net-port") return false;
+            int port = std::atoi(ui::setting_value(values, "net-port").c_str());
+            ImGui::SetNextItemWidth(ImGui::GetFontSize() * 7);
+            if (ImGui::InputInt(ui.label, &port, 1, 10)) {
+                ui::put_setting(values, "net-port", std::to_string(std::clamp(port, 1024, 65532)));
+                changed = true;
+            }
+            ImGui::SameLine();
+            ImGui::TextDisabled("UDP %d-%d", port, port + 3);
+            help_marker(ui.tip);
+            return true;
+        };
+        ui::draw_settings({platform::SettingGroup::Network}, settings_, options);
     }
 
     // For bug reports: the log of the last run (and settings.ini next to it) and the
@@ -749,11 +522,11 @@ private:
 
     bool buttons() {
         ImGui::Separator();
-        const bool ready = platform::has_game_files(asset_dir(choices_)) && !updating();
+        const bool ready = platform::has_game_files(asset_dir(settings_)) && !updating();
         ImGui::BeginDisabled(!ready);
         const bool campaign = ImGui::Button("Play", ImVec2(ImGui::GetFontSize() * 7, 0));
         ImGui::SameLine();
-        ImGui::BeginDisabled(!has_multiplayer(asset_dir(choices_)));
+        ImGui::BeginDisabled(!has_multiplayer(asset_dir(settings_)));
         const bool multiplayer = ImGui::Button("Multiplayer", ImVec2(ImGui::GetFontSize() * 7, 0));
         ImGui::EndDisabled();
         ImGui::EndDisabled();
@@ -764,15 +537,16 @@ private:
         ImGui::SameLine(ImGui::GetContentRegionMax().x - ImGui::CalcTextSize(reset_label).x -
                         ImGui::GetStyle().FramePadding.x * 2);
         if (ImGui::Button(reset_label)) {
-            const std::string assets = choices_.assets;  // the game files stay where they are
-            choices_ = Choices{};
-            choices_.assets = assets;
+            // Every setting the tabs show (and the keys); the game files folder and hand-written lines stay.
+            for (const platform::SettingUi& ui : platform::setting_uis()) settings_.erase(ui.key);
+            settings_.erase("check-updates");
+            bindings_ = input::default_bindings();
+            store_bindings();
         }
         ImGui::SetItemTooltip("Every option on every tab back to its default; the game files folder stays.");
         if (!error_.empty()) ImGui::TextColored(ImVec4(1.0f, 0.4f, 0.4f, 1), "%s", error_.c_str());
 
         if (play || quit) {
-            write_choices(choices_, settings_);
             if (!platform::save_settings(settings_)) {
                 error_ = "Cannot save " + platform::settings_path().string();
                 return true;
@@ -792,8 +566,9 @@ private:
     }
 
     SDL_Window* window_;
-    platform::Settings settings_;
-    Choices choices_;
+    platform::Settings settings_;  // what the tabs edit, saved on Play/Quit
+    float footer_ = 0;             // the buttons' height below the tabs
+    input::Bindings bindings_ = input::default_bindings();
     std::string error_;
     std::optional<launcher::UpdateCheck> update_;
     std::optional<launcher::Updater> updater_;

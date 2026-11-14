@@ -94,6 +94,7 @@ endif()
 include(cmake/windows_resources.cmake)
 
 add_subdirectory(src/platform)
+add_subdirectory(src/ui)
 add_subdirectory(src/runtime/xbox)
 add_subdirectory(src/audio)
 add_subdirectory(src/render)
