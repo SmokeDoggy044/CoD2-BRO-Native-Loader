@@ -1326,6 +1326,7 @@ private:
         VkImageView view = VK_NULL_HANDLE;
         float scale[2] = {1.0f, 1.0f};
         uint32_t levels = 1;
+        bool replaced = false;  // a replacement picture: already detailed, no Enhanced mipmap bias
     };
 
     // The view behind `id` now (layouts made ready: this may end the current rendering), its texel scale.
@@ -1382,10 +1383,11 @@ private:
             vk_.transition(t.image, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
         r.view = t.image.view;
         r.levels = t.image.levels;
+        r.replaced = t.replacement != 0;
         return r;
     }
 
-    VkSampler sampler_for(const SamplerState& s, uint32_t levels, const GraphicsFeatures& features) {
+    VkSampler sampler_for(const SamplerState& s, uint32_t levels, bool replaced, const GraphicsFeatures& features) {
         auto address = [](Address a) {
             switch (a) {
                 case Address::Wrap: return VK_SAMPLER_ADDRESS_MODE_REPEAT;
@@ -1406,7 +1408,7 @@ private:
         info.minLod = static_cast<float>(std::min(s.max_level, levels - 1));
         info.maxLod = s.mip == Filter::None ? info.minLod + 0.25f : VK_LOD_CLAMP_NONE;
         float bias = s.lod_bias;
-        if (levels > 1 && features.texture_detail) bias += features.lod_bias;
+        if (levels > 1 && !replaced && features.texture_detail) bias += features.lod_bias;
         const float bias_limit = vk_.limits().maxSamplerLodBias;
         info.mipLodBias = std::clamp(bias, -bias_limit, bias_limit);
         if (anisotropy_ > 1 && features.anisotropic && s.min == Filter::Linear && s.mip != Filter::None &&
@@ -1847,7 +1849,7 @@ private:
             c[1] = r.scale[1];
             c[2] = c[3] = 1.0f;
             images[slot] = {VK_NULL_HANDLE, r.view, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
-            samplers[slot].sampler = sampler_for(sampler_states_[slot], r.levels, features);
+            samplers[slot].sampler = sampler_for(sampler_states_[slot], r.levels, r.replaced, features);
         }
         unpack_color(fog_.color, ps_constants_.data() + kGfxPsFogColor * 4);
         for (uint32_t slot = 0; slot < 4; ++slot)

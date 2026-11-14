@@ -991,6 +991,8 @@ private:
         for (uint32_t slot = 0; slot < kGfxTextureSlots; ++slot) {
             float scale[2];
             IDirect3DBaseTexture9* texture = resolve_texture(bound_textures_[slot], scale);
+            const auto bound = textures_.find(bound_textures_[slot]);
+            const bool replaced = bound != textures_.end() && bound->second.replacement != 0;
             float* c = ps_constants_.data() + (kGfxPsTexcoordScale + slot) * 4;
             c[0] = scale[0];
             c[1] = scale[1];
@@ -1008,9 +1010,10 @@ private:
                 min_filter = D3DTEXF_ANISOTROPIC;
                 max_anisotropy = std::max<DWORD>(max_anisotropy, anisotropy);
             }
-            // Enhanced graphics' texture detail: mipmaps chosen sharper.
+            // Enhanced graphics' texture detail: mipmaps chosen sharper (not for replacement pictures: a 4x pack
+            // picture is detailed already, a sharper level there only shimmers at a distance).
             float bias = s.lod_bias;
-            if (texture->GetLevelCount() > 1 && features.texture_detail) bias += features.lod_bias;
+            if (texture->GetLevelCount() > 1 && !replaced && features.texture_detail) bias += features.lod_bias;
             DWORD lod_bias;
             std::memcpy(&lod_bias, &bias, 4);
             device_->SetSamplerState(slot, D3DSAMP_MINFILTER, min_filter);

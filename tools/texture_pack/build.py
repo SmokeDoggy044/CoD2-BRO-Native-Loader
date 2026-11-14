@@ -13,10 +13,12 @@ WORK holds every stage's output, so each stage resumes where it stopped and late
 
 Selection: unique dump textures (manifest.csv, by content), filtered by --source (regex on the pack path, e.g.
 '^sp/prologue/' for the pilot) and/or --bridge (only textures a texture_bridge.py run saw drawn). Skipped, but
-listed in select.csv: textures under --min-size texels on a side (ramps, lookups, 1x1s) and curation 'skip' rows.
+listed in select.csv: lightmaps, font pages, textures under --min-size texels on a side (ramps, lookups, 1x1s) and
+curation 'skip' rows (a curation action overrides the automatic skips).
 
-Encoding: DXT1 when the result is opaque, DXT1 originals with cut-out alpha get a hard alpha edge again (DXT5),
-everything else DXT5 (DXT3 originals included); full mip chain, each level resized from the top one (Lanczos).
+Encoding: a colour fix first (the upscale's low frequencies matched to the original: the model brightens),
+then DXT1 when the result is opaque, DXT1 originals with cut-out alpha get a hard alpha edge again (DXT5),
+everything else DXT5 (DXT3 originals included); full mip chain, each level a 2x2 box of the one before (as the title's).
 Sides over --max-size are scaled down. The key is the runtime content hash (render::hash_bytes) of what the title
 holds, computed from the dump as texture_bridge.py does - so one pack fits both editions and both back ends.
 
@@ -95,6 +97,20 @@ def analyse(item):
             "width": a.shape[1], "height": a.shape[0], "alpha": alpha, "wrap_x": int(wx), "wrap_y": int(wy)}
 
 
+LIGHTMAP = re.compile(r"[\\/]lightmaps[\\/]", re.I)
+FONT = re.compile(r"[\\/][^\\/]*(font|garamond|arialblack)[^\\/]*\.dds$", re.I)
+
+
+def auto_skip(asset_path):
+    """Not surface pictures: baked lighting (the model shifts it by up to 12 levels) and font pages (sharp text
+    replaces them already). A curation row with an action overrides this."""
+    if LIGHTMAP.search(asset_path):
+        return "lightmap"
+    if FONT.search(asset_path):
+        return "font"
+    return ""
+
+
 def load_curation(path):
     out = {}
     if path:
@@ -130,8 +146,8 @@ def select(args):
             c = curation.get(s["asset_path"]) or curation.get(s["content_sha1"]) or {}
             s["action"] = c.get("action") or "upscale"
             s["masks"] = c.get("masks", "")
-            s["skip"] = ("curation" if s["action"] == "skip" else
-                         "small" if min(s["width"], s["height"]) < args.min_size else "")
+            s["skip"] = ("curation" if s["action"] == "skip" else "" if c.get("action") else
+                         auto_skip(s["asset_path"]) or ("small" if min(s["width"], s["height"]) < args.min_size else ""))
             out.append(s)
     with open(args.work / "select.csv", "w", newline="") as f:
         w = csv.DictWriter(f, SELECT_FIELDS)
@@ -189,11 +205,59 @@ def dxt(image, fmt):
     return buf.getvalue()
 
 
+def blur(a, sigma):
+    """Separable Gaussian with wrapped edges (Pillow's blur takes no float images)."""
+    r = max(1, int(3 * sigma + 0.5))
+    k = np.exp(-0.5 * (np.arange(-r, r + 1) / sigma) ** 2)
+    k /= k.sum()
+    for axis in (0, 1):
+        a = sum(w * np.roll(a, i - r, axis=axis) for i, w in enumerate(k))
+    return a
+
+
+def colour_fix(image, original, radius):
+    """Pull the upscale's low frequencies back to the original's: the model brightens textures (prologue pilot:
+    +0.76 levels on average, up to +3 on walls). Detail stays; shrunk back, the result matches the original."""
+    w, h = image.size
+    up = np.asarray(image, np.float32)
+    orig = np.asarray(Image.open(original).convert(image.mode), np.float32)
+    # per channel: Pillow resizes RGBA premultiplied, which zeroes the colour under transparent texels
+    down = np.stack([np.asarray(ch.resize((orig.shape[1], orig.shape[0]), Image.BOX), np.float32)
+                     for ch in image.split()], axis=2)
+    # weighted by the original's alpha: the colour under transparent texels is arbitrary and must not leak into
+    # visible edges (normalised convolution)
+    weight = orig[..., 3] / 255.0 if up.shape[2] == 4 else np.ones(orig.shape[:2], np.float32)
+    spread = blur(weight, max(radius, 0.5)) + 1e-4
+    channels = []
+    for c in range(up.shape[2]):
+        diff = orig[..., c] - down[..., c]
+        if c < 3:
+            diff = blur(diff * weight, max(radius, 0.5)) / spread
+        elif radius > 0:
+            diff = blur(diff, radius)
+        diff = Image.fromarray(np.ascontiguousarray(diff, np.float32))
+        channels.append(np.asarray(diff.resize((w, h), Image.BICUBIC), np.float32))
+    fixed = up + np.stack(channels, axis=2)
+    return Image.fromarray(np.clip(fixed + 0.5, 0, 255).astype(np.uint8), image.mode)
+
+
+def next_level(level, cutout):
+    """A 2x2 box of the level before (as the title's own mips; Lanczos levels were crisper and shimmered)."""
+    level = level.reduce(2) if level.width > 1 and level.height > 1 else level.resize(
+        (max(1, level.width // 2), max(1, level.height // 2)), Image.BOX)
+    if cutout:
+        r, g, b, a = level.split()
+        level = Image.merge("RGBA", (r, g, b, a.point(lambda v: 255 if v >= 128 else 0)))
+    return level
+
+
 def encode_one(item):
-    s, src, original, dst, max_size = item
+    s, src, original, dst, max_size, fix_radius = item
     image = Image.open(src)
     image.load()
     w, h = image.size
+    if fix_radius >= 0:
+        image = colour_fix(image, original, fix_radius)
     if s["action"] == "conservative" or s["masks"]:
         plain = Image.open(original).convert(image.mode).resize((w, h), Image.LANCZOS)
         if s["action"] == "conservative":
@@ -216,11 +280,7 @@ def encode_one(item):
         levels.append(dxt(level, fmt)[DDS_HEADER:])
         if level.width == 1 and level.height == 1:
             break
-        size = (max(1, level.width // 2), max(1, level.height // 2))
-        level = top.resize(size, Image.LANCZOS)
-        if s["alpha"] == "cutout":
-            r, g, b, a = level.split()
-            level = Image.merge("RGBA", (r, g, b, a.point(lambda v: 255 if v >= 128 else 0)))
+        level = next_level(level, s["alpha"] == "cutout")
     header = bytearray(dxt(top, fmt)[:DDS_HEADER])
     struct.pack_into("<I", header, 8, struct.unpack_from("<I", header, 8)[0] | 0x20000)  # DDSD_MIPMAPCOUNT
     struct.pack_into("<I", header, 28, len(levels))
@@ -240,7 +300,7 @@ def encode(args):
     out = args.work / "mod" / "textures"
     out.mkdir(parents=True, exist_ok=True)
     stamp = args.work / "encode_stamp.txt"
-    settings = f"max_size={args.max_size} curation={args.curation and Path(args.curation).stat().st_mtime}\n"
+    settings = f"encoder=3 max_size={args.max_size} colour_fix={args.colour_fix} mips=box curation={args.curation and Path(args.curation).stat().st_mtime}\n"
     redo = not stamp.exists() or stamp.read_text() != settings
     items, missing, done = [], 0, set()
     for s in rows:
@@ -254,7 +314,7 @@ def encode(args):
         done.add(s["key"])
         if redo or not dst.exists() or dst.stat().st_mtime < src.stat().st_mtime:
             items.append((s, src, args.manifest.parent / (by_sha1[s["content_sha1"]]["output"] + ".png"), dst,
-                          args.max_size))
+                          args.max_size, args.colour_fix))
     stale = {p.stem for p in out.glob("*.dds")} - done
     for k in stale:
         (out / f"{k}.dds").unlink()
@@ -303,6 +363,8 @@ def main():
     p.add_argument("--min-size", type=int, default=16)
     p.add_argument("--max-size", type=int, default=4096)
     p.add_argument("--curation", type=Path)
+    p.add_argument("--colour-fix", type=float, default=1.0,
+                   help="blur radius (original texels) of the low-frequency colour match; -1 = off")
     p.add_argument("--torch-python", type=Path, default=DEFAULT_TORCH)
     p.add_argument("--model", type=Path, default=DEFAULT_MODEL)
     p.add_argument("--tile", type=int, default=128)
