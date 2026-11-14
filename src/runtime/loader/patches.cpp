@@ -2399,6 +2399,8 @@ void install_title_patches(const TitleInfo& title, const TitlePatchConfig& confi
         if (config.mounted_gun_fix && client_c(0x002abb30)) game::client_pc_hooks().round_view_angles = true;
         // The levels' glow pass not drawn (TitlePatchConfig::glow).
         game::renderer_pc_hooks().skip_glow_pass = !config.glow;
+        // Scene starts reach the device (the render graph's world / HUD split, 0.5b).
+        game::renderer_pc_hooks().mark_scenes = true;
         g_button_prompts = config.button_prompts;
     } else {
         g_button_prompts = TitlePatchConfig::ButtonPrompts::Controller;

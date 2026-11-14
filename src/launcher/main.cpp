@@ -508,6 +508,9 @@ private:
         help_marker("0 = the game's choice (the default); lower is sharper.");
         ImGui::Unindent();
         ImGui::EndDisabled();
+        ImGui::Checkbox("High-precision picture (HDR)", &g.hdr);
+        help_marker("Vulkan: the 3D picture is drawn with 16-bit colours, so smoke, fog and light effects "
+                    "show no banding. Looks the same otherwise.");
         ImGui::Unindent();
         ImGui::EndDisabled();
 

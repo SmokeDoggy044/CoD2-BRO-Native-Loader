@@ -22,6 +22,7 @@
 #include "imgui_impl_vulkan.h"
 #include "log.h"
 #include "vk_context.h"
+#include "render_graph.h"
 #include "vk_post.h"
 #include "vk_shaders.h"
 
@@ -44,11 +45,12 @@ public:
         vk_.wait_idle();
         window_.close_menu();  // its renderer needs the device
         post_.reset();
+        graph_.reset();
         gfx_.reset();
         destroy_swapchain();
         for (Image* image : {&gamma_table_, &overlay_image_, &notice_image_, &upload_}) vk_.destroy_image(*image);
         VkDevice device = vk_.device();
-        for (VkPipeline pipeline : {opaque_pipeline_, blend_pipeline_})
+        for (VkPipeline pipeline : {opaque_pipeline_, blend_pipeline_, resolve_pipeline_})
             if (pipeline) vkDestroyPipeline(device, pipeline, nullptr);
         if (pipeline_layout_) vkDestroyPipelineLayout(device, pipeline_layout_, nullptr);
         if (set_layout_) vkDestroyDescriptorSetLayout(device, set_layout_, nullptr);
@@ -75,7 +77,10 @@ public:
         if (!create_swapchain() || !create_present_pass()) return false;
         gfx_ = vk::create_vulkan_gfx_device(vk_, draw_config);
         post_ = std::make_unique<vk::Post>(vk_);
+        graph_ = std::make_unique<vk::RenderGraph>(vk_);
         if (!gfx_->back_buffer_image() || !*gfx_->back_buffer_image()) return false;
+        gfx_->set_world_end([this](Image* scene) { scene_passes(scene); });
+        gfx_->set_scene_format(scene_format());
         window_.set_menu_renderer([this] { return init_menu_renderer(); }, [] { ImGui_ImplVulkan_Shutdown(); });
         LOG_INFO("render", "Vulkan device: %ux%u, rendering at %.2fx%.2f, window %dx%d%s, swap chain %ux%u %s",
                  config.width, config.height, static_cast<double>(draw_config.render_scale_x()),
@@ -143,15 +148,17 @@ public:
     }
 
     void finish_picture() override {
-        // Enhanced graphics' post passes, on frames with a 3D scene (menus stay untouched).
+        // The scene passes ran where the world ended (the renderer's scene marks), or run now on frames with a
+        // 3D scene (without marks: the HUD gets the post passes too); menus stay untouched.
         std::lock_guard lock(mutex_);
-        if (!gfx_->frame_is_flat()) post_->apply(*gfx_->back_buffer_image(), active_graphics_features());
+        if (!gfx_->end_world() && !gfx_->frame_is_flat()) scene_passes(nullptr);
     }
 
     void present() override {
         std::lock_guard lock(mutex_);
         show(overlay_lines_);
         gfx_->end_frame();
+        gfx_->set_scene_format(scene_format());
         xbox_draws_ = 0;
     }
 
@@ -412,6 +419,17 @@ private:
         blend.alphaBlendOp = VK_BLEND_OP_ADD;
         if (r == VK_SUCCESS)
             r = vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &info, nullptr, &blend_pipeline_);
+        // The HDR scene's resolve into the 8-bit picture (scene_passes).
+        VkShaderModule resolve = shader_module("scene_resolve.frag");
+        if (r == VK_SUCCESS && resolve) {
+            blend.blendEnable = VK_FALSE;
+            stages[1].module = resolve;
+            const VkFormat picture_format = VK_FORMAT_B8G8R8A8_UNORM;
+            rendering.pColorAttachmentFormats = &picture_format;
+            if (vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &info, nullptr, &resolve_pipeline_) != VK_SUCCESS)
+                resolve_pipeline_ = VK_NULL_HANDLE;
+        }
+        if (resolve) vkDestroyShaderModule(device, resolve, nullptr);
         vkDestroyShaderModule(device, vertex, nullptr);
         vkDestroyShaderModule(device, fragment, nullptr);
         if (r != VK_SUCCESS) {
@@ -464,6 +482,74 @@ private:
         region.dstOffsets[1] = {static_cast<int32_t>(dest.width), static_cast<int32_t>(dest.height), 1};
         vkCmdBlitImage(vk_.cmd(), source.image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, dest.image,
                        VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region, filter);
+    }
+
+    // --- Render graph (0.5b) ---
+
+    // The world's format for the next frame: 16-bit float with enhanced graphics' HDR (and its resolve pass).
+    VkFormat scene_format() const {
+        return resolve_pipeline_ && active_graphics_features().hdr ? VK_FORMAT_R16G16B16A16_SFLOAT
+                                                                   : VK_FORMAT_UNDEFINED;
+    }
+
+    // Where the world ends: the HDR scene (when it was drawn into one) resolved into the picture, then enhanced
+    // graphics' post passes on the picture, before the HUD is drawn over it.
+    void scene_passes(Image* scene) {
+        std::lock_guard lock(mutex_);
+        using Access = vk::RenderGraph::Access;
+        Image* back = gfx_->back_buffer_image();
+        const auto picture = graph_->import("picture", *back);
+        if (scene) {
+            const auto hdr = graph_->import("scene", *scene);
+            graph_->add("resolve", {{hdr, Access::Sampled}, {picture, Access::Color}},
+                        [this, scene, back] { resolve(*scene, *back); });
+        }
+        const GraphicsFeatures features = active_graphics_features();
+        graph_->add("post", {{picture, Access::Color}}, [this, back, features] { post_->apply(*back, features); });
+        graph_->run();
+    }
+
+    // The whole HDR scene into the picture through scene_resolve.frag.
+    void resolve(Image& scene, Image& picture) {
+        VkDescriptorSet set = vk_.descriptor_set(set_layout_);
+        if (!set) return;
+        const VkDescriptorImageInfo images[2]{
+            {nearest_, scene.view, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL},
+            {nearest_, gamma_table_.view, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL}};
+        VkWriteDescriptorSet writes[2]{};
+        for (uint32_t i = 0; i < 2; ++i) {
+            writes[i].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+            writes[i].dstSet = set;
+            writes[i].dstBinding = i;
+            writes[i].descriptorCount = 1;
+            writes[i].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+            writes[i].pImageInfo = &images[i];
+        }
+        vkUpdateDescriptorSets(vk_.device(), 2, writes, 0, nullptr);
+        VkCommandBuffer cmd = vk_.cmd();
+        VkRenderingAttachmentInfo color{VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO};
+        color.imageView = picture.view;
+        color.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+        color.loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;  // every pixel is written
+        color.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+        VkRenderingInfo rendering{VK_STRUCTURE_TYPE_RENDERING_INFO};
+        const VkExtent2D extent{picture.width, picture.height};
+        rendering.renderArea = {{0, 0}, extent};
+        rendering.layerCount = 1;
+        rendering.colorAttachmentCount = 1;
+        rendering.pColorAttachments = &color;
+        vkCmdBeginRendering(cmd, &rendering);
+        const VkViewport viewport{0, 0, static_cast<float>(extent.width), static_cast<float>(extent.height), 0, 1};
+        const VkRect2D scissor{{0, 0}, extent};
+        vkCmdSetViewport(cmd, 0, 1, &viewport);
+        vkCmdSetScissor(cmd, 0, 1, &scissor);
+        vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, resolve_pipeline_);
+        vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline_layout_, 0, 1, &set, 0, nullptr);
+        const PushConstants push{{-1, -1, 1, 1}, {0, 0, 1, 1}, 0};
+        vkCmdPushConstants(cmd, pipeline_layout_, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0,
+                           sizeof(push), &push);
+        vkCmdDraw(cmd, 4, 1, 0, 0);
+        vkCmdEndRendering(cmd);
     }
 
     // One textured rectangle at window pixels (x, y, width, height) of the swap chain image.
@@ -612,6 +698,7 @@ private:
     vk::Context vk_;
     std::unique_ptr<vk::VulkanGfxDevice> gfx_;
     std::unique_ptr<vk::Post> post_;  // enhanced graphics' post passes
+    std::unique_ptr<vk::RenderGraph> graph_;
 
     VkSwapchainKHR swapchain_ = VK_NULL_HANDLE;
     VkExtent2D extent_{};
@@ -625,6 +712,7 @@ private:
     VkDescriptorSetLayout set_layout_ = VK_NULL_HANDLE;
     VkPipelineLayout pipeline_layout_ = VK_NULL_HANDLE;
     VkPipeline opaque_pipeline_ = VK_NULL_HANDLE, blend_pipeline_ = VK_NULL_HANDLE;
+    VkPipeline resolve_pipeline_ = VK_NULL_HANDLE;  // HDR scene -> picture (render graph)
     Image gamma_table_;
     bool gamma_identity_ = true;
     TextImage overlay_text_, notice_text_;

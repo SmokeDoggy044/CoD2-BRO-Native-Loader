@@ -2887,7 +2887,41 @@ void XB_CDECL nglRenderTranslucentList(NglNode* nodes, uint32_t count, uint32_t 
     render_list<NglTranslucentNode>(nodes, count, pred, &nglSortTranslucentNodes_r);
 }
 
+namespace {
+
+// PC scene marks (RendererPcHooks::mark_scenes, GfxDevice::begin_scene): of the scenes nglRenderSceneTree draws
+// (children first), those up to the last world scene are the world - a world scene is on the screen (render
+// target flag 0x4000), writes depth and has opaque nodes: the 3D view, the gun - and those after it the HUD.
+struct SceneMarks {
+    int32_t depth = 0;        // nglRenderSceneTree's recursion
+    uint32_t index = 0;       // scenes begun in this tree
+    uint32_t last_world = 0;  // 1-based; 0: none
+} g_scene_marks;
+
+bool is_world_scene(const NglScene* scene) {
+    const NglRenderTarget* target = scene->render_target;
+    return target && (reinterpret_cast<const NglTexture*>(target)->flags & 0x4000) && scene->depth_enable &&
+           scene->opaque_count != 0;
+}
+
+void number_scenes(const NglScene* scene, uint32_t& index) {
+    for (const NglScene* child = scene->first_child; child; child = child->next_sibling) number_scenes(child, index);
+    ++index;
+    if (is_world_scene(scene)) g_scene_marks.last_world = index;
+}
+
+bool scene_is_world(const NglScene*) { return ++g_scene_marks.index <= g_scene_marks.last_world; }
+
+}  // namespace
+
 void XB_CDECL nglRenderSceneTree() {
+    const bool marks = renderer_pc_hooks().mark_scenes;
+    if (marks && g_scene_marks.depth++ == 0) {
+        uint32_t count = 0;
+        g_scene_marks.last_world = 0;
+        g_scene_marks.index = 0;
+        number_scenes(current_scene(), count);
+    }
     uintptr_t& frame_memory = title_global<uintptr_t>(0x00903c34);
     const uintptr_t saved_frame_memory = frame_memory;
     own_function<void XB_CDECL()>(&nglAllocSceneRenderTargets)();  // nglAllocSceneRenderTargets
@@ -2928,6 +2962,7 @@ void XB_CDECL nglRenderSceneTree() {
     frame_memory = saved_frame_memory;
     NglRenderTarget* target = current_scene()->render_target;
     if (target->levels > 1) own_function<void XB_CDECL(NglRenderTarget*)>(&nglGenerateRenderTargetMips)(target);  // nglGenerateRenderTargetMips
+    if (marks) --g_scene_marks.depth;
 }
 
 const uint32_t* XB_THISCALL nglResourceManager_Find(const uint8_t* manager, const uint32_t* name) {
@@ -3926,6 +3961,8 @@ void XB_CDECL nglBeginSceneRender(NglScene* target_scene) {
         scene = current_scene();
     }
     simple(0x00040358, scene->color_write_mask, 0x003f8434, 0x00902fa8);
+    if (renderer_pc_hooks().mark_scenes)
+        if (render::GfxDevice* device = gfx()) device->begin_scene(scene_is_world(target_scene));
     const float frames = current_scene()->frame_time * title_global<float>(0x008a2978);
     current_scene()->frame_counter = static_cast<uint32_t>(platform_x87_round_to_int(frames));
 }

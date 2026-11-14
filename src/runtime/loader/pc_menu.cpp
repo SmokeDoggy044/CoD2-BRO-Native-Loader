@@ -209,6 +209,9 @@ void graphics_tab() {
     if (f.texture_detail)
         changed |= amount_slider("Detail bias", f.lod_bias, -2.0f, 0.0f, "%.2f",
                                  "Mipmap bias: lower is sharper (0: the game's, the default).");
+    changed |= feature_switch("High-precision picture (HDR)", f.hdr,
+                              "Vulkan: the 3D picture drawn with 16-bit colours, so smoke, fog and\n"
+                              "light effects show no banding. Looks the same otherwise.");
     ImGui::Unindent();
     ImGui::EndDisabled();
     if (changed) render::set_graphics(enhanced, f);

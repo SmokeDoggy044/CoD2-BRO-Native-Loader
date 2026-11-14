@@ -251,6 +251,12 @@ public:
     // window events too). The back buffer is drawn into from scratch or over again after it.
     virtual void present() = 0;
 
+    // --- Frame structure ---
+    // The renderer starts a scene (nglBeginSceneRender) on the current target; `world`: it tests or writes
+    // depth (a 3D view), else flat (HUD, menus, 2D). Only with the PC's features (RendererPcHooks::mark_scenes);
+    // a back end may run passes between a frame's world and its HUD (the render graph, 0.5b).
+    virtual void begin_scene(bool /*world*/) {}
+
     // --- Textures ---
     virtual TextureId create_texture(const TextureDesc& desc) = 0;
     // One level (and cube face 0..5 / volume) from linear memory in the texture's format:

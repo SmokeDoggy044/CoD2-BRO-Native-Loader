@@ -5,6 +5,7 @@
 // descriptors and pipelines keyed by the state Vulkan cannot set dynamically.
 
 #include <cstdint>
+#include <functional>
 #include <memory>
 
 #include "backend.h"
@@ -30,6 +31,17 @@ public:
     virtual uint32_t unsupported_draws() const = 0;
     // Called once a frame was presented.
     virtual void end_frame() = 0;
+
+    // --- The frame's split into world and HUD (render graph, 0.5b) ---
+    // With the renderer's scene marks (GfxDevice::begin_scene), `world_end` is called once a frame where its
+    // world (3D view, gun) ends and its HUD begins, with the back buffer the target again. `scene_format` set
+    // (not VK_FORMAT_UNDEFINED): the world is drawn into an image of that format standing in for the back
+    // buffer (the HDR scene), handed to `world_end` to be resolved into the back buffer; otherwise null.
+    virtual void set_world_end(std::function<void(Image* scene)> world_end) = 0;
+    virtual void set_scene_format(VkFormat scene_format) = 0;
+    // Ends the frame's world now if it began and has not ended (no HUD scene came after it); true when the
+    // world ended this frame (here or at a HUD scene).
+    virtual bool end_world() = 0;
     // The pipeline cache to its file when it has new pipelines.
     virtual void save_caches() = 0;
     // An in-process title restart: the back buffer and depth buffer stand for this memory now.

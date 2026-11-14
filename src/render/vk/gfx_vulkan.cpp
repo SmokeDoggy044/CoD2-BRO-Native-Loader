@@ -234,6 +234,8 @@ public:
         for (auto& [key, pipeline] : pipelines_) vk_.defer_destroy(pipeline);
         for (auto& [key, sampler] : samplers_) vkDestroySampler(vk_.device(), sampler, nullptr);
         vk_.destroy_image(dummy_texture_);
+        vk_.destroy_image(scene_);
+        vk_.destroy_image(scene_copy_);
         if (default_vertex_.buffer) vk_.defer_destroy(default_vertex_.buffer, default_vertex_.allocation);
         if (quad_indices_.buffer) vk_.defer_destroy(quad_indices_.buffer, quad_indices_.allocation);
         save_pipeline_cache();
@@ -718,6 +720,37 @@ public:
         if (color) set_target(color, depth);
     }
 
+    void begin_scene(bool world) override {
+        if (!world_end_ || color_ != back_buffer_ || world_done_) return;
+        if (world) {
+            if (!world_seen_) {
+                world_seen_ = true;
+                if (scene_format_ != VK_FORMAT_UNDEFINED) redirect_to_scene();
+            }
+            return;
+        }
+        if (world_seen_) end_world();
+    }
+
+    void set_world_end(std::function<void(Image* scene)> world_end) override { world_end_ = std::move(world_end); }
+    void set_scene_format(VkFormat scene_format) override { scene_format_ = scene_format; }
+
+    bool end_world() override {
+        if (world_done_ || !world_seen_) return world_done_;
+        world_done_ = true;
+        vk_.end_rendering();
+        Image* scene = nullptr;
+        if (redirected_) {
+            Target& back = targets_[back_buffer_];
+            std::swap(back.image, scene_);
+            std::swap(back.copy, scene_copy_);
+            redirected_ = false;
+            scene = &scene_;
+        }
+        if (world_end_) world_end_(scene);
+        return true;
+    }
+
     bool frame_is_flat() const override { return !frame_writes_depth_; }
     uint32_t flat_frames_before() const override { return flat_frames_; }
     uint32_t unsupported_draws() const override { return unsupported_draws_; }
@@ -726,6 +759,13 @@ public:
 
     void end_frame() override {
         flat_frames_ = frame_is_flat() ? flat_frames_ + 1 : 0;
+        if (redirected_) {  // presented without finish_picture: the back buffer is the 8-bit image again
+            Target& back = targets_[back_buffer_];
+            std::swap(back.image, scene_);
+            std::swap(back.copy, scene_copy_);
+            redirected_ = false;
+        }
+        world_seen_ = world_done_ = false;
         frame_writes_depth_ = false;
         unsupported_draws_ = 0;
         ++frame_;
@@ -921,6 +961,47 @@ private:
         const TargetId id = next_id_++;
         targets_.emplace(id, std::move(target));
         return id;
+    }
+
+    // The world is drawn into scene_ (scene_format_) from here on: it takes the back buffer target's place (its
+    // image and sampling copy swap with scene_'s), with what the frame drew so far copied over.
+    void redirect_to_scene() {
+        Target& back = targets_[back_buffer_];
+        if (scene_ && (scene_.format != scene_format_ || scene_.width != back.image.width ||
+                       scene_.height != back.image.height)) {
+            vk_.destroy_image(scene_);
+            vk_.destroy_image(scene_copy_);
+        }
+        if (!scene_) {
+            if (!vk_.create_image(scene_, scene_format_, back.image.width, back.image.height,
+                                  VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT |
+                                      VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT)) {
+                LOG_WARN("render", "Vulkan: no HDR scene image; the world is drawn in 8 bits");
+                scene_format_ = VK_FORMAT_UNDEFINED;
+                return;
+            }
+            if (no_alpha(back.format)) {  // sampled, it reads alpha 1 as the back buffer does
+                VkImageViewCreateInfo view{VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO};
+                view.image = scene_.image;
+                view.viewType = VK_IMAGE_VIEW_TYPE_2D;
+                view.format = scene_format_;
+                view.components.a = VK_COMPONENT_SWIZZLE_ONE;
+                view.subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
+                vkCreateImageView(vk_.device(), &view, nullptr, &scene_.sample_view);
+            }
+        }
+        vk_.transition(back.image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);  // ends rendering
+        scene_.layout = VK_IMAGE_LAYOUT_UNDEFINED;
+        vk_.transition(scene_, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+        VkImageBlit region{};
+        region.srcSubresource = region.dstSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1};
+        region.srcOffsets[1] = region.dstOffsets[1] = {static_cast<int32_t>(scene_.width),
+                                                       static_cast<int32_t>(scene_.height), 1};
+        vkCmdBlitImage(vk_.cmd(), back.image.image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, scene_.image,
+                       VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region, VK_FILTER_NEAREST);
+        std::swap(back.image, scene_);
+        std::swap(back.copy, scene_copy_);
+        redirected_ = true;
     }
 
     static bool no_alpha(Format f) { return f == Format::BGRX8 || f == Format::BGRX5 || f == Format::B5G6R5; }
@@ -1826,6 +1907,11 @@ private:
     RasterState raster_;
     Fog fog_;
     bool frame_writes_depth_ = false;
+    // The world / HUD split (render graph, 0.5b).
+    std::function<void(Image*)> world_end_;
+    VkFormat scene_format_ = VK_FORMAT_UNDEFINED;
+    Image scene_, scene_copy_;  // the HDR scene (and its sampling copy) while not standing in for the back buffer
+    bool world_seen_ = false, world_done_ = false, redirected_ = false;
     uint32_t flat_frames_ = 0;
     uint32_t unsupported_draws_ = 0;
 };
