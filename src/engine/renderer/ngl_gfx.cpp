@@ -1,6 +1,7 @@
 #include "ngl_gfx.h"
 
 #include <algorithm>
+#include <chrono>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -11,6 +12,7 @@
 #include <vector>
 
 #include "gfx_state.h"
+#include "mesh_smooth.h"
 #include "ngl.h"
 #include "texture_decode.h"
 #include "texture_hash.h"
@@ -757,6 +759,152 @@ void draw_indexed_vertices(uint32_t primitive, uint32_t index_count, const void*
     d3d<void XB_STDCALL(uint32_t, uint32_t, const void*)>(0x003e9990)(primitive, index_count, indices);
 }
 
+namespace {
+
+// Smoothed sections (draw_smoothed), by where their data is. A sample of the data checks that it is still
+// the same (a new level's meshes can load at the same addresses); smoothing runs once per section.
+struct Smoothed {
+    uint64_t sample = 0;
+    bool ok = false;
+    uint64_t id = 0;  // the back end's cache key
+    render::smooth::Result result;
+};
+struct SmoothCache {
+    std::unordered_map<uint64_t, Smoothed> sections;
+    size_t bytes = 0;
+    uint64_t next_id = 1;
+    uint32_t done = 0, refused = 0;
+    double seconds = 0, worst = 0;  // spent smoothing
+};
+SmoothCache& smooth_cache() {
+    static SmoothCache cache;
+    return cache;
+}
+
+uint64_t sample_hash(const uint8_t* data, size_t bytes, uint64_t h) {
+    auto mix = [&h](uint32_t w) { h = (h ^ w) * 0x100000001B3ull; };
+    mix(static_cast<uint32_t>(bytes));
+    if (bytes < 4) return h;
+    const size_t words = bytes / 4, step = std::max<size_t>(1, words / 61);
+    for (size_t i = 0; i < words; i += step) {
+        uint32_t w;
+        std::memcpy(&w, data + i * 4, 4);
+        mix(w);
+    }
+    uint32_t last;
+    std::memcpy(&last, data + bytes - 4, 4);
+    mix(last);
+    return h;
+}
+
+// The declaration's attributes for smoothing: v0 the position, v1 the (packed) normal; skinned: v3 the bone
+// indices, v4 the weights (cdChar's vertex shader).
+bool smooth_layout(uint32_t declaration, bool skinned, render::smooth::Attribute* out, uint32_t& count) {
+    using render::smooth::Format;
+    using render::smooth::Role;
+    const auto* inputs = reinterpret_cast<const uint32_t*>(static_cast<uintptr_t>(declaration));
+    count = 0;
+    for (uint32_t v = 0; v < 16; ++v) {
+        const uint32_t* input = inputs + v * 4;
+        if (input[2] == 0x02) continue;
+        if (input[0] != 0) return false;
+        Format f;
+        switch (input[2]) {
+            case 0x12: f = Format::Float1; break;
+            case 0x22: f = Format::Float2; break;
+            case 0x32: f = Format::Float3; break;
+            case 0x42: f = Format::Float4; break;
+            case 0x40: f = Format::Color; break;
+            case 0x44: f = Format::UByte4N; break;
+            case 0x16: f = Format::PackedNormal; break;
+            case 0x25: f = Format::Short2; break;
+            case 0x45: f = Format::Short4; break;
+            case 0x21: f = Format::Short2N; break;
+            case 0x41: f = Format::Short4N; break;
+            default: return false;
+        }
+        Role role = Role::Other;
+        if (v == 0) role = Role::Position;
+        else if (v == 1) role = Role::Normal;
+        else if (skinned && v == 3) role = Role::BlendIndices;
+        else if (skinned && v == 4) role = Role::BlendWeights;
+        out[count++] = {static_cast<uint16_t>(input[1]), f, role};
+    }
+    return true;
+}
+
+}  // namespace
+
+bool draw_smoothed(uint32_t primitive, uint32_t vertex_count, uint32_t index_count, const void* indices, bool skinned) {
+    using namespace render::smooth;
+    const GfxState& s = recorded().state;
+    if (!ngl_gfx_own_draws() || !s.stream_stride || !s.vertex_declaration || !vertex_count) return false;
+    Topology topology;
+    switch (primitive) {
+        case 5: topology = Topology::Triangles; break;
+        case 6: topology = Topology::Strip; break;
+        case 8: topology = Topology::Quads; break;
+        default: return false;
+    }
+    const uint8_t* memory = stream_memory();
+    if (!memory) return false;
+    const auto* index_data = static_cast<const uint16_t*>(indices);
+    const uint32_t count = index_data ? index_count : vertex_count;
+    const uint64_t key = (static_cast<uint64_t>(reinterpret_cast<uintptr_t>(memory)) << 32 ^
+                          static_cast<uint32_t>(reinterpret_cast<uintptr_t>(index_data))) ^
+                         (uint64_t{count} << 20) ^ (uint64_t{s.vertex_declaration} << 1) ^ primitive;
+    uint64_t sample = sample_hash(memory, size_t{vertex_count} * s.stream_stride, 0xCBF29CE484222325ull);
+    if (index_data) sample = sample_hash(reinterpret_cast<const uint8_t*>(index_data), size_t{count} * 2, sample);
+    SmoothCache& cache = smooth_cache();
+    Smoothed& entry = cache.sections[key];
+    if (entry.id == 0 || entry.sample != sample) {
+        cache.bytes -= std::min(cache.bytes, entry.result.vertices.size() + entry.result.indices.size() * 2);
+        if (cache.bytes > (size_t{512} << 20)) {  // a long session: start over
+            cache.sections.clear();
+            cache.bytes = 0;
+            return draw_smoothed(primitive, vertex_count, index_count, indices, skinned);
+        }
+        entry.sample = sample;
+        entry.id = cache.next_id++;
+        const auto started = std::chrono::steady_clock::now();
+        Attribute attributes[16];
+        uint32_t attribute_count;
+        Options options;
+        static const uint32_t segments = [] {
+            const char* text = std::getenv("COD_BRO_SMOOTH_SEGMENTS");  // developers: 1-8 (default 3)
+            return text ? static_cast<uint32_t>(std::clamp(std::atoi(text), 1, 8)) : 3u;
+        }();
+        options.segments = segments;
+        entry.ok = smooth_layout(s.vertex_declaration, skinned, attributes, attribute_count) &&
+                   smooth({s.stream_stride, attributes, attribute_count}, memory, vertex_count, topology, index_data,
+                          count, options, entry.result);
+        if (!entry.ok && options.segments > 2) {  // too many vertices: try fewer
+            options.segments = 2;
+            entry.ok = smooth({s.stream_stride, attributes, attribute_count}, memory, vertex_count, topology,
+                              index_data, count, options, entry.result);
+        }
+        if (entry.ok) {
+            ++cache.done;
+            cache.bytes += entry.result.vertices.size() + entry.result.indices.size() * 2;
+        } else {
+            ++cache.refused;
+            entry.result = Result();
+        }
+        const double took = std::chrono::duration<double>(std::chrono::steady_clock::now() - started).count();
+        cache.seconds += took;
+        cache.worst = std::max(cache.worst, took);
+        const uint32_t total = cache.done + cache.refused;
+        if ((total & (total - 1)) == 0 && total >= 16)  // now and then
+            std::fprintf(stderr, "[ngl_gfx] model smoothing: %u sections smoothed, %u kept as they are, %zu KB, %.1f ms (worst "
+                         "section %.2f ms)\n",
+                         cache.done, cache.refused, cache.bytes >> 10, cache.seconds * 1e3, cache.worst * 1e3);
+    }
+    if (!entry.ok) return false;
+    return ngl_gfx_draw_user(render::Primitive::Triangles, entry.result.vertices.data(), entry.result.vertex_count,
+                             s.stream_stride, entry.result.indices.data(),
+                             static_cast<uint32_t>(entry.result.indices.size()), entry.id | render::kGfxFixedContent);
+}
+
 void clear(uint32_t rect_count, const void* rects, uint32_t flags, uint32_t color, float depth, uint32_t stencil) {
     render::GfxDevice* device = gfx();
     if (ngl_gfx_own_draws() && device && !rect_count) {
@@ -824,6 +972,7 @@ void ngl_gfx_restart_title() {
     }
     o = DeviceObjects();
     recorded() = fresh_recorded();
+    xb::smooth_cache() = xb::SmoothCache();
     g_frame = 0;
 }
 

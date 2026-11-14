@@ -53,6 +53,8 @@ struct RendererPcHooks {
     bool skip_glow_pass = false;
     // Set: nglBeginSceneRender tells the device each scene's start (GfxDevice::begin_scene).
     bool mark_scenes = false;
+    // Set and true: characters, guns and props are drawn smoothed (nglDrawMeshSectionSmoothed).
+    bool (*smooth_models)() = nullptr;
 };
 RendererPcHooks& renderer_pc_hooks();
 // The 16:9 scene aspect, or the wider one in RendererPcHooks.
@@ -837,6 +839,9 @@ void XB_CDECL nglSetTexture(uint32_t stage, NglTexture* texture, uint8_t address
 void XB_CDECL nglSetVertexStreams(const uint8_t* vertex_buffer, uint32_t stride, uint32_t start);
 // 0x00078890: draws a mesh section: indexed, as a list, or its push buffer.
 void XB_CDECL nglDrawMeshSection(const NglMeshSection* section);
+// Ours (engine improvements 1g): nglDrawMeshSection with the model smoothed when RendererPcHooks::smooth_models
+// says so (and it can be: see xb::draw_smoothed), else as it is. `skinned`: cdChar's vertex layout.
+void nglDrawMeshSectionSmoothed(const NglMeshSection* section, bool skinned);
 // 0x000776f0: two vertex constants at slot + 0x60: (fog[2], fog[0], 1 / (fog[1] -
 // fog[0]), fog[3] - fog[2]) and the camera position in the node's object space, w 1.
 void XB_CDECL nglSetTransformConstants(int32_t slot, NglMeshDrawNode* node, float fog0, float fog1, float fog2,

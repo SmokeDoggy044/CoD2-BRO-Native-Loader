@@ -4,6 +4,11 @@ add_library(texture_formats STATIC texture_decode.cpp)
 set_target_properties(texture_formats PROPERTIES POSITION_INDEPENDENT_CODE ON)  # in the game library too
 target_include_directories(texture_formats PUBLIC ${CMAKE_CURRENT_SOURCE_DIR} PRIVATE ${PROJECT_SOURCE_DIR}/src/runtime/xbox)
 
+# Model smoothing (mesh_smooth.h): the renderer C's model draws (src/engine/renderer/ngl_gfx.cpp).
+add_library(mesh_smooth STATIC mesh_smooth.cpp)
+set_target_properties(mesh_smooth PROPERTIES POSITION_INDEPENDENT_CODE ON)  # in the game library
+target_include_directories(mesh_smooth PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+
 # Xbox Direct3D 8 on a D3D9 back end (portable).
 add_library(render STATIC
     backend_d3d9.cpp

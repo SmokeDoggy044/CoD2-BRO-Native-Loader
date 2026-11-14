@@ -88,6 +88,10 @@ void set_vertex_input(uint32_t declaration, uint32_t stream_count, const void* s
 // D3DDevice_Clear (Xbox flags: 0xF0 colour, 1 depth, 2 stencil): ours when they can be.
 void draw_vertices(uint32_t primitive, uint32_t start, uint32_t count);
 void draw_indexed_vertices(uint32_t primitive, uint32_t index_count, const void* indices);
+// A mesh section from stream 0 (D3DDevice_DrawIndexedVertices' arguments; indices null: DrawVertices from 0)
+// drawn smoothed (render::smooth, kept per section). False: not drawn (not ours, a layout or primitive it
+// cannot smooth): the caller draws it as it is. `skinned`: cdChar's layout (v3 bone indices, v4 weights).
+bool draw_smoothed(uint32_t primitive, uint32_t vertex_count, uint32_t index_count, const void* indices, bool skinned);
 void clear(uint32_t rect_count, const void* rects, uint32_t flags, uint32_t color, float depth, uint32_t stencil);
 void set_vertex_constant(uint32_t slot, const float* values);
 void set_vertex_constants(uint32_t slot, const float* values, uint32_t dwords);

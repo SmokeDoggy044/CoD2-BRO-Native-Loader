@@ -175,6 +175,8 @@ void configure_title_services(const Options& options, const fs::path& assets, co
         }
     }
     game::set_gfx_device(&render::gfx_device, &render::open_gfx_device);
+    if (!options.compare)
+        game::renderer_pc_hooks().smooth_models = [] { return render::active_graphics_features().smooth_models; };
     render::set_gfx_state_probe(&game::ngl_gfx_state);  // XB_GFX_VERIFY        // and the renderer C's (once the title made its device)
     render::D3DConfig d3d_config;
     d3d_config.backend.window_scale = options.scale;

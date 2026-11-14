@@ -213,7 +213,7 @@ target_include_directories(game_code PRIVATE ${PROJECT_SOURCE_DIR}/src/audio)
 # From src/render/: declarations (gfx_device.h; the loader says where the device comes from) and the
 # texture formats library (texture_decode.h).
 target_include_directories(game_code PRIVATE ${PROJECT_SOURCE_DIR}/src/render)
-target_link_libraries(game_code PRIVATE cod_bro_options texture_formats)
+target_link_libraries(game_code PRIVATE cod_bro_options texture_formats mesh_smooth)
 # The title does its float math in SSE (single precision); x87 code would round and
 # quiet NaNs differently. Pentium III level: SSE only, no SSE2. -frounding-math: the
 # title's MXCSR does not round to nearest, so constant expressions (1.0f / 320.0f in

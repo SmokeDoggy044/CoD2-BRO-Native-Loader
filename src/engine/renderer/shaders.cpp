@@ -751,7 +751,7 @@ void XB_THISCALL ShaderPCUV_Draw(const NglMeshNode* node) {
 namespace {
 
 void draw_lit_alpha_tested(const NglMeshNode* node, uint32_t vertex_shader, uint32_t pixel_shader_if_one,
-                           uint32_t pixel_shader) {
+                           uint32_t pixel_shader, bool smoothed) {
     uint8_t* cache = state_cache();
     set_cull_mode(*reinterpret_cast<const int32_t*>(node->material + 0x20) == 2 ? 0 : 0x900);
     nglStateCache_SetBlendEnable(cache, 0);
@@ -765,16 +765,20 @@ void draw_lit_alpha_tested(const NglMeshNode* node, uint32_t vertex_shader, uint
     nglSetPixelShaderProgramCached(pick_shader(pixel_shader_if_one, pixel_shader));
     set_transform_constants(-0x4e, node);
     set_scene_fog();
-    nglDrawMeshSection(node->section);
+    if (smoothed)
+        nglDrawMeshSectionSmoothed(node->section, false);  // ours: model smoothing
+    else
+        nglDrawMeshSection(node->section);
 }
 
 }  // namespace
 
-void XB_THISCALL cdGunSight_Draw(const NglMeshNode* node) { draw_lit_alpha_tested(node, 0x00901fac, 0x00901fa8, 0x00901fb4); }
+// The sights stay as they are (their alignment matters more than their shape).
+void XB_THISCALL cdGunSight_Draw(const NglMeshNode* node) { draw_lit_alpha_tested(node, 0x00901fac, 0x00901fa8, 0x00901fb4, false); }
 
-void XB_THISCALL cdGun_Draw(const NglMeshNode* node) { draw_lit_alpha_tested(node, 0x00901fc0, 0x00901fc8, 0x00901fbc); }
+void XB_THISCALL cdGun_Draw(const NglMeshNode* node) { draw_lit_alpha_tested(node, 0x00901fc0, 0x00901fc8, 0x00901fbc, true); }
 
-void XB_THISCALL cdSimple_Draw(const NglMeshNode* node) { draw_lit_alpha_tested(node, 0x009020b8, 0x009020b0, 0x009020b4); }
+void XB_THISCALL cdSimple_Draw(const NglMeshNode* node) { draw_lit_alpha_tested(node, 0x009020b8, 0x009020b0, 0x009020b4, true); }
 
 namespace {
 
@@ -837,7 +841,7 @@ void XB_THISCALL cdChar_Draw(const NglMeshNode* node) {
     nglSetSkinningConstants(-0x4c, draw, node->section);
     set_transform_constants(-0x4e, node);
     set_scene_fog();
-    nglDrawMeshSection(node->section);
+    nglDrawMeshSectionSmoothed(node->section, true);  // ours: model smoothing
 }
 
 void XB_THISCALL cdSimpleUVAnim_GetUVParams(const NglMeshNode* node, float* out) {

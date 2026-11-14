@@ -1295,16 +1295,23 @@ private:
     // time the same contents come), else null (streamed).
     const VkBuf* kept_vertices(uint64_t key, const void* vertices, uint32_t bytes) {
         if (!key) return nullptr;
-        const uint64_t content = hash_bytes(vertices, bytes);
+        const bool fixed = key >> 63;  // kGfxFixedContent: never changes, no check
         Kept& k = kept_[key];
         k.used_frame = frame_;
+        if (fixed && k.buffer.buffer && k.bytes == bytes) return &k.buffer;
+        const uint64_t content = fixed ? 0 : hash_bytes(vertices, bytes);
         if (k.buffer.buffer && k.content == content && k.bytes == bytes) return &k.buffer;
-        if (k.content != content || k.bytes != bytes) {
+        if (!fixed && (k.content != content || k.bytes != bytes)) {
             k.content = content;
             k.bytes = bytes;
             if (k.buffer.buffer) vk_.defer_destroy(k.buffer.buffer, k.buffer.allocation);
             k.buffer = {};
             return nullptr;  // changed: streamed until it repeats
+        }
+        if (fixed) {
+            if (k.buffer.buffer) vk_.defer_destroy(k.buffer.buffer, k.buffer.allocation);
+            k.buffer = {};
+            k.bytes = bytes;
         }
         if (!create_vk_buffer(bytes, false, k.buffer)) return nullptr;
         vk_.upload_buffer(k.buffer.buffer, 0, vertices, bytes);

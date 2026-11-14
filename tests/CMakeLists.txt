@@ -72,6 +72,11 @@ target_link_libraries(gfx_device_test PRIVATE render xbox test_shaders)
 add_test(NAME gfx_device_test COMMAND gfx_device_test)
 set_tests_properties(gfx_device_test PROPERTIES TIMEOUT 60 SKIP_RETURN_CODE 77)
 
+# Model smoothing (PN-AEN on the CPU).
+add_executable(mesh_smooth_test mesh_smooth_test.cpp)
+target_link_libraries(mesh_smooth_test PRIVATE mesh_smooth xbox)
+add_test(NAME mesh_smooth_test COMMAND mesh_smooth_test)
+
 # Enhanced graphics' settings text (header only).
 add_executable(graphics_features_test graphics_features_test.cpp)
 target_include_directories(graphics_features_test PRIVATE ${PROJECT_SOURCE_DIR}/src/render)

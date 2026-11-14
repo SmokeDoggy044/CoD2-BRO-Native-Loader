@@ -240,6 +240,8 @@ struct Rect {
 enum class Primitive : uint8_t { Points, Lines, LineStrip, Triangles, TriangleStrip, TriangleFan, Quads };
 
 enum GfxClear : uint32_t { kGfxClearColor = 1, kGfxClearDepth = 2, kGfxClearStencil = 4 };
+// draw_user's cache_key: data that never changes under this key.
+inline constexpr uint64_t kGfxFixedContent = uint64_t{1} << 63;
 
 // What the title asks of the display when it opens the device (open_gfx_device).
 struct DisplayDesc {
@@ -325,7 +327,8 @@ public:
     // Vertices (and 16-bit indices into them, may be null) from caller memory, copied into the
     // back end's own stream buffers: stream 0 with `stride`, other streams unbound. `cache_key`
     // (non-zero) names vertex data that often stays the same between frames (a title vertex
-    // buffer's range): while its contents do, the back end draws from a copy it keeps.
+    // buffer's range): while its contents do, the back end draws from a copy it keeps. Keys with
+    // kGfxFixedContent set name data that never changes under that key: kept from the first draw, not checked.
     virtual void draw_user(Primitive primitive, const void* vertices, uint32_t vertex_count, uint32_t stride,
                            const uint16_t* indices, uint32_t index_count, uint64_t cache_key = 0) = 0;
 

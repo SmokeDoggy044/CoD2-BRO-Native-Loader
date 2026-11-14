@@ -853,15 +853,21 @@ private:
     // the second time the same contents come), else null (streamed).
     IDirect3DVertexBuffer9* kept_vertices(uint64_t key, const void* vertices, uint32_t bytes) {
         if (!key) return nullptr;
-        const uint64_t content = hash_bytes(vertices, bytes);
+        const bool fixed = key >> 63;  // kGfxFixedContent: never changes, no check
         Kept& k = kept_[key];
         k.used_frame = draw_.frame();
+        if (fixed && k.buffer && k.bytes == bytes) return k.buffer;
+        const uint64_t content = fixed ? 0 : hash_bytes(vertices, bytes);
         if (k.buffer && k.content == content && k.bytes == bytes) return k.buffer;
-        if (k.content != content || k.bytes != bytes) {
+        if (!fixed && (k.content != content || k.bytes != bytes)) {
             k.content = content;
             k.bytes = bytes;
             release(k.buffer);  // changed: streamed until it repeats
             return nullptr;
+        }
+        if (fixed) {
+            release(k.buffer);
+            k.bytes = bytes;
         }
         void* memory = nullptr;
         if (FAILED(device_->CreateVertexBuffer(bytes, D3DUSAGE_WRITEONLY | software_usage(), 0, D3DPOOL_MANAGED,

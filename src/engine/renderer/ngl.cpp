@@ -2576,6 +2576,19 @@ void XB_CDECL nglDrawMeshSection(const NglMeshSection* section) {
     }
 }
 
+void nglDrawMeshSectionSmoothed(const NglMeshSection* section, bool skinned) {
+    const RendererPcHooks& hooks = renderer_pc_hooks();
+    if (hooks.smooth_models && !section->has_push_buffer && hooks.smooth_models()) {
+        nglSetVertexStreams(section->vertex_buffer, section->stride, 0);
+        if (xb::draw_smoothed(section->primitive, section->vertex_count, section->index_count,
+                              section->index_count ? reinterpret_cast<const void*>(static_cast<uintptr_t>(section->indices))
+                                                   : nullptr,
+                              skinned))
+            return;
+    }
+    nglDrawMeshSection(section);
+}
+
 void XB_CDECL nglSetTransformConstants(int32_t slot, NglMeshDrawNode* node, float fog0, float fog1, float fog2,
                                        float fog3) {
     alignas(16) float constants[8];
