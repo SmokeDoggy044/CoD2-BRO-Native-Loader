@@ -21,6 +21,8 @@ namespace {
 constexpr uint32_t key(int f) { return 1u << (f - 1); }
 
 bool g_shown = true;
+void (*g_pause)(bool) = nullptr;
+ExtraFrame g_extra = nullptr;
 bool g_picking = false;
 std::vector<std::string> g_pick_lines;  // the last pick, for the overlay
 std::string g_pick_mark;                // ... and for F12 marks
@@ -191,7 +193,10 @@ std::string mib(uint64_t bytes) { return std::to_string((bytes + (1u << 19)) >> 
 
 std::vector<std::string> frame(Backend& backend, void (*pause)(bool)) {
     g_timing.frame();
-    handle_keys(backend.take_function_keys() | scripted_keys(), pause);
+    g_pause = pause;
+    const uint32_t keys = backend.take_function_keys() | scripted_keys();
+    handle_keys(keys, pause);
+    const std::vector<std::string> extra = g_extra ? g_extra(keys) : std::vector<std::string>{};
     GfxDevice* device = backend.gfx_device();
     if (g_picking) {
         g_picking = false;
@@ -229,8 +234,18 @@ std::vector<std::string> frame(Backend& backend, void (*pause)(bool)) {
                         " loaded, " + std::to_string(pack.pending) + " pending, " + std::to_string(pack.failed) +
                         " failed; " + std::to_string(pack.uncovered) + " drawn without one");
     lines.insert(lines.end(), g_pick_lines.begin(), g_pick_lines.end());
+    lines.insert(lines.end(), extra.begin(), extra.end());
     return lines;
 }
+
+void set_paused(bool paused) {
+    if (paused == g_paused || !g_pause) return;
+    g_paused = paused;
+    g_pause(paused);
+    LOG_INFO("dev", "game %s", paused ? "paused" : "resumed");
+}
+
+void set_extra(ExtraFrame extra) { g_extra = extra; }
 
 std::string state_text() {
     std::string text = std::string("mods ") + on_off(texture_pack::enabled()) + ", graphics " +

@@ -123,6 +123,7 @@ set(game_code_sources
     game/g_spawn.cpp
     game/g_static.cpp
     game/g_utils.cpp
+    game/g_viewer.cpp
     game/g_vehicle.cpp
     levels/levels_prologue_a.cpp
     levels/levels_prologue_b.cpp

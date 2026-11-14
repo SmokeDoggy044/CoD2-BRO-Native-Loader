@@ -6,6 +6,7 @@
 // F6 texture picker (the draws under the crosshair: content hash, size, mod, dump name with
 // COD_BRO_TEXTURE_NAMES=bridge.csv; Vulkan only), F7 pause (the game's cl_paused: the world stops, drawing goes on).
 
+#include <cstdint>
 #include <string>
 #include <vector>
 
@@ -16,6 +17,14 @@ namespace render::dev {
 // Each presented frame, on the presenting thread: handles the keys pressed since the last frame and returns the
 // overlay's lines (empty while F1 hides it). `pause` stops (true) or resumes the game; may be null.
 std::vector<std::string> frame(Backend& backend, void (*pause)(bool paused));
+
+// Pauses or resumes the game as F7 does (the object viewer pauses while it shows a model).
+void set_paused(bool paused);
+
+// More of developer mode from outside the render library (the object viewer): called each frame with the keys
+// pressed (bit n-1 = Fn); returns lines for the overlay.
+using ExtraFrame = std::vector<std::string> (*)(uint32_t keys);
+void set_extra(ExtraFrame extra);
 
 // What developer mode switched, in one line ("" when nothing): written with F12 marks.
 std::string state_text();

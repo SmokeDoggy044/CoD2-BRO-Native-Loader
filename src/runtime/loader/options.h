@@ -102,6 +102,7 @@ struct Options {
     std::optional<fs::path> shader_dump_dir;  // --dump-shaders
     uint32_t diag_seconds = 10;
     bool dev = false;  // --dev: developer overlay and keys
+    std::vector<std::string> viewer_models;  // --viewer M1,M2: the object viewer (implies --dev)
     std::optional<std::string> profile;  // --profile, else XB_PROFILE
     // Set by a title reboot (see reboot_title), not by users.
     std::optional<int> launch_data_fd;

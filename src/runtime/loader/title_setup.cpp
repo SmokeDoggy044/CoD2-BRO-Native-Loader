@@ -38,6 +38,8 @@
 #include "title_files.h"
 #include "title_objects.h"
 #include "qcommon.h"
+#include "dev_mode.h"
+#include "viewer.h"
 #include "snd_env.h"
 #include "sound_engine.h"
 #include "kernel.h"
@@ -267,6 +269,10 @@ void configure_title_services(const Options& options, const fs::path& assets, co
     }
     if (options.dev && !options.compare) {
         d3d_config.dev = true;
+        if (!options.viewer_models.empty()) {
+            loader::set_viewer_models(options.viewer_models);
+            render::dev::set_extra(&loader::viewer_frame);
+        }
         // The game's own pause (cl_paused, as its pause menu): the world stops, frames are still drawn.
         d3d_config.dev_pause = [](bool paused) {
             game::Cvar_Set("cl_paused", paused ? "1" : "0");

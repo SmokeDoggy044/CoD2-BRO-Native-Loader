@@ -13,6 +13,7 @@ set(loader_sources
     title_threads.cpp
     patches.cpp
     pc_menu.cpp
+    viewer.cpp
     profiler.cpp
     seh.cpp
     shader_dump.cpp

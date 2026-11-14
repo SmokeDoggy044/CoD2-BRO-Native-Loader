@@ -219,6 +219,13 @@ bool apply_setting(Options& o, Combined& combined, const platform::SettingDef& d
         }
     } else if (key == "dev") {
         o.dev = on;
+    } else if (key == "viewer") {
+        o.dev = true;
+        for (size_t at = 0; at <= v.size();) {
+            const size_t comma = std::min(v.find(',', at), v.size());
+            if (comma > at) o.viewer_models.push_back(v.substr(at, comma - at));
+            at = comma + 1;
+        }
     } else if (key == "any-release") {
         o.any_release = on;
     } else if (key == "pc-patches") {
