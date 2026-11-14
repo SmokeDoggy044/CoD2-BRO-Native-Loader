@@ -2,7 +2,7 @@
 """Phase 1d texture pack builder: dump textures -> PBRify 4x (headless) -> curation masks -> DXT + mips -> mod folder.
 
 usage: tools/texture_pack/build.py WORK [--source REGEX] [--bridge CSV ...] [--limit N] [--stage all|select|upscale|
-                                  encode|pack] [--curation CSV] [--zip] [--pbr] ...
+                                  encode|pack|maps] [--curation CSV] [--zip] [--pbr] ...
 
 WORK holds every stage's output, so each stage resumes where it stopped and later stages rerun cheaply:
   WORK/select.csv           chosen textures: runtime key, dump row, size, alpha use, wrap per axis, skip reason
@@ -10,6 +10,11 @@ WORK holds every stage's output, so each stage resumes where it stopped and late
                             default chaiNNer's portable Python in Tools/chaiNNer, which has torch + spandrel)
   WORK/mod/                 the mod folder: mod.ini, textures/<key>.dds, pack.csv (key -> asset path, for 1e/1.0c)
   WORK/<name>-<version>.zip with --zip (the mod folder, for distribution apart from the code repos)
+  WORK/maps/<sha1>_{normal,roughness,height}.png   (--stage maps, phase 1h) raw PBRify 1x outputs of every world
+                            texture (maps.py: all map models PBRify has, so the GPU pass never has to run again)
+  WORK/maps_dds/<key>_{normal,roughness,height}.dds  the same encoded at the pack texture's size, full mips:
+                            normal = BC5 (ATI2, X/Y, DirectX green, blurred 0.8 + normalised as PBRify's chain),
+                            roughness/height = BC4 (ATI1). Not loaded by the game yet (phase 2 shaders use them).
 
 Selection: unique dump textures (manifest.csv, by content), filtered by --source (regex on the pack path, e.g.
 '^sp/prologue/' for the pilot) and/or --bridge (only textures a texture_bridge.py run saw drawn). --classes picks world
@@ -52,6 +57,9 @@ DEFAULT_TORCH = XBOX / "Tools/chaiNNer/python/python/bin/python3"
 DEFAULT_MODEL = XBOX / "Tools/PBRify_Remix/Models/4x-PBRify-UpscalerV4.safetensors"
 PBR_MODELS = [XBOX / "Tools/PBRify_Remix/Models/1x-PBRify_NormalV3.pth",
               XBOX / "Tools/PBRify_Remix/Models/1x-PBRify_RoughnessV2.pth"]
+MAP_MODELS = {"normal": XBOX / "Tools/PBRify_Remix/Models/1x-PBRify_NormalV3.pth",
+              "roughness": XBOX / "Tools/PBRify_Remix/Models/1x-PBRify_RoughnessV2.pth",
+              "height": XBOX / "Tools/PBRify_Remix/Models/1x-PBRify_Height.pth"}
 DDS_HEADER = 128
 SELECT_FIELDS = ["key", "content_sha1", "asset_path", "source", "format", "width", "height", "alpha", "wrap_x",
                  "wrap_y", "class", "action", "masks", "skip"]
@@ -338,6 +346,151 @@ def encode(args):
           f"{missing} not upscaled yet; pack {len(done)} textures, {total / 2**20:.0f} MB")
 
 
+MAP_LABELS = ("normal", "roughness", "height")
+
+
+def map_rows(args):
+    """World-class textures in the pack (never UI/menu/HUD: user 11-14), optionally narrowed by --source."""
+    return [s for s in read_select(args.work) if not s["skip"] and s.get("class", "world") == "world" and
+            (not args.source or re.search(args.source, s["source"]))]
+
+
+def maps(args):
+    rows = map_rows(args)
+    jobs = args.work / "maps_jobs.csv"
+    with open(jobs, "w", newline="") as f:
+        w = csv.writer(f)
+        w.writerow(["src", "dst", "wrap_x", "wrap_y"])
+        for s in rows:
+            src = args.work / "upscaled" / f"{s['content_sha1']}.png"
+            if src.exists():
+                w.writerow([src, args.work / "maps" / s["content_sha1"], s["wrap_x"], s["wrap_y"]])
+    cmd = [str(args.torch_python), "-I", str(Path(__file__).with_name("maps.py")), str(jobs), "--tile", "256"]
+    for label, model in MAP_MODELS.items():
+        cmd += ["--model", f"{label}={model}"]
+    env = dict(os.environ, PYTHONWARNINGS="ignore")
+    log = open(args.work / "maps.log", "a")
+    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=log, text=True, env=env)
+    done = 0
+    for line in proc.stdout:
+        log.write(line)
+        log.flush()
+        done += line.startswith("done ")
+        if not line.startswith("done ") or done % args.progress == 0:
+            print("maps:", line.rstrip(), flush=True)
+    if proc.wait():
+        sys.exit(f"maps.py failed ({proc.returncode}); see {args.work / 'maps.log'}")
+    maps_encode(args, rows)
+
+
+def bc4_blocks(a):
+    """HxW float [0,255] (H, W multiples of 4) -> BC4 blocks (8-value mode: max, min, 6 between)."""
+    h, w = a.shape
+    b = a.reshape(h // 4, 4, w // 4, 4).transpose(0, 2, 1, 3).reshape(-1, 16)
+    hi = np.round(b.max(axis=1))
+    lo = np.round(b.min(axis=1))
+    weights = np.array([0, 7, 1, 2, 3, 4, 5, 6], np.float32)  # index -> share of `lo` in sevenths
+    palette = (hi[:, None] * (7 - weights) + lo[:, None] * weights) / 7.0
+    index = np.abs(b[:, :, None] - palette[:, None, :]).argmin(axis=2).astype(np.uint64)
+    index[hi == lo] = 0
+    bits = (index << (3 * np.arange(16, dtype=np.uint64))).sum(axis=1).astype(np.uint64)
+    out = np.zeros((len(b), 8), np.uint8)
+    out[:, 0] = hi
+    out[:, 1] = lo
+    for i in range(6):
+        out[:, 2 + i] = (bits >> np.uint64(8 * i)) & np.uint64(0xff)
+    return out.tobytes()
+
+
+def pad4(a):
+    h, w = a.shape[:2]
+    return np.pad(a, ((0, -h % 4), (0, -w % 4)) + ((0, 0),) * (a.ndim - 2), mode="edge")
+
+
+def dds_header(w, h, levels, fourcc, top_size):
+    hdr = bytearray(128)
+    struct.pack_into("<4sIIIIIII", hdr, 0, b"DDS ", 124, 0x1 | 0x2 | 0x4 | 0x1000 | 0x20000 | 0x80000, h, w,
+                     top_size, 0, levels)
+    struct.pack_into("<II4s", hdr, 76, 32, 0x4, fourcc)
+    struct.pack_into("<I", hdr, 108, 0x1000 | 0x400000 | 0x8)
+    return bytes(hdr)
+
+
+def box_half(a):
+    """Next mip: mean of 2x2 (1x2 once a side is 1; an odd last row/column is dropped)."""
+    h, w = a.shape[:2]
+    if h > 1:
+        a = 0.5 * (a[0:h - 1:2] + a[1:h:2])
+    if w > 1:
+        a = 0.5 * (a[:, 0:w - 1:2] + a[:, 1:w:2])
+    return a
+
+
+def unit(n):
+    return n / np.maximum(np.linalg.norm(n, axis=2, keepdims=True), 1e-6)
+
+
+def encode_map(item):
+    label, src, dst, size, blur_sigma = item
+    image = Image.open(src)
+    if image.size != size:
+        image = image.convert("RGB" if label == "normal" else "F").resize(size, Image.LANCZOS)
+    a = np.asarray(image, np.float32)
+    if label == "normal":
+        a = unit(a / 127.5 - 1.0)
+        if blur_sigma > 0:
+            a = unit(blur(a, blur_sigma))
+    elif label == "height":
+        a = a * (255.0 / 65535.0) if a.max() > 255.0 or image.mode in ("I;16", "I") else a
+    levels = []
+    while True:
+        if label == "normal":
+            x = pad4(np.clip(a[..., 0] * 127.5 + 127.5, 0, 255))
+            y = pad4(np.clip(a[..., 1] * 127.5 + 127.5, 0, 255))
+            xb, yb = bc4_blocks(x), bc4_blocks(y)
+            levels.append(b"".join(xb[i:i + 8] + yb[i:i + 8] for i in range(0, len(xb), 8)))
+        else:
+            levels.append(bc4_blocks(pad4(np.clip(a, 0, 255))))
+        if a.shape[0] == 1 and a.shape[1] == 1:
+            break
+        a = box_half(a)
+        if label == "normal":
+            a = unit(a)
+    header = dds_header(size[0], size[1], len(levels), b"ATI2" if label == "normal" else b"ATI1", len(levels[0]))
+    tmp = dst.with_suffix(".part")
+    tmp.write_bytes(header + b"".join(levels))
+    tmp.rename(dst)
+    return dst.stat().st_size
+
+
+def maps_encode(args, rows):
+    out = args.work / "maps_dds"
+    out.mkdir(parents=True, exist_ok=True)
+    items, missing, seen = [], 0, set()
+    for s in rows:
+        if s["key"] in seen:
+            continue
+        seen.add(s["key"])
+        up = args.work / "upscaled" / f"{s['content_sha1']}.png"
+        srcs = {label: args.work / "maps" / f"{s['content_sha1']}_{label}.png" for label in MAP_LABELS}
+        if not up.exists() or not all(p.exists() for p in srcs.values()):
+            missing += 1
+            continue
+        w, h = Image.open(up).size
+        if max(w, h) > args.max_size:  # as encode(): the pack texture's size
+            f = args.max_size / max(w, h)
+            w, h = max(1, round(w * f)), max(1, round(h * f))
+        for label, src in srcs.items():
+            dst = out / f"{s['key']}_{label}.dds"
+            if not dst.exists() or dst.stat().st_mtime < src.stat().st_mtime:
+                items.append((label, src, dst, (w, h), args.normal_blur))
+    with ProcessPoolExecutor(args.jobs) as pool:
+        list(pool.map(encode_map, items, chunksize=4))
+    total = sum(p.stat().st_size for p in out.glob("*.dds"))
+    print(f"maps: {len(items)} map files written, {missing} textures without maps yet; {len(seen) - missing} textures"
+          f" x {len(MAP_LABELS)} maps, {total / 2**20:.0f} MB")
+
+
 def pack(args):
     rows = read_select(args.work)
     mod = args.work / "mod"
@@ -366,7 +519,7 @@ def pack(args):
 def main():
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("work", type=Path)
-    p.add_argument("--stage", default="all", choices=["all", "select", "upscale", "encode", "pack"])
+    p.add_argument("--stage", default="all", choices=["all", "select", "upscale", "encode", "pack", "maps"])
     p.add_argument("--unpacked", type=Path, default=ROOT / "unpacked")
     p.add_argument("--manifest", type=Path, default=ROOT / "textures/original/manifest.csv")
     p.add_argument("--source", default="", help="regex on the dump pack path")
@@ -383,6 +536,7 @@ def main():
     p.add_argument("--tile", type=int, default=128)
     p.add_argument("--batch", type=int, default=4)
     p.add_argument("--pbr", action="store_true", help="also make normal + roughness maps (WORK/upscaled, not packed)")
+    p.add_argument("--normal-blur", type=float, default=0.8, help="Gaussian blur of normal maps (PBRify chain: 0.8)")
     p.add_argument("--jobs", type=int, default=os.cpu_count())
     p.add_argument("--progress", type=int, default=50, help="print every Nth upscaled texture")
     p.add_argument("--name", default="PBRify 4x textures")
