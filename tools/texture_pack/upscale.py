@@ -27,7 +27,7 @@ from spandrel import ModelLoader
 
 def load(path):
     model = ModelLoader().load_from_file(path)
-    return model.model.cuda().eval(), model.scale
+    return model.model.float().cuda().eval(), model.scale  # fp32: bf16/fp16 weights (JaNai V3) included
 
 
 def pad(image, margin, wrap_x, wrap_y):
