@@ -280,8 +280,6 @@ void read_keyboard_mouse(PadState& state) {
     const auto stick = [&](Action minus, Action plus) { return (held(plus) - held(minus)) * 32767; };
     add_axis(state.thumb_lx, stick(Action::MoveLeft, Action::MoveRight));
     add_axis(state.thumb_ly, stick(Action::MoveBack, Action::MoveForward));
-    add_axis(state.thumb_rx, stick(Action::LookLeft, Action::LookRight));
-    add_axis(state.thumb_ry, stick(Action::LookDown, Action::LookUp));
 
     // Menu keys: fixed buttons in every layout. The arrows, Return and Backspace can be
     // bound (issue #14); a bound one gives its button in menus only.

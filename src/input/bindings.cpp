@@ -34,10 +34,6 @@ constexpr ActionInfo kActions[] = {
     {"lean-right", "Lean right"},
     {"right-stick-click", "Right stick click"},
     {"dpad-down", "D-pad down"},
-    {"look-up", "Look up"},
-    {"look-down", "Look down"},
-    {"look-left", "Look left"},
-    {"look-right", "Look right"},
 };
 static_assert(std::size(kActions) == kActionCount);
 
@@ -95,10 +91,6 @@ Bindings default_bindings() {
     b[Action::LeanRight] = {key(SDL_SCANCODE_E)};
     b[Action::RightStickClick] = {key(SDL_SCANCODE_X)};
     b[Action::DpadDown] = {};
-    b[Action::LookUp] = {key(SDL_SCANCODE_I)};
-    b[Action::LookDown] = {key(SDL_SCANCODE_K)};
-    b[Action::LookLeft] = {key(SDL_SCANCODE_J)};
-    b[Action::LookRight] = {key(SDL_SCANCODE_L)};
     return b;
 }
 
@@ -129,6 +121,7 @@ bool parse_bindings(std::string_view text, Bindings& bindings, std::string* erro
                                          [&](const ActionInfo& a) { return name == a.token; });
         const std::optional<InputCode> input = input_from_token(word.substr(equals + 1));
         if (action == std::end(kActions)) {
+            if (name.substr(0, 5) == "look-") continue;  // the look keys of older settings (removed in 0.6c)
             fail(word, "unknown action");
             continue;
         }

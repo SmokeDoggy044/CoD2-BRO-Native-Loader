@@ -3,7 +3,7 @@
 // The player's keyboard and mouse bindings (issue #14): which keys and mouse buttons
 // give each action. The actions are the pad controls of CoD BRO's default controller
 // layout (config/default.cfg; devices.h maps them onto the active layout), plus the
-// sticks as move and look keys. Escape (pause), Tab (objectives) and the loader's own
+// left stick as move keys (the mouse looks; the look keys went in 0.6c). Escape (pause), Tab (objectives) and the loader's own
 // keys (F10-F12) are fixed and cannot be bound. The other menu keys (arrows, Return,
 // Backspace) can: in menus they still give their buttons, in play only while unbound.
 //
@@ -23,7 +23,6 @@ enum class Action : uint8_t {
     MoveForward, MoveBack, MoveLeft, MoveRight,
     Fire, Aim, Use, Reload, Jump, Crouch, Sprint, Melee, Grenade,
     NextWeapon, LeanLeft, LeanRight, RightStickClick, DpadDown,
-    LookUp, LookDown, LookLeft, LookRight,
     Count
 };
 constexpr size_t kActionCount = static_cast<size_t>(Action::Count);

@@ -66,9 +66,9 @@ struct ClientPcHooks {
 };
 ClientPcHooks& client_pc_hooks();
 // Native keyboard and mouse (ClientPcHooks::native_actions): the actions' key numbers start at JOY17 (the pad uses
-// JOY1-16, no config binds JOY17 or above), 22 of them; their commands are the default controller layout's.
+// JOY1-16, no config binds JOY17 or above), 18 of them; their commands are the default controller layout's.
 constexpr int32_t kNativeKeyFirst = 0xdf;
-constexpr int32_t kNativeActionCount = 22;
+constexpr int32_t kNativeActionCount = 18;
 // The command a native action key runs (null: none, or not a native key while native actions are off).
 const char* native_key_command(int32_t key);
 

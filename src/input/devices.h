@@ -9,8 +9,7 @@
 // Keyboard and mouse, on the pad buttons of CoD BRO's default layout (config/
 // default.cfg); the action in brackets. These are the default bindings; the player's
 // own come from bindings.h (the launcher's Controls tab):
-//   WASD left stick (move)          IJKL right stick (look; the mouse looks directly,
-//                                   see take_mouse_motion)
+//   WASD left stick (move)          the mouse looks directly (take_mouse_motion)
 //   left mouse  right trigger (fire)     right mouse  left trigger (aim down sights)
 //   Space  Y (jump)    C / left Ctrl  B (crouch, prone)    R  X (reload)
 //   F  A (use)         G  white (grenade)    V / middle mouse  black (melee)

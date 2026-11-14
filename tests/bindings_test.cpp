@@ -45,6 +45,8 @@ int main() {
     CHECK(parsed[Action::Reload][0] == SDL_SCANCODE_T && parsed[Action::Use] == defaults[Action::Use]);
     // Names with spaces.
     CHECK(input::parse_bindings("sprint=left-alt", parsed) && parsed[Action::Sprint][0] == SDL_SCANCODE_LALT);
+    // The look keys of older settings (removed in 0.6c) are skipped, not errors.
+    CHECK(input::parse_bindings("look-up=i look-left=j reload=t", parsed) && parsed[Action::Reload][0] == SDL_SCANCODE_T);
 
     // bind: a key moves from the action that had it; the first input is the one shown.
     b = defaults;

@@ -257,6 +257,7 @@ bool client_c(uint32_t campaign_address);
 
 // ClientPcHooks::native_actions: the held actions, recorded and replayed once per IN_Frame ('Y'). Recordings
 // older than format 5 had the keyboard in the pad state: none while replaying one.
+static_assert(game::kNativeActionCount == static_cast<int32_t>(input::kActionCount));
 uint32_t XB_CDECL native_actions() {
     const uint32_t held = input::held_actions();
     if (xbox::replay::on_stream() && xbox::replay::replaying() && xbox::replay::version() < 5) return 0;

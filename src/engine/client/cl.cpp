@@ -41,14 +41,14 @@ const char* native_key_command(int32_t key) {
     if (!client_pc_hooks().native_actions || key < kNativeKeyFirst || key >= kNativeKeyFirst + kNativeActionCount)
         return nullptr;
     // In src/input/bindings.h's Action order: the commands the default layout (config/default.cfg) gives the pad
-    // controls the keyboard used to press, plus the look keys.
+    // controls the keyboard used to press.
     static constexpr const char* kCommands[kNativeActionCount] = {
         "+forward", "+back", "+moveleft", "+moveright",                       // move
         "+attack", "+speed", "+activate", "+reload", "+moveup", "lowerstance", // fire, aim, use, reload, jump, crouch
         "+sprint", "+melee", "+grenadeattack", "weapnext",                    // sprint, melee, grenade, next weapon
-        "+leanleftswitchnext", "+leanrightswitchnext", "toggle cl_run",       // lean, right stick click
+        "+leanleft", "+leanright", "toggle cl_run",                           // lean (style A's plain lean: the
+        // default layout's +lean*switchnext switch weapons unless aiming), right stick click
         nullptr,                                                              // D-pad down (unbound in the default)
-        "+lookup", "+lookdown", "+left", "+right",                            // look
     };
     const char* command = kCommands[key - kNativeKeyFirst];
     // The toggled-aim option: Key_Bind_f turns a binding with "+speed" into "toggle cl_run" while 0x008dce70 is set.
