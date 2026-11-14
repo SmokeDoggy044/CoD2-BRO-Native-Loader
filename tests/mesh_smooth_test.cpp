@@ -119,6 +119,83 @@ int main() {
         }
     }
 
+    // Volume keeping: the icosahedron's smoothed vertices sit around the flat ones (mean radius), not outside.
+    {
+        const float g = 1.6180339887f, r = std::sqrt(1 + g * g);
+        const float P[12][3] = {{-1, g, 0}, {1, g, 0}, {-1, -g, 0}, {1, -g, 0}, {0, -1, g}, {0, 1, g},
+                                {0, -1, -g}, {0, 1, -g}, {g, 0, -1}, {g, 0, 1}, {-g, 0, -1}, {-g, 0, 1}};
+        const int F[20][3] = {{0, 11, 5}, {0, 5, 1}, {0, 1, 7}, {0, 7, 10}, {0, 10, 11}, {1, 5, 9}, {5, 11, 4},
+                              {11, 10, 2}, {10, 7, 6}, {7, 1, 8}, {3, 9, 4}, {3, 4, 2}, {3, 2, 6}, {3, 6, 8},
+                              {3, 8, 9}, {4, 9, 5}, {2, 4, 11}, {6, 2, 10}, {8, 6, 7}, {9, 8, 1}};
+        std::vector<CharVertex> v;
+        for (int k = 0; k < 12; ++k) v.push_back(make(P[k][0] / r, P[k][1] / r, P[k][2] / r, P[k][0] / r, P[k][1] / r, P[k][2] / r));
+        std::vector<uint16_t> idx;
+        for (const auto& f : F)
+            for (int k : f) idx.push_back(static_cast<uint16_t>(k));
+        Options flat_options, full, kept;
+        flat_options.strength = 0, flat_options.keep_volume = 0;
+        full.keep_volume = 0;
+        Result flat, grown, centred;
+        CHECK(run(v, idx, flat, Topology::Triangles, flat_options) && run(v, idx, grown, Topology::Triangles, full) &&
+              run(v, idx, centred, Topology::Triangles, kept));
+        auto mean_radius = [](const Result& res) {
+            double sum = 0;
+            for (uint32_t i = 0; i < res.vertex_count; ++i) {
+                const float* q = at(res, i).p;
+                sum += std::sqrt(q[0] * q[0] + q[1] * q[1] + q[2] * q[2]);
+            }
+            return sum / res.vertex_count;
+        };
+        const double f = mean_radius(flat), gr = mean_radius(grown), c = mean_radius(centred);
+        CHECK(gr > f && std::fabs(c - f) < 0.25 * (gr - f), "mean radius flat %g, grown %g, centred %g", f, gr, c);
+        CHECK(at(centred, 0).p[0] != v[0].p[0] || at(centred, 0).p[1] != v[0].p[1]);  // corners moved in
+    }
+
+    // Outlines: a 12-sided prism (a tire: caps with axial normals, tread with radial ones, split at the rims).
+    // The rims are creases; rounded, their new points lie on the circle instead of on the chords.
+    {
+        const int n = 12;
+        const float pi = 3.14159265f;
+        std::vector<CharVertex> v;
+        std::vector<uint16_t> idx;
+        for (int side = 0; side < 2; ++side) {  // caps: centre + ring
+            const float z = side ? 0.5f : -0.5f, nz = side ? 1.0f : -1.0f;
+            const uint16_t centre = static_cast<uint16_t>(v.size());
+            v.push_back(make(0, 0, z, 0, 0, nz));
+            for (int k = 0; k < n; ++k)
+                v.push_back(make(std::cos(2 * pi * k / n), std::sin(2 * pi * k / n), z, 0, 0, nz));
+            for (int k = 0; k < n; ++k)
+                idx.insert(idx.end(), {centre, uint16_t(centre + 1 + k), uint16_t(centre + 1 + (k + 1) % n)});
+        }
+        const uint16_t tread = static_cast<uint16_t>(v.size());
+        for (int k = 0; k < n; ++k)
+            for (int side = 0; side < 2; ++side) {
+                const float c = std::cos(2 * pi * k / n), s = std::sin(2 * pi * k / n);
+                v.push_back(make(c, s, side ? 0.5f : -0.5f, c, s, 0));
+            }
+        for (int k = 0; k < n; ++k) {
+            const uint16_t a = uint16_t(tread + 2 * k), b = uint16_t(tread + 2 * ((k + 1) % n));
+            idx.insert(idx.end(), {a, b, uint16_t(b + 1), a, uint16_t(b + 1), uint16_t(a + 1)});
+        }
+        Options round, square;
+        round.keep_volume = 0;
+        square.keep_volume = 0, square.round_outlines = false;
+        Result rr, sq;
+        CHECK(run(v, idx, rr, Topology::Triangles, round) && run(v, idx, sq, Topology::Triangles, square));
+        CHECK(rr.rounded_edges == 2 * n, "%u rounded edges", rr.rounded_edges);
+        int rim_points = 0;
+        for (uint32_t i = static_cast<uint32_t>(v.size()); i < rr.vertex_count; ++i) {
+            const float* q = at(rr, i).p;
+            const float radius = std::sqrt(q[0] * q[0] + q[1] * q[1]);
+            if (std::fabs(std::fabs(q[2]) - 0.5f) > 1e-6f || radius < 0.9f) continue;
+            ++rim_points;
+            CHECK(radius > 0.995f && radius < 1.005f, "rim point %u radius %g", i, radius);
+            const float* chord = at(sq, i).p;
+            CHECK(std::sqrt(chord[0] * chord[0] + chord[1] * chord[1]) < 0.98f, "unrounded rim point %u", i);
+        }
+        CHECK(rim_points == 2 * n * 2 * 2, "%d rim points", rim_points);  // 2 rims x n edges x 2 points, cap + tread side
+    }
+
     // The rifle case: a box with averaged (corner) normals, welded. Without the guards it balloons; it must
     // stay a box.
     {

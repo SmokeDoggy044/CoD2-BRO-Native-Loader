@@ -12,7 +12,10 @@
 //   angle), folds (the faces meet at a sharp angle), a vertex normal leaning far from its face, edges with
 //   more than two triangles, edges at a vertex without a usable normal and, unless
 //   `smooth_open_edges`, open edges (a section's border: the next section may have other normals there).
-//   A triangle with three straight edges stays flat.
+//   A triangle with three straight edges stays flat. Outlines (chains of fold/crease edges that turn gently,
+//   a tire's rim) are curved along themselves (Catmull-Rom tangents from the chain neighbours).
+// - Volume: corners move back by the average bulge of their curved edges (the patch moves with them,
+//   interpolated), so a model does not swell; open-border positions stay.
 // - Normals: the PN quadratic, straight edges interpolated linearly; all other attributes linearly
 //   (texture coordinates, colours, tangent frames re-normalized), bone weights merged: the four
 //   strongest of the corners' bones, renormalized.
@@ -62,6 +65,14 @@ struct Options {
     float fold_cos = 0.42f;        // ~65 degrees
     float lean_cos = 0.766f;       // ~40 degrees
     float strength = 0.75f;        // 0: flat, 1: full PN curvature
+    // Outlines: a chain of fold/crease edges (a tire's rim) is curved along itself where it turns by less than
+    // this angle (cos) at each point; corners (a box's) stay.
+    bool round_outlines = true;
+    float outline_turn_cos = 0.643f;  // ~50 degrees
+    // Volume: each corner moves back by this share of the average bulge (at the midpoint) of its curved edges, so
+    // the smoothed model sits around the original instead of outside it (open borders stay; 0: off). 1: the
+    // patches' interiors bulge about as much as the edge midpoints, so this keeps the mean surface in place.
+    float keep_volume = 1.0f;
     bool smooth_open_edges = false;
     uint32_t max_vertices = 65535; // 16-bit indices
 };
@@ -70,7 +81,7 @@ struct Result {
     std::vector<uint8_t> vertices;  // vertex_count * stride
     std::vector<uint16_t> indices;  // a triangle list
     uint32_t vertex_count = 0;
-    uint32_t triangles_in = 0, straight_edges = 0, curved_edges = 0;
+    uint32_t triangles_in = 0, straight_edges = 0, curved_edges = 0, rounded_edges = 0;  // rounded: of the straight
 };
 
 // `vertices`: vertex_count vertices of the layout's stride. `indices` (null: 0, 1, 2, ...) has

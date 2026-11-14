@@ -859,6 +859,7 @@ private:
         (ok ? done_ : refused_) += 1;
         curved_ += result.curved_edges;
         straight_ += result.straight_edges;
+        rounded_ += result.rounded_edges;
         bytes_ += result.vertices.size() + result.indices.size() * 2;
         seconds_ += took;
         worst_ = std::max(worst_, took);
@@ -866,9 +867,10 @@ private:
         if ((total & (total - 1)) == 0 && total >= 16)  // now and then
             std::fprintf(stderr,
                          "[ngl_gfx] model smoothing: %u sections smoothed, %u kept as they are, %zu KB, %.1f ms of "
-                         "worker time (worst section %.2f ms), %llu edges curved, %llu straight\n",
+                         "worker time (worst section %.2f ms), %llu edges curved, %llu straight (%llu of them rounded outlines)\n",
                          done_, refused_, bytes_ >> 10, seconds_ * 1e3, worst_ * 1e3,
-                         static_cast<unsigned long long>(curved_), static_cast<unsigned long long>(straight_));
+                         static_cast<unsigned long long>(curved_), static_cast<unsigned long long>(straight_),
+                         static_cast<unsigned long long>(rounded_));
     }
 
     std::mutex mutex_;
@@ -878,7 +880,7 @@ private:
     uint32_t done_ = 0, refused_ = 0;
     size_t bytes_ = 0;
     double seconds_ = 0, worst_ = 0;
-    uint64_t curved_ = 0, straight_ = 0;
+    uint64_t curved_ = 0, straight_ = 0, rounded_ = 0;
 };
 
 uint64_t sample_hash(const uint8_t* data, size_t bytes, uint64_t h) {

@@ -98,7 +98,9 @@ struct Edge {
     V3 normal_a, normal_b;     // the first triangle's normals at a and b
     V3 face;                   // the first triangle's face normal
     V3 sum_c1, sum_c2;         // the PN control points (near a, near b), summed over the triangles
-    bool straight = false;
+    bool straight = false;     // no PN curvature (normals interpolated linearly)
+    bool feature = false;      // straight because the surface folds or creases here (an outline)
+    bool rounded = false;      // a feature edge curved along its outline (round_outlines)
     V3 c1, c2;                 // final (after averaging)
 };
 
@@ -119,6 +121,7 @@ struct Smoother {
     std::vector<uint32_t> position_id;
     std::vector<std::array<uint32_t, 3>> triangles;
     std::unordered_map<EdgeKey, Edge, EdgeHash> edges;
+    std::vector<V3> shift;  // per position id: where volume keeping moves it
     std::unordered_map<uint64_t, uint16_t> edge_vertices;  // (low vertex, high vertex, step from low)
 
     const uint8_t* vertex(uint32_t i) const { return source + size_t{i} * layout.stride; }
@@ -230,10 +233,10 @@ struct Smoother {
                     edge.face = has_face ? face : V3{};
                 } else if (dot(edge.normal_a, normals[u]) < options.crease_cos ||
                            dot(edge.normal_b, normals[v]) < options.crease_cos) {
-                    edge.straight = true;
+                    edge.straight = edge.feature = true;
                 } else if (edge.triangles == 1 && has_face && dot(edge.face, edge.face) > 0 &&
                            std::fabs(dot(edge.face, face)) < options.fold_cos) {
-                    edge.straight = true;
+                    edge.straight = edge.feature = true;
                 }
                 ++edge.triangles;
                 edge.sum_c1 = edge.sum_c1 + control(positions[u], positions[v], normals[u]);
@@ -244,19 +247,72 @@ struct Smoother {
         std::vector<uint32_t> any_vertex(vertex_count, UINT32_MAX);
         for (uint32_t i = 0; i < vertex_count; ++i)
             if (any_vertex[position_id[i]] == UINT32_MAX) any_vertex[position_id[i]] = i;
+        auto at = [&](uint32_t id) { return positions[any_vertex[id]]; };
+        // Open borders and non-manifold edges: straight, and their ends stay where they are (pinned).
+        std::vector<uint8_t> pinned(vertex_count, 0);
         for (auto& [key, edge] : edges) {
-            if (edge.triangles > 2 || (edge.triangles == 1 && !options.smooth_open_edges)) edge.straight = true;
-            const V3 a = positions[any_vertex[key.a]], b = positions[any_vertex[key.b]];
+            if (edge.triangles > 2 || (edge.triangles == 1 && !options.smooth_open_edges)) {
+                edge.straight = true;
+                edge.feature = false;
+                pinned[key.a] = pinned[key.b] = 1;
+            }
+        }
+        // Outlines (B): chains of feature edges. A position on exactly two of them that turn gently there
+        // (a tire's rim, a barrel's end) gets a tangent: the direction from one chain neighbour to the other.
+        std::vector<std::array<uint32_t, 2>> chain(vertex_count, {UINT32_MAX, UINT32_MAX});
+        std::vector<uint8_t> chain_count(vertex_count, 0);
+        if (options.round_outlines)
+            for (const auto& [key, edge] : edges) {
+                if (!edge.feature) continue;
+                for (const auto& [from, to] : {std::pair{key.a, key.b}, std::pair{key.b, key.a}}) {
+                    if (chain_count[from] < 2) chain[from][chain_count[from]] = to;
+                    ++chain_count[from];
+                }
+            }
+        // The tangent at `id` for its chain edge towards `toward` (null: none).
+        auto tangent = [&](uint32_t id, uint32_t toward, V3& out) {
+            if (chain_count[id] != 2) return false;
+            const uint32_t other = chain[id][0] == toward ? chain[id][1] : chain[id][0];
+            const V3 in = normalized(at(id) - at(other)), next = normalized(at(toward) - at(id));
+            if (dot(in, next) < options.outline_turn_cos) return false;  // a corner, not a round outline
+            out = normalized(at(toward) - at(other));
+            return true;
+        };
+        for (auto& [key, edge] : edges) {
+            const V3 a = at(key.a), b = at(key.b);
             const V3 line1 = a + (b - a) * (1.0f / 3.0f), line2 = a + (b - a) * (2.0f / 3.0f);
-            if (edge.straight) {
-                edge.c1 = line1, edge.c2 = line2;
-                ++result.straight_edges;
-            } else {
+            edge.c1 = line1, edge.c2 = line2;
+            if (!edge.straight) {
                 const float share = 1.0f / static_cast<float>(edge.triangles);
                 edge.c1 = line1 + (edge.sum_c1 * share - line1) * options.strength;
                 edge.c2 = line2 + (edge.sum_c2 * share - line2) * options.strength;
                 ++result.curved_edges;
+                continue;
             }
+            ++result.straight_edges;
+            if (!edge.feature) continue;
+            const float third = std::sqrt(dot(b - a, b - a)) * (1.0f / 3.0f);
+            V3 t;
+            if (tangent(key.a, key.b, t)) edge.c1 = a + t * third, edge.rounded = true;
+            if (tangent(key.b, key.a, t)) edge.c2 = b + t * third, edge.rounded = true;  // t points towards a
+            if (edge.rounded) ++result.rounded_edges;
+        }
+        // Volume (A): the curved surface passes through the original corners, so a convex model only grows.
+        // Each position moves back by `keep_volume` of the average bulge (cubic minus straight midpoint) of its
+        // curved edges; pinned positions stay. Per position id, so shared points stay shared.
+        shift.assign(vertex_count, V3{});
+        if (options.keep_volume > 0) {
+            std::vector<V3> sum(vertex_count);
+            std::vector<uint32_t> count(vertex_count, 0);
+            for (const auto& [key, edge] : edges) {
+                if (edge.straight && !edge.rounded) continue;
+                const V3 a = at(key.a), b = at(key.b);
+                const V3 bulge = (a + (edge.c1 + edge.c2) * 3.0f + b) * 0.125f - (a + b) * 0.5f;
+                for (const uint32_t id : {key.a, key.b}) sum[id] = sum[id] + bulge, ++count[id];
+            }
+            for (uint32_t id = 0; id < vertex_count; ++id)
+                if (count[id] && !pinned[id])
+                    shift[id] = sum[id] * (-options.keep_volume / static_cast<float>(count[id]));
         }
     }
 
@@ -351,7 +407,7 @@ struct Smoother {
         const float t = static_cast<float>(from_a) / static_cast<float>(segments);
         const float s = static_cast<float>(segments - from_a) / static_cast<float>(segments);
         const V3 p = positions[a] * (s * s * s) + edge.c1 * (3 * s * s * t) + edge.c2 * (3 * s * t * t) +
-                     positions[b] * (t * t * t);
+                     positions[b] * (t * t * t) + shift[position_id[a]] * s + shift[position_id[b]] * t;
         // Normal and the rest from u's side.
         const float tu = static_cast<float>(step) / static_cast<float>(segments);
         const float su = static_cast<float>(segments - step) / static_cast<float>(segments);
@@ -376,7 +432,8 @@ struct Smoother {
         const V3 p = b[0] * (w0 * w0 * w0) + b[1] * (w1 * w1 * w1) + b[2] * (w2 * w2 * w2) +
                      b[3] * (3 * w0 * w0 * w1) + b[4] * (3 * w0 * w1 * w1) + b[5] * (3 * w1 * w1 * w2) +
                      b[6] * (3 * w1 * w2 * w2) + b[7] * (3 * w0 * w2 * w2) + b[8] * (3 * w0 * w0 * w2) +
-                     b[9] * (6 * w0 * w1 * w2);
+                     b[9] * (6 * w0 * w1 * w2) + shift[position_id[t[0]]] * w0 + shift[position_id[t[1]]] * w1 +
+                     shift[position_id[t[2]]] * w2;
         const V3 n = normalized(normals[t[0]] * (w0 * w0) + normals[t[1]] * (w1 * w1) + normals[t[2]] * (w2 * w2) +
                                 mid[0] * (w0 * w1) + mid[1] * (w1 * w2) + mid[2] * (w2 * w0));
         const uint32_t nearest = w0 >= w1 && w0 >= w2 ? t[0] : w1 >= w2 ? t[1] : t[2];
@@ -410,6 +467,13 @@ struct Smoother {
         result.triangles_in = static_cast<uint32_t>(triangles.size());
         result.vertices.assign(source, source + size_t{vertex_count} * layout.stride);
         result.vertex_count = vertex_count;
+        for (uint32_t i = 0; i < vertex_count; ++i) {
+            const V3 d = shift[position_id[i]];
+            if (d.x == 0 && d.y == 0 && d.z == 0) continue;
+            const V3 p = positions[i] + d;
+            const float pv[4] = {p.x, p.y, p.z, 0};
+            write(result.vertices.data() + size_t{i} * layout.stride + position->offset, position->format, pv);
+        }
         result.indices.clear();
         result.indices.reserve(triangles.size() * 3 * L * L);
         std::vector<uint16_t> grid((L + 1) * (L + 2) / 2);
