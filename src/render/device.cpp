@@ -24,6 +24,7 @@
 
 #include "compiler.h"
 #include "d3d_internal.h"
+#include "dev_mode.h"
 #include "dispatcher.h"
 #include "draw.h"
 #include "float_env.h"
@@ -404,8 +405,8 @@ void diag_observer(platform::LogLevel level, const char* category, const char* t
 }
 
 // --diag: timed screenshots, F12 marks with a note, automatic marks, F11 highlighting
-// and the corner overlay (see D3DConfig).
-void diagnostics() {
+// and the corner overlay's lines (see D3DConfig).
+std::vector<std::string> diagnostics() {
     using Clock = std::chrono::steady_clock;
     const std::string marks_path = g.config.diag_dir + "/marks.txt";
     // Times and mark numbers continue across a title reboot (the loader relaunches):
@@ -470,7 +471,8 @@ void diagnostics() {
                                              "What is wrong here? (one or two sentences)"});
         if (g.config.pause_audio) g.config.pause_audio(false);
         g_unmeasured_until.store(session_second() + 1, std::memory_order_relaxed);
-        const std::string text = note ? *note : "";
+        std::string text = note ? *note : "";
+        if (g.config.dev) text += " [dev: " + dev::state_text() + "]";
         LOG_INFO("diag", "MARK %u note: %s", marks, note ? text.c_str() : "(none)");
         if (std::FILE* file = std::fopen(marks_path.c_str(), "a")) {
             std::fprintf(file, "%u\t%llds\tframe %u\t%s\n", marks, static_cast<long long>(seconds), g.swap_count,
@@ -534,9 +536,9 @@ void diagnostics() {
         overlay.push_back("this frame: " + std::to_string(unsupported) + " draws need missing features" +
                           (highlight ? " (magenta)" : "") + ", " + std::to_string(skipped) + " not drawn");
     if (now < flash_until) overlay.push_back(flash);
-    g.backend->set_overlay(std::move(overlay));
     // What --diag spent here (screenshots, a paused note) is not the game's frame time.
     pacing.exclude(std::chrono::duration<double>(Clock::now() - now).count());
+    return overlay;
 }
 
 std::atomic<uint32_t> g_frames_last_second{0};
@@ -562,7 +564,15 @@ uint32_t present_frame() {
     count_frame();
     upload_back_buffer_writes();
     g.backend->finish_picture();  // before screenshots, so they show it as it is shown
-    if (!g.config.diag_dir.empty()) diagnostics();
+    if (!g.config.diag_dir.empty() || g.config.dev) {
+        std::vector<std::string> overlay;
+        if (g.config.dev) overlay = dev::frame(*g.backend, g.config.dev_pause);
+        if (!g.config.diag_dir.empty()) {
+            std::vector<std::string> diag = diagnostics();
+            overlay.insert(overlay.end(), diag.begin(), diag.end());
+        }
+        g.backend->set_overlay(std::move(overlay));
+    }
     {
         std::lock_guard lock(g.notice_mutex);
         if (!g.notice.empty() && std::chrono::steady_clock::now() >= g.notice_until) g.notice.clear();

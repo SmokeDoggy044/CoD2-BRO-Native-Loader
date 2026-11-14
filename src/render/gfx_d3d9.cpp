@@ -231,6 +231,13 @@ public:
 
     void present() override { show_frame(); }
 
+    Stats stats() override {
+        Stats s;
+        s.replacements = static_cast<uint32_t>(replacements_.size());
+        s.gpu_available = device_->GetAvailableTextureMem();
+        return s;
+    }
+
     void end_frame() override {
         // Kept vertices and replacement pictures unused for a while go.
         if (draw_.frame() % 60) return;

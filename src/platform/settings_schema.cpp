@@ -223,6 +223,10 @@ const SettingDef kSettings[] = {
      "screenshot, a note typed while the game is paused (DIR/marks.txt), draw dump in the log; new warnings and "
      "errors are marked by themselves; F11 shows draws that need missing features in magenta; DIR/summary.txt on "
      "exit"},
+    {"dev", "", T::Flag, G::Testing, kCli, 0, 0, nullptr, "false",
+     "developer mode: an overlay (frame time, GPU memory, texture packs) and keys: F1 overlay on/off, F2 mods on/off, "
+     "F3 enhanced graphics on/off, F4 next enhanced feature, F5 that feature on/off, F7 pause; with --diag, F12 marks "
+     "note what was switched"},
     {"screenshots", "N DIR", T::Custom, G::Testing, kCli, 0, 0, nullptr, "",
      "save every Nth frame as DIR/frame_<n>.bmp (debugging)"},
     {"profile", "auto[,S]", T::Text, G::Testing, kCli, 0, 0, nullptr, "",

@@ -37,6 +37,9 @@ struct D3DConfig {
     uint32_t diag_seconds = 10;
     void (*pause_audio)(bool paused) = nullptr;  // while a mark's note is typed
     void (*log_audio)() = nullptr;               // at a mark: what is playing
+    // Developer mode (--dev, render/dev_mode.h): overlay and live switches. dev_pause stops/resumes the game.
+    bool dev = false;
+    void (*dev_pause)(bool paused) = nullptr;
     void (*frame_presented)() = nullptr;         // each presented frame, before the screenshot (record/replay)
     std::string (*frame_screenshot)() = nullptr; // after frame_presented: a path = save this frame there
     // When the window or device cannot be created (logged): the loader tells the

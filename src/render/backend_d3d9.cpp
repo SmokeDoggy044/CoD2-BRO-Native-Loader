@@ -383,6 +383,7 @@ public:
 
     bool take_mark_request() override { return window_.take_mark_request(); }
     bool take_highlight_toggle() override { return window_.take_highlight_toggle(); }
+    uint32_t take_function_keys() override { return window_.take_function_keys(); }
     void set_highlight(bool on) override { draw_->set_highlight(on); }
     uint32_t unsupported_draws() override { return draw_->unsupported_draws(); }
     void dump_next_frame() override { draw_->dump_next_frame(); }

@@ -774,6 +774,21 @@ public:
     uint32_t flat_frames_before() const override { return flat_frames_; }
     uint32_t unsupported_draws() const override { return unsupported_draws_; }
 
+    Stats stats() override {
+        Stats s;
+        s.replacements = static_cast<uint32_t>(replacements_.size());
+        const VkPhysicalDeviceMemoryProperties* memory = nullptr;
+        vmaGetMemoryProperties(vk_.allocator(), &memory);
+        VmaBudget budgets[VK_MAX_MEMORY_HEAPS] = {};
+        vmaGetHeapBudgets(vk_.allocator(), budgets);
+        for (uint32_t i = 0; memory && i < memory->memoryHeapCount; ++i)
+            if (memory->memoryHeaps[i].flags & VK_MEMORY_HEAP_DEVICE_LOCAL_BIT) {
+                s.gpu_used += budgets[i].usage;
+                s.gpu_budget += budgets[i].budget;
+            }
+        return s;
+    }
+
     void save_caches() override { save_pipeline_cache(); }
 
     void end_frame() override {

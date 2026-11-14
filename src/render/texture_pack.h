@@ -34,6 +34,22 @@ std::shared_ptr<const TextureReplacement> replacement(uint64_t content);
 // Moves each time a picture for `content` gets ready (0: none yet, or not covered): BackendConfig::replacement_version.
 uint32_t version(uint64_t content);
 
+// Developer mode (--dev): packs switched off while running (replacement() gives none, version() moves so devices
+// ask again and fall back to the title's pictures), and on again.
+void set_enabled(bool enabled);
+bool enabled();
+
+struct Stats {
+    size_t covered = 0;    // textures the mods replace
+    size_t loaded = 0;     // read (waiting for the device or handed out)
+    size_t pending = 0;    // queued for the loading thread
+    size_t failed = 0;     // unreadable files
+    size_t uncovered = 0;  // different title textures asked for that no mod covers
+};
+Stats stats();
+// The mod folder covering `content`, or "" (developer mode's texture picker).
+std::string covering_mod(uint64_t content);
+
 // A DDS file (DXT1 / DXT5, with or without mip levels) as a replacement; null if it is not one.
 std::shared_ptr<TextureReplacement> read_dds(const std::filesystem::path& file);
 

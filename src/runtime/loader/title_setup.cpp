@@ -37,6 +37,7 @@
 #include "title_host.h"
 #include "title_files.h"
 #include "title_objects.h"
+#include "qcommon.h"
 #include "snd_env.h"
 #include "sound_engine.h"
 #include "kernel.h"
@@ -210,7 +211,7 @@ void configure_title_services(const Options& options, const fs::path& assets, co
         };
     if (key_prompts && packs)
         d3d_config.backend.replacement_version = [](uint64_t content) {
-            return text::key_prompt_version(content) * 0x10000u + render::texture_pack::version(content);
+            return (text::key_prompt_version(content) * 0x9e3779b1u) ^ render::texture_pack::version(content);
         };
     else if (key_prompts)
         d3d_config.backend.replacement_version = &text::key_prompt_version;
@@ -263,6 +264,14 @@ void configure_title_services(const Options& options, const fs::path& assets, co
         d3d_config.diag_seconds = options.diag_seconds;
         d3d_config.pause_audio = &audio::set_paused;
         d3d_config.log_audio = [] { audio::log_voices(&game::SndEnv_DescribeOcclusion); };
+    }
+    if (options.dev && !options.compare) {
+        d3d_config.dev = true;
+        // The game's own pause (cl_paused, as its pause menu): the world stops, frames are still drawn.
+        d3d_config.dev_pause = [](bool paused) {
+            game::Cvar_Set("cl_paused", paused ? "1" : "0");
+            audio::set_paused(paused);
+        };
     }
     if (options.screenshot_dir) {
         fs::create_directories(*options.screenshot_dir);

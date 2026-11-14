@@ -108,6 +108,9 @@ bool GameWindow::pump_events() {
             mark_requested_ = true;
         if (event.type == SDL_EVENT_KEY_DOWN && event.key.scancode == SDL_SCANCODE_F11 && !event.key.repeat)
             highlight_toggled_ = true;
+        if (event.type == SDL_EVENT_KEY_DOWN && !event.key.repeat && event.key.scancode >= SDL_SCANCODE_F1 &&
+            event.key.scancode <= SDL_SCANCODE_F9)
+            function_keys_ |= 1u << (event.key.scancode - SDL_SCANCODE_F1);
         if (event.type == SDL_EVENT_KEY_DOWN && !event.key.repeat && (event.key.mod & SDL_KMOD_ALT) &&
             (event.key.scancode == SDL_SCANCODE_RETURN || event.key.scancode == SDL_SCANCODE_KP_ENTER)) {
             const bool fullscreen = !(SDL_GetWindowFlags(window_) & SDL_WINDOW_FULLSCREEN);
@@ -120,6 +123,7 @@ bool GameWindow::pump_events() {
 
 bool GameWindow::take_mark_request() { return std::exchange(mark_requested_, false); }
 bool GameWindow::take_highlight_toggle() { return std::exchange(highlight_toggled_, false); }
+uint32_t GameWindow::take_function_keys() { return std::exchange(function_keys_, 0u); }
 
 std::optional<std::string> GameWindow::prompt(const std::vector<std::string>& heading,
                                               const std::function<void(const std::vector<std::string>&)>& show) {

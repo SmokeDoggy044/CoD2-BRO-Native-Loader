@@ -101,6 +101,7 @@ struct Options {
     std::optional<fs::path> diag_dir;
     std::optional<fs::path> shader_dump_dir;  // --dump-shaders
     uint32_t diag_seconds = 10;
+    bool dev = false;  // --dev: developer overlay and keys
     std::optional<std::string> profile;  // --profile, else XB_PROFILE
     // Set by a title reboot (see reboot_title), not by users.
     std::optional<int> launch_data_fd;

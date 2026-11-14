@@ -184,6 +184,7 @@ public:
     }
     bool take_mark_request() override { return window_.take_mark_request(); }
     bool take_highlight_toggle() override { return window_.take_highlight_toggle(); }
+    uint32_t take_function_keys() override { return window_.take_function_keys(); }
     void set_highlight(bool /*on*/) override {}  // V3
     uint32_t unsupported_draws() override { return gfx_->unsupported_draws() + xbox_draws_; }
     void dump_next_frame() override { LOG_INFO("render", "Vulkan: draw dumps come with V3"); }

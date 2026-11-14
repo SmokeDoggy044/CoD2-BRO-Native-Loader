@@ -9,6 +9,7 @@
 #include <mutex>
 #include <thread>
 #include <unordered_map>
+#include <unordered_set>
 
 #include "log.h"
 
@@ -24,6 +25,7 @@ enum class State : uint8_t { Known, Queued, Ready, Delivered, Failed };
 
 struct Entry {
     fs::path file;
+    std::string mod;  // folder name
     State state = State::Known;
     uint32_t generation = 0;
     std::shared_ptr<const TextureReplacement> picture;  // Ready, until handed out
@@ -35,6 +37,10 @@ std::unordered_map<uint64_t, Entry> g_entries;
 std::deque<uint64_t> g_queue;
 std::thread g_worker;
 bool g_stop = false;
+bool g_enabled = true;
+uint32_t g_toggles = 0;                       // moves version() on every set_enabled change
+std::unordered_set<uint64_t> g_uncovered;     // asked for, not covered (capped)
+constexpr size_t kUncoveredLimit = 100000;
 
 uint32_t read_u32(const uint8_t* p) {
     uint32_t v;
@@ -148,6 +154,7 @@ std::vector<Mod> open(const fs::path& mods_dir, const std::vector<std::string>& 
             auto [it, added] = g_entries.try_emplace(content);
             if (!added) continue;
             it->second.file = entry.path();
+            it->second.mod = mod.folder_name;
             ++mod.textures;
         }
         LOG_INFO("mods", "%s %s%s%s: %zu textures", mod.name.c_str(), mod.version.c_str(),
@@ -174,12 +181,17 @@ void close() {
     std::lock_guard lock(g_mutex);
     g_entries.clear();
     g_queue.clear();
+    g_uncovered.clear();
 }
 
 std::shared_ptr<const TextureReplacement> replacement(uint64_t content) {
     std::lock_guard lock(g_mutex);
     auto it = g_entries.find(content);
-    if (it == g_entries.end()) return nullptr;
+    if (it == g_entries.end()) {
+        if (g_uncovered.size() < kUncoveredLimit) g_uncovered.insert(content);
+        return nullptr;
+    }
+    if (!g_enabled) return nullptr;
     Entry& e = it->second;
     switch (e.state) {
         case State::Known:
@@ -203,7 +215,40 @@ uint32_t version(uint64_t content) {
     std::lock_guard lock(g_mutex);
     auto it = g_entries.find(content);
     if (it == g_entries.end()) return 0;
-    return it->second.generation;
+    // Each switch moves it (both ways), so a device holding either form asks again.
+    return it->second.generation + (g_toggles << 20);
+}
+
+void set_enabled(bool enabled) {
+    std::lock_guard lock(g_mutex);
+    if (g_enabled == enabled) return;
+    g_enabled = enabled;
+    ++g_toggles;
+    LOG_INFO("mods", "texture packs %s (developer mode)", enabled ? "on" : "off");
+}
+
+bool enabled() {
+    std::lock_guard lock(g_mutex);
+    return g_enabled;
+}
+
+Stats stats() {
+    std::lock_guard lock(g_mutex);
+    Stats s;
+    s.covered = g_entries.size();
+    for (const auto& [content, e] : g_entries) {
+        if (e.state == State::Ready || e.state == State::Delivered) ++s.loaded;
+        else if (e.state == State::Queued) ++s.pending;
+        else if (e.state == State::Failed) ++s.failed;
+    }
+    s.uncovered = g_uncovered.size();
+    return s;
+}
+
+std::string covering_mod(uint64_t content) {
+    std::lock_guard lock(g_mutex);
+    auto it = g_entries.find(content);
+    return it == g_entries.end() ? std::string() : it->second.mod;
 }
 
 }  // namespace render::texture_pack

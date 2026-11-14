@@ -329,6 +329,13 @@ public:
                            const uint16_t* indices, uint32_t index_count, uint64_t cache_key = 0) = 0;
 
     // --- Diagnostics ---
+    // Developer mode (--dev): replacement pictures held, and the GPU's memory as the API reports it (0: unknown).
+    struct Stats {
+        uint32_t replacements = 0;
+        uint64_t gpu_used = 0, gpu_budget = 0;  // Vulkan: device-local heaps
+        uint64_t gpu_available = 0;             // D3D9: GetAvailableTextureMem (a rough figure)
+    };
+    virtual Stats stats() { return {}; }
     // The target's pixels at the title's size (A8R8G8B8, width * height); false on failure.
     virtual bool read_target(TargetId target, uint32_t* pixels, uint32_t width, uint32_t height) = 0;
 

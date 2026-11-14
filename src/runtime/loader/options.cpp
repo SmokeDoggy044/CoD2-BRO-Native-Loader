@@ -217,6 +217,8 @@ bool apply_setting(Options& o, Combined& combined, const platform::SettingDef& d
             o.log_level = platform::LogLevel::Trace;
             o.trace_kernel = true;
         }
+    } else if (key == "dev") {
+        o.dev = on;
     } else if (key == "any-release") {
         o.any_release = on;
     } else if (key == "pc-patches") {
