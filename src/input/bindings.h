@@ -53,6 +53,9 @@ std::string format_bindings(const Bindings& bindings);
 
 // For the launcher: the action as shown, and what it does in the default layout.
 const char* action_label(Action action);
+// The action's settings.ini token ("move-forward"); the action of a token, if any.
+const char* action_token(Action action);
+std::optional<Action> action_from_token(std::string_view token);
 // An input as shown ("Left Shift", "Mouse 4", "Wheel up"); "" for none.
 std::string input_name(InputCode input);
 // The keys that cannot be bound: Escape, Tab and the loader's own keys.

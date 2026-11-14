@@ -8508,7 +8508,7 @@ const Function kFunctions[] = {
     {"SndBankList_IsLoaded", 0x002bdbd0, 0, code(&SndBankList_IsLoaded), 4, Result::Al, Status::Replaced},
     {"Quat_ToMat44", 0x002bdc80, 0, code(&Quat_ToMat44), 4, Result::None, Status::Replaced},
     {"ShakeRumble_StartByName", 0x002bde90, 0, code(&ShakeRumble_StartByName), 24, Result::None, Status::Compare},
-    {"IN_Frame", 0x002bdf10, 0, code(&IN_Frame), 0, Result::None, Status::Compare},
+    {"IN_Frame", 0x002bdf10, 0, code(&IN_Frame), 0, Result::None, Status::Replaced},
     {"IN_InitCvars", 0x002be180, 0, code(&IN_InitCvars), 0, Result::Eax, Status::Replaced},
     {"CG_GetEntityRefEntity", 0x002be200, 0, code(&CG_GetEntityRefEntity_entry), 0, Result::Eax, Status::Replaced},
     {"EntityState_Clear", 0x002be2e0, 0, code(&EntityState_Clear), 0, Result::Eax, Status::Replaced},

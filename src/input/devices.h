@@ -20,7 +20,9 @@
 //   menus: arrow keys D-pad, Return A (select), Backspace B (back)
 // The action keys (all but the menu keys, Escape and Tab) give these buttons only in
 // the default layout; a title can move them to the buttons its active layout uses
-// for the same actions (set_action_remap).
+// for the same actions (set_action_remap). With native actions (set_native_actions,
+// CoD BRO's own engine) they give pad buttons only in menus; in play the title reads
+// them as key events of their own (held_actions).
 // Clicking into the window captures the mouse; focus loss (Alt+Tab) or F10 frees it.
 // While the title shows a menu (set_menu_pointer), the mouse is free and points
 // instead: its buttons and wheel no longer give pad buttons, the title reads them with
@@ -87,6 +89,15 @@ void tap(const PadState& buttons);
 // title's polling thread; null (the default) keeps the default layout.
 using ActionRemap = void (*)(const PadState& default_layout, PadState& active_layout);
 void set_action_remap(ActionRemap remap);
+
+// Native keyboard and mouse (own engine 0.6c). While on, the action keys (bindings.h) give no pad buttons outside
+// menus; the title reads them with held_actions as key events of their own. In menus (set_menu_pointer) they give
+// their pad buttons as before (WASD and the action keys steer the menus); the menu keys, Escape and Tab stay pad
+// buttons. Off (the default): the action keys are pad buttons everywhere.
+void set_native_actions(bool on);
+// Bit n = Action n is held now (keys, mouse buttons, wheel steps). 0 in menus, while game input is blocked and
+// until the keys that closed our menu are let go.
+uint32_t held_actions();
 
 // The device the player used last: keys, mouse buttons and mouse motion count as the
 // keyboard; gamepad buttons and sticks/triggers past a dead zone as a gamepad.

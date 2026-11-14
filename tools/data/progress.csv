@@ -10264,7 +10264,7 @@ address,name,section,module,state,tested,matched
 002bdbd0,SndBankList_IsLoaded,.text,sound,replaced,102,102
 002bdc80,Quat_ToMat44,.text,qcommon,replaced,1,1
 002bde90,ShakeRumble_StartByName,.text,game,untested,0,0
-002bdf10,IN_Frame,.text,client,set-aside,40491,0
+002bdf10,IN_Frame,.text,client,replaced,40491,0
 002be180,IN_InitCvars,.text,client,replaced,102,102
 002be200,CG_GetEntityRefEntity,.text,cgame,replaced,1009,1009
 002be2e0,EntityState_Clear,.text,game,replaced,188,188

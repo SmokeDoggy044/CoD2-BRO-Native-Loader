@@ -37,6 +37,25 @@ ClientPcHooks& client_pc_hooks() {
     return hooks;
 }
 
+const char* native_key_command(int32_t key) {
+    if (!client_pc_hooks().native_actions || key < kNativeKeyFirst || key >= kNativeKeyFirst + kNativeActionCount)
+        return nullptr;
+    // In src/input/bindings.h's Action order: the commands the default layout (config/default.cfg) gives the pad
+    // controls the keyboard used to press, plus the look keys.
+    static constexpr const char* kCommands[kNativeActionCount] = {
+        "+forward", "+back", "+moveleft", "+moveright",                       // move
+        "+attack", "+speed", "+activate", "+reload", "+moveup", "lowerstance", // fire, aim, use, reload, jump, crouch
+        "+sprint", "+melee", "+grenadeattack", "weapnext",                    // sprint, melee, grenade, next weapon
+        "+leanleftswitchnext", "+leanrightswitchnext", "toggle cl_run",       // lean, right stick click
+        nullptr,                                                              // D-pad down (unbound in the default)
+        "+lookup", "+lookdown", "+left", "+right",                            // look
+    };
+    const char* command = kCommands[key - kNativeKeyFirst];
+    // The toggled-aim option: Key_Bind_f turns a binding with "+speed" into "toggle cl_run" while 0x008dce70 is set.
+    if (command && title_global<uint8_t>(0x008dce70) && std::strstr(command, "+speed")) return "toggle cl_run";
+    return command;
+}
+
 namespace {
 
 constexpr uint32_t kPads = 0x00902400;
@@ -1144,7 +1163,8 @@ void XB_CDECL Key_ClearStates() {
             if (--anykeydown < 0) anykeydown = 0;
             const bool console_key = i == '`' || i == '~';
             const bool menu_escape = title_global<int32_t>(0x009617a8) && (title_global<uint8_t>(0x0092bdf4) & 1) && i == 0x1b;
-            const char* binding = field<const char*>(key, 4);
+            const char* const native = native_key_command(i);
+            const char* binding = native ? native : field<const char*>(key, 4);
             if (!console_key && !menu_escape && binding && binding[0] == '+') {
                 char cmd[0x400];
                 const uint32_t args[4] = {0x008344e8, static_cast<uint32_t>(reinterpret_cast<uintptr_t>(binding + 1)),
@@ -1338,7 +1358,8 @@ void XB_REGS3 XB_CDECL CL_KeyEvent(int32_t down, uint32_t, int32_t key, int32_t 
         }
         return;
     }
-    const char* const binding = field<const char*>(keys + 8 * key, 4);
+    const char* const native = native_key_command(key);
+    const char* const binding = native ? native : field<const char*>(keys + 8 * key, 4);
     char cmd[0x400];
     if (!down) {
         if (!binding || binding[0] != '+') return;
@@ -2300,6 +2321,21 @@ void XB_CDECL IN_Frame() {
         }
         IN_PadCreate();
         if (IN_PadConsumeReleased(pad, button)) queue_key_up(key);
+    }
+    // Native keyboard and mouse: the held actions against the key table's down state, so no state of our own (key
+    // events queued here reach CL_KeyEvent in this frame's Com_EventLoop; Key_ClearStates lets a held key press
+    // again). Downs are dropped like the pad's while keys are off.
+    if (const auto native_actions = client_pc_hooks().native_actions) {
+        const uint32_t held = native_actions();
+        for (int32_t action = 0; action < kNativeActionCount; ++action) {
+            const int32_t key = kNativeKeyFirst + action;
+            const bool down = title_global<uint32_t>(0x00934258 + 8 * static_cast<uint32_t>(key)) & 3;
+            if (((held >> action) & 1) == down) continue;
+            if (down)
+                queue_key_up(key);
+            else if (!keys_off)
+                sys_que_event(0, 1, key, 1);
+        }
     }
 }
 

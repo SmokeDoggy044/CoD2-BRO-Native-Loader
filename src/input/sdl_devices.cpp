@@ -17,6 +17,7 @@
 #include "float_env.h"
 #include "log.h"
 #include "replay.h"
+#include "script.h"
 
 namespace input {
 
@@ -231,20 +232,24 @@ void read_gamepad(SDL_Gamepad* pad, PadState& state) {
     add_axis(state.thumb_ry, -SDL_GetGamepadAxis(pad, SDL_GAMEPAD_AXIS_RIGHTY) - 1);
 }
 
-void read_keyboard_mouse(PadState& state) {
+// The action keys' state for one poll (bindings.h): keys, mouse buttons, wheel steps. In menu mode the mouse
+// points instead, so its buttons and wheel hold nothing.
+struct ActionKeys {
     int key_count = 0;
-    const bool* keys = SDL_GetKeyboardState(&key_count);
-    const auto key = [&](SDL_Scancode code) { return code < key_count && keys[code]; };
-    // Action keys (bindings.h), in the default layout. In menu mode the mouse points
-    // instead.
-    const bool menus = menu_mode();
-    const SDL_MouseButtonFlags mouse = menus ? 0 : SDL_GetMouseState(nullptr, nullptr);
-    const int64_t now = now_ms();
-    const bool wheel_up = !menus && now < g_wheel_up_until_ms.load();
-    const bool wheel_down = !menus && now < g_wheel_down_until_ms.load();
-    const Bindings& bound = bindings();
-    const auto held = [&](Action action) {
-        for (InputCode input : bound[action]) {
+    const bool* keys = nullptr;
+    SDL_MouseButtonFlags mouse = 0;
+    bool wheel_up = false, wheel_down = false;
+
+    explicit ActionKeys(bool menus) {
+        keys = SDL_GetKeyboardState(&key_count);
+        mouse = menus ? 0 : SDL_GetMouseState(nullptr, nullptr);
+        const int64_t now = now_ms();
+        wheel_up = !menus && now < g_wheel_up_until_ms.load();
+        wheel_down = !menus && now < g_wheel_down_until_ms.load();
+    }
+    bool key(SDL_Scancode code) const { return code < key_count && keys[code]; }
+    bool held(Action action) const {
+        for (InputCode input : bindings()[action]) {
             if (!input) continue;
             if (input < kMouseButton) {
                 if (key(static_cast<SDL_Scancode>(input))) return true;
@@ -257,7 +262,21 @@ void read_keyboard_mouse(PadState& state) {
             }
         }
         return false;
-    };
+    }
+};
+
+std::atomic<bool> g_native_actions{false};  // set_native_actions
+static_assert(kActionCount <= 32);
+
+void read_keyboard_mouse(PadState& state) {
+    const bool menus = menu_mode();
+    const ActionKeys input(menus);
+    const auto key = [&](SDL_Scancode code) { return input.key(code); };
+    const Bindings& bound = bindings();
+    // Action keys in the default layout; with native actions only in menus (in play the title reads them as key
+    // events of their own, held_actions).
+    const bool pad_actions = menus || !g_native_actions.load();
+    const auto held = [&](Action action) { return pad_actions && input.held(action); };
     const auto stick = [&](Action minus, Action plus) { return (held(plus) - held(minus)) * 32767; };
     add_axis(state.thumb_lx, stick(Action::MoveLeft, Action::MoveRight));
     add_axis(state.thumb_ly, stick(Action::MoveBack, Action::MoveForward));
@@ -325,6 +344,18 @@ bool init_devices() {
 }
 
 void set_action_remap(ActionRemap remap) { g_action_remap = remap; }
+
+void set_native_actions(bool on) { g_native_actions = on; }
+
+uint32_t held_actions() {
+    platform::HostFloatEnv host_env;
+    if (g_blocked.load() || g_wait_release.load() || menu_mode()) return 0;
+    const ActionKeys input(false);
+    uint32_t mask = 0;
+    for (size_t a = 0; a < kActionCount; ++a)
+        if (input.held(static_cast<Action>(a))) mask |= 1u << a;
+    return mask | scripted_actions();
+}
 
 Device last_device() { return g_last_device.load(); }
 

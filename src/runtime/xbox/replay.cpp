@@ -14,7 +14,9 @@ namespace {
 
 // File: "XBREPLAY" + u32 version, then records [tag u8][size u16][payload].
 constexpr char kMagic[8] = {'X', 'B', 'R', 'E', 'P', 'L', 'A', 'Y'};
-constexpr uint32_t kVersion = 4;  // 4: timed waits (W), voice status (S), finished packets (k, K)
+constexpr uint32_t kVersion = 5;  // 4: timed waits (W), voice status (S), finished packets (k, K); 5: native keys (Y, y)
+constexpr uint32_t kOldestVersion = 4;  // still replays (no native key records)
+bool known_version(uint32_t v) { return v >= kOldestVersion && v <= kVersion; }
 constexpr char kClockTag = 'C';
 constexpr char kFrameTag = 'F';
 constexpr char kSettingsTag = 'O';     // record start: settings.ini text
@@ -48,6 +50,7 @@ struct FrameRecord {
 };
 
 Config g_config;
+uint32_t g_version = kVersion;  // of the file being replayed (a recording writes kVersion)
 std::FILE* g_file = nullptr;
 std::vector<char> g_file_buffer;
 thread_local bool t_bound = false;
@@ -73,7 +76,7 @@ bool load_reference(const std::filesystem::path& path) {
     char magic[8];
     uint32_t version = 0;
     if (std::fread(magic, 1, 8, f) != 8 || std::memcmp(magic, kMagic, 8) != 0 || std::fread(&version, 4, 1, f) != 1 ||
-        version != kVersion) {
+        !known_version(version)) {
         std::fclose(f);
         return false;
     }
@@ -311,7 +314,7 @@ bool read_recorded_settings(const std::filesystem::path& file, std::string& sett
     char magic[8];
     uint32_t version = 0;
     bool ok = std::fread(magic, 1, 8, f) == 8 && std::memcmp(magic, kMagic, 8) == 0 && std::fread(&version, 4, 1, f) == 1 &&
-              version == kVersion;
+              known_version(version);
     for (int n = 0; ok && n < 2; ++n) {
         uint8_t tag = 0;
         uint16_t length = 0;
@@ -350,10 +353,11 @@ bool start(const Config& config) {
     char magic[8];
     uint32_t version = 0;
     if (std::fread(magic, 1, 8, g_file) != 8 || std::memcmp(magic, kMagic, 8) != 0 ||
-        std::fread(&version, 4, 1, g_file) != 1 || version != kVersion) {
+        std::fread(&version, 4, 1, g_file) != 1 || !known_version(version)) {
         LOG_ERROR("replay", "%s is not a recording (version %u expected)", config.file.string().c_str(), kVersion);
         return false;
     }
+    g_version = version;
     g_live = false;
     if (!load_frame()) {
         LOG_ERROR("replay", "%s has no frames", config.file.string().c_str());
@@ -398,6 +402,8 @@ bool on_stream() { return on_stream_impl(); }
 bool main_thread() { return t_bound; }
 
 bool replaying() { return g_config.mode == Mode::Replay; }
+
+uint32_t version() { return g_version; }
 
 bool recorded(char tag, uint32_t& v) {
     if (!on_stream() || g_config.mode != Mode::Replay) return false;

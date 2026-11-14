@@ -8,6 +8,7 @@
 #include <string>
 #include <vector>
 
+#include "bindings.h"
 #include "log.h"
 
 namespace input {
@@ -23,6 +24,7 @@ struct Press {
     double hold;  // seconds held
     uint16_t buttons;
     int analog;  // AnalogButton, or -1
+    uint32_t actions;  // bit n = Action n
 };
 
 std::mutex g_mutex;
@@ -45,6 +47,11 @@ bool parse_button(std::string_view name, Press& press) {
         if (n.name != name) continue;
         press.buttons = n.buttons;
         press.analog = n.analog;
+        return true;
+    }
+    if (const auto action = action_from_token(name)) {
+        press.analog = -1;
+        press.actions = 1u << static_cast<uint32_t>(*action);
         return true;
     }
     return false;
@@ -88,6 +95,16 @@ void apply_script(PadState& state) {
         state.buttons |= press.buttons;
         if (press.analog >= 0) state.analog_buttons[press.analog] = 0xFF;
     }
+}
+
+uint32_t scripted_actions() {
+    std::lock_guard lock(g_mutex);
+    uint32_t actions = 0;
+    if (g_presses.empty()) return actions;
+    const double now = std::chrono::duration<double>(Clock::now() - g_start).count();
+    for (const Press& press : g_presses)
+        if (now >= press.at && now < press.at + press.hold) actions |= press.actions;
+    return actions;
 }
 
 }  // namespace input

@@ -161,6 +161,14 @@ std::string format_bindings(const Bindings& bindings) {
     return text;
 }
 
+const char* action_token(Action action) { return kActions[static_cast<size_t>(action)].token; }
+
+std::optional<Action> action_from_token(std::string_view token) {
+    for (size_t a = 0; a < kActionCount; ++a)
+        if (token == kActions[a].token) return static_cast<Action>(a);
+    return std::nullopt;
+}
+
 const char* action_label(Action action) { return kActions[static_cast<size_t>(action)].label; }
 
 std::string input_name(InputCode input) {

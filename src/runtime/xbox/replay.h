@@ -76,6 +76,8 @@ bool main_thread();
 // live). Record with value() as usual.
 bool recorded(char tag, uint32_t& v);
 bool replaying();
+// The format version of the file being replayed (a recording: the current one). 5 added native key events.
+uint32_t version();
 
 // Ends a recording (flushed, closed) or a replay (its report; exits if exit_at_end). Before a reboot.
 void stop();

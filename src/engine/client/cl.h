@@ -15,6 +15,11 @@ namespace game {
 struct ClientPcHooks {
     // In CL_CreateCmd right before CL_MouseMove: mouse look (turns cl.viewangles).
     void (XB_CDECL* mouse_look)() = nullptr;
+    // Set: native keyboard and mouse (0.6c). Once per IN_Frame, the player's held actions (bit n = action n in
+    // kNativeActionCommands' order, src/input/bindings.h's Action); IN_Frame queues them as key events of their own
+    // (kNativeKeyFirst + n) and CL_KeyEvent runs the action's command - the engine's binding table is not used, so
+    // the pad's bindings and the game's button prompts stay as they are.
+    uint32_t (XB_CDECL* native_actions)() = nullptr;
     // Around the menu render calls (vtable +0x1c) of UIRoot_DrawInGameScreens/DrawFrontEnd/DrawHud: a screen's
     // begin also takes the scene its caller pushed for it (widescreen narrowing of the menus' scenes).
     void (XB_CDECL* menu_render_begin)() = nullptr;
@@ -60,6 +65,13 @@ struct ClientPcHooks {
     bool round_view_angles = false;
 };
 ClientPcHooks& client_pc_hooks();
+// Native keyboard and mouse (ClientPcHooks::native_actions): the actions' key numbers start at JOY17 (the pad uses
+// JOY1-16, no config binds JOY17 or above), 22 of them; their commands are the default controller layout's.
+constexpr int32_t kNativeKeyFirst = 0xdf;
+constexpr int32_t kNativeActionCount = 22;
+// The command a native action key runs (null: none, or not a native key while native actions are off).
+const char* native_key_command(int32_t key);
+
 
 // The pads: four 0x58-byte blocks at 0x00902400 (+2..+9 analog button bytes, +0xb/+0xd/+0xf/+0x11 stick high
 // bytes, +0x12 digital buttons, +0x1c/+0x26 pressed/released edge words with the analog edges in the bytes after,
@@ -457,7 +469,8 @@ void XB_CDECL IN_SprintDown();
 void XB_CDECL IN_PadQueueEvents();
 // 0x002bdf10: per frame: pad update; the active pad (0x008d50d8, -1 = pad 0) gone: 0x008d50dc = 0; first frame
 // back: IN_PadQueueEvents. Unless 0x0095f538: stick events (3 = move stick, 4 = look stick axes) and key events
-// for the buttons (unless 0x0095f919: no stick or key-down events).
+// for the buttons (unless 0x0095f919: no stick or key-down events). With ClientPcHooks::native_actions, then the
+// native keyboard and mouse actions' key events.
 void XB_CDECL IN_Frame();
 
 struct ScriptString;

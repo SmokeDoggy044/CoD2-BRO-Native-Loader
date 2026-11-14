@@ -255,6 +255,14 @@ void XB_CDECL mouse_look() {
 
 bool client_c(uint32_t campaign_address);
 
+// ClientPcHooks::native_actions: the held actions, recorded and replayed once per IN_Frame ('Y'). Recordings
+// older than format 5 had the keyboard in the pad state: none while replaying one.
+uint32_t XB_CDECL native_actions() {
+    const uint32_t held = input::held_actions();
+    if (xbox::replay::on_stream() && xbox::replay::replaying() && xbox::replay::version() < 5) return 0;
+    return xbox::replay::value('Y', held);
+}
+
 // pushad; pushfd; call mouse_look; popfd; popad; jmp CL_MouseMove
 void install_mouse_look() {
     if (client_c(0x002c7a90)) {  // CL_CreateCmd runs as C: it calls the hook
@@ -2404,6 +2412,11 @@ void install_title_patches(const TitleInfo& title, const TitlePatchConfig& confi
         if (client_c(0x00318840)) game::client_pc_hooks().bar_fill_fix = true;
         // CL_FinishMove's view angle packing rounds instead of truncating: no mounted-gun drift.
         if (config.mounted_gun_fix && client_c(0x002abb30)) game::client_pc_hooks().round_view_angles = true;
+        // Native keyboard and mouse (0.6c): IN_Frame, CL_KeyEvent and Key_ClearStates as C.
+        if (client_c(0x002bdf10) && client_c(0x002cd0c0) && client_c(0x002d57c0)) {
+            game::client_pc_hooks().native_actions = &native_actions;
+            input::set_native_actions(true);
+        }
         // The levels' glow pass not drawn (TitlePatchConfig::glow).
         game::renderer_pc_hooks().skip_glow_pass = !config.glow;
         // Scene starts reach the device (the render graph's world / HUD split, 0.5b).

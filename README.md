@@ -5,7 +5,7 @@ changing that: we're turning the original Xbox game back into C++ source code th
 can be built and run natively on Linux and Windows.
 
 <!-- intro:start (tools/progress.py --readme) -->
-It's early days: about 77% of the functions have a name, and 7,879 have been
+It's early days: about 77% of the functions have a name, and 7,880 have been
 rewritten in C++. The renderer, sound, animation, client game, collision, streaming,
 engine core (memory, files, settings, commands) and the client with its menus are done or
 nearly; the game logic (AI, entities, level scripts) is the big part still to come.
@@ -24,14 +24,14 @@ Developed with AI: see [Made with AI](#made-with-ai).
 ## Progress
 
 <!-- progress:start (tools/progress.py --readme) -->
-*As of 2026-11-13. The numbers come from `tools/progress.py`, which tracks every
+*As of 2026-11-14. The numbers come from `tools/progress.py`, which tracks every
 function of the game.*
 
 | | Functions | Named | Rewritten | Left to rewrite |
 |---|---:|---:|---:|---:|
-| Engine and game code (`.text`) | 12,131 | 10,256 | 7,730 | 4,401 |
+| Engine and game code (`.text`) | 12,131 | 10,256 | 7,731 | 4,400 |
 | Mission scripts (14 level sections) | 5,326 | 3,131 | 149 | 5,177 |
-| **Total** | **17,457** | **13,387** | **7,879** | **9,578** |
+| **Total** | **17,457** | **13,387** | **7,880** | **9,577** |
 
 **Named** means we know what the function does and it has a proper name.
 **Rewritten** means it has been turned into C++ and passed the in-game comparison
@@ -51,7 +51,7 @@ We've also named 2,667 of the game's global variables.
 | Animation (animation trees, the animation codec) | 386 | 276 | 82 | 28 | 0 | 0 |
 | Client game (HUD, view, effects on screen) | 337 | 308 | 23 | 6 | 0 | 0 |
 | Engine core (memory, files, settings, commands, containers, math) | 1,091 | 918 | 111 | 61 | 0 | 0 |
-| Client and menus | 1,029 | 730 | 257 | 42 | 0 | 0 |
+| Client and menus | 1,029 | 731 | 257 | 41 | 0 | 0 |
 | Server | 82 | 72 | 10 | 0 | 0 | 0 |
 | Collision | 116 | 98 | 3 | 15 | 0 | 0 |
 | Compression (zlib) | 64 | 18 | 0 | 46 | 0 | 0 |
