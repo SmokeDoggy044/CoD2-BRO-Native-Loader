@@ -65,6 +65,10 @@ struct Options {
     float fold_cos = 0.42f;        // ~65 degrees
     float lean_cos = 0.766f;       // ~40 degrees
     float strength = 0.75f;        // 0: flat, 1: full PN curvature
+    // The curvature follows normals made from the faces around each point (area-weighted, per smoothing group)
+    // instead of the model's own: flat parts with leaning (averaged) normals stay flat. Shading keeps the
+    // model's normals.
+    bool geometry_normals = true;
     // Outlines: a chain of fold/crease edges (a tire's rim) is curved along itself where it turns by less than
     // this angle (cos) at each point; corners (a box's) stay.
     bool round_outlines = true;

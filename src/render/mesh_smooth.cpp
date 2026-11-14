@@ -117,6 +117,7 @@ struct Smoother {
     const Attribute* bone_weights = nullptr;
 
     std::vector<V3> positions, normals;
+    std::vector<V3> shape_normals;  // what the curvature follows: from the faces (geometry_normals) or `normals`
     std::vector<uint8_t> normal_ok;
     std::vector<uint32_t> position_id;
     std::vector<std::array<uint32_t, 3>> triangles;
@@ -204,6 +205,42 @@ struct Smoother {
         }
     }
 
+    // A model's normals can lean where its shape does not (an artist's averaged normals on a flat slab: the
+    // bumper in front of a licence plate). With geometry_normals the curvature follows the faces instead: per
+    // position and smoothing group (the vertices there with the same normal), the area-weighted normal of the
+    // faces around it (each turned to the vertex normal's side: two-sided materials). Flat stays flat.
+    void find_shape_normals() {
+        shape_normals = normals;
+        if (!options.geometry_normals) return;
+        struct Group {
+            V3 sum;
+        };
+        std::unordered_map<uint64_t, std::vector<std::pair<std::array<uint32_t, 3>, Group>>> groups;
+        auto group_of = [&](uint32_t v) -> Group& {
+            std::array<uint32_t, 3> bits;
+            std::memcpy(bits.data(), &normals[v], 12);
+            auto& bucket = groups[uint64_t{position_id[v]} * 0x9E3779B97F4A7C15ull ^ bits[0] ^ uint64_t{bits[1]} << 32];
+            for (auto& [b, g] : bucket)
+                if (b == bits) return g;
+            bucket.push_back({bits, Group{}});
+            return bucket.back().second;
+        };
+        for (const auto& t : triangles) {
+            const V3 e1 = positions[t[1]] - positions[t[0]], e2 = positions[t[2]] - positions[t[0]];
+            const V3 cross{e1.y * e2.z - e1.z * e2.y, e1.z * e2.x - e1.x * e2.z, e1.x * e2.y - e1.y * e2.x};
+            for (const uint32_t v : t) {
+                if (!normal_ok[v]) continue;
+                Group& g = group_of(v);
+                g.sum = g.sum + (dot(cross, normals[v]) < 0 ? cross * -1.0f : cross);
+            }
+        }
+        for (uint32_t v = 0; v < vertex_count; ++v) {
+            if (!normal_ok[v]) continue;
+            const V3 sum = group_of(v).sum;
+            if (dot(sum, sum) > 1e-24f) shape_normals[v] = normalized(sum);
+        }
+    }
+
     // The edge from vertex u to vertex v, in its canonical direction (lower position id first).
     Edge& edge_of(uint32_t u, uint32_t v, bool& flipped) {
         flipped = position_id[u] > position_id[v];
@@ -239,8 +276,8 @@ struct Smoother {
                     edge.straight = edge.feature = true;
                 }
                 ++edge.triangles;
-                edge.sum_c1 = edge.sum_c1 + control(positions[u], positions[v], normals[u]);
-                edge.sum_c2 = edge.sum_c2 + control(positions[v], positions[u], normals[v]);
+                edge.sum_c1 = edge.sum_c1 + control(positions[u], positions[v], shape_normals[u]);
+                edge.sum_c2 = edge.sum_c2 + control(positions[v], positions[u], shape_normals[v]);
             }
         }
         // The canonical end positions: the first vertex found with each id.
@@ -463,6 +500,7 @@ struct Smoother {
                 uint64_t{vertex_count} + pairs.size() * (L - 1) + uint64_t{triangles.size()} * ((L - 1) * (L - 2) / 2);
             if (exact > options.max_vertices) return false;
         }
+        find_shape_normals();
         build_edges();
         result.triangles_in = static_cast<uint32_t>(triangles.size());
         result.vertices.assign(source, source + size_t{vertex_count} * layout.stride);

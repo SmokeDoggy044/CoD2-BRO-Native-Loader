@@ -196,6 +196,30 @@ int main() {
         CHECK(rim_points == 2 * n * 2 * 2, "%d rim points", rim_points);  // 2 rims x n edges x 2 points, cap + tread side
     }
 
+    // The bumper case: a thin slab (4 x 4 x 0.1) whose corner normals lean 25 degrees from its big faces (an
+    // artist's averaging). With the model's normals its big faces bulge; with the faces' normals it stays thin.
+    {
+        std::vector<CharVertex> v;
+        const float lean = std::tan(25.0f * 3.14159265f / 180.0f) / std::sqrt(2.0f);
+        for (int k = 0; k < 8; ++k) {
+            const float x = k & 1 ? 2.0f : -2.0f, y = k & 2 ? 2.0f : -2.0f, z = k & 4 ? 0.05f : -0.05f;
+            v.push_back(make(x, y, z, x > 0 ? lean : -lean, y > 0 ? lean : -lean, z > 0 ? 1.0f : -1.0f));
+        }
+        const std::vector<uint16_t> idx = {0, 2, 3, 0, 3, 1, 4, 5, 7, 4, 7, 6, 0, 1, 5, 0, 5, 4,
+                                           2, 6, 7, 2, 7, 3, 0, 4, 6, 0, 6, 2, 1, 3, 7, 1, 7, 5};
+        Options model_normals;
+        model_normals.geometry_normals = false;
+        Result faces, model;
+        CHECK(run(v, idx, faces) && run(v, idx, model, Topology::Triangles, model_normals));
+        auto thickest = [](const Result& res) {
+            float z = 0;
+            for (uint32_t i = 0; i < res.vertex_count; ++i) z = std::max(z, std::fabs(at(res, i).p[2]));
+            return z;
+        };
+        CHECK(thickest(model) > 0.1f, "model normals: the slab should bulge (%g)", thickest(model));
+        CHECK(thickest(faces) < 0.06f, "face normals: the slab grew to %g", thickest(faces));
+    }
+
     // The rifle case: a box with averaged (corner) normals, welded. Without the guards it balloons; it must
     // stay a box.
     {
