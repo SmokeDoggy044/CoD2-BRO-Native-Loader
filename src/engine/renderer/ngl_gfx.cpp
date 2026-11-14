@@ -1,7 +1,14 @@
 #include "ngl_gfx.h"
 
 #include <algorithm>
+#include <atomic>
+#include <cfenv>
 #include <chrono>
+#include <condition_variable>
+#include <deque>
+#include <memory>
+#include <mutex>
+#include <thread>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -762,24 +769,113 @@ void draw_indexed_vertices(uint32_t primitive, uint32_t index_count, const void*
 namespace {
 
 // Smoothed sections (draw_smoothed), by where their data is. A sample of the data checks that it is still
-// the same (a new level's meshes can load at the same addresses); smoothing runs once per section.
+// the same (a new level's meshes can load at the same addresses). Smoothing runs once per section on worker
+// threads (SmoothWorkers); until a section's result is ready it is drawn as it is.
 struct Smoothed {
     uint64_t sample = 0;
-    bool ok = false;
-    uint64_t id = 0;  // the back end's cache key
-    render::smooth::Result result;
+    uint64_t id = 0;              // the back end's cache key
+    std::atomic<int> state{0};    // kPending, kReady, kRefused
+    render::smooth::Result result;  // the workers write it before state becomes kReady
 };
+constexpr int kPending = 0, kReady = 1, kRefused = 2;
+
 struct SmoothCache {
-    std::unordered_map<uint64_t, Smoothed> sections;
-    size_t bytes = 0;
+    std::unordered_map<uint64_t, std::shared_ptr<Smoothed>> sections;  // the drawing thread only
     uint64_t next_id = 1;
-    uint32_t done = 0, refused = 0;
-    double seconds = 0, worst = 0;  // spent smoothing
 };
 SmoothCache& smooth_cache() {
     static SmoothCache cache;
     return cache;
 }
+
+// What a worker needs: copies of the section's data (title memory is not the workers' to read).
+struct SmoothJob {
+    std::shared_ptr<Smoothed> entry;
+    std::vector<uint8_t> vertices;
+    std::vector<uint16_t> indices;  // empty: not indexed
+    uint32_t vertex_count = 0, count = 0, stride = 0, attribute_count = 0;
+    render::smooth::Attribute attributes[16];
+    render::smooth::Topology topology;
+    render::smooth::Options options;
+};
+
+// The worker threads: half the CPU's threads (at least 1, at most 8), started on first use and never stopped
+// (they wait on an empty queue). Statistics for the log.
+class SmoothWorkers {
+public:
+    void add(SmoothJob job) {
+        {
+            std::lock_guard lock(mutex_);
+            if (threads_ == 0) start();
+            queue_.push_back(std::move(job));
+        }
+        wake_.notify_one();
+    }
+
+    static SmoothWorkers& get() {
+        static SmoothWorkers* workers = new SmoothWorkers;  // never destroyed: detached threads use it
+        return *workers;
+    }
+
+private:
+    void start() {
+        const unsigned cpus = std::max(2u, std::thread::hardware_concurrency());
+        threads_ = std::clamp(cpus / 2, 1u, 8u);
+        for (unsigned i = 0; i < threads_; ++i) std::thread([this] { run(); }).detach();
+        std::fprintf(stderr, "[ngl_gfx] model smoothing: %u worker threads\n", threads_);
+    }
+
+    void run() {
+        std::fesetenv(FE_DFL_ENV);  // the C defaults, not the title's float modes
+        for (;;) {
+            SmoothJob job;
+            {
+                std::unique_lock lock(mutex_);
+                wake_.wait(lock, [this] { return !queue_.empty(); });
+                job = std::move(queue_.front());
+                queue_.pop_front();
+            }
+            work(job);
+        }
+    }
+
+    void work(SmoothJob& job) {
+        using namespace render::smooth;
+        const auto started = std::chrono::steady_clock::now();
+        const Layout layout{job.stride, job.attributes, job.attribute_count};
+        const uint16_t* indices = job.indices.empty() ? nullptr : job.indices.data();
+        Result& result = job.entry->result;
+        bool ok = smooth(layout, job.vertices.data(), job.vertex_count, job.topology, indices, job.count, job.options,
+                         result);
+        if (!ok && job.options.segments > 2) {  // too many vertices: try fewer
+            job.options.segments = 2;
+            ok = smooth(layout, job.vertices.data(), job.vertex_count, job.topology, indices, job.count, job.options,
+                        result);
+        }
+        if (!ok) result = Result();
+        const double took = std::chrono::duration<double>(std::chrono::steady_clock::now() - started).count();
+        job.entry->state.store(ok ? kReady : kRefused, std::memory_order_release);
+        std::lock_guard lock(mutex_);
+        (ok ? done_ : refused_) += 1;
+        bytes_ += result.vertices.size() + result.indices.size() * 2;
+        seconds_ += took;
+        worst_ = std::max(worst_, took);
+        const uint32_t total = done_ + refused_;
+        if ((total & (total - 1)) == 0 && total >= 16)  // now and then
+            std::fprintf(stderr,
+                         "[ngl_gfx] model smoothing: %u sections smoothed, %u kept as they are, %zu KB, %.1f ms of "
+                         "worker time (worst section %.2f ms)\n",
+                         done_, refused_, bytes_ >> 10, seconds_ * 1e3, worst_ * 1e3);
+    }
+
+    std::mutex mutex_;
+    std::condition_variable wake_;
+    std::deque<SmoothJob> queue_;
+    unsigned threads_ = 0;
+    uint32_t done_ = 0, refused_ = 0;
+    size_t bytes_ = 0;
+    double seconds_ = 0, worst_ = 0;
+};
 
 uint64_t sample_hash(const uint8_t* data, size_t bytes, uint64_t h) {
     auto mix = [&h](uint32_t w) { h = (h ^ w) * 0x100000001B3ull; };
@@ -856,53 +952,40 @@ bool draw_smoothed(uint32_t primitive, uint32_t vertex_count, uint32_t index_cou
     uint64_t sample = sample_hash(memory, size_t{vertex_count} * s.stream_stride, 0xCBF29CE484222325ull);
     if (index_data) sample = sample_hash(reinterpret_cast<const uint8_t*>(index_data), size_t{count} * 2, sample);
     SmoothCache& cache = smooth_cache();
-    Smoothed& entry = cache.sections[key];
-    if (entry.id == 0 || entry.sample != sample) {
-        cache.bytes -= std::min(cache.bytes, entry.result.vertices.size() + entry.result.indices.size() * 2);
-        if (cache.bytes > (size_t{512} << 20)) {  // a long session: start over
+    std::shared_ptr<Smoothed>& slot = cache.sections[key];
+    if (!slot || slot->sample != sample) {
+        if (cache.sections.size() > 20000) {  // a long session: start over (jobs in flight keep their entries)
             cache.sections.clear();
-            cache.bytes = 0;
-            return draw_smoothed(primitive, vertex_count, index_count, indices, skinned);
+            return false;
         }
-        entry.sample = sample;
-        entry.id = cache.next_id++;
-        const auto started = std::chrono::steady_clock::now();
-        Attribute attributes[16];
-        uint32_t attribute_count;
-        Options options;
+        slot = std::make_shared<Smoothed>();
+        slot->sample = sample;
+        slot->id = cache.next_id++;
+        SmoothJob job;
+        if (!smooth_layout(s.vertex_declaration, skinned, job.attributes, job.attribute_count)) {
+            slot->state.store(kRefused, std::memory_order_relaxed);
+            return false;
+        }
         static const uint32_t segments = [] {
             const char* text = std::getenv("COD_BRO_SMOOTH_SEGMENTS");  // developers: 1-8 (default 3)
             return text ? static_cast<uint32_t>(std::clamp(std::atoi(text), 1, 8)) : 3u;
         }();
-        options.segments = segments;
-        entry.ok = smooth_layout(s.vertex_declaration, skinned, attributes, attribute_count) &&
-                   smooth({s.stream_stride, attributes, attribute_count}, memory, vertex_count, topology, index_data,
-                          count, options, entry.result);
-        if (!entry.ok && options.segments > 2) {  // too many vertices: try fewer
-            options.segments = 2;
-            entry.ok = smooth({s.stream_stride, attributes, attribute_count}, memory, vertex_count, topology,
-                              index_data, count, options, entry.result);
-        }
-        if (entry.ok) {
-            ++cache.done;
-            cache.bytes += entry.result.vertices.size() + entry.result.indices.size() * 2;
-        } else {
-            ++cache.refused;
-            entry.result = Result();
-        }
-        const double took = std::chrono::duration<double>(std::chrono::steady_clock::now() - started).count();
-        cache.seconds += took;
-        cache.worst = std::max(cache.worst, took);
-        const uint32_t total = cache.done + cache.refused;
-        if ((total & (total - 1)) == 0 && total >= 16)  // now and then
-            std::fprintf(stderr, "[ngl_gfx] model smoothing: %u sections smoothed, %u kept as they are, %zu KB, %.1f ms (worst "
-                         "section %.2f ms)\n",
-                         cache.done, cache.refused, cache.bytes >> 10, cache.seconds * 1e3, cache.worst * 1e3);
+        job.entry = slot;
+        job.vertices.assign(memory, memory + size_t{vertex_count} * s.stream_stride);
+        if (index_data) job.indices.assign(index_data, index_data + count);
+        job.vertex_count = vertex_count;
+        job.count = count;
+        job.stride = s.stream_stride;
+        job.topology = topology;
+        job.options.segments = segments;
+        SmoothWorkers::get().add(std::move(job));
+        return false;  // as it is until the result is ready
     }
-    if (!entry.ok) return false;
-    return ngl_gfx_draw_user(render::Primitive::Triangles, entry.result.vertices.data(), entry.result.vertex_count,
-                             s.stream_stride, entry.result.indices.data(),
-                             static_cast<uint32_t>(entry.result.indices.size()), entry.id | render::kGfxFixedContent);
+    if (slot->state.load(std::memory_order_acquire) != kReady) return false;
+    const Result& result = slot->result;
+    return ngl_gfx_draw_user(render::Primitive::Triangles, result.vertices.data(), result.vertex_count, s.stream_stride,
+                             result.indices.data(), static_cast<uint32_t>(result.indices.size()),
+                             slot->id | render::kGfxFixedContent);
 }
 
 void clear(uint32_t rect_count, const void* rects, uint32_t flags, uint32_t color, float depth, uint32_t stencil) {
