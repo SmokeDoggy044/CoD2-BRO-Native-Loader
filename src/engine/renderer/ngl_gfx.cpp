@@ -313,6 +313,10 @@ bool layout_for(DeviceObjects& o, uint32_t declaration, render::LayoutId& layout
     return layout != 0;
 }
 
+// Ours (2.0): the sun shadow map's resolution over the title's 512 x 512 (times the render scale); the square it
+// covers grows with it (tr_main.cpp R_RenderTestShadow's kSunRadius).
+constexpr uint32_t kShadowTargetScale = 2;
+
 // A title surface header (D3DSurface) as a target of ours at the same memory.
 render::TargetId target_for(DeviceObjects& o, uint32_t surface) {
     if (!surface) return 0;
@@ -341,7 +345,9 @@ render::TargetId target_for(DeviceObjects& o, uint32_t surface) {
     const uint64_t key = uint64_t{data} << 32 ^ uint64_t{width} << 20 ^ uint64_t{height} << 8 ^ d3d_format;
     render::TargetId& id = o.targets[key];
     if (!id) {
-        id = o.device->create_target({format, width, height, data});
+        // Ours (2.0 sun shadows): the shadow texture at kShadowTargetScale times the resolution.
+        const uint32_t extra = data && data == game::renderer_pc_hooks().shadow_target_data ? kShadowTargetScale : 1;
+        id = o.device->create_target({format, width, height, data, extra});
         if (id && format != render::Format::D24S8 && format != render::Format::D16) o.colour_targets[data] = id;
     }
     return id;
@@ -354,7 +360,7 @@ render::TargetId sun_depth_for(DeviceObjects& o, uint32_t surface) {
     const uint32_t width = size ? (size & 0xFFF) + 1 : 1u << (format_word >> 20 & 0xF);
     const uint32_t height = size ? (size >> 12 & 0xFFF) + 1 : 1u << (format_word >> 24 & 0xF);
     render::TargetId& id = o.sun_depth[uint64_t{width} << 32 | height];
-    if (!id) id = o.device->create_target({render::Format::D24S8, width, height, 0});
+    if (!id) id = o.device->create_target({render::Format::D24S8, width, height, 0, kShadowTargetScale});
     return id;
 }
 

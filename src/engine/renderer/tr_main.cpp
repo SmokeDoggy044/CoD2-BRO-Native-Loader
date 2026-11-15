@@ -2761,7 +2761,9 @@ void XB_CDECL R_RenderTestShadow() {
         // Step 2: a larger square (kSunRadius; the original's 700 let shadows end 1000 units ahead), its centre
         // ahead of the view as the original's (0.45 of the radius along its diagonal), and a box deep enough for
         // that square's far side under a low sun (radius / tan(elevation) along the sun, plus the lift).
-        constexpr float kSunLift = 300.0f, kSunDepth = 5000.0f, kSunRadius = 1500.0f;
+        // Radius 3000 with the map at twice the resolution (ngl_gfx kShadowTargetScale): 1500 let vehicles ~2000
+        // ahead lose their shadow (playtest 11-15).
+        constexpr float kSunLift = 300.0f, kSunDepth = 9000.0f, kSunRadius = 3000.0f;
         radius = kSunRadius;
         const Lanes ahead = mul(sub(up, across), radius * title_global<float>(0x0083f034));
         const float centre[3] = {view[12] + ahead.v[0], view[13] + ahead.v[1], view[14]};

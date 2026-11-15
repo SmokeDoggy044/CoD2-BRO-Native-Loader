@@ -163,6 +163,9 @@ struct TargetDesc {
     Format format = Format::BGRA8;
     uint32_t width = 0, height = 0;
     uint32_t xbox_data = 0;
+    // Pixels per title pixel on top of the render scale (Vulkan; the sun shadow map, 2.0). Viewports and clears
+    // follow the image's size.
+    uint32_t extra_scale = 1;
 };
 
 // --- State ---

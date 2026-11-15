@@ -475,7 +475,7 @@ public:
                     ++target.users;
                     return id;
                 }
-        return add_target(desc.format, desc.width, desc.height, desc.xbox_data);
+        return add_target(desc.format, desc.width, desc.height, desc.xbox_data, std::max(1u, desc.extra_scale));
     }
 
     void destroy_target(TargetId id) override {
@@ -1083,9 +1083,9 @@ private:
         b.versions.clear();
     }
 
-    TargetId add_target(Format format, uint32_t width, uint32_t height, uint32_t xbox_data) {
-        const uint32_t surface_width = std::max(1u, static_cast<uint32_t>(std::lround(width * scale_x_)));
-        const uint32_t surface_height = std::max(1u, static_cast<uint32_t>(std::lround(height * scale_y_)));
+    TargetId add_target(Format format, uint32_t width, uint32_t height, uint32_t xbox_data, uint32_t extra_scale = 1) {
+        const uint32_t surface_width = std::max(1u, static_cast<uint32_t>(std::lround(width * scale_x_))) * extra_scale;
+        const uint32_t surface_height = std::max(1u, static_cast<uint32_t>(std::lround(height * scale_y_))) * extra_scale;
         Target target;
         target.format = format;
         target.xbox_data = xbox_data;
