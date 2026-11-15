@@ -10,6 +10,7 @@
 #include "r_init.h"
 #include "title_crt.h"
 #include "gap_methods.h"
+#include "gfx_device.h"
 
 namespace game {
 
@@ -1233,6 +1234,7 @@ void set_projector_texture(uint32_t stage, NglTexture* texture) {
 }
 
 void draw_world(const NglMeshNode* node, const WorldClass& k);
+void cdWorldBlend_textures(const NglMeshNode* node, NglTexture* projector, bool& lightmap, bool& projected);
 
 }  // namespace
 
@@ -1359,7 +1361,15 @@ void draw_world(const NglMeshNode* node, const WorldClass& k) {
     c[3] = 0;
     set_vertex_constants(6, c, 64);
     set_scene_fog();
+    // Ours (2.0 step 2): the sun's shadow map compared by depth instead of the projected silhouette.
+    RendererPcHooks& hooks = renderer_pc_hooks();
+    if (projected && hooks.shadow_depth) {
+        const bool blend = k.textures == cdWorldBlend_textures;
+        hooks.pixel_override = blend ? (lightmap ? render::kOwnPsSunBlendLm : render::kOwnPsSunBlend)
+                                     : (lightmap ? render::kOwnPsSunWorldLm : render::kOwnPsSunWorld);
+    }
     nglDrawMeshSection(node->section);
+    hooks.pixel_override = 0;
 
     // The dynamic lights: added on top (ONE), the white texture on every stage, two
     // lights per pass.

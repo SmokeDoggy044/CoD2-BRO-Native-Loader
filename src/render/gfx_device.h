@@ -63,6 +63,16 @@ constexpr uint32_t kGfxPsAlphaTest = 28;      // x: BlendState::alpha_func, y: a
                                               // x = Always where the back end tests itself)
 constexpr uint32_t kGfxPsReserved = kGfxPsAlphaTest + 1;  // pixel constants c0..c28
 
+// Pixel shaders of our own taking a title shader's place (Vulkan only: vk/shaders, GLSL with the title shaders'
+// layout); create_title_shader takes these keys too. Engine improvements 2.0: sun shadows.
+enum OwnPixelShader : uint32_t {
+    kOwnPsSunCaster = 0xFE000001,     // a shadow caster's packed depth along the sun
+    kOwnPsSunWorld = 0xFE000002,      // cdWorld projected, no lightmap
+    kOwnPsSunWorldLm = 0xFE000003,    // cdWorld projected with lightmap
+    kOwnPsSunBlend = 0xFE000004,      // cdWorldBlend projected, no lightmap
+    kOwnPsSunBlendLm = 0xFE000005,    // cdWorldBlend projected with lightmap
+};
+
 // --- Resources ---
 
 enum class Format : uint8_t {

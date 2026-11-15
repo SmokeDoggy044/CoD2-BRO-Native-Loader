@@ -129,6 +129,13 @@ void record_method(uint32_t method, uint32_t value) {
     }
 }
 
+// Ours (2.0 sun shadows): a draw of the shadow scene's casters (alpha only, into the shadow texture).
+bool shadow_caster_draw(const GfxState& s) {
+    if (s.blend.write_mask != render::kColorAlpha || !s.color_target) return false;
+    const auto* words = reinterpret_cast<const uint32_t*>(static_cast<uintptr_t>(s.color_target));
+    return words[1] == game::renderer_pc_hooks().shadow_target_data;
+}
+
 // Fields derived from D3D's tables and the polygon offset, as D3D does it (src/render/draw.cpp's
 // apply_fog_states for the fog).
 void derive() {
@@ -139,7 +146,7 @@ void derive() {
     s.depth_stencil.stencil = rs[kRsStencilEnable] != 0;
     s.depth_stencil.stencil_fail = render::gfx_stencil_op(rs[kRsStencilFail]);
     s.raster.cull = render::gfx_cull(rs[kRsCullMode], rs[kRsFrontFace]);
-    if (s.blend.write_mask == render::kColorAlpha && game::renderer_pc_hooks().shadow_casters_double_sided)
+    if (game::renderer_pc_hooks().shadow_casters_double_sided && shadow_caster_draw(s))
         s.raster.cull = render::Cull::None;  // ours (2.0): sun shadow casters
     s.raster.fill = render::gfx_fill(rs[kRsFillMode]);
     s.raster.depth_bias = r.offset_fill ? r.offset_bias : 0.0f;
@@ -227,6 +234,10 @@ struct DeviceObjects {
     std::unordered_map<uint64_t, TitleTexture> textures;  // by data, format, size and palette data
     std::set<uint32_t> unsupported_formats;               // warned about once each
     std::vector<uint8_t> decoded;                         // a level for update_texture
+    // Ours (2.0 sun shadows): the depth buffer the shadow casters test against, by the shadow target's size,
+    // and the frame it was last cleared.
+    std::unordered_map<uint64_t, render::TargetId> sun_depth;
+    uint32_t sun_depth_frame = ~0u;
 };
 
 DeviceObjects& device_objects() {
@@ -331,6 +342,17 @@ render::TargetId target_for(DeviceObjects& o, uint32_t surface) {
         id = o.device->create_target({format, width, height, data});
         if (id && format != render::Format::D24S8 && format != render::Format::D16) o.colour_targets[data] = id;
     }
+    return id;
+}
+
+// Ours (2.0 sun shadows): the depth buffer for the shadow casters drawn into `surface` (the same size).
+render::TargetId sun_depth_for(DeviceObjects& o, uint32_t surface) {
+    const auto* words = reinterpret_cast<const uint32_t*>(static_cast<uintptr_t>(surface));
+    const uint32_t format_word = words[3], size = words[4];
+    const uint32_t width = size ? (size & 0xFFF) + 1 : 1u << (format_word >> 20 & 0xF);
+    const uint32_t height = size ? (size >> 12 & 0xFFF) + 1 : 1u << (format_word >> 24 & 0xF);
+    render::TargetId& id = o.sun_depth[uint64_t{width} << 32 | height];
+    if (!id) id = o.device->create_target({render::Format::D24S8, width, height, 0});
     return id;
 }
 
@@ -468,7 +490,11 @@ bool apply(render::GfxDevice& device, DeviceObjects& o, uint32_t stride) {
     const uint32_t variant =
         s.vertex_declaration && has_packed_normals(s.vertex_declaration) ? s.vertex_declaration : 0;
     const render::ShaderId vs = shader_for(o, render::ShaderStage::Vertex, s.vertex_key, variant);
-    const render::ShaderId ps = shader_for(o, render::ShaderStage::Pixel, s.pixel_key);
+    // Ours (2.0 sun shadows): casters write depth (their draws write alpha only), the receivers compare it.
+    const game::RendererPcHooks& hooks = game::renderer_pc_hooks();
+    const bool sun_caster = hooks.shadow_depth && shadow_caster_draw(s);
+    const uint32_t pixel_key = sun_caster ? render::kOwnPsSunCaster : hooks.pixel_override ? hooks.pixel_override : s.pixel_key;
+    const render::ShaderId ps = shader_for(o, render::ShaderStage::Pixel, pixel_key);
     render::LayoutId layout;
     uint32_t layout_stride;
     if (!vs || !ps || !layout_for(o, s.vertex_declaration, layout, layout_stride)) return false;
@@ -481,10 +507,29 @@ bool apply(render::GfxDevice& device, DeviceObjects& o, uint32_t stride) {
     }
     const render::TargetId color = target_for(o, s.color_target);
     if (!color) return false;
-    device.set_target(color, target_for(o, s.depth_target));
-    device.set_viewport(s.viewport);
-    device.set_blend(s.blend);
-    device.set_depth_stencil(s.depth_stencil);
+    if (sun_caster) {
+        const render::TargetId depth = sun_depth_for(o, s.color_target);
+        if (!depth) return false;
+        device.set_target(color, depth);
+        if (o.sun_depth_frame != g_frame) {  // the first caster of the frame
+            o.sun_depth_frame = g_frame;
+            device.clear(render::kGfxClearDepth | render::kGfxClearStencil, 0, 1.0f, 0);
+        }
+        render::BlendState blend = s.blend;
+        blend.enable = false;
+        blend.write_mask = render::kColorAll;
+        render::DepthStencilState depth_state;
+        depth_state.depth_test = depth_state.depth_write = true;
+        depth_state.depth_func = render::Compare::LessEqual;
+        device.set_viewport(s.viewport);
+        device.set_blend(blend);
+        device.set_depth_stencil(depth_state);
+    } else {
+        device.set_target(color, target_for(o, s.depth_target));
+        device.set_viewport(s.viewport);
+        device.set_blend(s.blend);
+        device.set_depth_stencil(s.depth_stencil);
+    }
     device.set_raster(s.raster);
     device.set_fog(s.fog);
     for (uint32_t stage = 0; stage < render::kGfxStages; ++stage) {
@@ -495,6 +540,8 @@ bool apply(render::GfxDevice& device, DeviceObjects& o, uint32_t stride) {
     device.set_layout(layout);
     device.set_constants(render::ShaderStage::Vertex, 0, &s.vs_constants[0][0], 192);
     device.set_constants(render::ShaderStage::Pixel, 0, &s.ps_constants[0][0], 18);
+    if (!sun_caster && hooks.pixel_override)
+        device.set_constants(render::ShaderStage::Pixel, 0, hooks.pixel_override_constants, 1);
     return true;
 }
 

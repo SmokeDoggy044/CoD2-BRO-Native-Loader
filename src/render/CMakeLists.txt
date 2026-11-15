@@ -51,6 +51,7 @@ endif()
 # Our own Vulkan shaders (vk/shaders/*.vert, *.frag; GLSL) -> SPIR-V with glslang, embedded (vk/vk_shaders.h).
 file(GLOB vk_shader_sources CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/vk/shaders/*.vert
      ${CMAKE_CURRENT_SOURCE_DIR}/vk/shaders/*.frag)
+file(GLOB vk_shader_includes CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/vk/shaders/*.glsl)
 set(vk_shader_binaries "")
 foreach(glsl ${vk_shader_sources})
     get_filename_component(name ${glsl} NAME)
@@ -58,7 +59,7 @@ foreach(glsl ${vk_shader_sources})
     add_custom_command(OUTPUT ${binary}
                        COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}/vk_shaders
                        COMMAND ${GLSLANG_VALIDATOR} --quiet -V --target-env vulkan1.3 -o ${binary} ${glsl}
-                       DEPENDS ${glsl}
+                       DEPENDS ${glsl} ${vk_shader_includes}
                        VERBATIM)
     list(APPEND vk_shader_binaries ${binary})
 endforeach()

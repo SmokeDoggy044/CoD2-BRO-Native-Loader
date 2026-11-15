@@ -67,6 +67,16 @@ struct RendererPcHooks {
     // Set with it: how far (horizontally) from the projector a world mesh still receives the shadow; 0 = the
     // original's 0x008db19c. A slanted shadow camera's square lands stretched along the sun by 1 / sin(elevation).
     float shadow_reach = 0.0f;
+    // Set with it (step 2): the casters write their depth along the sun (render::kOwnPsSunCaster, our own depth
+    // buffer keeping the nearest), and the projected world draws compare it (pixel_override).
+    bool shadow_depth = false;
+    // Set with the two above: the shadow texture's memory (its D3D header's +4) - its casters are the draws into
+    // it that write alpha only (other passes write alpha only too, into the frame).
+    uint32_t shadow_target_data = 0;
+    // Set around one draw: our pixel shader (render::OwnPixelShader) in place of the title's, with c0 =
+    // pixel_override_constants. Vulkan only.
+    uint32_t pixel_override = 0;
+    float pixel_override_constants[4] = {};
 };
 RendererPcHooks& renderer_pc_hooks();
 // The 16:9 scene aspect, or the wider one in RendererPcHooks.

@@ -23,6 +23,7 @@
 #include "texture_hash.h"
 #include "spirv_layout.h"
 #include "title_shaders.h"
+#include "vk_shaders.h"
 
 namespace render::vk {
 
@@ -405,6 +406,7 @@ public:
         return id;
     }
     ShaderId create_title_shader(ShaderStage stage, uint32_t key, uint32_t variant) override {
+        if (stage == ShaderStage::Pixel && key >= kOwnPsSunCaster && key <= kOwnPsSunBlendLm) return own_pixel_shader(key);
         const char kind = stage == ShaderStage::Vertex ? 'v' : 'p';
         for (unsigned i = 0; i < kTitleShaderCount; ++i)
             if (kTitleShaders[i].stage == kind && kTitleShaders[i].key == key && kTitleShaders[i].variant == variant)
@@ -413,6 +415,28 @@ public:
         LOG_ERROR("render", "gfx: no title %s shader %08x (variant %08x)", kind == 'v' ? "vertex" : "pixel", key,
                   variant);
         return 0;
+    }
+    // Ours in the title shaders' layout (gfx_device.h OwnPixelShader), straight from glslang's SPIR-V.
+    ShaderId own_pixel_shader(uint32_t key) {
+        static constexpr const char* kNames[] = {"sun_caster.frag", "sun_world.frag", "sun_world_lm.frag",
+                                                 "sun_blend.frag", "sun_blend_lm.frag"};
+        const char* name = kNames[key - kOwnPsSunCaster];
+        const vk::SpirvShader* code = vk::spirv_shader(name);
+        VkShaderModule module = VK_NULL_HANDLE;
+        if (code) {
+            VkShaderModuleCreateInfo info{VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO};
+            info.codeSize = code->bytes;
+            info.pCode = code->code;
+            vkCreateShaderModule(vk_.device(), &info, nullptr, &module);
+        }
+        if (!module) {
+            LOG_ERROR("render", "gfx: own pixel shader %s missing", name);
+            return 0;
+        }
+        const ShaderId id = next_id_++;
+        shaders_[id] = {ShaderStage::Pixel, module, 0,
+                        vk_.pipeline_libraries() ? shader_library(ShaderStage::Pixel, module) : VK_NULL_HANDLE};
+        return id;
     }
     // Pipelines keep no reference to their modules: a module can go at once.
     void destroy_shader(ShaderId shader) override {

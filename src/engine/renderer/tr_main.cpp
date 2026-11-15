@@ -2694,21 +2694,39 @@ void XB_CDECL R_RenderTestShadow() {
     float far = title_global<float>(0x008db1a4);
     float box_depth = title_global<float>(0x0083ebec);  // 500
     float box_shift = 0.0f;
+    float radius = title_global<float>(0x008db19c);  // 700 (ours: kSunRadius)
     float sun[3] = {};
     renderer_pc_hooks().shadow_casters_double_sided = false;
     renderer_pc_hooks().shadow_reach = 0.0f;
+    renderer_pc_hooks().shadow_depth = false;
+    renderer_pc_hooks().shadow_target_data = reinterpret_cast<const uint32_t*>(texture->d3d_texture)[1];
     if (const auto sun_hook = renderer_pc_hooks().sun_shadows; sun_hook && sun_hook() && grid_sun(view + 12, sun)) {
         renderer_pc_hooks().shadow_casters_double_sided = true;
-        constexpr float kSunLift = 300.0f, kSunDepth = 1500.0f;
-        const float centre[3] = {camera[12], camera[13], camera[14] - title_global<float>(0x008db1a0)};
+        // Step 2: a larger square (kSunRadius; the original's 700 let shadows end 1000 units ahead), its centre
+        // ahead of the view as the original's (0.45 of the radius along its diagonal), and a box deep enough for
+        // that square's far side under a low sun (radius / tan(elevation) along the sun, plus the lift).
+        constexpr float kSunLift = 300.0f, kSunDepth = 5000.0f, kSunRadius = 1500.0f;
+        radius = kSunRadius;
+        const Lanes ahead = mul(sub(up, across), radius * title_global<float>(0x0083f034));
+        const float centre[3] = {view[12] + ahead.v[0], view[13] + ahead.v[1], view[14]};
         aim_at_sun(camera, sun);
         const float back = kSunLift / -sun[2];
         for (int k = 0; k < 3; ++k) camera[12 + k] = centre[k] - sun[k] * back;
         camera[15] = camera[12];
-        renderer_pc_hooks().shadow_reach = title_global<float>(0x008db19c) / -sun[2];
+        renderer_pc_hooks().shadow_reach = radius / -sun[2];
         far = kSunDepth;
         box_depth = kSunDepth;
         box_shift = kSunDepth * 0.5f;
+        // Step 2: casters write their depth along the sun, the level compares (the shaders' c0, sun_world.glsl):
+        // the receiver's projector z (-0.5..0.5 over the box from the camera) as the casters' depth
+        // ((distance - near) / (far - near), orthographic), less a bias of kSunBias units.
+        constexpr float kNear = 0.1f, kSunBias = 4.0f;
+        float* constants = renderer_pc_hooks().pixel_override_constants;
+        constants[0] = box_depth / (far - kNear);
+        constants[1] = 0.5f - kNear / box_depth;
+        constants[2] = kSunBias / (far - kNear);
+        constants[3] = 1.0f;
+        renderer_pc_hooks().shadow_depth = true;
     }
 
     // Clear the texture.
@@ -2735,7 +2753,7 @@ void XB_CDECL R_RenderTestShadow() {
     nglSetAspect(1.0f);
     nglSetCameraMatrix(camera);
     nglSetOrthographic(0.1f, far);
-    const float inverse = title_global<float>(0x0083eb20) / title_global<float>(0x008db19c);
+    const float inverse = title_global<float>(0x0083eb20) / radius;
     const float extent = inverse * title_global<float>(0x0083eba8);           // 2
     const float negative_extent = inverse * title_global<float>(0x0083ec5c);  // -2
     nglSetSceneViewportRect(negative_extent, negative_extent, extent, extent);
@@ -2749,7 +2767,6 @@ void XB_CDECL R_RenderTestShadow() {
     }
     nglPopScene();
 
-    const float radius = title_global<float>(0x008db19c);
     alignas(16) const float scale[4] = {radius, 0.0f - radius, box_depth, radius};  // 500 (ours: kSunDepth)
     // Our original-shadows switch off: the shadow texture is still drawn (the casters' LOD changes in
     // R_AddDObjSurfaces are game state: replays drift without them), only not projected onto the level.
