@@ -67,6 +67,9 @@ struct RendererPcHooks {
     // Set with it: how far (horizontally) from the projector a world mesh still receives the shadow; 0 = the
     // original's 0x008db19c. A slanted shadow camera's square lands stretched along the sun by 1 / sin(elevation).
     float shadow_reach = 0.0f;
+    // With shadow_reach: the point (x, y) it is measured from - the shadow square's centre (the projector's own
+    // position lies far along the sun in the deep step-2 box).
+    float shadow_reach_center[2] = {};
     // Set with it (step 2): the casters write their depth along the sun (render::kOwnPsSunCaster, our own depth
     // buffer keeping the nearest), and the projected world draws compare it (pixel_override).
     bool shadow_depth = false;

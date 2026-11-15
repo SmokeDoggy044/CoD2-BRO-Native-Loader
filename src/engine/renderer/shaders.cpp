@@ -1314,6 +1314,10 @@ void draw_world(const NglMeshNode* node, const WorldClass& k) {
         const float reach = renderer_pc_hooks().shadow_reach;  // ours (2.0): sun shadows reach farther
         const float radius = *reinterpret_cast<const float*>(draw->mesh + 0x30) +
                              (reach > 0.0f ? reach : title_global<float>(0x008db19c));
+        if (reach > 0.0f) {  // from the square's centre (see RendererPcHooks::shadow_reach_center)
+            const float* c = renderer_pc_hooks().shadow_reach_center;
+            d = sub(with_w_one(world_center(), k.one), with_w_one(Lanes{{c[0], c[1], 0.0f, 0.0f}}, k.one));
+        }
         d.v[2] = 0;
         bool reached = true;
         if (title_global<uint8_t>(0x0095f6d1) == 0) {

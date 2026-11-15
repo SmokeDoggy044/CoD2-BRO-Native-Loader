@@ -2769,7 +2769,10 @@ void XB_CDECL R_RenderTestShadow() {
         const float back = kSunLift / -sun[2];
         for (int k = 0; k < 3; ++k) camera[12 + k] = centre[k] - sun[k] * back;
         camera[15] = camera[12];
-        renderer_pc_hooks().shadow_reach = radius / -sun[2];
+        // The square lands stretched by 1 / sin(elevation) along the sun: its far corner from the centre.
+        renderer_pc_hooks().shadow_reach = radius * std::sqrt(1.0f + 1.0f / (sun[2] * sun[2]));
+        renderer_pc_hooks().shadow_reach_center[0] = centre[0];
+        renderer_pc_hooks().shadow_reach_center[1] = centre[1];
         far = kSunDepth;
         box_depth = kSunDepth;
         box_shift = kSunDepth * 0.5f;
