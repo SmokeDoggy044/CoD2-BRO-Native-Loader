@@ -204,6 +204,9 @@ const SettingDef kSettings[] = {
     {"partial-cover", "on|off", T::Switch, G::Sound, kLiveIni, 0, 0, nullptr, "on",
      "enhanced, with occlusion: 32 lines over a sound's size for partial cover (off: 7)", "enhanced",
      "partial_cover"},
+    {"openings", "on|off", T::Switch, G::Sound, kLiveIni, 0, 0, nullptr, "on",
+     "enhanced, with occlusion: sound round corners and through doors and windows, heard from there", "enhanced",
+     "openings"},
     {"reverb-amount", "DB", T::Float, G::Sound, kLiveIni, -12, 12, nullptr, "0",
      "enhanced reverb: level in dB (-12..12)", "reverb", "amount"},
     {"reverb-decay", "X", T::Float, G::Sound, kLiveIni, 0.25, 4, nullptr, "1",
@@ -502,6 +505,10 @@ const SettingUi kUi[] = {
     {"partial-cover", nullptr, "Partial cover",
      "With occlusion: a sound half hidden behind cover is muffled by how much of it is hidden, in fine steps (32 "
      "lines to it instead of 7).",
+     nullptr, nullptr, "audio=enhanced"},
+    {"openings", nullptr, "Sound through openings",
+     "With occlusion: a sound behind a wall also reaches you round the corner or through the nearest door or "
+     "window, and seems to come from there.",
      nullptr, nullptr, "audio=enhanced"},
     {"close-boost", nullptr, "Close-range boost",
      "Gunfire and bullets louder near you: full within 15 m, fading to the game's own level at 30 m (your own "

@@ -250,7 +250,10 @@ void Engine::update(VoiceImpl& v) {
     if (is_spatial(v)) {
         params.placement =
             v.current.mode == SpatialMode::HeadRelative ? Output::Placement::Relative : Output::Placement::World;
-        to_al(v.current.position, params.position);
+        // Openings (3.4): heard from where the way round reaches the listener.
+        const bool redirect = v.current.mode != SpatialMode::HeadRelative && feature_on(Feature::Occlusion) &&
+                              feature_on(Feature::Openings) && v.transmission.redirect;
+        to_al(redirect ? v.transmission.position : v.current.position, params.position);
     } else if (format.channels == 1) {
         params.placement = Output::Placement::Relative;
         params.position[0] = v.pan;
@@ -721,6 +724,8 @@ void Engine::set_transmission(VoiceId id, const Transmission& transmission) {
         t.gain = std::clamp(transmission.gain, 0.0f, 1.0f);
         t.gain_lf = std::clamp(transmission.gain_lf, 0.0f, 1.0f);
         t.gain_hf = std::clamp(transmission.gain_hf, 0.0f, 1.0f);
+        t.redirect = transmission.redirect;
+        for (int k = 0; k < 3; ++k) t.position[k] = transmission.position[k];
         if (v.transmission == t) return;
         v.transmission = t;
         update(v);
@@ -906,6 +911,18 @@ std::vector<VoiceRow> voice_rows() {
         r.direct_gain = v->last.direct_gain;
         r.direct_gain_hf = v->last.direct_gain_hf;
         r.direct_gain_lf = v->last.direct_gain_lf;
+        if (r.spatial && v->transmission.redirect && g.feature_on(Feature::Openings) && g.feature_on(Feature::Occlusion)) {
+            float a[3], b[3];
+            for (int k = 0; k < 3; ++k) {
+                a[k] = v->current.position[k] - l[k];
+                b[k] = v->transmission.position[k] - l[k];
+            }
+            const float la = std::sqrt(a[0] * a[0] + a[1] * a[1] + a[2] * a[2]);
+            const float lb = std::sqrt(b[0] * b[0] + b[1] * b[1] + b[2] * b[2]);
+            if (la > 0 && lb > 0)
+                r.turn = std::acos(std::clamp((a[0] * b[0] + a[1] * b[1] + a[2] * b[2]) / (la * lb), -1.0f, 1.0f)) *
+                         57.29578f;
+        }
         r.send_gain = v->last.reverb_send ? v->last.send_gain : 0.0f;
         r.level = Output::take_level(v->source);
         rows.push_back(r);

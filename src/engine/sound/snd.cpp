@@ -2271,15 +2271,30 @@ struct Occlusion {
     int32_t owner = -1;  // the voice record's owner (+0xcc) when traced; another: a new sound
     float target = 0.0f, current = 0.0f;
     float loss_target[3] = {0, 0, 0}, loss[3] = {0, 0, 0};  // transmission (3.2): dB per band, glides as well
+    // Openings (3.4): the direction the sound seems to come from (unit, from the listener), gliding to the
+    // worker's; `turned` while it is away from the straight one.
+    bool turned = false, turn_wanted = false;
+    float direction[3] = {0, 0, 0}, direction_target[3] = {0, 0, 0};
 };
+
+float g_listener[3] = {0, 0, 0};  // this update's (occlusion_voices)
 
 void send_occlusion(uint32_t i, const Occlusion& o) {
     uint8_t* const slot = &title_global<uint8_t>(0x0090a940 + i * 0x6c);
     uint8_t* const voice = &title_global<uint8_t>(0x00911548 + i * 0xe0);
     const audio::VoiceId id = voice_id(slot, (voice[0xc3] & 2) ? 0x30 : 0);
-    device().set_transmission(id, SndEnv_ToTransmission(o.loss));
+    audio::Transmission t = SndEnv_ToTransmission(o.loss);
+    if (o.turned) {
+        const float* p = &snd_at<float>(voice, 0x54);
+        const float d[3] = {p[0] - g_listener[0], p[1] - g_listener[1], p[2] - g_listener[2]};
+        const float distance = std::sqrt(d[0] * d[0] + d[1] * d[1] + d[2] * d[2]);
+        t.redirect = true;
+        for (int k = 0; k < 3; ++k) t.position[k] = g_listener[k] + o.direction[k] * distance;
+    }
+    device().set_transmission(id, t);
     device().set_occlusion(id, o.current);
 }
+
 Occlusion g_occlusion[256];
 
 constexpr float kNearListener = 48.0f;  // world units
@@ -2292,6 +2307,7 @@ bool near_listener(const float listener[3], const float* position) {
 // Starts new voices' occlusion, lists the others for the worker.
 std::vector<SndVoiceRay> occlusion_voices(const float listener[3]) {
     std::vector<SndVoiceRay> voices;
+    for (int k = 0; k < 3; ++k) g_listener[k] = listener[k];
     if (!std::isfinite(listener[0]) || !std::isfinite(listener[1]) || !std::isfinite(listener[2])) return voices;
     const uint32_t count = std::min(title_global<uint32_t>(0x008bed00), 256u);
     for (uint32_t i = 0; i < count; ++i) {
@@ -2307,10 +2323,11 @@ std::vector<SndVoiceRay> occlusion_voices(const float listener[3]) {
         if (o.owner != owner) {
             if (!position[0] && !position[1] && !position[2]) continue;  // not placed yet: next update
             o.owner = owner;
+            o.turned = o.turn_wanted = false;
             const SndPropagation p =
                 near_listener(listener, position)
                     ? SndPropagation{}
-                    : SndEnv_Propagation(listener, position, false);  // 7 lines here; the worker refines
+                    : SndEnv_QuickPropagation(listener, position);  // the worker refines it next update
             o.target = o.current = p.occlusion;
             for (int b = 0; b < 3; ++b) o.loss_target[b] = o.loss[b] = p.loss_db[b];
             send_occlusion(i, o);
@@ -2337,6 +2354,9 @@ void apply_occlusion(const std::vector<SndVoiceRay>& done) {
         Occlusion& o = g_occlusion[r.slot];
         o.target = r.propagation.occlusion;
         for (int b = 0; b < 3; ++b) o.loss_target[b] = r.propagation.loss_db[b];
+        o.turn_wanted = r.propagation.path_share > 0.02f;
+        if (o.turn_wanted)
+            for (int k = 0; k < 3; ++k) o.direction_target[k] = r.propagation.direction[k];
     }
     const uint32_t count = std::min(title_global<uint32_t>(0x008bed00), 256u);
     for (uint32_t i = 0; i < count; ++i) {
@@ -2351,6 +2371,28 @@ void apply_occlusion(const std::vector<SndVoiceRay>& done) {
         };
         glide(o.current, o.target, 0.01f);
         for (int b = 0; b < 3; ++b) glide(o.loss[b], o.loss_target[b], 0.1f);
+        // The direction: towards the worker's while a way round is heard, else back to the straight one.
+        if (o.turn_wanted || o.turned) {
+            const float* p = &snd_at<float>(&title_global<uint8_t>(0x00911548 + i * 0xe0), 0x54);
+            float straight[3] = {p[0] - g_listener[0], p[1] - g_listener[1], p[2] - g_listener[2]};
+            const float ls = std::sqrt(straight[0] * straight[0] + straight[1] * straight[1] + straight[2] * straight[2]);
+            if (ls > 1.0f) {
+                for (float& c : straight) c /= ls;
+                if (!o.turned)
+                    for (int k = 0; k < 3; ++k) o.direction[k] = straight[k];
+                const float* target = o.turn_wanted ? o.direction_target : straight;
+                float d[3];
+                for (int k = 0; k < 3; ++k) d[k] = o.direction[k] + (target[k] - o.direction[k]) * 0.2f;
+                const float ld = std::sqrt(d[0] * d[0] + d[1] * d[1] + d[2] * d[2]);
+                if (ld > 1e-4f)
+                    for (int k = 0; k < 3; ++k) o.direction[k] = d[k] / ld;
+                o.turned = o.turn_wanted || o.direction[0] * straight[0] + o.direction[1] * straight[1] +
+                                                    o.direction[2] * straight[2] < 0.9995f;
+                changed = true;
+            } else {
+                o.turned = false;
+            }
+        }
         if (changed) send_occlusion(i, o);
     }
 }
@@ -2612,7 +2654,11 @@ uint32_t XB_CDECL SndHw_Update() {
     if (reverb || occlusion) {
         const auto timer_start = std::chrono::steady_clock::now();
         std::vector<SndVoiceRay> done;
-        SndEnv_Update(device(), listener, reverb, device().has(audio::Feature::PartialCover),
+        SndRayOptions options;
+        options.reverb = reverb;
+        options.partial_cover = device().has(audio::Feature::PartialCover);
+        options.openings = device().has(audio::Feature::Openings);
+        SndEnv_Update(device(), listener, options,
                       occlusion ? occlusion_voices(listener.position) : std::vector<SndVoiceRay>{}, done);
         if (occlusion) apply_occlusion(done);
         SndEnv_CountGameTime(uint64_t(

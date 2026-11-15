@@ -293,6 +293,17 @@ bool AcousticScene::blocked(const float a[3], const float b[3], uint32_t mask) c
     return any;
 }
 
+bool AcousticScene::blocked_any(const float a[3], const float b[3], uint32_t mask) const {
+    const float dir[3] = {b[0] - a[0], b[1] - a[1], b[2] - a[2]};
+    float max_t = 1.0f;
+    bool any = false;
+    walk(a, dir, max_t, mask, true, [&](const Tri&, float) {
+        any = true;
+        return true;
+    });
+    return any;
+}
+
 size_t AcousticScene::crossings(const float a[3], const float b[3], uint32_t mask, Crossing* out, size_t max) const {
     const float dir[3] = {b[0] - a[0], b[1] - a[1], b[2] - a[2]};
     float max_t = 1.0f;

@@ -39,6 +39,8 @@ public:
     Hit nearest(const float origin[3], const float dir[3], float max_distance, uint32_t mask) const;
     // Any triangle in `mask` between a and b (cheaper than nearest).
     bool blocked(const float a[3], const float b[3], uint32_t mask) const;
+    // The same, faces from either side (the air grid's edges: under terrain is not air).
+    bool blocked_any(const float a[3], const float b[3], uint32_t mask) const;
 
     // Every surface crossed between a and b, nearest first (at most `max`; returns the count found up to it).
     struct Crossing {

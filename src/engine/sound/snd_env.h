@@ -26,10 +26,20 @@ struct SndPropagation {
     float occlusion = 0;
     float loss_db[3] = {0, 0, 0};
     float detour = 1;  // the edge detour's cost (1: none)
+    // Openings (3.4): a way round through the air found - its share of what arrives (middle band, 0..1) and the
+    // direction the sound then seems to come from (unit, from the listener: the direct one turned towards the
+    // opening by that share).
+    float path_share = 0;
+    float direction[3] = {0, 0, 0};
+    float path_length = 0;
+    int path_bends = 0;
 };
 // `partial_cover` (3.3): 32 lines over the sound's size instead of the 7.
 SndPropagation SndEnv_Propagation(const float listener[3], const float source[3], bool partial_cover,
                                   std::string* describe = nullptr);
+// A first estimate for a sound that just started (game thread, cheap): the centre and muzzle lines, and what the
+// centre line passes through; the worker's full SndEnv_Propagation follows on the next update.
+SndPropagation SndEnv_QuickPropagation(const float listener[3], const float source[3]);
 // The loss as the sound device's band gains (the middle as the gain, the outer bands relative, at most 1).
 audio::Transmission SndEnv_ToTransmission(const float loss_db[3]);
 
@@ -43,7 +53,10 @@ struct SndVoiceRay {
 // Once per sound update (SndHw_Update) on an enhanced device, game thread: hands the ray worker (3.1) this update's
 // listener, the probe when due (`reverb`) and `voices` to trace, when it is idle; applies what it finished since:
 // the environment (probes now and then, turned with the listener every time) and the voices' occlusion in `done`.
-void SndEnv_Update(audio::SoundDevice& device, const audio::Listener& listener, bool reverb, bool partial_cover,
+struct SndRayOptions {
+    bool reverb = false, partial_cover = false, openings = false;
+};
+void SndEnv_Update(audio::SoundDevice& device, const audio::Listener& listener, const SndRayOptions& options,
                    std::vector<SndVoiceRay> voices, std::vector<SndVoiceRay>& done);
 // COD_BRO_SOUND_TIME=1: the game thread's time in the enhanced sound update (`ns`, measured by the caller) counted;
 // a log line every 600 updates with the ray worker's job times.

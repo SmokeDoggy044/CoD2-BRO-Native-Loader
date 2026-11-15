@@ -159,6 +159,7 @@ set(game_code_sources
     sound/snd.cpp
     sound/snd_env.cpp
     sound/snd_scene.cpp
+    sound/snd_paths.cpp
     sound/acoustic_scene.cpp
     script/scr_fiber.cpp
     shared/stack_guard.cpp

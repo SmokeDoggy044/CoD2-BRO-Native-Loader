@@ -116,12 +116,12 @@ void write_sound_mark(const char* prefix) {
     for (const audio::VoiceRow& r : rows) {
         std::snprintf(line, sizeof(line),
                       "voice %08x %s%s: at %.0f %.0f %.0f, distance %.0f, distance gain %.3f, volume %.3f, occlusion "
-                      "%.2f, out gain %.4f, direct %.2f lf %.2f hf %.2f, send %.2f, level %.4f\n",
+                      "%.2f, out gain %.4f, direct %.2f lf %.2f hf %.2f, send %.2f, level %.4f, heard %.0f deg turned\n",
                       unsigned(r.id), kCategories[size_t(r.category)], r.spatial ? "" : " (not placed)",
                       double(r.position[0]), double(r.position[1]), double(r.position[2]), double(r.distance),
                       double(r.distance_gain), double(r.volume), double(r.occlusion), double(r.gain),
                       double(r.direct_gain), double(r.direct_gain_lf), double(r.direct_gain_hf), double(r.send_gain),
-                      double(r.level));
+                      double(r.level), double(r.turn));
         text += line;
         if (r.spatial) game::SndEnv_DescribeVoiceForMark(l, r.position, text);
     }
@@ -146,12 +146,12 @@ void audio_capture_frame() {
     if (frame % 6) return;
     static const char* const kCategories[] = {"effects", "dialogue", "music", "interface", "ambience", "gunfire", "bullets", "own_gunfire"};
     for (const audio::VoiceRow& r : audio::voice_rows())
-        std::fprintf(g_capture.voices, "%u,%llu,%08x,%s,%d,%.1f,%.1f,%.1f,%.1f,%.4f,%.4f,%.3f,%.5f,%.3f,%.3f,%.3f,%.5f,%.3f\n",
+        std::fprintf(g_capture.voices, "%u,%llu,%08x,%s,%d,%.1f,%.1f,%.1f,%.1f,%.4f,%.4f,%.3f,%.5f,%.3f,%.3f,%.3f,%.5f,%.3f,%.1f\n",
                      frame, sample, unsigned(r.id), kCategories[size_t(r.category)], int(r.spatial),
                      double(r.position[0]), double(r.position[1]), double(r.position[2]), double(r.distance),
                      double(r.distance_gain), double(r.volume), double(r.occlusion), double(r.gain),
                      double(r.direct_gain), double(r.direct_gain_hf), double(r.send_gain), double(r.level),
-                     double(r.direct_gain_lf));
+                     double(r.direct_gain_lf), double(r.turn));
     if (frame % 600 == 0) {
         std::fflush(g_capture.frames);
         std::fflush(g_capture.voices);
@@ -363,7 +363,7 @@ void configure_title_services(const Options& options, const fs::path& assets, co
         if (g_capture.frames && g_capture.voices) {
             std::fputs("frame,sample,listener_x,listener_y,listener_z\n", g_capture.frames);
             std::fputs("frame,sample,voice,category,spatial,x,y,z,distance,distance_gain,volume,occlusion,gain,direct,"
-                       "direct_hf,send,level,direct_lf\n", g_capture.voices);
+                       "direct_hf,send,level,direct_lf,turn\n", g_capture.voices);
             g_capture.inner = d3d_config.frame_presented;
             d3d_config.frame_presented = &audio_capture_frame;
         } else {

@@ -39,6 +39,7 @@
 #include "cm.h"
 #include "float_env.h"
 #include "snd_scene.h"
+#include "snd_paths.h"
 #include "sound_device.h"
 #include "title_data.h"
 
@@ -717,14 +718,31 @@ SndPropagation SndEnv_Propagation(const float listener[3], const float source[3]
         for (int b = 0; b < 3; ++b)
             energy[b] = std::max(energy[b], std::pow(10.0, -(kDetourBase[b] + kDetourSlope[b] * cost) / 10.0));
     float db[3];
-    for (int b = 0; b < 3; ++b) db[b] = float(-10.0 * std::log10(std::max(energy[b], 1e-12)));
-    // The floor holds the middle band; the others keep their difference to it (behind concrete: quieter AND dull),
+    for (int b = 0; b < 3; ++b) db[b] = float(-10.0 * std::log10(std::max(energy[b], 1e-30)));
+    // The floor holds the middle band; the others keep their difference to it (behind concrete: quieter AND dull; lows
+    // at most 6 dB better - the device holds them at the middle anyway),
     // the highs at most 12 dB below the middle there.
     const float mid = std::min(db[1], kTransmissionFloor);
     p.loss_db[1] = mid;
-    p.loss_db[0] = std::max(0.0f, mid + std::min(db[0] - db[1], 0.0f));
+    p.loss_db[0] = std::max(0.0f, mid + std::clamp(db[0] - db[1], -6.0f, 0.0f));
     p.loss_db[2] = mid + std::clamp(db[2] - db[1], 0.0f, 12.0f);
     p.detour = cost;
+    return p;
+}
+
+SndPropagation SndEnv_QuickPropagation(const float listener[3], const float source[3]) {
+    SndPropagation p;
+    std::array<float, 3> points[kOcclusionPoints];
+    if (!scene() || !occlusion_points(listener, source, points)) return p;
+    const Line centre = trace_line(listener, points[0].data());
+    if (centre.share <= 0.0f || blocked(listener, points[1].data()) <= 0.0f) return p;
+    float db[3] = {0, 0, 0};
+    if (!line_loss(listener, points[0].data(), db)) add_slab(0, 2.0f, db);
+    p.occlusion = centre.share;
+    const float mid = std::min(db[1], kTransmissionFloor);
+    p.loss_db[1] = mid;
+    p.loss_db[0] = std::max(0.0f, mid + std::clamp(db[0] - db[1], -6.0f, 0.0f));
+    p.loss_db[2] = mid + std::clamp(db[2] - db[1], 0.0f, 12.0f);
     return p;
 }
 
@@ -742,6 +760,8 @@ namespace {
 struct RayJob {
     bool probe = false;
     bool partial_cover = false;
+    bool openings = false;
+    uint32_t update = 0;
     float listener[3] = {0, 0, 0};
     std::vector<SndVoiceRay> voices;
 };
@@ -750,6 +770,131 @@ struct RayResult {
     Environment target;
     std::vector<SndVoiceRay> voices;
 };
+
+// Openings (3.4): the air grid's ways to the hidden voices, added to what comes through the walls. The grid follows
+// the listener (rebuilt 4 times a second, or when it moved a cell); each way loses per band by its bends and its
+// extra length over the straight line.
+// The air grid is built on a thread of its own (a first build takes up to ~80 ms; occlusion keeps running): the
+// ray worker asks for a new field now and then and uses the latest finished one.
+class PathWorker {
+public:
+    ~PathWorker() {
+        {
+            std::lock_guard lock(mutex_);
+            stopping_ = true;
+            wake_.notify_one();
+        }
+        if (thread_.joinable()) thread_.join();
+    }
+    void request(std::shared_ptr<const AcousticScene> scene, const float listener[3]) {
+        std::lock_guard lock(mutex_);
+        if (busy_) return;
+        if (!thread_.joinable()) thread_ = std::thread([this] { loop(); });
+        scene_ = std::move(scene);
+        for (int k = 0; k < 3; ++k) listener_[k] = listener[k];
+        busy_ = true;
+        wake_.notify_one();
+    }
+    std::shared_ptr<const SoundField> field() {
+        std::lock_guard lock(mutex_);
+        return field_;
+    }
+    void reset() {
+        std::unique_lock lock(mutex_);
+        idle_.wait(lock, [this] { return !busy_; });
+        field_.reset();
+    }
+
+private:
+    void loop() {
+        platform::HostFloatEnv float_env;
+        std::unique_lock lock(mutex_);
+        while (true) {
+            wake_.wait(lock, [this] { return stopping_ || busy_; });
+            if (stopping_) return;
+            std::shared_ptr<const AcousticScene> scene = std::move(scene_);
+            const float listener[3] = {listener_[0], listener_[1], listener_[2]};
+            lock.unlock();
+            std::shared_ptr<const SoundField> field = builder_.build(*scene, listener);
+            scene.reset();
+            lock.lock();
+            field_ = std::move(field);
+            busy_ = false;
+            idle_.notify_all();
+        }
+    }
+    std::mutex mutex_;
+    std::condition_variable wake_, idle_;
+    std::thread thread_;
+    SoundPaths builder_;  // its thread only
+    std::shared_ptr<const AcousticScene> scene_;
+    std::shared_ptr<const SoundField> field_;
+    float listener_[3] = {0, 0, 0};
+    bool busy_ = false, stopping_ = false;
+};
+PathWorker g_path_worker;
+uint32_t g_paths_update = 0;
+float g_paths_at[3] = {0, 0, 0};
+constexpr float kBendLoss[3] = {2, 5, 9};  // dB per bend (low, mid, high: corners take the highs)
+constexpr float kExtraLoss[3] = {2, 4, 6};  // dB per doubling of (1 + extra / 200 units)
+
+void add_paths(const RayJob& job, std::vector<SndVoiceRay>& voices) {
+    const AcousticScene* sc = scene();
+    if (!sc) return;
+    bool any = false;
+    for (const SndVoiceRay& v : voices) any |= v.propagation.occlusion > 0.0f;
+    if (!any) return;
+    const float moved = std::sqrt((job.listener[0] - g_paths_at[0]) * (job.listener[0] - g_paths_at[0]) +
+                                  (job.listener[1] - g_paths_at[1]) * (job.listener[1] - g_paths_at[1]) +
+                                  (job.listener[2] - g_paths_at[2]) * (job.listener[2] - g_paths_at[2]));
+    std::shared_ptr<const SoundField> field = g_path_worker.field();
+    if (!field || job.update - g_paths_update >= 15 || moved > 64.0f) {
+        g_path_worker.request(g_scene, job.listener);
+        g_paths_update = job.update;
+        for (int k = 0; k < 3; ++k) g_paths_at[k] = job.listener[k];
+    }
+    if (!field) return;
+    for (SndVoiceRay& v : voices) {
+        SndPropagation& p = v.propagation;
+        if (p.occlusion <= 0.0f) continue;
+        const float centre[3] = {v.position[0], v.position[1], v.position[2] + 48};
+        const SoundField::Path path = field->path_to(*sc, centre);
+        if (!path.found || path.bends < 1) continue;
+        const float direct = std::sqrt((centre[0] - job.listener[0]) * (centre[0] - job.listener[0]) +
+                                       (centre[1] - job.listener[1]) * (centre[1] - job.listener[1]) +
+                                       (centre[2] - job.listener[2]) * (centre[2] - job.listener[2]));
+        if (direct < 1.0f) continue;
+        const float extra = std::max(0.0f, path.length - direct);
+        double energy[3], path_energy[3];
+        for (int b = 0; b < 3; ++b) {
+            const float loss = kBendLoss[b] * float(std::min(path.bends, 4)) +
+                               kExtraLoss[b] * std::log2(1.0f + extra / 200.0f);
+            path_energy[b] = std::pow(10.0, -loss / 10.0);
+            energy[b] = std::pow(10.0, -p.loss_db[b] / 10.0);
+        }
+        const double through = energy[1];
+        for (int b = 0; b < 3; ++b) {
+            const double total = std::min(1.0, energy[b] + path_energy[b]);
+            p.loss_db[b] = float(-10.0 * std::log10(std::max(total, 1e-30)));
+        }
+        p.loss_db[0] = std::min(p.loss_db[0], p.loss_db[1]);  // lows as before: not below the middle
+        p.path_share = float(path_energy[1] / (through + path_energy[1]));
+        p.path_length = path.length;
+        p.path_bends = path.bends;
+        float to_opening[3], to_source[3];
+        for (int k = 0; k < 3; ++k) {
+            to_opening[k] = path.opening[k] - job.listener[k];
+            to_source[k] = (centre[k] - job.listener[k]) / direct;
+        }
+        const float lo = std::sqrt(to_opening[0] * to_opening[0] + to_opening[1] * to_opening[1] +
+                                   to_opening[2] * to_opening[2]);
+        if (lo < 1.0f) continue;
+        float d[3];
+        for (int k = 0; k < 3; ++k) d[k] = (1 - p.path_share) * to_source[k] + p.path_share * to_opening[k] / lo;
+        const float ld = std::sqrt(d[0] * d[0] + d[1] * d[1] + d[2] * d[2]);
+        for (int k = 0; k < 3; ++k) p.direction[k] = ld > 1e-4f ? d[k] / ld : to_source[k];
+    }
+}
 
 // COD_BRO_SOUND_TIME=1: time spent on sound rays, logged every 600 updates (game thread per update, worker per job).
 struct SoundTime {
@@ -788,6 +933,7 @@ RayResult run_job(const RayJob& job) {
     if (job.probe) r.probed = probe_environment(job.listener, r.target);
     r.voices = job.voices;
     for (SndVoiceRay& v : r.voices) v.propagation = SndEnv_Propagation(job.listener, v.position, job.partial_cover);
+    if (job.openings) add_paths(job, r.voices);
     g_scene.reset();  // a finished level's scene is not kept alive by this thread
     return r;
 }
@@ -858,8 +1004,9 @@ bool g_partial_cover_last = false;  // as last passed to SndEnv_Update (the mark
 
 }  // namespace
 
-void SndEnv_Update(audio::SoundDevice& device, const audio::Listener& l, bool reverb, bool partial_cover,
+void SndEnv_Update(audio::SoundDevice& device, const audio::Listener& l, const SndRayOptions& options,
                    std::vector<SndVoiceRay> voices, std::vector<SndVoiceRay>& done) {
+    const bool reverb = options.reverb, partial_cover = options.partial_cover;
     State& s = g_state;
     const uint32_t update = s.updates++;
     done.clear();
@@ -868,6 +1015,8 @@ void SndEnv_Update(audio::SoundDevice& device, const audio::Listener& l, bool re
     RayJob job;
     job.probe = reverb && update - g_last_probe >= kProbeEvery;
     job.partial_cover = partial_cover;
+    job.openings = options.openings;
+    job.update = update;
     g_partial_cover_last = partial_cover;
     for (int k = 0; k < 3; ++k) job.listener[k] = l.position[k];
     job.voices = std::move(voices);
@@ -928,8 +1077,15 @@ void SndEnv_SetTuning(const audio::ReverbTuning& tuning) {
     g_tuning = tuning;
 }
 
+namespace {
+SoundPaths g_mark_paths;  // the mark dump's own grid (game thread; the worker's is its own)
+std::shared_ptr<const SoundField> g_mark_field;
+}
+
 void SndEnv_DescribeForMark(const float listener[3], std::string& out) {
     SndEnv_BeginRays();
+    g_mark_field.reset();
+    if (const AcousticScene* sc = scene()) g_mark_field = g_mark_paths.build(*sc, listener);
     char line[256];
     const auto add = [&](const char* format, auto... args) {
         std::snprintf(line, sizeof(line), format, args...);
@@ -997,6 +1153,18 @@ void SndEnv_DescribeVoiceForMark(const float listener[3], const float source[3],
     add("    transmission now: loss %.1f / %.1f / %.1f dB (low / mid / high), detour cost %.2f\n", double(p.loss_db[0]),
         double(p.loss_db[1]), double(p.loss_db[2]), double(p.detour));
     if (!solids.empty()) out += "    " + solids + "\n";
+    if (const AcousticScene* sc = scene(); sc && g_mark_field && p.occlusion > 0.0f) {
+        const float centre[3] = {source[0], source[1], source[2] + 48};
+        std::vector<std::array<float, 3>> waypoints;
+        const SoundField::Path path = g_mark_field->path_to(*sc, centre, &waypoints);
+        if (!path.found) {
+            out += "    way round: none in the grid\n";
+        } else {
+            add("    way round: %.0f long, %d bends, via", double(path.length), path.bends);
+            for (const auto& w : waypoints) add(" (%.0f %.0f %.0f)", double(w[0]), double(w[1]), double(w[2]));
+            out += "\n";
+        }
+    }
 }
 
 size_t SndEnv_SoundPaths(const float listener[3], const float source[3], SoundPathLine* out, size_t max) {
@@ -1054,6 +1222,7 @@ void SndEnv_CountGameTime(uint64_t ns) {
 
 void SndEnv_Reset() {
     g_worker.drain();
+    g_path_worker.reset();
     g_last_probe = 0;
     g_state = State();
     g_scene.reset();

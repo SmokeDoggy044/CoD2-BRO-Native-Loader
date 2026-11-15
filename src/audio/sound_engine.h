@@ -77,6 +77,7 @@ struct VoiceRow {
     float distance = 0, distance_gain = 1, volume = 1, occlusion = 0;
     float gain = 0, direct_gain = 1, direct_gain_hf = 1, send_gain = 0;  // send 0: no reverb send
     float direct_gain_lf = 1;
+    float turn = 0;  // openings: degrees between where the voice is and where it is heard from
     float level = -1;
 };
 std::vector<VoiceRow> voice_rows();

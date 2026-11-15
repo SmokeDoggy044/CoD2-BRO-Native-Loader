@@ -22,6 +22,7 @@ enum class Feature : uint8_t {
     CloseBoost,  // gunfire, bullets and the player's gun louder nearby (CategoryVolumes)
     Transmission,  // with occlusion: through walls by material and thickness, three bands (else a fixed muffle)
     PartialCover,  // with occlusion: 32 lines over a sound's size (else 7)
+    Openings,      // with occlusion: sound round corners and through openings, heard from there
 };
 
 struct EnhancedFeatures {
@@ -32,6 +33,7 @@ struct EnhancedFeatures {
     bool close_boost = true;
     bool transmission = true;
     bool partial_cover = true;
+    bool openings = true;
 
     bool operator==(const EnhancedFeatures&) const = default;
 
@@ -48,6 +50,7 @@ struct EnhancedFeatures {
         {"close_boost", &EnhancedFeatures::close_boost, Feature::CloseBoost},
         {"transmission", &EnhancedFeatures::transmission, Feature::Transmission},
         {"partial_cover", &EnhancedFeatures::partial_cover, Feature::PartialCover},
+        {"openings", &EnhancedFeatures::openings, Feature::Openings},
     };
 
     bool has(Feature feature) const {

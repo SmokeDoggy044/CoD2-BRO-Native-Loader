@@ -94,6 +94,9 @@ struct Transmission {
     float gain = 1.0f;     // the middle band
     float gain_lf = 1.0f;  // low, relative to gain
     float gain_hf = 1.0f;  // high, relative to gain
+    // Openings: where the sound seems to come from instead of the voice's position (game coordinates).
+    bool redirect = false;
+    float position[3] = {0, 0, 0};
     bool operator==(const Transmission&) const = default;
 };
 
