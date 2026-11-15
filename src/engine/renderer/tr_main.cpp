@@ -2395,7 +2395,16 @@ uint32_t XB_CDECL R_AddDObjSurfaces(DObj* obj, uint8_t* entity, const float* mat
                         const uint32_t tint = field<uint8_t*>(entity, 0x250)[0xee];
                         if (tint != 0xff) set_param_slot(params, title_global<uint32_t>(0x00902918), tint);
                     }
-                    if (nglListAddMesh(mesh, matrix, &skinned.flags, &params_word) <= 0) continue;
+                    if (nglListAddMesh(mesh, matrix, &skinned.flags, &params_word) <= 0) {
+                        // Ours (2.0): a part off the screen still casts (see offscreen_part_shadow).
+                        if (cast_shadow && renderer_pc_hooks().shadow_depth) {
+                            NglScene* saved = nglSetCurrentScene(title_global<NglScene*>(0x0095f6cc));
+                            nglListAddMesh(part_mesh(lod_parts(model, DObj_GetCoarsestLod(0, obj)), i), matrix,
+                                           &skinned.flags, &params_word);
+                            nglSetCurrentScene(saved);
+                        }
+                        continue;
+                    }
                     obj->cull_flags &= ~1u;
                     result = 1;
                     if (!cast_shadow) continue;
@@ -2481,7 +2490,22 @@ uint32_t XB_CDECL R_AddDObjSurfaces(DObj* obj, uint8_t* entity, const float* mat
                         entity_scale = scale;
                     }
                 }
-                if (nglListAddMesh(mesh, world[0].v, &rigid.flags, &params_word) <= 0) continue;
+                if (nglListAddMesh(mesh, world[0].v, &rigid.flags, &params_word) <= 0) {
+                    // Ours (2.0): the original copies only the parts the main view draws, so a model cut by the
+                    // screen's edge (the own tank's tracks in the third-person view) cast part of its shadow, which
+                    // grew and shrank as the camera turned (playtest 11-15h). Off-screen parts' copies go in
+                    // without the forced-LOD calls (game state), as the band's.
+                    if (cast_shadow && renderer_pc_hooks().shadow_depth) {
+                        NglScene* saved = nglSetCurrentScene(title_global<NglScene*>(0x0095f6cc));
+                        rigid.flags = entity_scale != 0.0f ? 0x82 : 0x80;
+                        for (float& lane : rigid.scale) lane = entity_scale;
+                        rigid.distance = title_global<float>(0x0083f0dc);  // 100000
+                        const int32_t lod = m != 0 ? -1 : DObj_GetCoarsestLod(0, obj);
+                        nglListAddMesh(part_mesh(lod_parts(model, lod), i), part_world[0].v, &rigid.flags, &params_word);
+                        nglSetCurrentScene(saved);
+                    }
+                    continue;
+                }
                 obj->cull_flags &= ~1u;
                 result = 1;
                 if (!cast_shadow) continue;
