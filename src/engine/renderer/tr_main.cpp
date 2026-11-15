@@ -2621,11 +2621,10 @@ namespace {
 // Ours (2.0): the sun of the light grid at `position`: its one directional light (RGridLight.point == 0, the last
 // of the lights its samples refer to; tools/data/sun_by_mission.csv), as the light's travel direction. Searched
 // once per grid.
-bool grid_sun(const float* position, float* direction, int32_t* index = nullptr) {
+bool grid_sun(const float* position, float* direction) {
     static const RLightGrid* cached_grid = nullptr;
     static float cached[3];
     static bool cached_found = false;
-    static int32_t cached_index = -1;
     int32_t cell = -1;
     const auto* grid = static_cast<const RLightGrid*>(R_GetCellLighting(position, 0, &cell));
     if (!grid || !grid->lights) return false;
@@ -2647,35 +2646,99 @@ bool grid_sun(const float* position, float* direction, int32_t* index = nullptr)
             const float length = std::sqrt(o[0] * o[0] + o[1] * o[1] + o[2] * o[2]);
             for (int k = 0; k < 3; ++k) cached[k] = o[k] / length;
             cached_found = true;
-            cached_index = i;
             break;
         }
     }
     if (cached_found) std::memcpy(direction, cached, sizeof cached);
-    if (index) *index = cached_index;
     return cached_found;
 }
 
-// Ours (2.0 step 2): the sun weight of each sample of the grid area the view is in (its light reference to the
-// sun, as 0..255 of the grid's strongest), for the receivers to leave baked shadow alone. Cached per area.
+// Ours (2.0 step 2): where the baked lighting has the sun, over the whole level - for the receivers to leave baked
+// shadow alone. Every BSP cell has its own light grid (one area, R_GetCellLighting); neighbouring areas overlap,
+// and a cell's samples outside the cell itself carry no sun, so one cell's area alone (the view's) took the
+// shadows off models standing in the neighbour's part of the overlap (playtest 11-15c). The mask covers all areas'
+// union at the finest cell size; each texel takes the strongest sun reference (0..255 of the grid's strongest) of
+// any area's nearest sample. Built once per level.
 struct SunMask {
-    const RLightGridArea* area = nullptr;
     std::vector<uint8_t> weights;
-    uint32_t key = 0;
+    uint32_t width = 0, height = 0, key = 0;
+    float origin[2] = {}, step = 1.0f;  // texel (u, v) covers origin + (u .. u + 1) * step
 };
-const SunMask* grid_sun_mask(const float* position, int32_t sun) {
+// The sun's light index in a grid: its last directional light (as grid_sun).
+int32_t grid_sun_index(const RLightGrid* grid) {
+    int32_t samples = 0;
+    for (int32_t i = 0; i < grid->area_count; ++i) samples += grid->areas[i].width * grid->areas[i].height;
+    int32_t last = -1;
+    for (int32_t i = 0; i < samples; ++i) {
+        const uint32_t sample = grid->samples[i];
+        const uint16_t* reference = grid->references + (sample >> 17) * 2;
+        for (uint32_t k = 0; k < ((sample >> 15) & 3); ++k) last = std::max<int32_t>(last, reference[k * 2]);
+    }
+    for (int32_t i = last; i >= 0; --i)
+        if (grid->lights[i].point == 0.0f && grid->lights[i].origin[2] < -0.05f) return i;
+    return -1;
+}
+const SunMask* level_sun_mask() {
     static SunMask mask;
+    static const uint8_t* built_for = nullptr;
+    static uint64_t built_signature = 0;
     static uint32_t next_key = 1;
-    int32_t cell = -1;
-    const auto* grid = static_cast<const RLightGrid*>(R_GetCellLighting(position, 0, &cell));
-    if (!grid || sun < 0) return nullptr;
-    const RLightGridArea* area = nullptr;
-    for (int32_t i = 0; i < grid->area_count; ++i)
-        if (grid->areas[i].cell == cell) area = &grid->areas[i];
-    if (!area || area->width < 2 || area->height < 2) return nullptr;
-    if (area != mask.area) {
-        mask.area = area;
-        mask.key = next_key++;
+    const uint8_t* bsp = title_global<uint8_t*>(0x0095f640);
+    if (!bsp || !title_global<uint8_t*>(0x0095f6a0)) return nullptr;
+    const uint8_t* level = *reinterpret_cast<uint8_t* const*>(bsp + 4 + *reinterpret_cast<const int32_t*>(bsp + 0x1cc) * 4);
+    if (!level) return nullptr;
+    // Every cell's grid (as R_GetCellLighting), once each; a few dozen at most, listed each frame - the signature
+    // (their areas and first samples) tells a new level that reuses the same memory.
+    std::vector<const RLightGrid*> grids;
+    const uint32_t count = *reinterpret_cast<const uint32_t*>(level + 0x1c);
+    const uint8_t* const* entries = *reinterpret_cast<uint8_t* const* const*>(level + 0x20);
+    for (uint32_t c = 0; c < count; ++c) {
+        const uint8_t* entry = entries[c];
+        if (!entry || !*reinterpret_cast<uint8_t* const*>(entry + 0x2c)) continue;
+        const uint8_t* info = *reinterpret_cast<uint8_t* const*>(*reinterpret_cast<uint8_t* const*>(entry + 0x2c) + 0x24);
+        if (!info) continue;
+        const int32_t index = *reinterpret_cast<const int32_t*>(info + 0x28);
+        if (index < 0) continue;
+        const auto* grid = static_cast<const RLightGrid*>(reinterpret_cast<void* const*>(title_global<uint8_t*>(0x0095f6a0) + 4)[index]);
+        if (grid && grid->lights && std::find(grids.begin(), grids.end(), grid) == grids.end()) grids.push_back(grid);
+    }
+    uint64_t signature = 1469598103934665603ull;
+    const auto mix = [&](uint32_t word) { signature = (signature ^ word) * 1099511628211ull; };
+    for (const RLightGrid* grid : grids)
+        for (int32_t i = 0; i < grid->area_count; ++i) {
+            uint32_t words[8];
+            std::memcpy(words, &grid->areas[i], sizeof words);
+            for (uint32_t w : words) mix(w);
+            mix(grid->samples[grid->areas[i].first]);
+        }
+    if (level == built_for && signature == built_signature) return mask.weights.empty() ? nullptr : &mask;
+    built_for = level;
+    built_signature = signature;
+    mask = SunMask{};
+    mask.key = next_key++;
+    float lo[2] = {1e30f, 1e30f}, hi[2] = {-1e30f, -1e30f}, step = 1e30f;
+    for (const RLightGrid* grid : grids)
+        for (int32_t i = 0; i < grid->area_count; ++i) {
+            const RLightGridArea& a = grid->areas[i];
+            const uint16_t n[2] = {a.width, a.height};
+            for (int k = 0; k < 2; ++k) {
+                lo[k] = std::min(lo[k], a.origin[k]);
+                hi[k] = std::max(hi[k], a.origin[k] + a.cell_size[k] * (n[k] - 1));
+                step = std::min(step, a.cell_size[k]);
+            }
+        }
+    if (grids.empty() || !(step > 1.0f)) return nullptr;
+    // At most 2048 texels a side (m2: about 210 x 400).
+    step = std::max(step, std::max(hi[0] - lo[0], hi[1] - lo[1]) / 2048.0f);
+    mask.step = step;
+    mask.origin[0] = lo[0];
+    mask.origin[1] = lo[1];
+    mask.width = static_cast<uint32_t>((hi[0] - lo[0]) / step) + 1;
+    mask.height = static_cast<uint32_t>((hi[1] - lo[1]) / step) + 1;
+    mask.weights.assign(size_t{mask.width} * mask.height, 0);
+    for (const RLightGrid* grid : grids) {
+        const int32_t sun = grid_sun_index(grid);
+        if (sun < 0) continue;
         const auto weight = [&](uint32_t sample) -> uint32_t {
             const uint16_t* reference = grid->references + (sample >> 17) * 2;
             for (uint32_t k = 0; k < ((sample >> 15) & 3); ++k)
@@ -2686,9 +2749,22 @@ const SunMask* grid_sun_mask(const float* position, int32_t sun) {
         int32_t samples = 0;
         for (int32_t i = 0; i < grid->area_count; ++i) samples += grid->areas[i].width * grid->areas[i].height;
         for (int32_t i = 0; i < samples; ++i) strongest = std::max(strongest, weight(grid->samples[i]));
-        mask.weights.resize(size_t{area->width} * area->height);
-        for (size_t i = 0; i < mask.weights.size(); ++i)
-            mask.weights[i] = static_cast<uint8_t>(std::min<uint32_t>(255, weight(grid->samples[area->first + i]) * 255 / strongest));
+        for (int32_t i = 0; i < grid->area_count; ++i) {
+            const RLightGridArea& a = grid->areas[i];
+            for (uint32_t v = 0; v < mask.height; ++v) {
+                const float fy = (lo[1] + (v + 0.5f) * step - a.origin[1]) / a.cell_size[1];
+                const int32_t y = static_cast<int32_t>(std::lround(fy));
+                if (y < 0 || y >= a.height) continue;
+                for (uint32_t u = 0; u < mask.width; ++u) {
+                    const float fx = (lo[0] + (u + 0.5f) * step - a.origin[0]) / a.cell_size[0];
+                    const int32_t x = static_cast<int32_t>(std::lround(fx));
+                    if (x < 0 || x >= a.width) continue;
+                    const uint32_t w = weight(grid->samples[a.first + y * a.width + x]) * 255 / strongest;
+                    uint8_t& out = mask.weights[size_t{v} * mask.width + u];
+                    out = static_cast<uint8_t>(std::max<uint32_t>(out, std::min<uint32_t>(255, w)));
+                }
+            }
+        }
     }
     return &mask;
 }
@@ -2755,8 +2831,7 @@ void XB_CDECL R_RenderTestShadow() {
     renderer_pc_hooks().shadow_depth = false;
     renderer_pc_hooks().shadow_target_data = reinterpret_cast<const uint32_t*>(texture->d3d_texture)[1];
     renderer_pc_hooks().sun_mask = nullptr;
-    int32_t sun_index = -1;
-    if (const auto sun_hook = renderer_pc_hooks().sun_shadows; sun_hook && sun_hook() && grid_sun(view + 12, sun, &sun_index)) {
+    if (const auto sun_hook = renderer_pc_hooks().sun_shadows; sun_hook && sun_hook() && grid_sun(view + 12, sun)) {
         renderer_pc_hooks().shadow_casters_double_sided = true;
         // Step 2: a larger square (kSunRadius; the original's 700 let shadows end 1000 units ahead), its centre
         // ahead of the view as the original's (0.45 of the radius along its diagonal), and a box deep enough for
@@ -2792,21 +2867,20 @@ void XB_CDECL R_RenderTestShadow() {
         // box is r3 + across * radius * (u - 0.5) - up * radius * (v - 0.5) + sun * depth * z (r3 = the camera
         // moved box_shift along the sun); sample i of a row sits at texel centre (i + 0.5) / width.
         std::memset(constants + 4, 0, 8 * sizeof(float));
-        if (const SunMask* mask = grid_sun_mask(view + 12, sun_index)) {
-            const RLightGridArea& area = *mask->area;
+        if (const SunMask* mask = level_sun_mask()) {
             for (int axis = 0; axis < 2; ++axis) {
-                const float to_texel = 1.0f / (area.cell_size[axis] * (axis ? area.height : area.width));
+                const float to_texel = 1.0f / (mask->step * (axis ? mask->height : mask->width));
                 const float r3 = camera[12 + axis] + sun[axis] * box_shift;
                 float* row = constants + 4 + axis * 4;
                 row[0] = camera[axis] * radius * to_texel;
                 row[1] = -camera[4 + axis] * radius * to_texel;
                 row[2] = sun[axis] * box_depth * to_texel;
-                row[3] = (r3 - 0.5f * radius * camera[axis] + 0.5f * radius * camera[4 + axis] - area.origin[axis]) *
-                             to_texel + 0.5f / (axis ? area.height : area.width);
+                row[3] = (r3 - 0.5f * radius * camera[axis] + 0.5f * radius * camera[4 + axis] - mask->origin[axis]) *
+                         to_texel;
             }
             renderer_pc_hooks().sun_mask = mask->weights.data();
-            renderer_pc_hooks().sun_mask_width = area.width;
-            renderer_pc_hooks().sun_mask_height = area.height;
+            renderer_pc_hooks().sun_mask_width = mask->width;
+            renderer_pc_hooks().sun_mask_height = mask->height;
             renderer_pc_hooks().sun_mask_key = mask->key;
         }
     }
