@@ -242,6 +242,7 @@ struct DeviceObjects {
     render::TextureId sun_mask = 0;  // RendererPcHooks::sun_mask as a texture, of sun_mask_key
     uint32_t sun_mask_key = 0;
     uint64_t stage_content[render::kGfxStages] = {};  // apply(): the bound title textures' content hashes (2.2)
+    uint64_t world_content[2] = {};  // the last level draw's layer textures (its light passes follow it, 2.5)
 };
 
 DeviceObjects& device_objects() {
@@ -687,6 +688,14 @@ constexpr WorldPixel kWorldPixels[] = {
     {0x0089f090, true, false, false},  {0x0089f180, true, false, true},
     {0x0089f270, true, true, false},   {0x0089f360, true, true, true},
 };
+// Their dynamic-light passes (2.5): one or two lights.
+bool own_world_light_draw(uint32_t vertex_key, uint32_t pixel_key) {
+    const bool vs = vertex_key == 0x0089fc58 || vertex_key == 0x0089fde0 || vertex_key == 0x0089ec48 ||
+                    vertex_key == 0x0089edd0;
+    const bool ps = pixel_key == 0x008a0470 || pixel_key == 0x008a0560 || pixel_key == 0x0089f460 ||
+                    pixel_key == 0x0089f550;
+    return vs && ps;
+}
 const WorldPixel* own_world_draw(uint32_t vertex_key, uint32_t pixel_key) {
     if (vertex_key != 0x0089fa60 && vertex_key != 0x0089fb28 && vertex_key != 0x0089ea20 && vertex_key != 0x0089eaf8)
         return nullptr;
@@ -760,6 +769,37 @@ uint32_t world_shader_mode(const game::RendererPcHooks& hooks, const WorldPixel&
     if (w.projected && (mode & 2)) m |= 2;
     if (w.lightmap && (g_lighting_features & game::kLightingNormalMaps)) m |= 1;
     return m;
+}
+
+// A level light pass on ours: with the switch and normal maps on (the factor needs the maps), or forced.
+uint32_t world_light_shader_mode(const game::RendererPcHooks& hooks) {
+    const uint32_t mode = model_shader_mode(hooks);
+    uint32_t m = mode & 4;
+    if ((g_lighting_features & game::kLightingWorldLights) && (g_lighting_features & game::kLightingNormalMaps)) m |= 1;
+    return m;
+}
+
+// The light pass's constants (own_model.glsl OWN_DLIGHT): the rows and camera as the main pass, t6 = the normal
+// map of the level draw's first layer.
+void set_world_light_constants(render::GfxDevice& device, DeviceObjects& o, const game::RendererPcHooks& hooks,
+                               uint32_t mode) {
+    alignas(16) float own[render::kGfxVsOwnCount][4] = {};
+    own[0][1] = -1.0f;
+    own[0][3] = static_cast<float>(hooks.debug_view);
+    std::memcpy(own[1], hooks.model.to_world, sizeof hooks.model.to_world);
+    std::memcpy(own[12], hooks.world_eye, 12);
+    if (mode & 1) {
+        const render::TextureId normal = o.world_content[0] ? device.surface_map_texture(o.world_content[0], 0) : 0;
+        if (normal) {
+            own[11][3] = 1.0f;
+            own[28][0] = kModelNormalMapStrength;
+            render::SamplerState wrap;
+            wrap.min = wrap.mag = wrap.mip = render::Filter::Linear;
+            device.set_texture(6, normal);
+            device.set_sampler(6, wrap);
+        }
+    }
+    device.set_constants(render::ShaderStage::Vertex, render::kGfxVsOwn, &own[0][0], render::kGfxVsOwnCount);
 }
 
 // The level's constants (own_model.glsl OWN_WORLD) and textures: t4 the level's sun mask, t5 the shadow map, t6 /
@@ -872,8 +912,10 @@ bool apply(render::GfxDevice& device, DeviceObjects& o, uint32_t stride) {
     // sun's shadow).
     render::ShaderId model_vs = 0;
     const WorldPixel* world = sun_caster ? nullptr : own_world_draw(s.vertex_key, s.pixel_key);
-    const uint32_t model_mode = sun_caster ? 0
-                                : world    ? world_shader_mode(hooks, *world)
+    const bool world_light = !sun_caster && !world && own_world_light_draw(s.vertex_key, s.pixel_key);
+    const uint32_t model_mode = sun_caster    ? 0
+                                : world_light ? world_light_shader_mode(hooks)
+                                : world       ? world_shader_mode(hooks, *world)
                                 : own_model_vertex(s.vertex_key) && own_model_pixel(s.pixel_key)
                                     ? model_shader_mode(hooks)
                                     : 0;
@@ -949,7 +991,13 @@ bool apply(render::GfxDevice& device, DeviceObjects& o, uint32_t stride) {
     device.set_constants(render::ShaderStage::Vertex, 0, &s.vs_constants[0][0], 192);
     device.set_constants(render::ShaderStage::Pixel, 0, &s.ps_constants[0][0], 18);
     if (device.dumping() && !ab.reapplying) dump_draw(device, s, pixel_key, sun_caster, hooks);
-    if (model_vs && world) set_world_constants(device, o, hooks, model_mode, *world);
+    // The level's main draw: its textures' contents for the light passes that follow it (draw_world).
+    if (world) {
+        o.world_content[0] = o.stage_content[0];
+        o.world_content[1] = world->blend ? o.stage_content[1] : 0;
+    }
+    if (model_vs && world_light) set_world_light_constants(device, o, hooks, model_mode);
+    else if (model_vs && world) set_world_constants(device, o, hooks, model_mode, *world);
     else if (model_vs) set_model_constants(device, o, hooks, model_mode);
     return true;
 }

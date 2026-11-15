@@ -143,6 +143,9 @@ const SettingDef kSettings[] = {
     {"specular", "on|off", T::Switch, G::Graphics, kLiveIni, 0, 0, nullptr, "on",
      "enhanced (Vulkan, with a surface maps mod): a slight shine where the surface is smooth", "graphics-features",
      "specular"},
+    {"world-dlights", "on|off", T::Switch, G::Graphics, kLiveIni, 0, 0, nullptr, "on",
+     "enhanced (Vulkan, with a surface maps mod): flashes and fires light the level's bumps per pixel",
+     "graphics-features", "world_lights"},
     {"texture-detail", "on|off", T::Switch, G::Graphics, kLiveIni, 0, 0, nullptr, "on",
      "enhanced: sharper textures in the distance, by --lod-bias", "graphics-features", "texture_detail"},
     {"lod-bias", "X", T::Float, G::Graphics, kLiveIni, -2, 0, nullptr, "0",
@@ -419,6 +422,9 @@ const SettingUi kUi[] = {
     {"specular", nullptr, "Shine",
      "A slight shine on smooth surfaces (metal, helmets, wet stone) under the sun and flashes, from the surface "
      "maps mod's roughness. Needs the surface maps mod; Vulkan only.", nullptr, nullptr, "graphics=enhanced"},
+    {"world-dlights", nullptr, "Lit surface detail",
+     "Muzzle flashes, explosions and fires light the level's bumps and seams on the side facing them. Needs the "
+     "surface maps mod; Vulkan only.", nullptr, nullptr, "graphics=enhanced"},
     {"texture-detail", nullptr, "Texture detail",
      "Sharper textures in the distance (finer mipmaps); too far below 0 they shimmer when moving.", nullptr, nullptr,
      "graphics=enhanced"},

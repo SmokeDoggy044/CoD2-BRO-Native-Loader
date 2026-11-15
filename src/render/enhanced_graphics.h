@@ -39,6 +39,8 @@ struct GraphicsFeatures {
     bool normal_maps = true;
     // A slight shine from the surface maps' roughness under the sun and flashes (2.3; the original has none).
     bool specular = true;
+    // The level's flashes and fires light its bumps per pixel (the original: by plane distance only) - 2.5.
+    bool world_lights = true;
     float sharpness = 0.0f;        // 0..1
     float vibrance_amount = 0.0f;  // -1 (greyer) .. 1
     float lod_bias = 0.0f;         // -2 (sharpest) .. 0 (the game's)
@@ -61,6 +63,7 @@ struct GraphicsFeatures {
         {"pixel_lighting", &GraphicsFeatures::pixel_lighting},
         {"normal_maps", &GraphicsFeatures::normal_maps},
         {"specular", &GraphicsFeatures::specular},
+        {"world_lights", &GraphicsFeatures::world_lights},
     };
     struct Amount {
         const char* key;

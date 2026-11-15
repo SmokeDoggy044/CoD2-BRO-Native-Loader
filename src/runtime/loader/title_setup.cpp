@@ -186,7 +186,8 @@ void configure_title_services(const Options& options, const fs::path& assets, co
             game::renderer_pc_hooks().lighting_features = [] {
                 const render::GraphicsFeatures f = render::active_graphics_features();
                 return (f.pixel_lighting ? game::kLightingPixel : 0u) | (f.normal_maps ? game::kLightingNormalMaps : 0u) |
-                       (f.specular ? game::kLightingSpecular : 0u);
+                       (f.specular ? game::kLightingSpecular : 0u) |
+                       (f.world_lights ? game::kLightingWorldLights : 0u);
             };
         }
     }

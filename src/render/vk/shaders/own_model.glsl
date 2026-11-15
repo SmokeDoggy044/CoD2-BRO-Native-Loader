@@ -33,6 +33,9 @@ layout(location = 5) out vec4 o_t3;
 layout(location = 10) out float o_fog;
 layout(location = 11) out vec3 o_world_pos;
 layout(location = 12) out vec3 o_world_normal;
+#ifdef OWN_DLIGHT
+layout(location = 13) out vec4 o_base_uv;  // the surface's own texture coordinates (layers 0, 1) - 2.5
+#endif
 
 vec4 nv_exp(float s) { return vec4(exp2(floor(s)), fract(s), exp2(s), 1.0); }
 vec4 nv_log(float s) {
@@ -118,6 +121,9 @@ layout(location = 5) in vec4 t3;
 layout(location = 10) in float fog;
 layout(location = 11) in vec3 world_pos;
 layout(location = 12) in vec3 world_normal;
+#ifdef OWN_DLIGHT
+layout(location = 13) in vec4 base_uv;
+#endif
 layout(location = 0) out vec4 color;
 
 #define OWN(i) vsc.own[i]
@@ -289,6 +295,34 @@ vec3 own_world_light(vec3 lightmap) {
     g_world_light = lightmap * g_world_factor;
     return g_world_light;
 }
+#ifdef OWN_DLIGHT
+// The level's dynamic-light passes (2.5): the original lights each surface by its plane's distance to the light
+// (V0 / V1 = 1 - distance / radius, the same in all four channels; the falloff texture draws the circle) with no
+// N.L. Ours scales each light's colour (not its alpha: the pass adds rgb x alpha) per pixel by how much more or less
+// the bumped normal faces the light than the face does - the 2.4 ratio, so flat surfaces keep the original's
+// light. own[11].w: the base texture's normal map bound on t6 (the main pass's stage 0 texture); own[28].x strength.
+float own_dlight_factor(vec3 face, vec3 n, vec4 light) {
+    const vec4 q = vec4(light.xyz, 1.0);
+    const vec3 position = vec3(dot(OWN(1), q), dot(OWN(2), q), dot(OWN(3), q));
+    const vec3 toward = normalize(position - world_pos);
+    const float ratio = max(dot(n, toward), 0.0) / (max(dot(face, toward), 0.2) * max(dot(n, face), 0.5));
+    return clamp(mix(1.0, ratio, smoothstep(0.0, 0.17, dot(face, toward))), 0.5, 1.6);
+}
+void own_dlight_begin(inout vec4 V0, inout vec4 V1) {
+    vec3 face = cross(dFdx(world_pos), dFdy(world_pos));
+    face = dot(face, face) > 1e-20 ? normalize(face) : vec3(0.0, 0.0, 1.0);
+    if (dot(face, OWN(12).xyz - world_pos) < 0.0) face = -face;
+    g_normal = face;
+    if (OWN(28).x <= 0.0 || !own_has_maps()) return;
+    const vec3 n = normalize(mix(face, own_mapped_normal_at(face, tex6, smp6, vec4(base_uv.xy, 0.0, 1.0), vec4(1.0)),
+                                 OWN(28).x));
+    g_normal = n;
+    V0.rgb *= own_dlight_factor(face, n, vsc.c[18]);
+#ifdef OWN_DLIGHT2
+    V1.rgb *= own_dlight_factor(face, n, vsc.c[19]);
+#endif
+}
+#endif
 // The projector stage: our depth compare's lost share (the title's combiners darken by it times v0's strength).
 float own_world_shadow(vec4 coord) {
     if (OWN(0).z == 0.0) return 0.0;
