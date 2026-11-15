@@ -2399,7 +2399,10 @@ uint32_t XB_CDECL R_AddDObjSurfaces(DObj* obj, uint8_t* entity, const float* mat
                     obj->cull_flags &= ~1u;
                     result = 1;
                     if (!cast_shadow) continue;
-                    if (!animated && outside_shadow_band(mesh, matrix, band_center, band_half)) continue;
+                    // Ours (2.0): the sun shadows take every caster (see the rigid parts below).
+                    if (!animated && !renderer_pc_hooks().shadow_depth &&
+                        outside_shadow_band(mesh, matrix, band_center, band_half))
+                        continue;
                     NglScene* saved = nglSetCurrentScene(title_global<NglScene*>(0x0095f6cc));
                     const int32_t coarsest =
                         DObj_GetCoarsestLod(0, obj);
@@ -2482,7 +2485,21 @@ uint32_t XB_CDECL R_AddDObjSurfaces(DObj* obj, uint8_t* entity, const float* mat
                 obj->cull_flags &= ~1u;
                 result = 1;
                 if (!cast_shadow) continue;
-                if (!animated && outside_shadow_band(mesh, matrix, band_center, band_half)) continue;
+                if (!animated && outside_shadow_band(mesh, matrix, band_center, band_half)) {
+                    // Ours (2.0): the band (-100..+40 around the CAMERA's height) suited the original's straight-down
+                    // shadow; with sun shadows it dropped tanks' shadows as the orbit camera rose and fell
+                    // (playtest 11-15d). Their copy here without the forced-LOD calls (game state: the original
+                    // never makes them for these): the coarsest LOD for the first model, as the forced 4 picks.
+                    if (!renderer_pc_hooks().shadow_depth) continue;
+                    NglScene* saved = nglSetCurrentScene(title_global<NglScene*>(0x0095f6cc));
+                    rigid.flags = entity_scale != 0.0f ? 0x82 : 0x80;
+                    for (float& lane : rigid.scale) lane = entity_scale;
+                    rigid.distance = title_global<float>(0x0083f0dc);  // 100000
+                    const int32_t lod = m != 0 ? -1 : DObj_GetCoarsestLod(0, obj);
+                    nglListAddMesh(part_mesh(lod_parts(model, lod), i), part_world[0].v, &rigid.flags, &params_word);
+                    nglSetCurrentScene(saved);
+                    continue;
+                }
                 NglScene* saved = nglSetCurrentScene(title_global<NglScene*>(0x0095f6cc));
                 DObj_SetForcedLod(4, obj);
                 const int32_t shadow_lod = m != 0                ? -1
