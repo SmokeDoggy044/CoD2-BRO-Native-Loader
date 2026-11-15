@@ -39,8 +39,8 @@ bool Ao::create(VkFormat scene_format) {
     if (ao_ && scene_format == scene_format_) return true;
     VkDevice device = vk_.device();
     if (!set_layout_) {
-        VkDescriptorSetLayoutBinding bindings[2]{};
-        for (uint32_t i = 0; i < 2; ++i) {
+        VkDescriptorSetLayoutBinding bindings[3]{};
+        for (uint32_t i = 0; i < 3; ++i) {
             bindings[i].binding = i;
             bindings[i].descriptorCount = 1;
             bindings[i].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
@@ -48,7 +48,7 @@ bool Ao::create(VkFormat scene_format) {
         }
         VkDescriptorSetLayoutCreateInfo set{VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO};
         set.flags = VK_DESCRIPTOR_SET_LAYOUT_CREATE_PUSH_DESCRIPTOR_BIT_KHR;
-        set.bindingCount = 2;
+        set.bindingCount = 3;
         set.pBindings = bindings;
         const VkPushConstantRange push{VK_SHADER_STAGE_FRAGMENT_BIT, 0, 64};
         VkPipelineLayoutCreateInfo layout{VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO};
@@ -147,8 +147,10 @@ bool Ao::create(VkFormat scene_format) {
     return true;
 }
 
-void Ao::pass(VkPipeline pipeline, Image& target, Image& depth, Image* ao, const float (&params)[16], bool load) {
+void Ao::pass(VkPipeline pipeline, Image& target, Image& depth, Image* ao, Image* overlay, const float (&params)[16],
+              bool load) {
     vk_.transition(depth, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+    if (overlay) vk_.transition(*overlay, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
     if (ao) vk_.transition(*ao, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
     vk_.transition(target, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
     VkCommandBuffer cmd = vk_.cmd();
@@ -165,18 +167,19 @@ void Ao::pass(VkPipeline pipeline, Image& target, Image& depth, Image* ao, const
     rendering.pColorAttachments = &color;
     vkCmdBeginRendering(cmd, &rendering);
     vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
-    const VkDescriptorImageInfo images[2] = {
+    const VkDescriptorImageInfo images[3] = {
         {nearest_, depth.sample_view, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL},
-        {linear_, ao ? ao->view : depth.sample_view, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL}};
-    VkWriteDescriptorSet writes[2]{};
-    for (uint32_t i = 0; i < 2; ++i) {
+        {linear_, ao ? ao->view : depth.sample_view, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL},
+        {nearest_, overlay ? overlay->sample_view : depth.sample_view, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL}};
+    VkWriteDescriptorSet writes[3]{};
+    for (uint32_t i = 0; i < 3; ++i) {
         writes[i].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
         writes[i].dstBinding = i;
         writes[i].descriptorCount = 1;
         writes[i].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
         writes[i].pImageInfo = &images[i];
     }
-    vkCmdPushDescriptorSetKHR(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline_layout_, 0, 2, writes);
+    vkCmdPushDescriptorSetKHR(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline_layout_, 0, 3, writes);
     vkCmdPushConstants(cmd, pipeline_layout_, VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(params), params);
     const VkViewport viewport{0, 0, static_cast<float>(extent.width), static_cast<float>(extent.height), 0, 1};
     const VkRect2D scissor{{0, 0}, extent};
@@ -186,7 +189,7 @@ void Ao::pass(VkPipeline pipeline, Image& target, Image& depth, Image* ao, const
     vkCmdEndRendering(cmd);
 }
 
-void Ao::apply(Image& scene, Image& depth, const SceneView& view, const Settings& settings) {
+void Ao::apply(Image& scene, Image& depth, Image* overlay, const SceneView& view, const Settings& settings) {
     if (!scene || !depth || !depth.sample_view || !view.valid || !create(scene.format)) return;
     const uint32_t w = std::max(1u, scene.width / 2), h = std::max(1u, scene.height / 2);
     for (Image& image : half_) {
@@ -202,16 +205,17 @@ void Ao::apply(Image& scene, Image& depth, const SceneView& view, const Settings
                    view.tan_across, view.tan_down, settings.radius, settings.strength,
                    1.0f / w, 1.0f / h, std::min(fade_start, fade_end * 0.5f), fade_end,
                    0.0f, 0.0f, 0.0f, 0.0f};  // static noise: no temporal filter in the engine, a moving one shimmers
-    pass(ao_, half_[0], depth, nullptr, p, false);
+    pass(ao_, half_[0], depth, nullptr, nullptr, p, false);
     p[13] = 1.0f;  // across
-    pass(blur_, half_[1], depth, &half_[0], p, false);
+    pass(blur_, half_[1], depth, &half_[0], nullptr, p, false);
     p[13] = 0.0f;  // down
     p[14] = 1.0f;
-    pass(blur_, half_[0], depth, &half_[1], p, false);
+    pass(blur_, half_[0], depth, &half_[1], nullptr, p, false);
+    p[12] = overlay ? 1.0f : 0.0f;  // the apply pass leaves out where a later scene drew
     p[8] = 1.0f / scene.width;
     p[9] = 1.0f / scene.height;
     if (settings.debug) p[7] = 1.0f;
-    pass(settings.debug ? show_ : multiply_, scene, depth, &half_[0], p, !settings.debug);
+    pass(settings.debug ? show_ : multiply_, scene, depth, &half_[0], overlay, p, !settings.debug);
 }
 
 }  // namespace render::vk

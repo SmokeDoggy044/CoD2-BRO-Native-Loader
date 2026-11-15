@@ -25,11 +25,13 @@ public:
     };
     // Darkens `scene` (an R16G16B16A16 colour target) by the occlusion `depth` (the world's depth target, with a
     // sampled depth view in sample_view) shows. Ends any rendering.
-    void apply(Image& scene, Image& depth, const SceneView& view, const Settings& settings);
+    // `overlay`: depth of scenes drawn after the level's (the view model; null: none) - no AO where they drew.
+    void apply(Image& scene, Image& depth, Image* overlay, const SceneView& view, const Settings& settings);
 
 private:
     bool create(VkFormat scene_format);
-    void pass(VkPipeline pipeline, Image& target, Image& depth, Image* ao, const float (&params)[16], bool load);
+    void pass(VkPipeline pipeline, Image& target, Image& depth, Image* ao, Image* overlay, const float (&params)[16],
+              bool load);
 
     Context& vk_;
     bool failed_ = false;

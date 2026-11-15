@@ -44,6 +44,9 @@ public:
     virtual bool end_world() = 0;
     // The depth target the world was drawn with (after end_world, until the next frame's), or null.
     virtual Image* world_depth_image() = 0;
+    // When world_depth_image() is a copy kept before a later scene's clear (the view model): the live depth target,
+    // where that later scene drew; else null.
+    virtual Image* world_overlay_depth_image() = 0;
     // The pipeline cache to its file when it has new pipelines.
     virtual void save_caches() = 0;
     // An in-process title restart: the back buffer and depth buffer stand for this memory now.

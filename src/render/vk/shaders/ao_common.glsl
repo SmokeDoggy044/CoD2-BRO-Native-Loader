@@ -4,9 +4,10 @@
 //   p0 = the projection's (a, b, c, e): depth buffer z = (a d + b) / (c d + e) in units of 16777215 for distance d
 //   p1 = (tan of the half field of view across, down, radius in world units, strength)
 //   p2 = (texel of the image drawn into: 1 / width, 1 / height, fade start, fade end)
-//   p3 = (0, blur axis x, y, frame noise)
+//   p3 = (overlay depth bound 0/1, blur axis x, y, frame noise)
 layout(set = 0, binding = 0) uniform sampler2D depth_map;
 layout(set = 0, binding = 1) uniform sampler2D ao_map;
+layout(set = 0, binding = 2) uniform sampler2D overlay_depth;  // ao_apply: scenes drawn after the level (p3.x = 1)
 layout(push_constant) uniform Params {
     vec4 p0, p1, p2, p3;
 } params;

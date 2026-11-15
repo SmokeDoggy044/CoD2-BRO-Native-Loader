@@ -512,8 +512,9 @@ private:
             if (features.ambient_occlusion && depth && depth->sample_view) {
                 vk::Ao::Settings settings;
                 settings.debug = dev::debug_view() == dev::kViewAo;
-                graph_->add("ao", {{hdr, Access::Color}}, [this, scene, depth, settings] {
-                    ao_->apply(*scene, *depth, scene_view(), settings);
+                Image* overlay = gfx_->world_overlay_depth_image();
+                graph_->add("ao", {{hdr, Access::Color}}, [this, scene, depth, overlay, settings] {
+                    ao_->apply(*scene, *depth, overlay, scene_view(), settings);
                 });
             }
             graph_->add("resolve", {{hdr, Access::Sampled}, {picture, Access::Color}},

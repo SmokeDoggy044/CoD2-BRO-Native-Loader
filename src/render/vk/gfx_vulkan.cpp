@@ -239,6 +239,7 @@ public:
         vk_.destroy_image(dummy_texture_);
         vk_.destroy_image(scene_);
         vk_.destroy_image(world_depth_copy_);
+        vk_.destroy_image(overlay_depth_copy_);
         vk_.destroy_image(scene_copy_);
         if (default_vertex_.buffer) vk_.defer_destroy(default_vertex_.buffer, default_vertex_.allocation);
         if (quad_indices_.buffer) vk_.defer_destroy(quad_indices_.buffer, quad_indices_.allocation);
@@ -553,8 +554,15 @@ public:
             // view model): the scene with the most depth-writing draws is kept for screen-space passes at the
             // world's end (ambient occlusion, 2.6).
             if (world_seen_ && !world_done_ && color_ == back_buffer_ && depth_writes_since_clear_ > kept_depth_writes_) {
-                keep_world_depth();
+                keep_world_depth(world_depth_copy_);
+                world_depth_kept_ = true;
+                overlay_kept_ = false;
                 kept_depth_writes_ = depth_writes_since_clear_;
+            } else if (world_seen_ && !world_done_ && color_ == back_buffer_ && world_depth_kept_ &&
+                       depth_writes_since_clear_ > 0 && !overlay_kept_) {
+                // The scene after the level (the view model) before its own depth is cleared too: AO leaves it out.
+                keep_world_depth(overlay_depth_copy_);
+                overlay_kept_ = true;
             }
             depth_writes_since_clear_ = 0;
             depth_aspects |= VK_IMAGE_ASPECT_DEPTH_BIT;
@@ -867,12 +875,18 @@ public:
         return it == targets_.end() ? nullptr : &it->second.image;
     }
 
-    // A copy of the current depth target's depth (sampled view in sample_view).
-    void keep_world_depth() {
+    Image* world_overlay_depth_image() override {
+        if (!world_depth_kept_) return nullptr;
+        if (overlay_kept_ && overlay_depth_copy_.sample_view) return &overlay_depth_copy_;
+        auto it = targets_.find(world_depth_);
+        return it == targets_.end() || !it->second.image.sample_view ? nullptr : &it->second.image;
+    }
+
+    // A copy of the current depth target's depth into `copy` (sampled view in sample_view).
+    void keep_world_depth(Image& copy) {
         auto it = targets_.find(depth_);
         if (it == targets_.end() || !it->second.image.sample_view) return;
         Image& source = it->second.image;
-        Image& copy = world_depth_copy_;
         if (copy && (copy.width != source.width || copy.height != source.height || copy.format != source.format))
             vk_.destroy_image(copy);
         if (!copy) {
@@ -894,7 +908,6 @@ public:
         region.extent = {source.width, source.height, 1};
         vkCmdCopyImage(vk_.cmd(), source.image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, copy.image,
                        VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
-        world_depth_kept_ = true;
     }
 
     bool end_world() override {
@@ -993,7 +1006,7 @@ public:
             redirected_ = false;
         }
         world_seen_ = world_done_ = false;
-        world_depth_kept_ = false;
+        world_depth_kept_ = overlay_kept_ = false;
         kept_depth_writes_ = depth_writes_since_clear_ = 0;
         frame_writes_depth_ = false;
         unsupported_draws_ = 0;
@@ -2252,9 +2265,10 @@ private:
     // The world / HUD split (render graph, 0.5b).
     std::function<void(Image*)> world_end_;
     TargetId world_depth_ = 0;  // the depth target the world was drawn with (end_world)
-    bool world_depth_kept_ = false;
+    bool world_depth_kept_ = false, overlay_kept_ = false;
     uint32_t depth_writes_since_clear_ = 0, kept_depth_writes_ = 0;  // depth-writing draws (keep_world_depth)
-    Image world_depth_copy_;  // the level's depth before the view model's clear (keep_world_depth)
+    Image world_depth_copy_;    // the level's depth before the view model's clear (keep_world_depth)
+    Image overlay_depth_copy_;  // the view model's, when a further scene clears it before the world's end
     VkFormat scene_format_ = VK_FORMAT_UNDEFINED;
     Image scene_, scene_copy_;  // the HDR scene (and its sampling copy) while not standing in for the back buffer
     bool world_seen_ = false, world_done_ = false, redirected_ = false;
