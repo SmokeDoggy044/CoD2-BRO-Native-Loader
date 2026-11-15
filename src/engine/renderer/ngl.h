@@ -58,6 +58,9 @@ struct RendererPcHooks {
     // Set and false: the game's dynamic shadows are not projected onto the level (R_RenderTestShadow still
     // draws its texture: the pass changes the casters' LOD, game state). Ours (engine improvements 2.0).
     bool (*original_shadows)() = nullptr;
+    // Set and true: R_RenderTestShadow aims its camera (and so the projector) along the sun of the light grid
+    // the view is in, not straight down. Ours (engine improvements 2.0).
+    bool (*sun_shadows)() = nullptr;
 };
 RendererPcHooks& renderer_pc_hooks();
 // The 16:9 scene aspect, or the wider one in RendererPcHooks.

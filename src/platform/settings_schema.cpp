@@ -131,6 +131,9 @@ const SettingDef kSettings[] = {
     {"original-shadows", "on|off", T::Switch, G::Graphics, kLiveIni, 0, 0, nullptr, "on",
      "enhanced: the game's own shadows under moving models (off: for our own shadows, later)", "graphics-features",
      "original_shadows"},
+    {"sun-shadows", "on|off", T::Switch, G::Graphics, kLiveIni, 0, 0, nullptr, "on",
+     "enhanced (Vulkan): shadows cast along the mission's sun instead of straight down", "graphics-features",
+     "sun_shadows"},
     {"texture-detail", "on|off", T::Switch, G::Graphics, kLiveIni, 0, 0, nullptr, "on",
      "enhanced: sharper textures in the distance, by --lod-bias", "graphics-features", "texture_detail"},
     {"lod-bias", "X", T::Float, G::Graphics, kLiveIni, -2, 0, nullptr, "0",
@@ -386,6 +389,9 @@ const SettingUi kUi[] = {
     {"original-shadows", nullptr, "Original shadows",
      "The game's own shadows: soldiers and vehicles cast them straight down onto the ground. Turn off to see the "
      "level without them.", nullptr, nullptr, "graphics=enhanced"},
+    {"sun-shadows", nullptr, "Sun shadows",
+     "Shadows fall away from the sun of each mission (its direction and length) instead of straight down. "
+     "Vulkan only.", nullptr, nullptr, "original-shadows"},
     {"texture-detail", nullptr, "Texture detail",
      "Sharper textures in the distance (finer mipmaps); too far below 0 they shimmer when moving.", nullptr, nullptr,
      "graphics=enhanced"},

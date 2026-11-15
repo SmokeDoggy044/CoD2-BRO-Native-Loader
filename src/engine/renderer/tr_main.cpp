@@ -1,5 +1,6 @@
 #include "tr_main.h"
 
+#include <cmath>
 #include <cstring>
 
 #include "dobj.h"
@@ -2601,6 +2602,68 @@ void store_lanes(float* out, const Lanes& v) {
 
 }  // namespace
 
+namespace {
+
+// Ours (2.0): the sun of the light grid at `position`: its one directional light (RGridLight.point == 0, the last
+// of the lights its samples refer to; tools/data/sun_by_mission.csv), as the light's travel direction. Searched
+// once per grid.
+bool grid_sun(const float* position, float* direction) {
+    static const RLightGrid* cached_grid = nullptr;
+    static float cached[3];
+    static bool cached_found = false;
+    int32_t cell = -1;
+    const auto* grid = static_cast<const RLightGrid*>(R_GetCellLighting(position, 0, &cell));
+    if (!grid || !grid->lights) return false;
+    if (grid != cached_grid) {
+        cached_grid = grid;
+        cached_found = false;
+        int32_t samples = 0;
+        for (int32_t i = 0; i < grid->area_count; ++i) samples += grid->areas[i].width * grid->areas[i].height;
+        int32_t last = -1;
+        for (int32_t i = 0; i < samples; ++i) {
+            const uint32_t sample = grid->samples[i];
+            const uint16_t* reference = grid->references + (sample >> 17) * 2;
+            for (uint32_t k = 0; k < ((sample >> 15) & 3); ++k) last = std::max<int32_t>(last, reference[k * 2]);
+        }
+        for (int32_t i = last; i >= 0; --i) {
+            const RGridLight& light = grid->lights[i];
+            if (light.point != 0.0f || light.origin[2] >= -0.05f) continue;
+            const float* o = light.origin;
+            const float length = std::sqrt(o[0] * o[0] + o[1] * o[1] + o[2] * o[2]);
+            for (int k = 0; k < 3; ++k) cached[k] = o[k] / length;
+            cached_found = true;
+            break;
+        }
+    }
+    if (cached_found) std::memcpy(direction, cached, sizeof cached);
+    return cached_found;
+}
+
+// The shadow camera turned to look along `sun` (rows: 0 across, 1 up, 2 forward = sun, 3 position kept): row 1
+// is the original's "up" (the view's heading) made perpendicular to the sun, row 0 their cross product in the
+// original's order, so the projector box (built from these rows) keeps its handedness.
+void aim_at_sun(float* camera, const float* sun) {
+    const float* up0 = camera + 4;
+    const float dot = up0[0] * sun[0] + up0[1] * sun[1] + up0[2] * sun[2];
+    float up[3] = {up0[0] - dot * sun[0], up0[1] - dot * sun[1], up0[2] - dot * sun[2]};
+    const float length = std::sqrt(up[0] * up[0] + up[1] * up[1] + up[2] * up[2]);
+    if (length < 1e-4f) return;
+    for (float& v : up) v /= length;
+    // As the original: across = (up * down.yzx - up.yzx * down).yzx = cross(up, down).
+    const float across[3] = {up[1] * sun[2] - up[2] * sun[1], up[2] * sun[0] - up[0] * sun[2],
+                             up[0] * sun[1] - up[1] * sun[0]};
+    for (int k = 0; k < 3; ++k) {
+        camera[k] = across[k];
+        camera[4 + k] = up[k];
+        camera[8 + k] = sun[k];
+    }
+    camera[3] = across[0];
+    camera[7] = up[0];
+    camera[11] = sun[0];
+}
+
+}  // namespace
+
 void XB_CDECL R_RenderTestShadow() {
     NglTexture*& texture = title_global<NglTexture*>(0x0095f6c8);
     if (!texture) texture = nglCreateTexture(0x1101, 0x200, 0x200, 0, 0);
@@ -2623,6 +2686,18 @@ void XB_CDECL R_RenderTestShadow() {
     const float reach = title_global<float>(0x008db19c) * title_global<float>(0x0083f034);  // 0.45
     const Lanes lift = {{0.0f, 0.0f, title_global<float>(0x008db1a0), 0.0f}};
     store_lanes(camera + 12, add(add(sub(lanes(view + 12), mul(across, reach)), mul(up, reach)), lift));
+    // Ours (2.0): along the mission's sun. The box centre stays where the original puts it; the camera backs up
+    // along the sun by the original's lift over the sun's steepness, so casters at the view's height stay in front.
+    if (const auto sun_hook = renderer_pc_hooks().sun_shadows; sun_hook && sun_hook()) {
+        float sun[3];
+        if (grid_sun(view + 12, sun)) {
+            const float centre[3] = {camera[12], camera[13], camera[14] - title_global<float>(0x008db1a0)};
+            aim_at_sun(camera, sun);
+            const float back = title_global<float>(0x008db1a0) / -sun[2];
+            for (int k = 0; k < 3; ++k) camera[12 + k] = centre[k] - sun[k] * back;
+            camera[15] = camera[12];
+        }
+    }
 
     // Clear the texture.
     nglSceneAddRenderTarget(texture);

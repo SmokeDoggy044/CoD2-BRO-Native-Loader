@@ -180,6 +180,8 @@ void configure_title_services(const Options& options, const fs::path& assets, co
         game::renderer_pc_hooks().original_shadows = [] {
             return render::active_graphics_features().original_shadows;
         };
+        if (options.renderer == render::BackendConfig::Api::Vulkan)
+            game::renderer_pc_hooks().sun_shadows = [] { return render::active_graphics_features().sun_shadows; };
     }
     render::set_gfx_state_probe(&game::ngl_gfx_state);  // XB_GFX_VERIFY        // and the renderer C's (once the title made its device)
     render::D3DConfig d3d_config;

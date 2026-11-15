@@ -29,6 +29,9 @@ struct GraphicsFeatures {
     // the level). The one switch that keeps something original: on by default and always on with enhanced off;
     // off makes room for our own shadows (phase 2.0).
     bool original_shadows = true;
+    // The game's shadow cast along the mission's sun (the light grid's directional light) instead of straight down
+    // (Vulkan only; phase 2.0).
+    bool sun_shadows = true;
     float sharpness = 0.0f;        // 0..1
     float vibrance_amount = 0.0f;  // -1 (greyer) .. 1
     float lod_bias = 0.0f;         // -2 (sharpest) .. 0 (the game's)
@@ -47,6 +50,7 @@ struct GraphicsFeatures {
         {"texture_detail", &GraphicsFeatures::texture_detail},
         {"smooth_models", &GraphicsFeatures::smooth_models},
         {"original_shadows", &GraphicsFeatures::original_shadows},
+        {"sun_shadows", &GraphicsFeatures::sun_shadows},
     };
     struct Amount {
         const char* key;
