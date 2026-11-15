@@ -2193,6 +2193,21 @@ Lanes transform_point(const float* r0, const float* r1, const float* r2, const f
     return add(add(add(lanes(t), mul(lanes(r0), p.v[0])), mul(lanes(r1), p.v[1])), mul(lanes(r2), p.v[2]));
 }
 
+// Ours (2.0 sun shadows): whether a mesh part the main view culled is still close enough to the view to cast a
+// shadow into it - its bounding sphere (+0x20 centre, +0x30 radius) against the main view's frustum widened by a
+// tenth of its distance (about 6 degrees past each edge). Models behind or well beside the view do not cast.
+bool near_view_caster(const uint8_t* mesh, const float* rows) {
+    constexpr float kMargin = 0.1f;
+    const float* c = reinterpret_cast<const float*>(mesh + 0x20);
+    const Lanes local = {{c[0], c[1], c[2], 1.0f}};
+    Lanes centre = transform_point(rows, rows + 4, rows + 8, rows + 12, local);
+    centre.v[3] = 1.0f;
+    const float* eye = title_global<NglScene*>(0x0090259c)->camera_position;
+    const float dx = centre.v[0] - eye[0], dy = centre.v[1] - eye[1], dz = centre.v[2] - eye[2];
+    const float distance = std::sqrt(dx * dx + dy * dy + dz * dz);
+    return nglSphereInFrustum(centre.v, c[4] + distance * kMargin);
+}
+
 // A mesh's bounding sphere centre (+0x20) through `matrix`: the shadow copy is made
 // only within the height band around the camera unless the entity is animated.
 bool outside_shadow_band(const uint8_t* mesh, const float* matrix, float band_center, float band_half) {
@@ -2396,8 +2411,8 @@ uint32_t XB_CDECL R_AddDObjSurfaces(DObj* obj, uint8_t* entity, const float* mat
                         if (tint != 0xff) set_param_slot(params, title_global<uint32_t>(0x00902918), tint);
                     }
                     if (nglListAddMesh(mesh, matrix, &skinned.flags, &params_word) <= 0) {
-                        // Ours (2.0): a part off the screen still casts (see offscreen_part_shadow).
-                        if (cast_shadow && renderer_pc_hooks().shadow_depth) {
+                        // Ours (2.0): a part just off the screen still casts (see the rigid parts below).
+                        if (cast_shadow && renderer_pc_hooks().shadow_depth && near_view_caster(mesh, matrix)) {
                             NglScene* saved = nglSetCurrentScene(title_global<NglScene*>(0x0095f6cc));
                             nglListAddMesh(part_mesh(lod_parts(model, DObj_GetCoarsestLod(0, obj)), i), matrix,
                                            &skinned.flags, &params_word);
@@ -2494,8 +2509,9 @@ uint32_t XB_CDECL R_AddDObjSurfaces(DObj* obj, uint8_t* entity, const float* mat
                     // Ours (2.0): the original copies only the parts the main view draws, so a model cut by the
                     // screen's edge (the own tank's tracks in the third-person view) cast part of its shadow, which
                     // grew and shrank as the camera turned (playtest 11-15h). Off-screen parts' copies go in
-                    // without the forced-LOD calls (game state), as the band's.
-                    if (cast_shadow && renderer_pc_hooks().shadow_depth) {
+                    // without the forced-LOD calls (game state), as the band's - only parts just past the screen's
+                    // edge (near_view_caster; every entity in range comes here, culled or not).
+                    if (cast_shadow && renderer_pc_hooks().shadow_depth && near_view_caster(mesh, part_world[0].v)) {
                         NglScene* saved = nglSetCurrentScene(title_global<NglScene*>(0x0095f6cc));
                         rigid.flags = entity_scale != 0.0f ? 0x82 : 0x80;
                         for (float& lane : rigid.scale) lane = entity_scale;
