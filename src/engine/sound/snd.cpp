@@ -2651,13 +2651,15 @@ uint32_t XB_CDECL SndHw_Update() {
         SndEnv_BeginRays();
     }
     const bool reverb = device().has(audio::Feature::Reverb), occlusion = device().has(audio::Feature::Occlusion);
-    if (reverb || occlusion) {
+    if (reverb || occlusion || device().has(audio::Feature::Echoes)) {
         const auto timer_start = std::chrono::steady_clock::now();
         std::vector<SndVoiceRay> done;
         SndRayOptions options;
         options.reverb = reverb;
         options.partial_cover = device().has(audio::Feature::PartialCover);
         options.openings = device().has(audio::Feature::Openings);
+        options.reverb_detail = device().has(audio::Feature::ReverbDetail);
+        options.echoes = device().has(audio::Feature::Echoes);
         SndEnv_Update(device(), listener, options,
                       occlusion ? occlusion_voices(listener.position) : std::vector<SndVoiceRay>{}, done);
         if (occlusion) apply_occlusion(done);

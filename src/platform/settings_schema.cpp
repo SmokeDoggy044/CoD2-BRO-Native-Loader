@@ -207,6 +207,11 @@ const SettingDef kSettings[] = {
     {"openings", "on|off", T::Switch, G::Sound, kLiveIni, 0, 0, nullptr, "on",
      "enhanced, with occlusion: sound round corners and through doors and windows, heard from there", "enhanced",
      "openings"},
+    {"reverb-detail", "on|off", T::Switch, G::Sound, kLiveIni, 0, 0, nullptr, "on",
+     "enhanced, with room reverb: the room from a few hundred rays round the listener, three bands (off: 14 rays)",
+     "enhanced", "reverb_detail"},
+    {"echoes", "on|off", T::Switch, G::Sound, kLiveIni, 0, 0, nullptr, "on",
+     "enhanced: outdoors, slap-back echoes of gunfire off distant walls and cliffs", "enhanced", "echoes"},
     {"reverb-amount", "DB", T::Float, G::Sound, kLiveIni, -12, 12, nullptr, "0",
      "enhanced reverb: level in dB (-12..12)", "reverb", "amount"},
     {"reverb-decay", "X", T::Float, G::Sound, kLiveIni, 0.25, 4, nullptr, "1",
@@ -510,6 +515,12 @@ const SettingUi kUi[] = {
      "With occlusion: a sound behind a wall also reaches you round the corner or through the nearest door or "
      "window, and seems to come from there.",
      nullptr, nullptr, "audio=enhanced"},
+    {"reverb-detail", nullptr, "Detailed room reverb",
+     "With room reverb: the room is measured with a few hundred rays from around you (size, materials, low and high "
+     "frequencies, where the nearest hard walls are) instead of 14.",
+     nullptr, nullptr, "audio=enhanced"},
+    {"echoes", nullptr, "Echoes",
+     "Outdoors, gunfire comes back faintly off distant buildings and cliffs.", nullptr, nullptr, "audio=enhanced"},
     {"close-boost", nullptr, "Close-range boost",
      "Gunfire and bullets louder near you: full within 15 m, fading to the game's own level at 30 m (your own "
      "gunfire always full). The game mixes them quietly; 0 dB = its level.",

@@ -54,7 +54,7 @@ struct SndVoiceRay {
 // listener, the probe when due (`reverb`) and `voices` to trace, when it is idle; applies what it finished since:
 // the environment (probes now and then, turned with the listener every time) and the voices' occlusion in `done`.
 struct SndRayOptions {
-    bool reverb = false, partial_cover = false, openings = false;
+    bool reverb = false, partial_cover = false, openings = false, reverb_detail = false, echoes = false;
 };
 void SndEnv_Update(audio::SoundDevice& device, const audio::Listener& listener, const SndRayOptions& options,
                    std::vector<SndVoiceRay> voices, std::vector<SndVoiceRay>& done);

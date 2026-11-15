@@ -82,10 +82,24 @@ struct Environment {
     float diffusion = 100.0f;
     float density = 100.0f;
     float hf_reference = 5000.0f;
+    // Low frequencies (EAX reverb only; 3.5): the reverb's level below lf_reference and the decay ratio there.
+    float room_lf = 0.0f;
+    float decay_lf_ratio = 1.0f;
+    float lf_reference = 250.0f;
     // The direction the early reflections / the late reverb come from, relative to the listener
     // (x right, y up, z ahead); the length is how focused (0: all around, 1: one direction).
     float reflections_pan[3] = {0, 0, 0};
     float reverb_pan[3] = {0, 0, 0};
+};
+
+// Enhanced, echoes on (3.5): slap-back echoes of loud sounds off distant walls and cliffs (EFX echo). level 0: none.
+struct Echo {
+    float level = 0.0f;     // send level of gunfire into the echo (0..1)
+    float delay = 0.1f;     // seconds to the first echo (<= 0.207)
+    float lr_delay = 0.1f;  // seconds between the first and the second (<= 0.404)
+    float damping = 0.5f;   // high frequencies lost per echo (0..0.99)
+    float spread = 0.0f;    // -1 .. 1: which side the first echo comes from (left .. right)
+    bool operator==(const Echo&) const = default;
 };
 
 // What reaches the listener of a world voice's direct sound, per band (amplitude, 1 = all): below ~250 Hz, the
@@ -175,6 +189,8 @@ public:
     // Enhanced, occlusion and transmission on: the direct sound per band (amplitude, 1 = all of it) in place of the
     // fixed muffle that set_occlusion's amount gives (which still sets the reverb send).
     virtual void set_transmission(VoiceId voice, const Transmission& transmission) = 0;
+    // Enhanced, echoes on: the slap-back echo gunfire is sent to (3.5).
+    virtual void set_echo(const Echo& echo) = 0;
 
 protected:
     ~SoundDevice() = default;

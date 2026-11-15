@@ -23,6 +23,8 @@ enum class Feature : uint8_t {
     Transmission,  // with occlusion: through walls by material and thickness, three bands (else a fixed muffle)
     PartialCover,  // with occlusion: 32 lines over a sound's size (else 7)
     Openings,      // with occlusion: sound round corners and through openings, heard from there
+    ReverbDetail,  // with reverb: a few hundred rays from around the listener, three bands (else 14 rays)
+    Echoes,        // outdoors: slap-back echoes of gunfire off distant walls and cliffs
 };
 
 struct EnhancedFeatures {
@@ -34,6 +36,8 @@ struct EnhancedFeatures {
     bool transmission = true;
     bool partial_cover = true;
     bool openings = true;
+    bool reverb_detail = true;
+    bool echoes = true;
 
     bool operator==(const EnhancedFeatures&) const = default;
 
@@ -51,6 +55,8 @@ struct EnhancedFeatures {
         {"transmission", &EnhancedFeatures::transmission, Feature::Transmission},
         {"partial_cover", &EnhancedFeatures::partial_cover, Feature::PartialCover},
         {"openings", &EnhancedFeatures::openings, Feature::Openings},
+        {"reverb_detail", &EnhancedFeatures::reverb_detail, Feature::ReverbDetail},
+        {"echoes", &EnhancedFeatures::echoes, Feature::Echoes},
     };
 
     bool has(Feature feature) const {

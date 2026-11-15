@@ -417,6 +417,181 @@ State g_state;
 
 }  // namespace
 
+// Low frequencies (125-250 Hz) of the same surfaces (3.5; same sources as kAbsorption): glass and thin panels take in
+// lows (they move), heavy hard walls barely.
+constexpr float kAbsorptionLow[32] = {
+    0.03f, 0.10f, 0.03f, 0.05f, 0.30f, 0.01f, 0.15f, 0.25f, 0.10f, 0.30f, 0.11f, 0.25f, 0.01f, 0.10f, 0.10f, 0.10f,
+    0.013f, 0.01f, 0.15f, 0.45f, 0.01f, 0.15f, 0.02f, 0.03f, 0.03f, 0.03f, 0.03f, 0.03f, 0.03f, 0.03f, 0.03f, 0.03f};
+
+// The detailed probe (3.5): kDenseRays directions over the sphere from the listener, a quarter of them from 4
+// points 48 units round it (that it sees) - Sabine per band from the room's measured volume and surfaces, early
+// reflections from the nearby hard surfaces, and for echoes the distant hard ones.
+constexpr int kDenseRays = 256;
+const std::array<std::array<float, 3>, kDenseRays>& dense_directions() {
+    static const auto directions = [] {
+        std::array<std::array<float, 3>, kDenseRays> d{};
+        const float golden = 3.14159265f * (3.0f - std::sqrt(5.0f));
+        for (int i = 0; i < kDenseRays; ++i) {
+            const float z = 1.0f - 2.0f * (float(i) + 0.5f) / kDenseRays;
+            const float r = std::sqrt(std::max(0.0f, 1.0f - z * z));
+            d[i] = {r * std::cos(golden * float(i)), r * std::sin(golden * float(i)), z};
+        }
+        return d;
+    }();
+    return directions;
+}
+
+struct EchoPick {
+    bool found = false;
+    audio::Echo echo;          // spread set by the game thread (listener's facing)
+    float direction[3] = {0, 0, 0};  // world, of the first echo
+};
+
+// Fills `target` (detail) and `echo` from the rays; false without a scene.
+bool probe_dense(const float listener[3], bool detail, Environment& target, EchoPick& echo,
+                 const audio::ReverbTuning& t) {
+    const AcousticScene* sc = scene();
+    if (!sc) return false;
+    const auto& dirs = dense_directions();
+    constexpr float kOpen = 1200.0f;  // a ray that hits nothing: an opening this far, taking in everything
+    const float m = kMetres;
+    double volume = 0, surface = 0, absorb[3] = {0, 0, 0};
+    double hits = 0, alpha[3] = {0, 0, 0}, metal = 0;
+    double up_rays = 0, up_open = 0, side_rays = 0, side_hits = 0;
+    double near_sum = 0, near_sq = 0, delay_w = 0, refl_from[3] = {0, 0, 0}, rev_from[3] = {0, 0, 0}, hard_sum = 0;
+    struct Candidate {
+        float strength, distance, dir[3], hard;
+    };
+    std::vector<Candidate> candidates;
+    const auto cast = [&](const float origin[3], int stride, double weight) {
+        for (int i = 0; i < kDenseRays; i += stride) {
+            const float* d = dirs[i].data();
+            const AcousticScene::Hit h = sc->nearest(origin, d, kRange, kSolidMask);
+            const float r = h.hit ? std::max(h.distance, 8.0f) : kOpen;
+            const float rm = r * m;
+            const float cosine = h.hit ? std::max(0.25f, std::fabs(h.normal[0] * d[0] + h.normal[1] * d[1] +
+                                                                    h.normal[2] * d[2]))
+                                       : 1.0f;
+            const double w = weight * stride / kDenseRays;  // share of the sphere this ray stands for
+            volume += w * 4.18879 * double(rm) * rm * rm;     // (4 pi / 3) r^3
+            const double area = w * 12.56637 * double(rm) * rm / cosine;
+            surface += area;
+            const float a_low = h.hit ? kAbsorptionLow[h.surface] : 1.0f;
+            const float a_mid = h.hit ? kAbsorption[h.surface].mid : 1.0f;
+            const float a_high = h.hit ? kAbsorption[h.surface].high : 1.0f;
+            absorb[0] += area * a_low;
+            absorb[1] += area * a_mid;
+            absorb[2] += area * a_high;
+            if (d[2] > 0.3f) {
+                up_rays += w;
+                up_open += h.hit ? 0 : w;
+            }
+            if (std::fabs(d[2]) < 0.3f) {
+                side_rays += w;
+                side_hits += h.hit ? w : 0;
+            }
+            if (!h.hit) continue;
+            hits += w;
+            alpha[0] += w * a_low;
+            alpha[1] += w * a_mid;
+            alpha[2] += w * a_high;
+            metal += h.surface == kMetal ? w : 0;
+            const float hard = 1.0f - a_mid;
+            const float near = hard * std::clamp(1.0f - r / 1200.0f, 0.0f, 1.0f);
+            near_sum += w * near;
+            near_sq += w * near * near;
+            delay_w += w * near * near * 2.0 * rm / kSpeedOfSound;
+            for (int k = 0; k < 3; ++k) {
+                refl_from[k] += w * near * d[k];
+                rev_from[k] += w * hard * d[k];
+            }
+            hard_sum += w * hard;
+            if (origin == listener && r > 600.0f && std::fabs(d[2]) < 0.5f)
+                candidates.push_back({hard * cosine * 600.0f / r, r, {d[0], d[1], d[2]}, hard});
+        }
+    };
+    cast(listener, 1, 0.5);
+    constexpr std::array<std::array<float, 2>, 4> kAround = {{{48, 0}, {-48, 0}, {0, 48}, {0, -48}}};
+    std::vector<std::array<float, 3>> origins;  // the points round the listener that it sees
+    for (const auto& o : kAround) {
+        const std::array<float, 3> origin = {listener[0] + o[0], listener[1] + o[1], listener[2]};
+        if (!sc->blocked_any(listener, origin.data(), kSolidMask)) origins.push_back(origin);
+    }
+    const int around = int(origins.size());
+    for (const auto& origin : origins) cast(origin.data(), 4, 0.5 / around);
+    // Normalise to one sphere (the listener's half + the points' half; without points the listener's is all).
+    const double total = around ? 1.0 : 0.5;
+    const auto norm = [&](double v) { return v / total; };
+    const float sky = up_rays > 0 ? float(up_open / up_rays) : 0.0f;
+    const float walls = side_rays > 0 ? float(side_hits / side_rays) : 0.0f;
+    const float enclosure = 0.6f * (1.0f - sky) + 0.4f * walls;
+
+    // Echoes: the strongest distant hard surface, and a second one at least 40 ms later.
+    std::sort(candidates.begin(), candidates.end(),
+              [](const Candidate& a, const Candidate& b) { return a.strength > b.strength; });
+    if (!candidates.empty() && sky >= 0.5f) {
+        const Candidate& first = candidates[0];
+        const float delay1 = 2.0f * first.distance * m / kSpeedOfSound;
+        float delay2 = delay1;
+        for (const Candidate& c : candidates) {
+            const float d = 2.0f * c.distance * m / kSpeedOfSound;
+            if (d - delay1 >= 0.04f) {
+                delay2 = d;
+                break;
+            }
+        }
+        echo.found = true;
+        echo.echo.level = std::clamp(first.strength * sky * 0.35f, 0.0f, 0.3f);
+        echo.echo.delay = std::min(delay1, 0.207f);
+        echo.echo.lr_delay = std::clamp(delay2 - delay1, 0.0f, 0.404f);
+        echo.echo.damping = std::clamp(0.3f + 0.5f * first.distance / kRange, 0.0f, 0.95f);
+        for (int k = 0; k < 3; ++k) echo.direction[k] = first.dir[k];
+    }
+    if (!detail) return true;
+    if (enclosure <= 0.02f) {
+        target = kSilent;
+        return true;
+    }
+    const double v = norm(volume), area = norm(surface);
+    const double clutter = t.clutter * area;
+    double decay[3];
+    for (int b = 0; b < 3; ++b) {
+        const double air = b == 2 ? 4.0 * kAirHigh * v : 0.0;
+        decay[b] = std::clamp(0.161 * v / std::max(norm(absorb[b]) + clutter + air, 0.1), 0.1, 8.0);
+    }
+    const float a_low = hits > 0 ? float(alpha[0] / hits) : 0.05f, a_mid = hits > 0 ? float(alpha[1] / hits) : 0.05f,
+                a_high = hits > 0 ? float(alpha[2] / hits) : 0.05f;
+    Environment e;
+    const float hard = std::clamp((0.15f - a_mid) / 0.12f, 0.0f, 1.0f);
+    e.room = lerp(-3000.0f, -1000.0f, enclosure) + 200.0f * enclosure * hard;
+    e.room_hf = lerp(-1200.0f, -100.0f, 1.0f - a_high);
+    e.room_lf = -1000.0f * a_low;
+    e.decay_time = float(decay[1]);
+    e.decay_hf_ratio = std::clamp(float(decay[2] / decay[1]), 0.1f, 2.0f);
+    e.decay_lf_ratio = std::clamp(float(decay[0] / decay[1]), 0.1f, 2.0f);
+    const float strength = near_sum > 0 ? float(near_sq / near_sum) : 0.0f;  // the near hard surfaces' weight
+    e.reflections = lerp(-2400.0f, -400.0f, strength);
+    e.reflections_delay = near_sq > 0 ? std::min(float(delay_w / near_sq), 0.3f) : 0.02f;
+    e.reverb = lerp(-2600.0f, 0.0f, 1.0f - sky);
+    e.reverb_delay = std::clamp(float(4.0 * v / std::max(area, 1.0) / kSpeedOfSound), 0.005f, 0.1f);
+    e.diffusion = lerp(30.0f, 100.0f, 1.0f - sky) * lerp(1.0f, 0.6f, hits > 0 ? float(metal / hits) : 0.0f);
+    e.density = 100.0f;
+    e.hf_reference = 5000.0f;
+    e.room += t.amount * 100.0f;
+    e.decay_time = std::clamp(e.decay_time * t.decay, 0.1f, 20.0f);
+    e.decay_hf_ratio = std::clamp(e.decay_hf_ratio * t.brightness, 0.1f, 2.0f);
+    e.reflections += t.reflections * 100.0f;
+    const float rf = float(std::sqrt(refl_from[0] * refl_from[0] + refl_from[1] * refl_from[1] +
+                                     refl_from[2] * refl_from[2]));
+    for (int k = 0; k < 3; ++k) {
+        e.reflections_pan[k] = near_sum > 0 ? float(refl_from[k] / near_sum) : 0.0f;
+        e.reverb_pan[k] = hard_sum > 0 ? float(0.5 * rev_from[k] / hard_sum) : 0.0f;
+    }
+    (void)rf;
+    target = e;
+    return true;
+}
+
 // The probe rays from the listener -> the environment there (false: no scene to trace).
 bool probe_environment(const float listener[3], Environment& target) {
     if (!scene()) return false;
@@ -761,6 +936,7 @@ struct RayJob {
     bool probe = false;
     bool partial_cover = false;
     bool openings = false;
+    bool reverb_detail = false, echoes = false;
     uint32_t update = 0;
     float listener[3] = {0, 0, 0};
     std::vector<SndVoiceRay> voices;
@@ -768,6 +944,7 @@ struct RayJob {
 struct RayResult {
     bool probed = false;  // a probe ran and found a scene
     Environment target;
+    EchoPick echo;        // probe with echoes on
     std::vector<SndVoiceRay> voices;
 };
 
@@ -930,7 +1107,16 @@ RayResult run_job(const RayJob& job) {
     } timed{start, job.voices.size()};
     SndEnv_BeginRays();
     RayResult r;
-    if (job.probe) r.probed = probe_environment(job.listener, r.target);
+    if (job.probe) {
+        if (job.reverb_detail || job.echoes) {
+            Environment dense;
+            r.probed = probe_dense(job.listener, job.reverb_detail, dense, r.echo, SndEnv_Tuning());
+            if (job.reverb_detail) r.target = dense;
+            else r.probed = probe_environment(job.listener, r.target) && r.probed;
+        } else {
+            r.probed = probe_environment(job.listener, r.target);
+        }
+    }
     r.voices = job.voices;
     for (SndVoiceRay& v : r.voices) v.propagation = SndEnv_Propagation(job.listener, v.position, job.partial_cover);
     if (job.openings) add_paths(job, r.voices);
@@ -1013,7 +1199,9 @@ void SndEnv_Update(audio::SoundDevice& device, const audio::Listener& l, const S
     RayResult result;
     bool have = false;
     RayJob job;
-    job.probe = reverb && update - g_last_probe >= kProbeEvery;
+    job.probe = (reverb || options.echoes) && update - g_last_probe >= kProbeEvery;
+    job.reverb_detail = reverb && options.reverb_detail;
+    job.echoes = options.echoes;
     job.partial_cover = partial_cover;
     job.openings = options.openings;
     job.update = update;
@@ -1030,6 +1218,19 @@ void SndEnv_Update(audio::SoundDevice& device, const audio::Listener& l, const S
         if ((probe || !job.voices.empty()) && g_worker.post(std::move(job)) && probe) g_last_probe = update;
     }
     if (have) done = std::move(result.voices);
+    // Echoes (3.5): the first echo's side from the listener's facing; nothing found (or switched off): silent.
+    if (have && result.probed) {
+        audio::Echo echo = result.echo.found && options.echoes ? result.echo.echo : audio::Echo{};
+        if (result.echo.found) {
+            const float* f = l.front;
+            const float* t = l.top;
+            const float right[3] = {t[1] * f[2] - t[2] * f[1], t[2] * f[0] - t[0] * f[2], t[0] * f[1] - t[1] * f[0]};
+            echo.spread = std::clamp(result.echo.direction[0] * right[0] + result.echo.direction[1] * right[1] +
+                                         result.echo.direction[2] * right[2],
+                                     -1.0f, 1.0f);
+        }
+        device.set_echo(echo);
+    }
     if (!reverb) return;
     if (!world_loaded()) {
         if (s.active) device.set_environment(kSilent);

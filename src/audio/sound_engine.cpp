@@ -114,6 +114,8 @@ public:
     void set_occlusion(VoiceId voice, float amount) override;
     bool has(Feature feature) override;
     void set_transmission(VoiceId voice, const Transmission& transmission) override;
+    void set_echo(const Echo& echo) override;
+    Echo echo;  // set_echo's
     bool feature_on(Feature feature) const { return config.enhanced && config.features.has(feature); }  // locked
     void apply_enhanced();  // locked: after config.enhanced or features changed
 
@@ -282,6 +284,10 @@ void Engine::update(VoiceImpl& v) {
         }
         if (params.reverb_send) params.send_gain = 1.0f + 0.4f * v.occlusion;
     }
+    // Echoes (3.5): gunfire into the slap-back echo, as loud as the place gives (set_echo).
+    if (feature_on(Feature::Echoes) && echo.level > 0.0f &&
+        (v.category == Category::Gunfire || v.category == Category::OwnGunfire))
+        params.echo_send = echo.level;
     // A position or level that is not a number (seen once, 10-30: an entity gone NaN just before a
     // crash in the animation code) would be refused by OpenAL on every update: the voice is muted
     // at the origin instead, and it is logged once.
@@ -704,6 +710,7 @@ void Engine::apply_enhanced() {
     if (Output* o = output.get()) {
         o->begin_batch();
         o->set_enhanced(feature_on(Feature::Resampler), feature_on(Feature::Reverb));
+        o->set_echo(feature_on(Feature::Echoes) ? echo : Echo{});
         for (VoiceImpl* v : voices) update(*v);
         o->end_batch();
     }
@@ -716,6 +723,24 @@ void Engine::set_occlusion(VoiceId id, float amount) {
         v.occlusion = amount;
         update(v);
     });
+}
+
+void Engine::set_echo(const Echo& e) {
+    Guard lock(mutex, TestLock::State);
+    // Only changes that can be heard reach OpenAL (an effect update there costs the caller up to milliseconds).
+    const bool on = e.level > 0.0f, was_on = echo.level > 0.0f;
+    if (on == was_on && std::fabs(e.level - echo.level) < 0.02f && std::fabs(e.delay - echo.delay) < 0.005f &&
+        std::fabs(e.lr_delay - echo.lr_delay) < 0.005f && std::fabs(e.spread - echo.spread) < 0.1f &&
+        std::fabs(e.damping - echo.damping) < 0.05f)
+        return;
+    const bool was = echo.level > 0.0f;
+    echo = e;
+    if (Output* o = out(); o && feature_on(Feature::Echoes)) {
+        o->set_echo(e);
+        if (was != (e.level > 0.0f))
+            for (VoiceImpl* v : voices)
+                if (v->refs && (v->category == Category::Gunfire || v->category == Category::OwnGunfire)) update(*v);
+    }
 }
 
 void Engine::set_transmission(VoiceId id, const Transmission& transmission) {
@@ -749,6 +774,7 @@ std::span<const xbox::KernelImpl> device_methods() {
         "SoundDevice::listener", "SoundDevice::commit", "SoundDevice::start_synched", "SoundDevice::set_headphones",
         "SoundDevice::do_work", "SoundDevice::set_category", "SoundDevice::set_environment",
         "SoundDevice::enhanced", "SoundDevice::set_occlusion", "SoundDevice::has", "SoundDevice::set_transmission",
+        "SoundDevice::set_echo",
     };
     static const std::vector<xbox::KernelImpl> methods = [] {
         void* const* vtable = *reinterpret_cast<void* const* const*>(&g);

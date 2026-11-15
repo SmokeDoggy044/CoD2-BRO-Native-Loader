@@ -27,6 +27,8 @@ public:
     uint32_t channels = 0;  // of the current callback buffer
     ALuint filter = 0;      // the direct sound's low-pass or band-pass (EFX), made when first wanted
     ALint filter_type = 0;  // its AL_FILTER_TYPE
+    ALuint echo_filter = 0;  // the echo send's level (3.5)
+    bool echo_sent = false;
     bool filtered = false;  // attached
     std::atomic<uint64_t> sum_squares{0}, samples{0};  // what render_callback handed OpenAL (take_level)
 };
@@ -79,6 +81,7 @@ std::vector<ALCint> context_attributes(Speakers speakers, int hrtf, std::vector<
     // Room for enhanced sound's voices (OpenAL Soft's default is 256 sources in all; the game has up to 246 slots
     // + the movie + voice chat).
     a.insert(a.end(), {ALC_MONO_SOURCES, 480, ALC_STEREO_SOURCES, 32});
+    a.insert(a.end(), {ALC_MAX_AUXILIARY_SENDS, 2});  // the reverb and the echo (3.5)
     a.push_back(0);
     return a;
 }
@@ -155,6 +158,9 @@ void set_reverb_effect(ALuint effect, bool eax, const Environment& e) {
         alEffectf(effect, AL_EAXREVERB_HFREFERENCE, std::clamp(e.hf_reference, 1000.0f, 20000.0f));
         alEffectf(effect, AL_EAXREVERB_ROOM_ROLLOFF_FACTOR, rolloff);
         alEffecti(effect, AL_EAXREVERB_DECAY_HFLIMIT, AL_TRUE);
+        alEffectf(effect, AL_EAXREVERB_GAINLF, std::clamp(gain_of(e.room_lf), 0.0f, 1.0f));
+        alEffectf(effect, AL_EAXREVERB_DECAY_LFRATIO, std::clamp(e.decay_lf_ratio, 0.1f, 2.0f));
+        alEffectf(effect, AL_EAXREVERB_LFREFERENCE, std::clamp(e.lf_reference, 20.0f, 1000.0f));
         // OpenAL Soft (1.24) folds a fully focused pan back to the middle in stereo: at most 0.6.
         auto pan = [](const float in[3], float out[3]) {
             const float length = std::sqrt(in[0] * in[0] + in[1] * in[1] + in[2] * in[2]);
@@ -235,6 +241,16 @@ std::unique_ptr<Output> Output::open(const OutputConfig& config) {
             LOG_WARN("audio", "cannot set up the reverb (EFX); no reverb");
             output->reverb_slot_ = 0;
         }
+        // The echo (3.5) on the second send, silent until set_echo.
+        alGenEffects(1, &output->echo_effect_);
+        alEffecti(output->echo_effect_, AL_EFFECT_TYPE, AL_EFFECT_ECHO);
+        alGenAuxiliaryEffectSlots(1, &output->echo_slot_);
+        alAuxiliaryEffectSlotf(output->echo_slot_, AL_EFFECTSLOT_GAIN, 0.0f);
+        alAuxiliaryEffectSloti(output->echo_slot_, AL_EFFECTSLOT_EFFECT, ALint(output->echo_effect_));
+        if (alGetError() != AL_NO_ERROR) {
+            LOG_WARN("audio", "cannot set up the echo (EFX); no echoes");
+            output->echo_slot_ = 0;
+        }
     }
     const char* name = alcGetString(output->device_, ALC_ALL_DEVICES_SPECIFIER);
     ALCint mode = 0;
@@ -266,8 +282,11 @@ Output::~Output() {
         alDeleteSources(1, &source->source);
         alDeleteBuffers(1, &source->buffer);
         if (source->filter) alDeleteFilters(1, &source->filter);
+        if (source->echo_filter) alDeleteFilters(1, &source->echo_filter);
     }
     if (reverb_slot_) alDeleteAuxiliaryEffectSlots(1, &reverb_slot_);
+    if (echo_slot_) alDeleteAuxiliaryEffectSlots(1, &echo_slot_);
+    if (echo_effect_) alDeleteEffects(1, &echo_effect_);
     if (reverb_effect_) alDeleteEffects(1, &reverb_effect_);
     alcMakeContextCurrent(nullptr);
     if (context_) alcDestroyContext(context_);
@@ -395,6 +414,20 @@ void Output::update(Source* source, const SourceParams& params) {
     if (reverb_slot_)
         alSource3i(s, AL_AUXILIARY_SEND_FILTER, params.reverb_send ? ALint(reverb_slot_) : AL_EFFECTSLOT_NULL, 0,
                    AL_FILTER_NULL);
+    if (echo_slot_ && (params.echo_send > 0.0f || source->echo_sent)) {
+        // The send's level through a filter of its own (gain only).
+        if (!source->echo_filter && params.echo_send > 0.0f) {
+            alGenFilters(1, &source->echo_filter);
+            alFilteri(source->echo_filter, AL_FILTER_TYPE, AL_FILTER_LOWPASS);
+        }
+        if (params.echo_send > 0.0f) {
+            alFilterf(source->echo_filter, AL_LOWPASS_GAIN, std::clamp(params.echo_send, 0.0f, 1.0f));
+            alFilterf(source->echo_filter, AL_LOWPASS_GAINHF, 1.0f);
+        }
+        alSource3i(s, AL_AUXILIARY_SEND_FILTER, params.echo_send > 0.0f ? ALint(echo_slot_) : AL_EFFECTSLOT_NULL, 1,
+                   params.echo_send > 0.0f ? ALint(source->echo_filter) : AL_FILTER_NULL);
+        source->echo_sent = params.echo_send > 0.0f;
+    }
     // The filter's values are copied when it is attached: attached again after each change.
     const float direct_gain = params.direct_gain / send;
     const bool filter = direct_gain < 1.0f || params.direct_gain_hf < 1.0f || params.direct_gain_lf < 1.0f;
@@ -420,6 +453,31 @@ void Output::update(Source* source, const SourceParams& params) {
         LOG_WARN("audio", "  (gain %g, pitch %g, placement %d, position %g %g %g)", double(params.gain),
                  double(params.pitch), int(params.placement), double(params.position[0]), double(params.position[1]),
                  double(params.position[2]));
+}
+
+void Output::set_echo(const Echo& echo) {
+    if (!echo_slot_ || echo == echo_) return;
+    echo_ = echo;
+    alEffectf(echo_effect_, AL_ECHO_DELAY, std::clamp(echo.delay, 0.0f, 0.207f));
+    alEffectf(echo_effect_, AL_ECHO_LRDELAY, std::clamp(echo.lr_delay, 0.0f, 0.404f));
+    alEffectf(echo_effect_, AL_ECHO_DAMPING, std::clamp(echo.damping, 0.0f, 0.99f));
+    alEffectf(echo_effect_, AL_ECHO_FEEDBACK, 0.0f);  // two echoes, no trail
+    alEffectf(echo_effect_, AL_ECHO_SPREAD, std::clamp(echo.spread, -1.0f, 1.0f));
+    alAuxiliaryEffectSloti(echo_slot_, AL_EFFECTSLOT_EFFECT, ALint(echo_effect_));
+    alAuxiliaryEffectSlotf(echo_slot_, AL_EFFECTSLOT_GAIN, echo.level > 0.0f ? 1.0f : 0.0f);
+    al_failed("setting the echo");
+    static int64_t logged_at = 0;
+    static Echo logged;
+    const int64_t now = std::chrono::duration_cast<std::chrono::milliseconds>(
+                            std::chrono::steady_clock::now().time_since_epoch())
+                            .count();
+    if (now - logged_at >= 1000 &&
+        (std::fabs(echo.level - logged.level) > 0.03f || std::fabs(echo.delay - logged.delay) > 0.02f)) {
+        LOG_INFO("audio", "echo: level %.2f, %.0f ms, second +%.0f ms, damping %.2f, side %+.2f", double(echo.level),
+                 double(echo.delay * 1000), double(echo.lr_delay * 1000), double(echo.damping), double(echo.spread));
+        logged = echo;
+        logged_at = now;
+    }
 }
 
 void Output::set_enhanced(bool resampler, bool reverb) {

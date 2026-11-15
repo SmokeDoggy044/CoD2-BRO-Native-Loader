@@ -55,6 +55,7 @@ public:
         float direct_gain = 1.0f, direct_gain_hf = 1.0f;  // a low-pass on the direct sound (EFX); 1, 1: none
         float direct_gain_lf = 1.0f;                      // below 1: a band-pass (low shelf too)
         float send_gain = 1.0f;                           // the reverb send's level (1 to 4)
+        float echo_send = 0.0f;                           // the echo's send level (set_echo), 0: none
     };
     class Source;
 
@@ -82,6 +83,8 @@ public:
     // The reverb sources with reverb_send feed (EFX; ignored while not enhanced). Logs changes
     // that can be heard (at most once a second).
     void set_environment(const Environment& environment);
+    // The slap-back echo (EFX echo on a second effect slot; enhanced only).
+    void set_echo(const Echo& echo);
     // Stops all output until resumed (the voices do not advance).
     void set_paused(bool paused);
     bool paused() const { return paused_; }
@@ -111,6 +114,8 @@ private:
     int best_resampler_ = -1;     // enhanced sources' (AL_SOFT_source_resampler), -1: none found
     int default_resampler_ = -1;  // the others'
     unsigned reverb_slot_ = 0, reverb_effect_ = 0;  // EFX, 0: none
+    unsigned echo_slot_ = 0, echo_effect_ = 0;      // EFX echo (3.5), 0: none
+    Echo echo_;
     Environment logged_;          // the last environment logged
     int64_t logged_at_ = 0;       // steady clock, milliseconds
     bool eax_reverb_ = false;  // AL_EFFECT_EAXREVERB, else the standard reverb
