@@ -73,10 +73,7 @@ constexpr uint32_t kGfxPsReserved = kGfxPsAlphaTest + 1;  // pixel constants c0.
 // layout); create_title_shader takes these keys too. Engine improvements 2.0: sun shadows.
 enum OwnPixelShader : uint32_t {
     kOwnPsSunCaster = 0xFE000001,     // a shadow caster's packed depth along the sun
-    kOwnPsSunWorld = 0xFE000002,      // cdWorld projected, no lightmap
-    kOwnPsSunWorldLm = 0xFE000003,    // cdWorld projected with lightmap
-    kOwnPsSunBlend = 0xFE000004,      // cdWorldBlend projected, no lightmap
-    kOwnPsSunBlendLm = 0xFE000005,    // cdWorldBlend projected with lightmap
+    // (0xFE000002..5 were the hand-written projected level receivers, replaced by the level's generated ports, 2.4)
 };
 // Our GLSL ports of the lit model classes' title programs (tools/shader_glsl.py, vk/shaders/model_*): the title
 // key with this bit, for vertex programs with the title's variant (vertex declaration). Vulkan only.

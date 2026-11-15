@@ -668,6 +668,33 @@ bool own_model_pixel(uint32_t key) {
     }
 }
 uint32_t g_lighting_features = 0;  // RendererPcHooks::lighting_features of this frame (model_shader_mode)
+// World units the receiver moves off its surface against the model's own coarse caster copy (acne): lab orbit m2
+// 11-15, speckle per pose 0 / 8 / 16 units: turn 135 0.22 / 0.08 / 0.07 (reference without model receivers 0.07).
+constexpr float kModelNormalOffset = 8.0f;
+// 2.3: normal maps at full strength; specular "on at low strength" (user 11-15): GGX x this.
+constexpr float kModelNormalMapStrength = 1.0f;
+constexpr float kModelSpecularStrength = 0.35f;
+
+// The level's main draws (2.4): cdWorld / cdWorldBlend vertex programs [0] plain, [1] projected, and their pixel
+// shaders by (projected + lightmap * 2) - tools/shader_glsl.py's WORLD_VS / WORLD_PS.
+struct WorldPixel {
+    uint32_t key;
+    bool blend, lightmap, projected;
+};
+constexpr WorldPixel kWorldPixels[] = {
+    {0x008a00a0, false, false, false}, {0x008a0190, false, false, true},
+    {0x008a0280, false, true, false},  {0x008a0370, false, true, true},
+    {0x0089f090, true, false, false},  {0x0089f180, true, false, true},
+    {0x0089f270, true, true, false},   {0x0089f360, true, true, true},
+};
+const WorldPixel* own_world_draw(uint32_t vertex_key, uint32_t pixel_key) {
+    if (vertex_key != 0x0089fa60 && vertex_key != 0x0089fb28 && vertex_key != 0x0089ea20 && vertex_key != 0x0089eaf8)
+        return nullptr;
+    for (const WorldPixel& w : kWorldPixels)
+        if (w.key == pixel_key) return &w;
+    return nullptr;
+}
+
 // Per frame: 0 = the title's shaders, else bit 0 pixel lighting, bit 1 sun shadow on models, bit 2 forced
 // (COD_BRO_MODEL_SHADERS=1: ours with both off - the 2.1a check that they equal the title's).
 uint32_t model_shader_mode(const game::RendererPcHooks& hooks) {
@@ -724,13 +751,69 @@ void bind_surface_maps(render::GfxDevice& device, DeviceObjects& o, float& prese
     device.set_sampler(7, wrap);
 }
 
+uint32_t model_shader_mode(const game::RendererPcHooks& hooks);
+// A level draw on ours: projected under our depth shadows (the title's silhouette must not show), lightmapped with
+// normal maps on (bit 0 here = normal maps), or forced (the 2.4 check).
+uint32_t world_shader_mode(const game::RendererPcHooks& hooks, const WorldPixel& w) {
+    const uint32_t mode = model_shader_mode(hooks);
+    uint32_t m = mode & 4;
+    if (w.projected && (mode & 2)) m |= 2;
+    if (w.lightmap && (g_lighting_features & game::kLightingNormalMaps)) m |= 1;
+    return m;
+}
+
+// The level's constants (own_model.glsl OWN_WORLD) and textures: t4 the level's sun mask, t5 the shadow map, t6 /
+// t7 the normal maps (cdWorld: normal + surface of stage 0; cdWorldBlend: both layers' normals).
+void set_world_constants(render::GfxDevice& device, DeviceObjects& o, const game::RendererPcHooks& hooks,
+                         uint32_t mode, const WorldPixel& w) {
+    alignas(16) float own[render::kGfxVsOwnCount][4] = {};
+    const bool shadow = (mode & 2) != 0;
+    own[0][1] = -1.0f;
+    own[0][2] = shadow ? 1.0f : 0.0f;
+    own[0][3] = static_cast<float>(hooks.debug_view);
+    std::memcpy(own[1], hooks.model.to_world, sizeof hooks.model.to_world);  // draw_world sets them for the level
+    if (shadow) std::memcpy(own[8], hooks.pixel_override_constants, 12 * sizeof(float));
+    std::memcpy(own[12], hooks.world_eye, 12);
+    if (mode & 1) {
+        render::TextureId normal = 0, second = 0;
+        const uint64_t c0 = o.stage_content[0], c1 = o.stage_content[1];
+        normal = c0 ? device.surface_map_texture(c0, 0) : 0;
+        second = w.blend ? (c1 ? device.surface_map_texture(c1, 0) : 0) : (normal ? device.surface_map_texture(c0, 1) : 0);
+        if (normal) {
+            own[11][3] = 1.0f;
+            own[11][2] = second ? 1.0f : 0.0f;
+            own[28][0] = kModelNormalMapStrength;
+            render::SamplerState wrap = ngl_gfx_state()->samplers[0];
+            wrap.alpha_kill = false;
+            wrap.min = wrap.mag = wrap.mip = render::Filter::Linear;
+            wrap.max_level = 0;
+            wrap.lod_bias = 0.0f;
+            device.set_texture(6, normal);
+            device.set_sampler(6, wrap);
+            render::SamplerState wrap1 = w.blend ? ngl_gfx_state()->samplers[1] : wrap;
+            wrap1.alpha_kill = false;
+            wrap1.min = wrap1.mag = wrap1.mip = render::Filter::Linear;
+            wrap1.max_level = 0;
+            wrap1.lod_bias = 0.0f;
+            device.set_texture(7, second);
+            device.set_sampler(7, wrap1);
+        }
+        if (hooks.sun_valid) {
+            std::memcpy(own[29], hooks.sun_mask_world, sizeof hooks.sun_mask_world);
+            std::memcpy(own[31], hooks.sun_direction, 12);
+            own[31][3] = 1.0f;
+        }
+    }
+    device.set_constants(render::ShaderStage::Vertex, render::kGfxVsOwn, &own[0][0], render::kGfxVsOwnCount);
+    bind_sun_mask(device, o, hooks);
+    if (!shadow) return;
+    render::SamplerState clamp;
+    clamp.u = clamp.v = clamp.w = render::Address::Clamp;
+    device.set_texture(5, texture_for(o, hooks.shadow_texture, 0));
+    device.set_sampler(5, clamp);
+}
+
 // Our model shaders' constants (own_model.glsl) and textures: t4 the sun mask, t5 the shadow map.
-// World units the receiver moves off its surface against the model's own coarse caster copy (acne): lab orbit m2
-// 11-15, speckle per pose 0 / 8 / 16 units: turn 135 0.22 / 0.08 / 0.07 (reference without model receivers 0.07).
-constexpr float kModelNormalOffset = 8.0f;
-// 2.3: normal maps at full strength; specular "on at low strength" (user 11-15): GGX x this.
-constexpr float kModelNormalMapStrength = 1.0f;
-constexpr float kModelSpecularStrength = 0.35f;
 void set_model_constants(render::GfxDevice& device, DeviceObjects& o, const game::RendererPcHooks& hooks,
                          uint32_t mode) {
     alignas(16) float own[render::kGfxVsOwnCount][4] = {};
@@ -747,7 +830,7 @@ void set_model_constants(render::GfxDevice& device, DeviceObjects& o, const game
             for (int k = 0; k < 4; ++k) own[4 + row][k] = p[k * 4 + row];
         own[7][0] = own[7][1] = own[7][2] = 0.0f;  // w = 1 (the world receivers' c14)
         own[7][3] = 1.0f;
-        std::memcpy(own[8], hooks.pixel_override_constants, 12 * sizeof(float));  // c0 c1 c2 (sun_world.glsl)
+        std::memcpy(own[8], hooks.pixel_override_constants, 12 * sizeof(float));  // c0 c1 c2 (own_model.glsl own[8..10])
     }
     own[11][0] = static_cast<float>(m.count);
     own[11][1] = kModelNormalOffset;
@@ -783,12 +866,17 @@ bool apply(render::GfxDevice& device, DeviceObjects& o, uint32_t stride) {
     // Ours (2.0 sun shadows): casters write depth (their draws write alpha only), the receivers compare it.
     const game::RendererPcHooks& hooks = game::renderer_pc_hooks();
     const bool sun_caster = hooks.shadow_depth && shadow_caster_draw(s);
-    uint32_t pixel_key = sun_caster ? render::kOwnPsSunCaster : hooks.pixel_override ? hooks.pixel_override : s.pixel_key;
+    uint32_t pixel_key = sun_caster ? render::kOwnPsSunCaster : s.pixel_key;
     render::ShaderId ps = shader_for(o, render::ShaderStage::Pixel, pixel_key);
-    // Ours (2.1): the lit model classes on our GLSL ports (per-pixel lights, the sun's shadow).
+    // Ours (2.1, 2.4): the lit model classes and the level on our GLSL ports (per-pixel lights, normal maps, the
+    // sun's shadow).
     render::ShaderId model_vs = 0;
-    const uint32_t model_mode = !sun_caster && !hooks.pixel_override && own_model_vertex(s.vertex_key) &&
-                                own_model_pixel(s.pixel_key) ? model_shader_mode(hooks) : 0;
+    const WorldPixel* world = sun_caster ? nullptr : own_world_draw(s.vertex_key, s.pixel_key);
+    const uint32_t model_mode = sun_caster ? 0
+                                : world    ? world_shader_mode(hooks, *world)
+                                : own_model_vertex(s.vertex_key) && own_model_pixel(s.pixel_key)
+                                    ? model_shader_mode(hooks)
+                                    : 0;
     if (model_mode) {
         model_vs = shader_for(o, render::ShaderStage::Vertex, s.vertex_key | render::kOwnModelShader, variant);
         const render::ShaderId model_ps =
@@ -861,16 +949,8 @@ bool apply(render::GfxDevice& device, DeviceObjects& o, uint32_t stride) {
     device.set_constants(render::ShaderStage::Vertex, 0, &s.vs_constants[0][0], 192);
     device.set_constants(render::ShaderStage::Pixel, 0, &s.ps_constants[0][0], 18);
     if (device.dumping() && !ab.reapplying) dump_draw(device, s, pixel_key, sun_caster, hooks);
-    if (model_vs) set_model_constants(device, o, hooks, model_mode);
-    if (!sun_caster && hooks.pixel_override) {
-        // c3.x: the debug view (RendererPcHooks::debug_view; tools for phase 2).
-        alignas(16) float constants[16];
-        std::memcpy(constants, hooks.pixel_override_constants, 12 * sizeof(float));
-        constants[12] = static_cast<float>(hooks.debug_view);
-        constants[13] = constants[14] = constants[15] = 0.0f;
-        device.set_constants(render::ShaderStage::Pixel, 0, constants, 4);
-        bind_sun_mask(device, o, hooks);  // slot 4 (no world shader uses it)
-    }
+    if (model_vs && world) set_world_constants(device, o, hooks, model_mode, *world);
+    else if (model_vs) set_model_constants(device, o, hooks, model_mode);
     return true;
 }
 
@@ -916,15 +996,7 @@ void run_shader_ab(render::GfxDevice& device, DeviceObjects& o, uint32_t stride,
         device.set_target(pair.first, pair.second);
         device.clear(render::kGfxClearColor | render::kGfxClearDepth | render::kGfxClearStencil, kAbSentinel, 1.0f, 0);
         device.set_shaders(title ? ab.title_vs : ab.vs, title ? ab.title_ps : ab.ps);
-        if (title) {
-            device.set_constants(render::ShaderStage::Pixel, 0, &s.ps_constants[0][0], 18);
-        } else if (ab.ours && !ab.model) {
-            alignas(16) float constants[16];
-            std::memcpy(constants, hooks.pixel_override_constants, 12 * sizeof(float));
-            constants[12] = static_cast<float>(hooks.debug_view);
-            constants[13] = constants[14] = constants[15] = 0.0f;
-            device.set_constants(render::ShaderStage::Pixel, 0, constants, 4);
-        }
+        if (title) device.set_constants(render::ShaderStage::Pixel, 0, &s.ps_constants[0][0], 18);
         draw();
         device.read_target(pair.first, out.data(), scratch_w, scratch_h);
     };

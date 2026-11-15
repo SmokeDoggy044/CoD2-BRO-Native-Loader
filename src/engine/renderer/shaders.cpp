@@ -1365,15 +1365,15 @@ void draw_world(const NglMeshNode* node, const WorldClass& k) {
     c[3] = 0;
     set_vertex_constants(6, c, 64);
     set_scene_fog();
-    // Ours (2.0 step 2): the sun's shadow map compared by depth instead of the projected silhouette.
+    // Ours (2.0 step 2, 2.4): our level shaders (ngl_gfx) take the draw's object -> world rows and the camera from
+    // here (rendering only).
     RendererPcHooks& hooks = renderer_pc_hooks();
-    if (projected && hooks.shadow_depth) {
-        const bool blend = k.textures == cdWorldBlend_textures;
-        hooks.pixel_override = blend ? (lightmap ? render::kOwnPsSunBlendLm : render::kOwnPsSunBlend)
-                                     : (lightmap ? render::kOwnPsSunWorldLm : render::kOwnPsSunWorld);
+    if (hooks.lighting_features || hooks.shadow_depth) {
+        for (int row = 0; row < 3; ++row)
+            for (int j = 0; j < 4; ++j) hooks.model.to_world[row * 4 + j] = draw->world[j * 4 + row];
+        std::memcpy(hooks.world_eye, scene->matrix0d0 + 12, 12);
     }
     nglDrawMeshSection(node->section);
-    hooks.pixel_override = 0;
 
     // The dynamic lights: added on top (ONE), the white texture on every stage, two
     // lights per pass.

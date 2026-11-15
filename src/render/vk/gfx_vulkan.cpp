@@ -407,7 +407,7 @@ public:
         return id;
     }
     ShaderId create_title_shader(ShaderStage stage, uint32_t key, uint32_t variant) override {
-        if (stage == ShaderStage::Pixel && key >= kOwnPsSunCaster && key <= kOwnPsSunBlendLm) return own_pixel_shader(key);
+        if (stage == ShaderStage::Pixel && key == kOwnPsSunCaster) return own_shader(ShaderStage::Pixel, "sun_caster.frag");
         if ((key & kOwnModelShader) && key < 0x80000000u) {
             char name[48];
             const uint32_t title = key & ~kOwnModelShader;
@@ -428,12 +428,8 @@ public:
                   variant);
         return 0;
     }
-    // Ours in the title shaders' layout (gfx_device.h OwnPixelShader), straight from glslang's SPIR-V.
-    ShaderId own_pixel_shader(uint32_t key) {
-        static constexpr const char* kNames[] = {"sun_caster.frag", "sun_world.frag", "sun_world_lm.frag",
-                                                 "sun_blend.frag", "sun_blend_lm.frag"};
-        return own_shader(ShaderStage::Pixel, kNames[key - kOwnPsSunCaster]);
-    }
+    // Ours in the title shaders' layout (gfx_device.h OwnPixelShader, kOwnModelShader), straight from glslang's
+    // SPIR-V.
     ShaderId own_shader(ShaderStage stage, const char* name) {
         const vk::SpirvShader* code = vk::spirv_shader(name);
         VkShaderModule module = VK_NULL_HANDLE;

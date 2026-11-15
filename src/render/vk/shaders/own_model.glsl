@@ -7,7 +7,7 @@
 // Our constants (own[i], see gfx_device.h kModelOwn*):
 //   0: (pixel lighting 0/1, the sun's light index or -1, sun shadow 0/1, debug view)
 //   1..3: object -> world rows        4..7: world -> projector rows (u, v, z, w)
-//   8: shadow depth (scale, offset, bias, strength) as sun_world.glsl's c0      9, 10: sun mask rows (c1, c2)
+//   8: shadow depth (scale, offset, bias, strength)  9, 10: sun mask rows (c1, c2)
 //   11: (light count, normal offset in world units, specular, surface maps bound 0/1)
 //   12..19: light i (xyz, radius): radius 0 = directional, xyz its direction of travel; else the position
 //   20..27: light i (r, g, b, inner radius)
@@ -95,10 +95,14 @@ layout(set = 0, binding = 1) uniform PixelConstants {
 };
 layout(set = 0, binding = 2) uniform texture2D tex0;
 layout(set = 0, binding = 3) uniform texture2D tex1;
+layout(set = 0, binding = 4) uniform texture2D tex2;
+layout(set = 0, binding = 5) uniform texture2D tex3;
 layout(set = 0, binding = 6) uniform texture2D tex4;
 layout(set = 0, binding = 7) uniform texture2D tex5;
 layout(set = 0, binding = 10) uniform sampler smp0;
 layout(set = 0, binding = 11) uniform sampler smp1;
+layout(set = 0, binding = 12) uniform sampler smp2;
+layout(set = 0, binding = 13) uniform sampler smp3;
 layout(set = 0, binding = 14) uniform sampler smp4;
 layout(set = 0, binding = 15) uniform sampler smp5;
 layout(set = 0, binding = 8) uniform texture2D tex6;  // surface maps (2.2): normal X Y (DirectX green)
@@ -109,6 +113,8 @@ layout(location = 0) in vec4 v0;
 layout(location = 1) in vec4 v1;
 layout(location = 2) in vec4 t0;
 layout(location = 3) in vec4 t1;
+layout(location = 4) in vec4 t2;
+layout(location = 5) in vec4 t3;
 layout(location = 10) in float fog;
 layout(location = 11) in vec3 world_pos;
 layout(location = 12) in vec3 world_normal;
@@ -118,6 +124,8 @@ layout(location = 0) out vec4 color;
 
 vec4 own_tex2Dproj_0(vec4 coord) { return textureProj(sampler2D(tex0, smp0), coord); }
 vec4 own_tex2Dproj_1(vec4 coord) { return textureProj(sampler2D(tex1, smp1), coord); }
+vec4 own_tex2Dproj_2(vec4 coord) { return textureProj(sampler2D(tex2, smp2), coord); }
+vec4 own_tex2Dproj_3(vec4 coord) { return textureProj(sampler2D(tex3, smp3), coord); }
 
 float saturate(float x) { return clamp(x, 0.0, 1.0); }
 vec3 saturate(vec3 x) { return clamp(x, 0.0, 1.0); }
@@ -146,7 +154,7 @@ vec4 nv_alpha_test(vec4 result) {
 
 float own_unpack_depth(vec3 rgb) { return dot(round(rgb * 255.0) / 255.0, vec3(1.0, 1.0 / 255.0, 1.0 / 65025.0)); }
 
-// Whether the baked lighting has the sun at projector point p (0..1), as sun_world.glsl's baked_sun.
+// Whether the baked lighting has the sun at projector point p (0..1).
 float own_baked_sun(vec3 p) {
     if (OWN(9) == vec4(0.0)) return 1.0;
     const vec2 g = vec2(dot(OWN(9), vec4(p, 1.0)), dot(OWN(10), vec4(p, 1.0)));
@@ -154,17 +162,20 @@ float own_baked_sun(vec3 p) {
     return smoothstep(0.15, 0.6, texture(sampler2D(tex4, smp4), g).r);
 }
 
-// The share of the sun this point loses (0..1): sun_world.glsl's tent PCF over the shadow map.
+// The share of the sun projector point p loses (0..1): the shadow map (packed depth) in `map`, a tent PCF over 4x4
+// texels (soft edges), times the baked-sun mask and the strength (own[8].w).
 float g_mask = 1.0;
-float own_sun_lost(vec3 world) {
-    const vec4 q = vec4(world, 1.0);
-    const vec4 coord = vec4(dot(OWN(4), q), dot(OWN(5), q), dot(OWN(6), q), dot(OWN(7), q));
-    const vec3 p = coord.xyz / coord.w;
+vec3 g_spec = vec3(0.0);
+vec3 g_light = vec3(1.0);
+float g_lost = 0.0;
+int g_lights = 0;
+vec3 g_normal = vec3(0.0, 0.0, 1.0);
+float own_shadow_pcf(texture2D map, sampler smp, vec3 p) {
     if (p.x <= 0.0 || p.y <= 0.0 || p.x >= 1.0 || p.y >= 1.0) return 0.0;
     g_mask = own_baked_sun(p);
     if (g_mask <= 0.0) return 0.0;
     const float receiver = (p.z + OWN(8).y) * OWN(8).x - OWN(8).z;
-    const ivec2 size = textureSize(sampler2D(tex5, smp5), 0);
+    const ivec2 size = textureSize(sampler2D(map, smp), 0);
     const vec2 pos = p.xy * vec2(size) - 0.5;
     const ivec2 base = ivec2(floor(pos));
     const vec2 f = pos - floor(pos);
@@ -173,10 +184,17 @@ float own_sun_lost(vec3 world) {
     for (int j = 0; j < 4; ++j)
         for (int i = 0; i < 4; ++i) {
             const ivec2 at = clamp(base + ivec2(i - 1, j - 1), ivec2(0), size - 1);
-            const float e = own_unpack_depth(texelFetch(sampler2D(tex5, smp5), at, 0).rgb);
+            const float e = own_unpack_depth(texelFetch(sampler2D(map, smp), at, 0).rgb);
             if (e > 0.0 && 1.0 - e < receiver) sum += wx[i] * wy[j];
         }
     return sum * g_mask * OWN(8).w;
+}
+
+// A model point's lost share: its projector coordinates from our world -> projector rows (own[4..7]), map on t5.
+float own_sun_lost(vec3 world) {
+    const vec4 q = vec4(world, 1.0);
+    const vec4 coord = vec4(dot(OWN(4), q), dot(OWN(5), q), dot(OWN(6), q), dot(OWN(7), q));
+    return own_shadow_pcf(tex5, smp5, coord.xyz / coord.w);
 }
 
 // Light i's colour and direction toward it at world point p.
@@ -205,9 +223,12 @@ vec4 own_surface() {
 // The normal map's normal in world space (2.3): tangent frame per pixel from the position and texture coordinate
 // derivatives ("cotangent frame", no vertex tangents); the maps' X follows +u, Y +v (D3D rows; checked against
 // their height maps). Called in uniform control flow (the derivatives).
-vec3 own_mapped_normal(vec3 n) {
-    const vec2 uv = t0.xy / t0.w * texcoord_scale[0].xy;
-    const vec2 xy = textureProj(sampler2D(tex6, smp6), t0 * texcoord_scale[0]).rg * 2.0 - 1.0;
+vec3 own_mapped_normal_at(vec3 n, texture2D map, sampler smp, vec4 coord, vec4 coord_scale) {
+    const vec2 uv = coord.xy / coord.w * coord_scale.xy;
+    // Less the map's average tilt (its last mip level): PBRify's maps lean slightly as a whole, which darkened the
+    // sunlit level by ~4% (lab m2 18640, median ratio 0.96); the map should add detail, not tilt the surface.
+    const vec2 mean = textureLod(sampler2D(map, smp), uv, 16.0).rg * 2.0 - 1.0;
+    const vec2 xy = textureProj(sampler2D(map, smp), coord * coord_scale).rg * 2.0 - 1.0 - mean;
     const vec3 ts = vec3(xy, sqrt(max(0.0, 1.0 - dot(xy, xy))));
     const vec3 dp1 = dFdx(world_pos), dp2 = dFdy(world_pos);
     const vec2 duv1 = dFdx(uv), duv2 = dFdy(uv);
@@ -217,9 +238,64 @@ vec3 own_mapped_normal(vec3 n) {
     const float scale = max(dot(tangent, tangent), dot(bitangent, bitangent));
     if (!(scale > 1e-20)) return n;  // no texture gradient (a flat-mapped or degenerate triangle)
     const float inv = inversesqrt(scale);
-    const vec3 mapped = normalize(mat3(tangent * inv, bitangent * inv, n) * ts);
-    return normalize(mix(n, mapped, OWN(28).x));
+    return normalize(mat3(tangent * inv, bitangent * inv, n) * ts);
 }
+vec3 own_mapped_normal(vec3 n) {
+    return normalize(mix(n, own_mapped_normal_at(n, tex6, smp6, t0, texcoord_scale[0]), OWN(28).x));
+}
+
+#ifdef OWN_WORLD
+// The level (2.4): the lightmap is the light. Where the baked lighting has the sun (the level's sun mask at the
+// point, own[29] own[30]: world -> mask rows), the normal map only re-weights the sun's share by how much more or
+// less the bumped normal faces the sun than the face does:
+//   light x (1 + sun_weight x (max(N_map.L, 0) / (max(N_face.L, 0.2) max(N_map.N_face, 0.5)) - 1)), within 0.6 .. 1.4,
+// so a flat map (N_map = N_face) leaves the picture exactly as it was. own[31] = (sun direction of travel, valid);
+// own[12] = the camera (world) to orient the face normal. Indoors / baked shade: unchanged (2.6's cavity there).
+float g_world_factor = 1.0;
+float own_level_sun(vec3 p) {
+    if (OWN(29) == vec4(0.0)) return 0.0;
+    const vec2 g = vec2(dot(OWN(29), vec4(p, 1.0)), dot(OWN(30), vec4(p, 1.0)));
+    if (g.x < 0.0 || g.y < 0.0 || g.x > 1.0 || g.y > 1.0) return 0.0;
+    return smoothstep(0.15, 0.6, texture(sampler2D(tex4, smp4), g).r);
+}
+void own_world_begin() {
+    // Face normal from the position derivatives, turned toward the camera.
+    vec3 face = cross(dFdx(world_pos), dFdy(world_pos));
+    face = dot(face, face) > 1e-20 ? normalize(face) : vec3(0.0, 0.0, 1.0);
+    if (dot(face, OWN(12).xyz - world_pos) < 0.0) face = -face;
+    g_normal = face;
+    if (OWN(28).x <= 0.0 || !own_has_maps()) return;
+    vec3 n = own_mapped_normal_at(face, tex6, smp6, t0, texcoord_scale[0]);
+#ifdef OWN_WORLD_BLEND
+    // The two layers' normals blended as their colours (v0.w); t7 = the second layer's normal map.
+    const vec3 n1 = own_mapped_normal_at(face, tex7, smp7, t1, texcoord_scale[1]);
+    n = normalize(mix(n, n1, clamp(v0.w, 0.0, 1.0)));
+#endif
+    n = normalize(mix(face, n, OWN(28).x));
+    g_normal = n;
+    if (OWN(31).w == 0.0) return;
+    const vec3 toward = -OWN(31).xyz;
+    // Only faces the sun reaches: the mask is a map over x y, so walls turned away from the sun carry the ground's
+    // weight too, and their lightmap has no sun to re-weight (lab m0 8512: -6.7 levels before this).
+    const float weight = own_level_sun(world_pos) * smoothstep(0.0, 0.17, dot(face, toward));
+    if (weight <= 0.0) return;
+    // Over N_map.N_face too: a bump tilted away from the face loses no light when the sun stands along the face
+    // normal, so the map re-distributes the light instead of darkening on average (lab m0 8512: -6.7 levels without).
+    const float ratio = max(dot(n, toward), 0.0) / (max(dot(face, toward), 0.2) * max(dot(n, face), 0.5));
+    g_world_factor = clamp(1.0 + weight * (ratio - 1.0), 0.6, 1.4);
+}
+vec3 g_world_light = vec3(1.0);
+vec3 own_world_light(vec3 lightmap) {
+    g_world_light = lightmap * g_world_factor;
+    return g_world_light;
+}
+// The projector stage: our depth compare's lost share (the title's combiners darken by it times v0's strength).
+float own_world_shadow(vec4 coord) {
+    if (OWN(0).z == 0.0) return 0.0;
+    g_lost = own_shadow_pcf(tex5, smp5, coord.xyz / coord.w);
+    return g_lost;
+}
+#endif
 
 // GGX specular (dielectric F0 0.04) for light `toward` with colour `light` at roughness r: D G F / (4 N.V), i.e.
 // the BRDF times N.L (Smith G carries N.L).
@@ -235,11 +311,6 @@ vec3 own_specular(vec3 n, vec3 v, vec3 toward, vec3 light, float r) {
     return light * (D * G * F / (4.0 * nv));
 }
 
-vec3 g_spec = vec3(0.0);
-vec3 g_light = vec3(1.0);
-float g_lost = 0.0;
-int g_lights = 0;
-vec3 g_normal = vec3(0.0, 0.0, 1.0);
 
 // The diffuse colour the title's combiners take as V0.
 vec4 own_model_v0(vec4 vertex_color) {
@@ -299,10 +370,20 @@ void own_model_out(vec4 result) {
     color = vec4(min(result.rgb + g_spec * clamp(fog, 0.0, 1.0), vec3(1.0)), result.w);
     const int view = int(OWN(0).w + 0.5);
     if (view == 5 || view == 8) {  // roughness, height: grey; magenta where the texture has no maps
+#ifdef OWN_WORLD_BLEND
+        color = vec4(1.0, 0.0, 1.0, result.w);  // t7 holds the second layer's normal map here
+#else
         const vec4 s = own_surface();
         color = vec4(own_has_maps() ? vec3(view == 5 ? s.r : s.g) : vec3(1.0, 0.0, 1.0), result.w);
+#endif
         return;
     }
+#ifdef OWN_WORLD
+    if (view == 1) {  // the light only: lightmap x normal-map factor x shadow
+        color = vec4(clamp(g_world_light * (1.0 - g_lost), 0.0, 1.0), result.w);
+        return;
+    }
+#endif
     if (view == 1) color = vec4(clamp(g_light, 0.0, 1.0), result.w);
     else if (view == 2) color = vec4(g_mask < 0.01 ? vec3(0.45, 0.05, 0.05) : vec3(1.0 - g_lost), result.w);
     else if (view == 3) color = vec4(vec3(g_mask), result.w);

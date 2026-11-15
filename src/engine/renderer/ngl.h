@@ -75,15 +75,14 @@ struct RendererPcHooks {
     // position lies far along the sun in the deep step-2 box).
     float shadow_reach_center[2] = {};
     // Set with it (step 2): the casters write their depth along the sun (render::kOwnPsSunCaster, our own depth
-    // buffer keeping the nearest), and the projected world draws compare it (pixel_override).
+    // buffer keeping the nearest), and the projected world draws compare it (our level shaders, 2.4).
     bool shadow_depth = false;
     // Set with the two above: the shadow texture's memory (its D3D header's +4) - its casters are the draws into
     // it that write alpha only (other passes write alpha only too, into the frame).
     uint32_t shadow_target_data = 0;
-    // Set around one draw: our pixel shader (render::OwnPixelShader) in place of the title's, with c0 =
-    // pixel_override_constants. Vulkan only.
-    uint32_t pixel_override = 0;
-    float pixel_override_constants[16] = {};  // c0..c2 (apply() adds c3 = (debug_view, 0, 0, 0))
+    // With shadow_depth: our receivers' shadow constants (own_model.glsl own[8..10]): c0 = (depth scale, offset, bias,
+    // strength), c1 c2 = projector coordinates -> sun mask texture coordinates.
+    float pixel_override_constants[16] = {};
     // Developers (phase 2 tools): what our own shaders show instead of the picture (render/dev_mode.h DebugView,
     // set by the loader from --debug-view and F10).
     uint32_t debug_view = 0;
@@ -100,6 +99,13 @@ struct RendererPcHooks {
     // The sun's direction of travel (z < 0) while shadow_depth is set: the object light that matches it is the one
     // the shadow darkens.
     float sun_direction[3] = {};
+    // Set each frame when sun_direction holds the view's grid sun (sun shadows or normal maps on), with the level's
+    // sun mask (sun_mask) mapped from world x y: sun_mask_world = two rows (u = row 0 . (x, y, z, 1), v = row 1).
+    bool sun_valid = false;
+    float sun_mask_world[8] = {};
+    // The level draw being set up (draw_world): the camera in world space, for our level shaders (2.4); its
+    // object -> world rows go in model.to_world.
+    float world_eye[3] = {};
     // The lit model draw being set up (nglComputeObjectLights fills it, ngl_gfx reads it at the draw): our model
     // shaders' constants (render::kGfxVsOwn, own_model.glsl) - the object -> world rows and the node's lights in
     // world space (up to render::kModelLights), sun index, light count. Rendering only.

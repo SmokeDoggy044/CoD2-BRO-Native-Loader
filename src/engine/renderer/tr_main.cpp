@@ -2888,6 +2888,31 @@ void XB_CDECL R_RenderTestShadow() {
     renderer_pc_hooks().shadow_depth = false;
     renderer_pc_hooks().shadow_target_data = reinterpret_cast<const uint32_t*>(texture->d3d_texture)[1];
     renderer_pc_hooks().sun_mask = nullptr;
+    // Ours (2.4): the view's grid sun and the level's sun mask for our level shaders' normal maps, also without
+    // our shadows.
+    {
+        RendererPcHooks& hooks = renderer_pc_hooks();
+        hooks.sun_valid = false;
+        const bool shadows = hooks.sun_shadows && hooks.sun_shadows();
+        const bool maps = hooks.lighting_features && (hooks.lighting_features() & kLightingNormalMaps);
+        float s[3];
+        if ((shadows || maps) && grid_sun(view + 12, s)) {
+            hooks.sun_valid = true;
+            std::memcpy(hooks.sun_direction, s, sizeof s);
+            std::memset(hooks.sun_mask_world, 0, sizeof hooks.sun_mask_world);
+            if (const SunMask* mask = level_sun_mask()) {
+                for (int axis = 0; axis < 2; ++axis) {
+                    const float to_texel = 1.0f / (mask->step * (axis ? mask->height : mask->width));
+                    hooks.sun_mask_world[axis * 4 + axis] = to_texel;
+                    hooks.sun_mask_world[axis * 4 + 3] = -mask->origin[axis] * to_texel;
+                }
+                hooks.sun_mask = mask->weights.data();
+                hooks.sun_mask_width = mask->width;
+                hooks.sun_mask_height = mask->height;
+                hooks.sun_mask_key = mask->key;
+            }
+        }
+    }
     if (const auto sun_hook = renderer_pc_hooks().sun_shadows; sun_hook && sun_hook() && grid_sun(view + 12, sun)) {
         renderer_pc_hooks().shadow_casters_double_sided = true;
         // Step 2: a larger square (kSunRadius; the original's 700 let shadows end 1000 units ahead), its centre
@@ -2922,7 +2947,7 @@ void XB_CDECL R_RenderTestShadow() {
         far = kSunDepth;
         box_depth = kSunDepth;
         box_shift = kSunDepth * 0.5f;
-        // Step 2: casters write their depth along the sun, the level compares (the shaders' c0, sun_world.glsl):
+        // Step 2: casters write their depth along the sun, the level compares (own_model.glsl own[8]):
         // the receiver's projector z (-0.5..0.5 over the box from the camera) as the casters' depth
         // ((distance - near) / (far - near), orthographic), less a bias of kSunBias units.
         constexpr float kNear = 0.1f, kSunBias = 4.0f;
@@ -2933,7 +2958,6 @@ void XB_CDECL R_RenderTestShadow() {
         constants[3] = 1.0f;
         renderer_pc_hooks().shadow_depth = true;
         renderer_pc_hooks().shadow_texture = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(texture->d3d_texture));
-        std::memcpy(renderer_pc_hooks().sun_direction, sun, sizeof sun);
         // c1 c2: the projector coordinates (u, v, z, 1) to the sun mask's texture coordinates. A point of the
         // box is r3 + across * radius * (u - 0.5) - up * radius * (v - 0.5) + sun * depth * z (r3 = the camera
         // moved box_shift along the sun); sample i of a row sits at texel centre (i + 0.5) / width.
