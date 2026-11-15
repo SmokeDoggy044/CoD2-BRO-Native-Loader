@@ -43,6 +43,7 @@
 #include "viewer.h"
 #include "orbit.h"
 #include "snd_env.h"
+#include "snd_scene.h"
 #include "sound_engine.h"
 #include "kernel.h"
 #include "civil_time.h"
@@ -371,6 +372,7 @@ void configure_title_services(const Options& options, const fs::path& assets, co
         game::renderer_pc_hooks().debug_view = view;
         if (view != render::dev::kViewSound) render::dev::set_shapes({});
     });
+    game::SndScene_SetLog([](const char* line) { LOG_INFO("audio", "%s", line); });
     game::renderer_pc_hooks().set_overlay_shapes = [](std::vector<render::dev::Shape>&& shapes) {
         render::dev::set_shapes(std::move(shapes));
     };

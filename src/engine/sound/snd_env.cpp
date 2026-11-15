@@ -25,11 +25,20 @@
 
 #include <algorithm>
 #include <array>
+#include <atomic>
+#include <chrono>
+#include <condition_variable>
+#include <thread>
+#include <vector>
 #include <cmath>
+#include <cstdlib>
+#include <memory>
 #include <cstdio>
 #include <mutex>
 
 #include "cm.h"
+#include "float_env.h"
+#include "snd_scene.h"
 #include "sound_device.h"
 #include "title_data.h"
 
@@ -130,7 +139,8 @@ struct Hit {
     uint32_t type;   // surface type (when hit)
 };
 
-Hit trace(const float start[3], const float direction[3]) {
+// The game's collision (CM_BoxTrace; before 3.1, now only for COD_BRO_SOUND_SCENE_CHECK).
+Hit trace_game(const float start[3], const float direction[3]) {
     alignas(16) uint8_t results[0x40] = {};  // endpos +0, plane +0x10, fraction +0x20, surface flags +0x24
     alignas(16) const float zero[4] = {0, 0, 0, 0};
     alignas(16) float from[4] = {start[0], start[1], start[2], 0};
@@ -153,7 +163,7 @@ struct Line {
     bool traced = false;  // false: too short to count
 };
 
-Line trace_line(const float a[3], const float b[3]) {
+Line trace_line_game(const float a[3], const float b[3]) {
     constexpr float kListenerGap = 32.0f, kPointGap = 12.0f;  // world units
     Line line;
     const float d[3] = {b[0] - a[0], b[1] - a[1], b[2] - a[2]};
@@ -173,6 +183,112 @@ Line trace_line(const float a[3], const float b[3]) {
     if (line.fraction >= 1.0f || line.fraction <= 0.0f) return line;
     constexpr uint32_t kGlass = 9;
     line.share = ((line.flags >> 20) & 31) == kGlass ? 0.35f : 1.0f;
+    return line;
+}
+
+
+// COD_BRO_SOUND_SCENE_CHECK=1: every sound ray also through the game's collision, the differences counted and logged
+// (3.1's check: our scene against the game's on the same recordings).
+struct SceneCheck {
+    bool on = [] {
+        const char* v = std::getenv("COD_BRO_SOUND_SCENE_CHECK");
+        return v && *v && *v != '0';
+    }();
+    uint64_t rays = 0, both_hit = 0, ours_only = 0, game_only = 0, far_apart = 0;
+    double distance_sum = 0;
+    uint64_t lines = 0, line_disagree = 0, line_glass_disagree = 0;
+    double ours_us = 0, game_us = 0;  // time in each (the check runs both)
+    void report() {
+        if ((rays + lines) % 5000) return;
+        SndScene_Log("scene check: %llu rays (%llu both hit, %llu ours only, %llu game only, %llu more than 8 "
+                 "apart, mean distance difference %.2f), %llu lines (%llu blocked differently, %llu glass differently)",
+                 (unsigned long long)rays, (unsigned long long)both_hit, (unsigned long long)ours_only,
+                 (unsigned long long)game_only, (unsigned long long)far_apart,
+                 both_hit ? distance_sum / double(both_hit) : 0.0, (unsigned long long)lines,
+                 (unsigned long long)line_disagree, (unsigned long long)line_glass_disagree);
+        SndScene_Log("scene check: per ray/line %.2f us ours, %.2f us the game's", ours_us / double(rays + lines),
+                     game_us / double(rays + lines));
+    }
+};
+SceneCheck g_check;
+
+// The scene the calling thread's rays use, taken by SndEnv_BeginRays (once per sound update; a mark's dump).
+thread_local std::shared_ptr<const AcousticScene> g_scene;
+
+const AcousticScene* scene() {
+    if (!g_scene) g_scene = SndScene_Current();
+    return g_scene.get();
+}
+
+double now_us() {
+    return std::chrono::duration<double, std::micro>(std::chrono::steady_clock::now().time_since_epoch()).count();
+}
+
+Hit trace(const float start[3], const float direction[3]) {
+    const double t0 = g_check.on ? now_us() : 0;
+    Hit ours{kRange, false, 0};
+    if (const AcousticScene* s = scene()) {
+        const AcousticScene::Hit h = s->nearest(start, direction, kRange, kSolidMask);
+        if (h.hit) ours = {h.distance, true, h.surface};
+    }
+    if (g_check.on) {
+        const double t1 = now_us();
+        const Hit game = trace_game(start, direction);
+        g_check.ours_us += t1 - t0;
+        g_check.game_us += now_us() - t1;
+        ++g_check.rays;
+        if (ours.hit && game.hit) {
+            ++g_check.both_hit;
+            const float d = std::fabs(ours.distance - game.distance);
+            g_check.distance_sum += d;
+            if (d > 8.0f) ++g_check.far_apart;
+        } else if (ours.hit) {
+            ++g_check.ours_only;
+        } else if (game.hit) {
+            ++g_check.game_only;
+        }
+        g_check.report();
+    }
+    return ours;
+}
+
+Line trace_line(const float a[3], const float b[3]) {
+    constexpr float kListenerGap = 32.0f, kPointGap = 12.0f;  // world units
+    Line line;
+    const float d[3] = {b[0] - a[0], b[1] - a[1], b[2] - a[2]};
+    const float length = std::sqrt(d[0] * d[0] + d[1] * d[1] + d[2] * d[2]);
+    if (length <= kListenerGap + kPointGap) return line;
+    const float s = kListenerGap / length, t = kPointGap / length;
+    const double t0 = g_check.on ? now_us() : 0;
+    const float from[3] = {a[0] + d[0] * s, a[1] + d[1] * s, a[2] + d[2] * s};
+    const float end[3] = {b[0] - d[0] * t, b[1] - d[1] * t, b[2] - d[2] * t};
+    line.traced = true;
+    if (const AcousticScene* sc = scene()) {
+        const float dir[3] = {end[0] - from[0], end[1] - from[1], end[2] - from[2]};
+        const AcousticScene::Hit h = sc->nearest(from, dir, 1.0f, kSolidMask);
+        if (h.hit) {
+            line.fraction = h.distance;
+            for (int k = 0; k < 3; ++k) line.hit[k] = from[k] + dir[k] * line.fraction;
+            line.flags = uint32_t(h.surface) << 20;
+            line.contents = h.contents;
+        } else {
+            for (int k = 0; k < 3; ++k) line.hit[k] = end[k];
+        }
+    }
+    if (line.fraction < 1.0f && line.fraction > 0.0f) {
+        constexpr uint32_t kGlass = 9;
+        line.share = ((line.flags >> 20) & 31) == kGlass ? 0.35f : 1.0f;
+    }
+    if (g_check.on) {
+        const double t1 = now_us();
+        const Line game = trace_line_game(a, b);
+        g_check.ours_us += t1 - t0;
+        g_check.game_us += now_us() - t1;
+        ++g_check.lines;
+        if ((game.share > 0) != (line.share > 0)) { ++g_check.line_disagree; }
+        else if (game.share != line.share) ++g_check.line_glass_disagree;
+        g_check.report();
+    }
     return line;
 }
 
@@ -300,18 +416,9 @@ State g_state;
 
 }  // namespace
 
-void SndEnv_Update(audio::SoundDevice& device, const audio::Listener& l) {
-    State& s = g_state;
-    if (s.updates++ % kProbeEvery) {
-        if (s.active) device.set_environment(facing(s.current, l));
-        return;
-    }
-    const float* listener = l.position;
-    if (!world_loaded()) {
-        if (s.active) device.set_environment(kSilent);
-        s.active = false;
-        return;
-    }
+// The probe rays from the listener -> the environment there (false: no scene to trace).
+bool probe_environment(const float listener[3], Environment& target) {
+    if (!scene()) return false;
     Probe p;
     int hits = 0;
     auto material = [&](const Hit& hit) {
@@ -353,11 +460,8 @@ void SndEnv_Update(audio::SoundDevice& device, const audio::Listener& l) {
     material(floor);
     p.alpha = hits ? Absorption{p.alpha.mid / float(hits), p.alpha.high / float(hits)} : Absorption{0.05f, 0.05f};
     p.metal = hits ? p.metal / float(hits) : 0.0f;
-    const Environment target = environment_of(p, SndEnv_Tuning());
-    // A new place fades in over about half a second (probes 10 times a second).
-    s.current = s.active ? mix(s.current, target, 0.25f) : target;
-    s.active = true;
-    device.set_environment(facing(s.current, l));
+    target = environment_of(p, SndEnv_Tuning());
+    return true;
 }
 
 namespace {
@@ -443,7 +547,7 @@ float detour(const float listener[3], const float point[3], const Line& line, fl
 
 float SndEnv_Occlusion(const float listener[3], const float source[3]) {
     std::array<float, 3> points[kOcclusionPoints];
-    if (!world_loaded() || !occlusion_points(listener, source, points)) return 0.0f;
+    if (!scene() || !occlusion_points(listener, source, points)) return 0.0f;
     // In view - the line to the sound's centre or to the point towards the listener (a muzzle)
     // clear: the direct sound is heard in full (user 10-30: what bounces off walls only adds).
     const Line centre = trace_line(listener, points[0].data());
@@ -453,6 +557,161 @@ float SndEnv_Occlusion(const float listener[3], const float source[3]) {
     float sum = centre.share;
     for (int i = 1; i < kOcclusionPoints; ++i) sum += blocked(listener, points[i].data());
     return std::min(sum / float(kOcclusionPoints), detour(listener, points[0].data(), centre));
+}
+
+namespace {
+
+// The sound rays' worker thread (3.1): one job at a time - the probe (when due) and every listed voice's occlusion.
+struct RayJob {
+    bool probe = false;
+    float listener[3] = {0, 0, 0};
+    std::vector<SndVoiceRay> voices;
+};
+struct RayResult {
+    bool probed = false;  // a probe ran and found a scene
+    Environment target;
+    std::vector<SndVoiceRay> voices;
+};
+
+// COD_BRO_SOUND_TIME=1: time spent on sound rays, logged every 600 updates (game thread per update, worker per job).
+struct SoundTime {
+    bool on = [] {
+        const char* v = std::getenv("COD_BRO_SOUND_TIME");
+        return v && *v && *v != '0';
+    }();
+    std::atomic<uint64_t> worker_ns{0}, jobs{0}, worker_max_ns{0}, voices{0};
+    uint64_t game_ns = 0, game_max_ns = 0, updates = 0;
+};
+SoundTime g_time;
+
+uint64_t now_ns() {
+    return uint64_t(std::chrono::duration_cast<std::chrono::nanoseconds>(
+                        std::chrono::steady_clock::now().time_since_epoch())
+                        .count());
+}
+
+RayResult run_job(const RayJob& job) {
+    const uint64_t start = g_time.on ? now_ns() : 0;
+    struct Timed {
+        uint64_t start;
+        size_t voices;
+        ~Timed() {
+            if (!start) return;
+            const uint64_t ns = now_ns() - start;
+            g_time.worker_ns += ns;
+            g_time.voices += voices;
+            ++g_time.jobs;
+            uint64_t max = g_time.worker_max_ns.load();
+            while (ns > max && !g_time.worker_max_ns.compare_exchange_weak(max, ns)) {}
+        }
+    } timed{start, job.voices.size()};
+    SndEnv_BeginRays();
+    RayResult r;
+    if (job.probe) r.probed = probe_environment(job.listener, r.target);
+    r.voices = job.voices;
+    for (SndVoiceRay& v : r.voices) v.occlusion = SndEnv_Occlusion(job.listener, v.position);
+    g_scene.reset();  // a finished level's scene is not kept alive by this thread
+    return r;
+}
+
+class RayWorker {
+public:
+    ~RayWorker() { stop(); }
+    // Starts the job unless one is running (false: the caller skips this update's job).
+    bool post(RayJob job) {
+        std::unique_lock lock(mutex_);
+        if (busy_) return false;
+        if (!thread_.joinable()) thread_ = std::thread([this] { loop(); });
+        job_ = std::move(job);
+        busy_ = true;
+        wake_.notify_one();
+        return true;
+    }
+    bool take(RayResult& out) {
+        std::lock_guard lock(mutex_);
+        if (!has_result_) return false;
+        out = std::move(result_);
+        has_result_ = false;
+        return true;
+    }
+    // Waits for a running job and drops its result.
+    void drain() {
+        std::unique_lock lock(mutex_);
+        idle_.wait(lock, [this] { return !busy_; });
+        has_result_ = false;
+    }
+    void stop() {
+        {
+            std::lock_guard lock(mutex_);
+            stopping_ = true;
+            wake_.notify_one();
+        }
+        if (thread_.joinable()) thread_.join();
+    }
+
+private:
+    void loop() {
+        platform::HostFloatEnv float_env;  // not the title thread's modes
+        std::unique_lock lock(mutex_);
+        while (true) {
+            wake_.wait(lock, [this] { return stopping_ || (busy_ && !running_); });
+            if (stopping_) return;
+            running_ = true;
+            const RayJob job = std::move(job_);
+            lock.unlock();
+            RayResult result = run_job(job);
+            lock.lock();
+            result_ = std::move(result);
+            has_result_ = true;
+            running_ = busy_ = false;
+            idle_.notify_all();
+        }
+    }
+    std::mutex mutex_;
+    std::condition_variable wake_, idle_;
+    std::thread thread_;
+    RayJob job_;
+    RayResult result_;
+    bool busy_ = false, running_ = false, has_result_ = false, stopping_ = false;
+};
+RayWorker g_worker;
+uint32_t g_last_probe = 0;  // the update of the last posted probe
+
+}  // namespace
+
+void SndEnv_Update(audio::SoundDevice& device, const audio::Listener& l, bool reverb, std::vector<SndVoiceRay> voices,
+                   std::vector<SndVoiceRay>& done) {
+    State& s = g_state;
+    const uint32_t update = s.updates++;
+    done.clear();
+    RayResult result;
+    bool have = false;
+    RayJob job;
+    job.probe = reverb && update - g_last_probe >= kProbeEvery;
+    for (int k = 0; k < 3; ++k) job.listener[k] = l.position[k];
+    job.voices = std::move(voices);
+    if (g_check.on) {  // the game's traces in the check: the game thread only
+        result = run_job(job);
+        have = true;
+        if (job.probe) g_last_probe = update;
+    } else {
+        have = g_worker.take(result);
+        const bool probe = job.probe;
+        if ((probe || !job.voices.empty()) && g_worker.post(std::move(job)) && probe) g_last_probe = update;
+    }
+    if (have) done = std::move(result.voices);
+    if (!reverb) return;
+    if (!world_loaded()) {
+        if (s.active) device.set_environment(kSilent);
+        s.active = false;
+        return;
+    }
+    if (have && result.probed) {
+        // A new place fades in over about half a second (probes 10 times a second).
+        s.current = s.active ? mix(s.current, result.target, 0.25f) : result.target;
+        s.active = true;
+    }
+    if (s.active) device.set_environment(facing(s.current, l));
 }
 
 void SndEnv_DescribeOcclusion(const float listener[3], const float source[3], char* out, size_t size) {
@@ -489,6 +748,7 @@ void SndEnv_SetTuning(const audio::ReverbTuning& tuning) {
 }
 
 void SndEnv_DescribeForMark(const float listener[3], std::string& out) {
+    SndEnv_BeginRays();
     char line[256];
     const auto add = [&](const char* format, auto... args) {
         std::snprintf(line, sizeof(line), format, args...);
@@ -555,7 +815,7 @@ void SndEnv_DescribeVoiceForMark(const float listener[3], const float source[3],
 
 size_t SndEnv_SoundPaths(const float listener[3], const float source[3], SoundPathLine* out, size_t max) {
     std::array<float, 3> points[kOcclusionPoints];
-    if (!world_loaded() || !occlusion_points(listener, source, points)) return 0;
+    if (!scene() || !occlusion_points(listener, source, points)) return 0;
     size_t n = 0;
     const auto add = [&](const float* a, const float* b, SoundPathLine::Kind kind) {
         if (n >= max) return;
@@ -591,6 +851,29 @@ audio::ReverbTuning SndEnv_Tuning() {
     return g_tuning;
 }
 
-void SndEnv_Reset() { g_state = State(); }
+void SndEnv_CountGameTime(uint64_t ns) {
+    if (!g_time.on) return;
+    g_time.game_ns += ns;
+    g_time.game_max_ns = std::max(g_time.game_max_ns, ns);
+    if (++g_time.updates % 600) return;
+    const uint64_t jobs = g_time.jobs.exchange(0), worker = g_time.worker_ns.exchange(0);
+    const uint64_t voices = g_time.voices.exchange(0), worker_max = g_time.worker_max_ns.exchange(0);
+    SndScene_Log("sound time: game thread %.1f us per update (max %.1f), worker %llu jobs, %.1f us per job (max %.1f), "
+                 "%.1f voices per job",
+                 double(g_time.game_ns) / 600e3, double(g_time.game_max_ns) / 1e3, (unsigned long long)jobs,
+                 jobs ? double(worker) / double(jobs) / 1e3 : 0.0, double(worker_max) / 1e3,
+                 jobs ? double(voices) / double(jobs) : 0.0);
+    g_time.game_ns = g_time.game_max_ns = 0;
+}
+
+void SndEnv_Reset() {
+    g_worker.drain();
+    g_last_probe = 0;
+    g_state = State();
+    g_scene.reset();
+    SndScene_Reset();
+}
+
+void SndEnv_BeginRays() { g_scene = SndScene_Current(); }
 
 }  // namespace game

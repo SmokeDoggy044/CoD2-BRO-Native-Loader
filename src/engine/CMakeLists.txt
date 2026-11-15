@@ -158,6 +158,8 @@ set(game_code_sources
     renderer/xgraphics.cpp
     sound/snd.cpp
     sound/snd_env.cpp
+    sound/snd_scene.cpp
+    sound/acoustic_scene.cpp
     script/scr_fiber.cpp
     shared/stack_guard.cpp
     streaming/stream.cpp

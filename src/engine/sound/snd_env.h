@@ -6,6 +6,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <string>
+#include <vector>
 
 #include "reverb_tuning.h"
 
@@ -16,11 +17,21 @@ struct Listener;
 
 namespace game {
 
-// Once per sound update (SndHw_Update) on an enhanced device, with the listener (world origin,
-// orientation): probes now and then, and hands the device the environment, its reflections
-// turned with the listener every time.
-void SndEnv_Update(audio::SoundDevice& device, const audio::Listener& listener);
-
+// A 3D voice whose occlusion the worker traces (slot and owner identify it when the result comes back).
+struct SndVoiceRay {
+    uint32_t slot = 0;
+    int32_t owner = 0;
+    float position[3] = {0, 0, 0};
+    float occlusion = 0;  // the result
+};
+// Once per sound update (SndHw_Update) on an enhanced device, game thread: hands the ray worker (3.1) this update's
+// listener, the probe when due (`reverb`) and `voices` to trace, when it is idle; applies what it finished since:
+// the environment (probes now and then, turned with the listener every time) and the voices' occlusion in `done`.
+void SndEnv_Update(audio::SoundDevice& device, const audio::Listener& listener, bool reverb,
+                   std::vector<SndVoiceRay> voices, std::vector<SndVoiceRay>& done);
+// COD_BRO_SOUND_TIME=1: the game thread's time in the enhanced sound update (`ns`, measured by the caller) counted;
+// a log line every 600 updates with the ray worker's job times.
+void SndEnv_CountGameTime(uint64_t ns);
 // How much of a sound at `source` is blocked on its way to the listener (0 clear .. 1 behind
 // walls), for occlusion (enhanced sound): volumetric, the share of seven lines through the
 // world's collision to points on a sphere around the source that is blocked. Glass blocks less.
@@ -44,6 +55,9 @@ size_t SndEnv_SoundPaths(const float listener[3], const float source[3], SoundPa
 // The player's adjustments (settings.ini "reverb", the PC menu); any thread, applied from the
 // next probe on.
 void SndEnv_SetTuning(const audio::ReverbTuning& tuning);
+// Before a batch of sound rays on this thread (each sound update, a mark): takes the acoustic scene of now
+// (snd_scene.h; none while a level's is being built: rays then hit nothing).
+void SndEnv_BeginRays();
 // An in-process title restart (own engine host 5b): no environment heard yet.
 void SndEnv_Reset();
 audio::ReverbTuning SndEnv_Tuning();
