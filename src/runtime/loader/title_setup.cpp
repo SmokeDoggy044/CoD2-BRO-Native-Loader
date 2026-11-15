@@ -20,6 +20,7 @@
 #include <utility>
 #include <vector>
 #include "title_crt.h"
+#include "scene_view.h"
 #include "replay.h"
 #include "bindings.h"
 #include "compare.h"
@@ -183,11 +184,14 @@ void configure_title_services(const Options& options, const fs::path& assets, co
         };
         if (options.renderer == render::BackendConfig::Api::Vulkan) {
             game::renderer_pc_hooks().sun_shadows = [] { return render::active_graphics_features().sun_shadows; };
+            game::renderer_pc_hooks().set_scene_view = [](const render::SceneView& view) {
+                render::set_scene_view(view);
+            };
             game::renderer_pc_hooks().lighting_features = [] {
                 const render::GraphicsFeatures f = render::active_graphics_features();
                 return (f.pixel_lighting ? game::kLightingPixel : 0u) | (f.normal_maps ? game::kLightingNormalMaps : 0u) |
                        (f.specular ? game::kLightingSpecular : 0u) |
-                       (f.world_lights ? game::kLightingWorldLights : 0u);
+                       (f.world_lights ? game::kLightingWorldLights : 0u) | (f.cavity ? game::kLightingCavity : 0u);
             };
         }
     }

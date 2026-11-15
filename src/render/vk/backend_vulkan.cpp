@@ -24,6 +24,9 @@
 #include "vk_context.h"
 #include "render_graph.h"
 #include "vk_post.h"
+#include "vk_ao.h"
+#include "dev_mode.h"
+#include "scene_view.h"
 #include "vk_shaders.h"
 
 namespace render {
@@ -77,6 +80,7 @@ public:
         if (!create_swapchain() || !create_present_pass()) return false;
         gfx_ = vk::create_vulkan_gfx_device(vk_, draw_config);
         post_ = std::make_unique<vk::Post>(vk_);
+        ao_ = std::make_unique<vk::Ao>(vk_);
         graph_ = std::make_unique<vk::RenderGraph>(vk_);
         if (!gfx_->back_buffer_image() || !*gfx_->back_buffer_image()) return false;
         gfx_->set_world_end([this](Image* scene) { scene_passes(scene); });
@@ -500,12 +504,21 @@ private:
         using Access = vk::RenderGraph::Access;
         Image* back = gfx_->back_buffer_image();
         const auto picture = graph_->import("picture", *back);
+        const GraphicsFeatures features = active_graphics_features();
         if (scene) {
             const auto hdr = graph_->import("scene", *scene);
+            // Ambient occlusion first (2.6): the world's depth -> the scene darkened, before the resolve.
+            Image* depth = gfx_->world_depth_image();
+            if (features.ambient_occlusion && depth && depth->sample_view) {
+                vk::Ao::Settings settings;
+                settings.debug = dev::debug_view() == dev::kViewAo;
+                graph_->add("ao", {{hdr, Access::Color}}, [this, scene, depth, settings] {
+                    ao_->apply(*scene, *depth, scene_view(), settings);
+                });
+            }
             graph_->add("resolve", {{hdr, Access::Sampled}, {picture, Access::Color}},
                         [this, scene, back] { resolve(*scene, *back); });
         }
-        const GraphicsFeatures features = active_graphics_features();
         graph_->add("post", {{picture, Access::Color}}, [this, back, features] { post_->apply(*back, features); });
         graph_->run();
     }
@@ -699,6 +712,7 @@ private:
     vk::Context vk_;
     std::unique_ptr<vk::VulkanGfxDevice> gfx_;
     std::unique_ptr<vk::Post> post_;  // enhanced graphics' post passes
+    std::unique_ptr<vk::Ao> ao_;      // ambient occlusion on the HDR scene (2.6)
     std::unique_ptr<vk::RenderGraph> graph_;
 
     VkSwapchainKHR swapchain_ = VK_NULL_HANDLE;

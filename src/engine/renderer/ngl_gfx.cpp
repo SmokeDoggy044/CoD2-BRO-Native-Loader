@@ -675,6 +675,8 @@ constexpr float kModelNormalOffset = 8.0f;
 // 2.3: normal maps at full strength; specular "on at low strength" (user 11-15): GGX x this.
 constexpr float kModelNormalMapStrength = 1.0f;
 constexpr float kModelSpecularStrength = 0.35f;
+// 2.6: cavity from the height maps (own_model.glsl own_cavity: x 3 the height below its neighbourhood, >= 0.6).
+constexpr float kCavityStrength = 1.0f;
 
 // The level's main draws (2.4): cdWorld / cdWorldBlend vertex programs [0] plain, [1] projected, and their pixel
 // shaders by (projected + lightmap * 2) - tools/shader_glsl.py's WORLD_VS / WORLD_PS.
@@ -823,6 +825,7 @@ void set_world_constants(render::GfxDevice& device, DeviceObjects& o, const game
             own[11][3] = 1.0f;
             own[11][2] = second ? 1.0f : 0.0f;
             own[28][0] = kModelNormalMapStrength;
+            own[28][2] = !w.blend && (g_lighting_features & game::kLightingCavity) ? kCavityStrength : 0.0f;
             render::SamplerState wrap = ngl_gfx_state()->samplers[0];
             wrap.alpha_kill = false;
             wrap.min = wrap.mag = wrap.mip = render::Filter::Linear;
@@ -882,6 +885,7 @@ void set_model_constants(render::GfxDevice& device, DeviceObjects& o, const game
     if ((mode & 1) && own[11][3] != 0.0f) {
         own[28][0] = (g_lighting_features & game::kLightingNormalMaps) ? kModelNormalMapStrength : 0.0f;
         own[28][1] = (g_lighting_features & game::kLightingSpecular) ? kModelSpecularStrength : 0.0f;
+        own[28][2] = (g_lighting_features & game::kLightingCavity) ? kCavityStrength : 0.0f;
     }
     device.set_constants(render::ShaderStage::Vertex, render::kGfxVsOwn, &own[0][0], render::kGfxVsOwnCount);
     if (!shadow) return;
@@ -986,6 +990,10 @@ bool apply(render::GfxDevice& device, DeviceObjects& o, uint32_t stride) {
                                                     : 0);
         device.set_sampler(stage, s.samplers[stage]);
     }
+    // Slots 4-7 are ours (sun mask, shadow map, surface maps): none left bound from an earlier draw - a shadow map
+    // still bound while the next frame's casters draw into it made the back end copy the whole map before every
+    // caster draw (11 ms a frame at 4100 x 4100, measured 11-15).
+    for (uint32_t slot = render::kGfxStages; slot < render::kGfxTextureSlots; ++slot) device.set_texture(slot, 0);
     device.set_shaders(model_vs ? model_vs : vs, ps);
     device.set_layout(layout);
     device.set_constants(render::ShaderStage::Vertex, 0, &s.vs_constants[0][0], 192);

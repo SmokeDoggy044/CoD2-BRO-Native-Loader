@@ -17,6 +17,7 @@ add_library(render STATIC
     vk/gfx_vulkan.cpp
     vk/vk_context.cpp
     vk/vk_post.cpp
+    vk/vk_ao.cpp
     vk/render_graph.cpp
     vk/vk_mem_alloc.cpp
     vk/spirv_layout.cpp
@@ -39,12 +40,13 @@ add_library(render STATIC
     ${CMAKE_CURRENT_BINARY_DIR}/post_shaders.cpp
     d3d9_post.cpp
     graphics_settings.cpp
+    scene_view.cpp
 )
 target_include_directories(render PUBLIC ${CMAKE_CURRENT_SOURCE_DIR} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/vk ${PROJECT_SOURCE_DIR}/src/ui)
 
 # Vulkan's create-info structs are initialized as {sType} by design.
 if(NOT MSVC)
-    set_source_files_properties(vk/backend_vulkan.cpp vk/gfx_vulkan.cpp vk/vk_context.cpp vk/vk_post.cpp vk/render_graph.cpp
+    set_source_files_properties(vk/backend_vulkan.cpp vk/gfx_vulkan.cpp vk/vk_context.cpp vk/vk_post.cpp vk/vk_ao.cpp vk/render_graph.cpp
                                 PROPERTIES COMPILE_OPTIONS -Wno-missing-field-initializers)
 endif()
 

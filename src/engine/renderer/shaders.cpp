@@ -1,5 +1,6 @@
 #include "shaders.h"
 
+#include <cmath>
 #include <cstring>
 
 #include "lanes.h"
@@ -1352,6 +1353,21 @@ void draw_world(const NglMeshNode* node, const WorldClass& k) {
     const NglScene* scene = current_scene();
     const float fog_w = scene->fog[3] - scene->fog[2];
     const float fog_scale = title_global<float>(0x0083eb20) / (scene->fog[1] - scene->fog[0]);
+    if (renderer_pc_hooks().set_scene_view) {  // ours (2.6): the main scene's projection and fog (scene_view.h)
+        render::SceneView v;
+        v.valid = true;
+        const float* pr = scene->projection;
+        v.a = pr[10];
+        v.b = pr[14];
+        v.c = pr[11];
+        v.e = pr[15];
+        const float* base = scene->base_projection;  // without the viewport scale
+        v.tan_across = base[0] != 0.0f ? 1.0f / std::fabs(base[0]) : 1.0f;
+        v.tan_down = base[5] != 0.0f ? 1.0f / std::fabs(base[5]) : 0.75f;
+        v.fog_start = scene->fog[0];
+        v.fog_end = scene->fog[1];
+        if (renderer_pc_hooks().set_scene_view) renderer_pc_hooks().set_scene_view(v);
+    }
     c[40] = scene->fog[2];
     c[41] = scene->fog[0];
     c[42] = fog_scale;

@@ -238,6 +238,7 @@ public:
         for (auto& [key, sampler] : samplers_) vkDestroySampler(vk_.device(), sampler, nullptr);
         vk_.destroy_image(dummy_texture_);
         vk_.destroy_image(scene_);
+        vk_.destroy_image(world_depth_copy_);
         vk_.destroy_image(scene_copy_);
         if (default_vertex_.buffer) vk_.defer_destroy(default_vertex_.buffer, default_vertex_.allocation);
         if (quad_indices_.buffer) vk_.defer_destroy(quad_indices_.buffer, quad_indices_.allocation);
@@ -547,7 +548,17 @@ public:
             a.clearValue.color.float32[3] = (color >> 24) / 255.0f;
         }
         VkImageAspectFlags depth_aspects = 0;
-        if (depth_ && (flags & kGfxClearDepth)) depth_aspects |= VK_IMAGE_ASPECT_DEPTH_BIT;
+        if (depth_ && (flags & kGfxClearDepth)) {
+            // The level's depth before a later scene of the world clears it (the world has several: sky, level,
+            // view model): the scene with the most depth-writing draws is kept for screen-space passes at the
+            // world's end (ambient occlusion, 2.6).
+            if (world_seen_ && !world_done_ && color_ == back_buffer_ && depth_writes_since_clear_ > kept_depth_writes_) {
+                keep_world_depth();
+                kept_depth_writes_ = depth_writes_since_clear_;
+            }
+            depth_writes_since_clear_ = 0;
+            depth_aspects |= VK_IMAGE_ASPECT_DEPTH_BIT;
+        }
         if (depth_ && (flags & kGfxClearStencil)) depth_aspects |= VK_IMAGE_ASPECT_STENCIL_BIT;
         if (depth_aspects) {
             VkClearAttachment& a = attachments[count++];
@@ -850,9 +861,48 @@ public:
     void set_world_end(std::function<void(Image* scene)> world_end) override { world_end_ = std::move(world_end); }
     void set_scene_format(VkFormat scene_format) override { scene_format_ = scene_format; }
 
+    Image* world_depth_image() override {
+        if (world_depth_kept_) return &world_depth_copy_;
+        auto it = targets_.find(world_depth_);
+        return it == targets_.end() ? nullptr : &it->second.image;
+    }
+
+    // A copy of the current depth target's depth (sampled view in sample_view).
+    void keep_world_depth() {
+        auto it = targets_.find(depth_);
+        if (it == targets_.end() || !it->second.image.sample_view) return;
+        Image& source = it->second.image;
+        Image& copy = world_depth_copy_;
+        if (copy && (copy.width != source.width || copy.height != source.height || copy.format != source.format))
+            vk_.destroy_image(copy);
+        if (!copy) {
+            if (!vk_.create_image(copy, source.format, source.width, source.height,
+                                  VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT |
+                                      VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT))
+                return;
+            VkImageViewCreateInfo view{VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO};
+            view.image = copy.image;
+            view.viewType = VK_IMAGE_VIEW_TYPE_2D;
+            view.format = copy.format;
+            view.subresourceRange = {VK_IMAGE_ASPECT_DEPTH_BIT, 0, 1, 0, 1};
+            vkCreateImageView(vk_.device(), &view, nullptr, &copy.sample_view);
+        }
+        vk_.transition(source, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
+        vk_.transition(copy, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+        VkImageCopy region{};
+        region.srcSubresource = region.dstSubresource = {VK_IMAGE_ASPECT_DEPTH_BIT, 0, 0, 1};
+        region.extent = {source.width, source.height, 1};
+        vkCmdCopyImage(vk_.cmd(), source.image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, copy.image,
+                       VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
+        world_depth_kept_ = true;
+    }
+
     bool end_world() override {
         if (world_done_ || !world_seen_) return world_done_;
         world_done_ = true;
+        if (!g_skip_gpu_draws) vk_.mark_world();
+        world_depth_ = depth_;
+        if (depth_writes_since_clear_ > kept_depth_writes_) world_depth_kept_ = false;  // the live one is the level
         vk_.end_rendering();
         Image* scene = nullptr;
         if (redirected_) {
@@ -943,6 +993,8 @@ public:
             redirected_ = false;
         }
         world_seen_ = world_done_ = false;
+        world_depth_kept_ = false;
+        kept_depth_writes_ = depth_writes_since_clear_ = 0;
         frame_writes_depth_ = false;
         unsupported_draws_ = 0;
         ++frame_;
@@ -1170,11 +1222,23 @@ private:
         const bool depth = is_depth(format);
         // V1: every colour target is 8-bit BGRA (V3 picks per format).
         const VkFormat vk_format = depth ? vk_.depth_format() : VK_FORMAT_B8G8R8A8_UNORM;
+        // Depth is sampled too where the format allows (ambient occlusion, 2.6: a depth-only view in sample_view).
+        VkFormatProperties depth_features{};
+        if (depth) vkGetPhysicalDeviceFormatProperties(vk_.physical(), vk_format, &depth_features);
+        const bool sampled_depth = depth && (depth_features.optimalTilingFeatures & VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT);
         const VkImageUsageFlags usage =
-            depth ? VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT
+            depth ? VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | (sampled_depth ? VK_IMAGE_USAGE_SAMPLED_BIT : 0u)
                   : VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT |
                         VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
         if (!vk_.create_image(target.image, vk_format, surface_width, surface_height, usage)) return 0;
+        if (sampled_depth) {
+            VkImageViewCreateInfo view{VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO};
+            view.image = target.image.image;
+            view.viewType = VK_IMAGE_VIEW_TYPE_2D;
+            view.format = vk_format;
+            view.subresourceRange = {VK_IMAGE_ASPECT_DEPTH_BIT, 0, 1, 0, 1};
+            vkCreateImageView(vk_.device(), &view, nullptr, &target.image.sample_view);
+        }
         if (!depth && no_alpha(format)) {
             // Sampled, a target without alpha reads alpha 1 (as D3D9's X8R8G8B8).
             VkImageViewCreateInfo view{VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO};
@@ -2090,7 +2154,10 @@ private:
         vkCmdSetDepthTestEnable(cmd, ds.depth_test && has_depth);
         vkCmdSetDepthWriteEnable(cmd, ds.depth_write && has_depth);
         vkCmdSetDepthCompareOp(cmd, compare_op(ds.depth_func));
-        if (ds.depth_test && ds.depth_write && has_depth) frame_writes_depth_ = true;
+        if (ds.depth_test && ds.depth_write && has_depth) {
+            frame_writes_depth_ = true;
+            ++depth_writes_since_clear_;
+        }
         vkCmdSetStencilTestEnable(cmd, ds.stencil && has_depth);
         vkCmdSetStencilOp(cmd, VK_STENCIL_FACE_FRONT_AND_BACK, stencil_op(ds.stencil_fail), stencil_op(ds.stencil_pass),
                           stencil_op(ds.stencil_depth_fail), compare_op(ds.stencil_func));
@@ -2184,6 +2251,10 @@ private:
     bool frame_writes_depth_ = false;
     // The world / HUD split (render graph, 0.5b).
     std::function<void(Image*)> world_end_;
+    TargetId world_depth_ = 0;  // the depth target the world was drawn with (end_world)
+    bool world_depth_kept_ = false;
+    uint32_t depth_writes_since_clear_ = 0, kept_depth_writes_ = 0;  // depth-writing draws (keep_world_depth)
+    Image world_depth_copy_;  // the level's depth before the view model's clear (keep_world_depth)
     VkFormat scene_format_ = VK_FORMAT_UNDEFINED;
     Image scene_, scene_copy_;  // the HDR scene (and its sampling copy) while not standing in for the back buffer
     bool world_seen_ = false, world_done_ = false, redirected_ = false;

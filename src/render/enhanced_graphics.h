@@ -41,6 +41,10 @@ struct GraphicsFeatures {
     bool specular = true;
     // The level's flashes and fires light its bumps per pixel (the original: by plane distance only) - 2.5.
     bool world_lights = true;
+    // Ambient occlusion: corners, contact and crevices darken (screen space, from the world's depth; 2.6).
+    bool ambient_occlusion = true;
+    // Small-scale shading from the surface maps' height (grooves, seams) - 2.6.
+    bool cavity = true;
     float sharpness = 0.0f;        // 0..1
     float vibrance_amount = 0.0f;  // -1 (greyer) .. 1
     float lod_bias = 0.0f;         // -2 (sharpest) .. 0 (the game's)
@@ -64,6 +68,8 @@ struct GraphicsFeatures {
         {"normal_maps", &GraphicsFeatures::normal_maps},
         {"specular", &GraphicsFeatures::specular},
         {"world_lights", &GraphicsFeatures::world_lights},
+        {"ambient_occlusion", &GraphicsFeatures::ambient_occlusion},
+        {"cavity", &GraphicsFeatures::cavity},
     };
     struct Amount {
         const char* key;

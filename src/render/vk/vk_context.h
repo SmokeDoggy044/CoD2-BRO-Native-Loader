@@ -151,7 +151,19 @@ private:
         uint8_t* staging_memory = nullptr;
         VkDeviceSize staging_used = 0;
         bool submitted = false;  // `done` will be signalled
+        bool timed = false;      // its timestamps (COD_BRO_GPU_TIME) were written
+        bool world = false;      // it drew a 3D world (mark_world): only those are counted
     };
+    // Developers (COD_BRO_GPU_TIME=1, phase 2 budget): GPU time per frame from timestamps at the start and end
+    // of each frame's commands; a summary of the drawn frames (> 0.5 ms) at exit.
+    void time_frame_start(Frame& frame);
+public:
+    // The frame being recorded drew a 3D world (COD_BRO_GPU_TIME counts only those).
+    void mark_world() { frames_[frame_].world = true; }
+private:
+    void report_gpu_time();
+    VkQueryPool timer_pool_ = VK_NULL_HANDLE;
+    std::vector<float> gpu_ms_;
 
     bool pick_device(bool& has_d24s8);
     bool create_frames();
@@ -168,6 +180,7 @@ private:
     VmaAllocator allocator_ = nullptr;
     VkFormat depth_format_ = VK_FORMAT_D24_UNORM_S8_UINT;
     Frame frames_[kFramesInFlight];
+    bool timing_ = false;
     uint32_t frame_ = 0;
     uint64_t frame_number_ = 0;
     std::vector<Deferred> deferred_;

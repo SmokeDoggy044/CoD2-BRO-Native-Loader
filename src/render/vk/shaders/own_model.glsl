@@ -246,6 +246,16 @@ vec3 own_mapped_normal_at(vec3 n, texture2D map, sampler smp, vec4 coord, vec4 c
     const float inv = inversesqrt(scale);
     return normalize(mat3(tangent * inv, bitangent * inv, n) * ts);
 }
+// Cavity (2.6): the height map below its neighbourhood (a level 2.5 mips coarser) shades grooves and seams;
+// own[28].z = strength. 1 = no change.
+float own_cavity(texture2D map, sampler smp, vec2 uv) {
+    if (OWN(28).z <= 0.0) return 1.0;
+    const float lod = textureQueryLod(sampler2D(map, smp), uv).x;
+    const float h = textureLod(sampler2D(map, smp), uv, lod).g;
+    const float around = textureLod(sampler2D(map, smp), uv, lod + 2.5).g;
+    return clamp(1.0 - OWN(28).z * max(around - h, 0.0) * 3.0, 0.6, 1.0);
+}
+
 vec3 own_mapped_normal(vec3 n) {
     return normalize(mix(n, own_mapped_normal_at(n, tex6, smp6, t0, texcoord_scale[0]), OWN(28).x));
 }
@@ -258,6 +268,7 @@ vec3 own_mapped_normal(vec3 n) {
 // so a flat map (N_map = N_face) leaves the picture exactly as it was. own[31] = (sun direction of travel, valid);
 // own[12] = the camera (world) to orient the face normal. Indoors / baked shade: unchanged (2.6's cavity there).
 float g_world_factor = 1.0;
+float g_cavity = 1.0;
 float own_level_sun(vec3 p) {
     if (OWN(29) == vec4(0.0)) return 0.0;
     const vec2 g = vec2(dot(OWN(29), vec4(p, 1.0)), dot(OWN(30), vec4(p, 1.0)));
@@ -279,6 +290,9 @@ void own_world_begin() {
 #endif
     n = normalize(mix(face, n, OWN(28).x));
     g_normal = n;
+#ifndef OWN_WORLD_BLEND
+    g_cavity = own_cavity(tex7, smp7, t0.xy / t0.w * texcoord_scale[0].xy);  // t7 = this layer's surface map
+#endif
     if (OWN(31).w == 0.0) return;
     const vec3 toward = -OWN(31).xyz;
     // Only faces the sun reaches: the mask is a map over x y, so walls turned away from the sun carry the ground's
@@ -292,7 +306,7 @@ void own_world_begin() {
 }
 vec3 g_world_light = vec3(1.0);
 vec3 own_world_light(vec3 lightmap) {
-    g_world_light = lightmap * g_world_factor;
+    g_world_light = lightmap * g_world_factor * g_cavity;
     return g_world_light;
 }
 #ifdef OWN_DLIGHT
@@ -390,6 +404,7 @@ vec4 own_model_v0(vec4 vertex_color) {
         // "Low strength" (user 11-15): scaled, then softly capped at 0.3 per channel.
         g_spec *= OWN(28).y;
         g_spec = 0.3 * g_spec / (0.3 + g_spec);
+        if (own_has_maps()) sum *= own_cavity(tex7, smp7, t0.xy / t0.w * texcoord_scale[0].xy);
         g_light = sum;
     } else if (shadow && sun >= 0) {
         vec3 toward;

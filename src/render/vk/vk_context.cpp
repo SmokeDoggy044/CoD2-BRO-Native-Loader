@@ -6,6 +6,7 @@
 
 #include <algorithm>
 #include <cctype>
+#include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <string>
@@ -88,6 +89,8 @@ const char* result_name(VkResult result) {
 Context::~Context() {
     if (device_) {
         vkDeviceWaitIdle(device_);
+        if (timer_pool_) vkDestroyQueryPool(device_, timer_pool_, nullptr);
+        timer_pool_ = VK_NULL_HANDLE;
         destroy_deferred(true);
         for (Frame& frame : frames_) {
             if (frame.staging) vmaDestroyBuffer(allocator_, frame.staging, frame.staging_allocation);
@@ -386,11 +389,56 @@ void Context::begin_commands() {
     VkCommandBufferBeginInfo begin{VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
     begin.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
     vkBeginCommandBuffer(frame.cmd, &begin);
+    time_frame_start(frame);
+}
+
+void Context::time_frame_start(Frame& frame) {
+    static const bool wanted = [] {
+        const char* env = std::getenv("COD_BRO_GPU_TIME");
+        return env && *env == '1';
+    }();
+    if (!wanted) return;
+    const uint32_t first = static_cast<uint32_t>(&frame - frames_) * 2;
+    if (!timer_pool_) {
+        VkQueryPoolCreateInfo info{VK_STRUCTURE_TYPE_QUERY_POOL_CREATE_INFO};
+        info.queryType = VK_QUERY_TYPE_TIMESTAMP;
+        info.queryCount = kFramesInFlight * 2;
+        if (vkCreateQueryPool(device_, &info, nullptr, &timer_pool_) != VK_SUCCESS) return;
+        timing_ = true;
+        static Context* self = this;  // one context per process; printed at exit (the process may not destroy it)
+        std::atexit([] { self->report_gpu_time(); });
+    }
+    if (frame.timed) {  // its fence was waited for: the last use's results are there
+        uint64_t stamps[2] = {};
+        if (vkGetQueryPoolResults(device_, timer_pool_, first, 2, sizeof stamps, stamps, sizeof(uint64_t),
+                                  VK_QUERY_RESULT_64_BIT) == VK_SUCCESS && stamps[1] > stamps[0] && frame.world)
+            gpu_ms_.push_back(static_cast<float>((stamps[1] - stamps[0]) * limits_.timestampPeriod * 1e-6));
+        frame.timed = false;
+    }
+    frame.world = false;
+    vkCmdResetQueryPool(frame.cmd, timer_pool_, first, 2);
+    vkCmdWriteTimestamp2(frame.cmd, VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT, timer_pool_, first);
+}
+
+void Context::report_gpu_time() {
+    std::vector<float> drawn;
+    for (float ms : gpu_ms_) drawn.push_back(ms);
+    if (drawn.empty()) return;
+    std::sort(drawn.begin(), drawn.end());
+    double sum = 0;
+    for (float ms : drawn) sum += ms;
+    std::fprintf(stderr, "[gpu_time] %zu world frames: mean %.3f ms, median %.3f ms, p95 %.3f ms\n", drawn.size(),
+                 sum / drawn.size(), drawn[drawn.size() / 2], drawn[drawn.size() * 95 / 100]);
 }
 
 bool Context::submit_frame(VkSemaphore wait, VkSemaphore signal) {
     end_rendering();
     Frame& frame = frames_[frame_];
+    if (timing_ && !frame.timed) {
+        vkCmdWriteTimestamp2(frame.cmd, VK_PIPELINE_STAGE_2_BOTTOM_OF_PIPE_BIT, timer_pool_,
+                             static_cast<uint32_t>(frame_) * 2 + 1);
+        frame.timed = true;
+    }
     vkEndCommandBuffer(frame.cmd);
     VkCommandBufferSubmitInfo command{VK_STRUCTURE_TYPE_COMMAND_BUFFER_SUBMIT_INFO};
     command.commandBuffer = frame.cmd;

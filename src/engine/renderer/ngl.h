@@ -4,6 +4,7 @@
 // nglFrontBuffer): scenes, 2D quads, meshes, textures. The function names are ours
 // (docs/research/naming.md, Renderer). All functions are cdecl.
 
+#include "scene_view.h"
 #include <cstddef>
 #include <cstdint>
 
@@ -65,6 +66,8 @@ struct RendererPcHooks {
     // (cdChar, cdGun, cdSimple, ...) light per pixel on our own shaders (2.1); with sun shadows on they take our
     // shaders too, to receive them.
     uint32_t (*lighting_features)() = nullptr;
+    // Set (Vulkan): the main scene's projection and fog for screen-space passes (render/scene_view.h, 2.6).
+    void (*set_scene_view)(const render::SceneView& view) = nullptr;
     // Set by R_RenderTestShadow for the frame when its camera follows the sun: the shadow scene's casters (its draws
     // write alpha only) are drawn without culling - seen at a slant, the coarse caster meshes' open sides left holes.
     bool shadow_casters_double_sided = false;

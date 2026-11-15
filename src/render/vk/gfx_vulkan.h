@@ -42,6 +42,8 @@ public:
     // Ends the frame's world now if it began and has not ended (no HUD scene came after it); true when the
     // world ended this frame (here or at a HUD scene).
     virtual bool end_world() = 0;
+    // The depth target the world was drawn with (after end_world, until the next frame's), or null.
+    virtual Image* world_depth_image() = 0;
     // The pipeline cache to its file when it has new pipelines.
     virtual void save_caches() = 0;
     // An in-process title restart: the back buffer and depth buffer stand for this memory now.
