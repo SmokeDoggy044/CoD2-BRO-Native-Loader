@@ -672,6 +672,13 @@ public:
     }
     bool dumping() const override { return !dump_prefix_.empty() && frames_ == dump_at_; }
     std::string dump_file(const char* name) const override { return dump_prefix_ + "_" + name; }
+    bool target_size(TargetId id, uint32_t& width, uint32_t& height) override {
+        auto it = targets_.find(id);
+        if (it == targets_.end()) return false;
+        width = it->second.image.width;
+        height = it->second.image.height;
+        return true;
+    }
     bool read_target(TargetId id, uint32_t* pixels, uint32_t width, uint32_t height) override {
         auto it = targets_.find(id);
         if (it == targets_.end() || is_depth(it->second.format) || !pixels || !width || !height) return false;

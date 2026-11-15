@@ -14,6 +14,7 @@ set(loader_sources
     patches.cpp
     pc_menu.cpp
     viewer.cpp
+    orbit.cpp
     profiler.cpp
     seh.cpp
     shader_dump.cpp

@@ -109,7 +109,7 @@ bool GameWindow::pump_events() {
         if (event.type == SDL_EVENT_KEY_DOWN && event.key.scancode == SDL_SCANCODE_F11 && !event.key.repeat)
             highlight_toggled_ = true;
         if (event.type == SDL_EVENT_KEY_DOWN && !event.key.repeat && event.key.scancode >= SDL_SCANCODE_F1 &&
-            event.key.scancode <= SDL_SCANCODE_F9)
+            event.key.scancode <= SDL_SCANCODE_F10)
             function_keys_ |= 1u << (event.key.scancode - SDL_SCANCODE_F1);
         if (event.type == SDL_EVENT_KEY_DOWN && !event.key.repeat && (event.key.mod & SDL_KMOD_ALT) &&
             (event.key.scancode == SDL_SCANCODE_RETURN || event.key.scancode == SDL_SCANCODE_KP_ENTER)) {

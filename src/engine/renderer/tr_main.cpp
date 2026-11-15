@@ -3024,6 +3024,33 @@ PLATFORM_ASM_ENTRY(RE_RenderScene_entry,
                    "popl %ebp\n"
                    "ret")
 
+namespace {
+
+// The lab's camera orbit (RendererPcHooks::camera_override): the view parameters' origin (+0, +0xf8) and axis
+// (+0xc: forward, left, up) moved and turned as the hooks say.
+void override_camera(uint8_t* parms) {
+    const RendererPcHooks& hooks = renderer_pc_hooks();
+    float* origin = reinterpret_cast<float*>(parms);
+    float* axis = reinterpret_cast<float*>(parms + 0xc);
+    constexpr float kRadians = 3.14159265358979f / 180.0f;
+    const float yaw0 = std::atan2(axis[1], axis[0]);
+    const float pitch0 = -std::asin(std::clamp(axis[2], -1.0f, 1.0f));
+    const float fx = std::cos(yaw0), fy = std::sin(yaw0);
+    origin[0] += hooks.camera_offset[0] * fx - hooks.camera_offset[1] * fy;
+    origin[1] += hooks.camera_offset[0] * fy + hooks.camera_offset[1] * fx;
+    origin[2] += hooks.camera_offset[2];
+    const float yaw = yaw0 + hooks.camera_yaw * kRadians;
+    const float pitch = std::isnan(hooks.camera_pitch) ? pitch0 : hooks.camera_pitch * kRadians;
+    const float cp = std::cos(pitch), sp = std::sin(pitch), cy = std::cos(yaw), sy = std::sin(yaw);
+    const float forward[3] = {cp * cy, cp * sy, -sp}, left[3] = {-sy, cy, 0.0f}, up[3] = {sp * cy, sp * sy, cp};
+    std::memcpy(axis, forward, 12);
+    std::memcpy(axis + 3, left, 12);
+    std::memcpy(axis + 6, up, 12);
+    std::memcpy(parms + 0xf8, origin, 12);
+}
+
+}  // namespace
+
 void XB_CDECL RE_RenderScene(uint32_t entry, const uint8_t* refdef) {
     if (!title_global<uint32_t>(0x0095e390)) return;
     if (*reinterpret_cast<const int32_t*>(title_global<const uint8_t*>(0x0095e238) + 0x20)) return;  // r_norefresh
@@ -3077,6 +3104,7 @@ void XB_CDECL RE_RenderScene(uint32_t entry, const uint8_t* refdef) {
     std::memcpy(parms, refdef + 0x20, 3 * 4);       // origin
     std::memcpy(parms + 0xc, refdef + 0x30, 9 * 4);  // axis
     std::memcpy(parms + 0xf8, refdef + 0x20, 3 * 4);
+    if (renderer_pc_hooks().camera_override && !(refdef[0x58] & 1)) override_camera(parms);  // ours: the lab
     // The LOD scale and bias by tan(fov / 2) / tan(c), the ratio kept on the x87.
     const long double ratio = platform_x87_tan_ext(fov * title_global<float>(0x0083ecf0)) /
                               platform_x87_tan_ext(title_global<double>(0x0083f260));

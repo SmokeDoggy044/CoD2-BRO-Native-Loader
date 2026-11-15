@@ -79,12 +79,24 @@ struct RendererPcHooks {
     // Set around one draw: our pixel shader (render::OwnPixelShader) in place of the title's, with c0 =
     // pixel_override_constants. Vulkan only.
     uint32_t pixel_override = 0;
-    float pixel_override_constants[12] = {};  // c0..c2
+    float pixel_override_constants[16] = {};  // c0..c2 (apply() adds c3 = (debug_view, 0, 0, 0))
+    // Developers (phase 2 tools): what our own shaders show instead of the picture (render/dev_mode.h DebugView,
+    // set by the loader from --debug-view and F10).
+    uint32_t debug_view = 0;
     // With shadow_depth: where the baked lighting has the sun (the light grid's sun weight per sample of the
     // view's grid area, 0..255, sun_mask_width x sun_mask_height); the receivers map it through c1 c2. Null:
     // none. sun_mask_key changes with the contents.
     const uint8_t* sun_mask = nullptr;
     uint32_t sun_mask_width = 0, sun_mask_height = 0, sun_mask_key = 0;
+    // Developers (the lab's camera orbit, --orbit): world scenes are drawn from this camera instead of the
+    // refdef's. Rendering only; meant for a paused game. Offsets in the view's level frame (forward and left
+    // with the view's yaw, up = world up), yaw added to the view's, pitch in degrees (positive looks down) or
+    // NaN to keep the view's.
+    bool camera_override = false;
+    // Shadow caster draws of the last finished frame (ngl_gfx; the orbit's table reports them per pose).
+    uint32_t casters_last_frame = 0, casters_this_frame = 0;
+    float camera_offset[3] = {};
+    float camera_yaw = 0.0f, camera_pitch = 0.0f;
 };
 RendererPcHooks& renderer_pc_hooks();
 // The 16:9 scene aspect, or the wider one in RendererPcHooks.

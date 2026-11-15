@@ -16,6 +16,7 @@
 #include <string>
 #include <unordered_map>
 #include <unordered_set>
+#include <utility>
 #include <vector>
 
 #include "gfx_state.h"
@@ -599,6 +600,39 @@ void finish_draw_dump(render::GfxDevice& device, DeviceObjects& o) {
     }
 }
 
+// Developers (phase 2 tools, 2.1a shader ports): COD_BRO_SHADER_AB=own|self with a dumped frame (F12 mark,
+// COD_BRO_DUMP_FRAME): every draw whose shaders are ours ("own"; "self": every draw, title against title, to
+// check the harness) is drawn twice more before its real draw, into a cleared scratch target of its target's
+// size: once with the title's shaders and constants, once with ours. Both read back and compared:
+// <prefix>_shader_ab.csv (draw index as in _draws.txt), <prefix>_shader_ab_worst_{title,ours}.bmp.
+struct ShaderAb {
+    // apply()'s choice for the draw being made
+    bool ours = false, reapplying = false;
+    render::ShaderId vs = 0, ps = 0, title_vs = 0, title_ps = 0;
+    uint32_t vertex_key = 0, title_pixel_key = 0, pixel_key = 0, color_surface = 0;
+    // the frame's results
+    std::FILE* file = nullptr;
+    std::string done_for;
+    uint32_t draws = 0, differing = 0, worst = 0;
+    std::vector<uint32_t> worst_a, worst_b;
+    uint32_t worst_width = 0, worst_height = 0;
+    std::unordered_map<uint64_t, std::pair<render::TargetId, render::TargetId>> scratch;  // by size
+};
+ShaderAb& shader_ab() {
+    static ShaderAb ab;
+    return ab;
+}
+// 0: off, 1: draws with our shaders, 2: every draw (title against title).
+int shader_ab_mode() {
+    static const int mode = [] {
+        const char* env = std::getenv("COD_BRO_SHADER_AB");
+        if (!env || !*env || *env == '0') return 0;
+        return std::strcmp(env, "self") == 0 ? 2 : 1;
+    }();
+    return mode;
+}
+constexpr uint32_t kAbSentinel = 0x01FE02FDu;  // the scratch's clear colour: "not drawn"
+
 // The recorded state onto the device; false if something cannot be ours yet.
 bool apply(render::GfxDevice& device, DeviceObjects& o, uint32_t stride) {
     const GfxState& s = *ngl_gfx_state();
@@ -615,6 +649,16 @@ bool apply(render::GfxDevice& device, DeviceObjects& o, uint32_t stride) {
     const bool sun_caster = hooks.shadow_depth && shadow_caster_draw(s);
     const uint32_t pixel_key = sun_caster ? render::kOwnPsSunCaster : hooks.pixel_override ? hooks.pixel_override : s.pixel_key;
     const render::ShaderId ps = shader_for(o, render::ShaderStage::Pixel, pixel_key);
+    ShaderAb& ab = shader_ab();
+    ab.ours = !sun_caster && pixel_key != s.pixel_key;
+    ab.vs = vs;
+    ab.ps = ps;
+    ab.title_vs = vs;
+    ab.title_ps = ab.ours ? shader_for(o, render::ShaderStage::Pixel, s.pixel_key) : ps;
+    ab.vertex_key = s.vertex_key;
+    ab.title_pixel_key = s.pixel_key;
+    ab.pixel_key = pixel_key;
+    ab.color_surface = s.color_target;
     render::LayoutId layout;
     uint32_t layout_stride;
     if (!vs || !ps || !layout_for(o, s.vertex_declaration, layout, layout_stride)) return false;
@@ -627,6 +671,7 @@ bool apply(render::GfxDevice& device, DeviceObjects& o, uint32_t stride) {
     }
     const render::TargetId color = target_for(o, s.color_target);
     if (!color) return false;
+    if (sun_caster && !shader_ab().reapplying) ++game::renderer_pc_hooks().casters_this_frame;
     if (sun_caster) {
         const render::TargetId depth = sun_depth_for(o, s.color_target);
         if (!depth) return false;
@@ -660,9 +705,14 @@ bool apply(render::GfxDevice& device, DeviceObjects& o, uint32_t stride) {
     device.set_layout(layout);
     device.set_constants(render::ShaderStage::Vertex, 0, &s.vs_constants[0][0], 192);
     device.set_constants(render::ShaderStage::Pixel, 0, &s.ps_constants[0][0], 18);
-    if (device.dumping()) dump_draw(device, s, pixel_key, sun_caster, hooks);
+    if (device.dumping() && !ab.reapplying) dump_draw(device, s, pixel_key, sun_caster, hooks);
     if (!sun_caster && hooks.pixel_override) {
-        device.set_constants(render::ShaderStage::Pixel, 0, hooks.pixel_override_constants, 3);
+        // c3.x: the debug view (RendererPcHooks::debug_view; tools for phase 2).
+        alignas(16) float constants[16];
+        std::memcpy(constants, hooks.pixel_override_constants, 12 * sizeof(float));
+        constants[12] = static_cast<float>(hooks.debug_view);
+        constants[13] = constants[14] = constants[15] = 0.0f;
+        device.set_constants(render::ShaderStage::Pixel, 0, constants, 4);
         // Slot 4 (no world shader uses it): the sun mask.
         if (hooks.sun_mask && hooks.sun_mask_key != o.sun_mask_key) {
             device.destroy_texture(o.sun_mask);
@@ -682,6 +732,121 @@ bool apply(render::GfxDevice& device, DeviceObjects& o, uint32_t stride) {
 }  // namespace
 
 namespace {
+
+template <typename Draw>
+void run_shader_ab(render::GfxDevice& device, DeviceObjects& o, uint32_t stride, const Draw& draw) {
+    ShaderAb& ab = shader_ab();
+    const std::string prefix = device.dump_file("");
+    if (prefix == ab.done_for) return;
+    if (!ab.file) {
+        ab.file = std::fopen(device.dump_file("shader_ab.csv").c_str(), "w");
+        if (!ab.file) {
+            ab.done_for = prefix;
+            return;
+        }
+        std::fprintf(ab.file, "draw,vertex,title_pixel,pixel,covered_title,covered_ours,differ,max,mean\n");
+        ab.draws = ab.differing = ab.worst = 0;
+        ab.worst_a.clear();
+        ab.worst_b.clear();
+    }
+    const render::TargetId color = target_for(o, ab.color_surface);
+    uint32_t width = 0, height = 0;
+    if (!color || !device.target_size(color, width, height)) return;
+    // The scratch pair, made at the title target's size (the back end scales it as the real one).
+    const auto* words = reinterpret_cast<const uint32_t*>(static_cast<uintptr_t>(ab.color_surface));
+    const uint32_t size = words[4];
+    const uint32_t title_w = size ? (size & 0xFFF) + 1 : 1u << (words[3] >> 20 & 0xF);
+    const uint32_t title_h = size ? (size >> 12 & 0xFFF) + 1 : 1u << (words[3] >> 24 & 0xF);
+    auto& pair = ab.scratch[uint64_t{title_w} << 32 | title_h];
+    if (!pair.first) {
+        pair.first = device.create_target({render::Format::BGRA8, title_w, title_h, 0, 1});
+        pair.second = device.create_target({render::Format::D24S8, title_w, title_h, 0, 1});
+    }
+    uint32_t scratch_w = 0, scratch_h = 0;
+    if (!pair.first || !pair.second || !device.target_size(pair.first, scratch_w, scratch_h)) return;
+    const GfxState& s = *ngl_gfx_state();
+    const game::RendererPcHooks& hooks = game::renderer_pc_hooks();
+    std::vector<uint32_t> a(size_t{scratch_w} * scratch_h), b(a.size());
+    const auto pass = [&](bool title, std::vector<uint32_t>& out) {
+        device.set_target(pair.first, pair.second);
+        device.clear(render::kGfxClearColor | render::kGfxClearDepth | render::kGfxClearStencil, kAbSentinel, 1.0f, 0);
+        device.set_shaders(title ? ab.title_vs : ab.vs, title ? ab.title_ps : ab.ps);
+        if (title) {
+            device.set_constants(render::ShaderStage::Pixel, 0, &s.ps_constants[0][0], 18);
+        } else if (ab.ours) {
+            alignas(16) float constants[16];
+            std::memcpy(constants, hooks.pixel_override_constants, 12 * sizeof(float));
+            constants[12] = static_cast<float>(hooks.debug_view);
+            constants[13] = constants[14] = constants[15] = 0.0f;
+            device.set_constants(render::ShaderStage::Pixel, 0, constants, 4);
+        }
+        draw();
+        device.read_target(pair.first, out.data(), scratch_w, scratch_h);
+    };
+    const bool self = shader_ab_mode() == 2;  // "self": the title's shaders on both sides
+    pass(true, a);
+    if (self) {
+        pass(true, b);
+    } else {
+        pass(false, b);
+    }
+    // Back to the draw's own state for its real draw.
+    ab.reapplying = true;
+    apply(device, o, stride);
+    ab.reapplying = false;
+
+    uint32_t covered_a = 0, covered_b = 0, differ = 0, max = 0;
+    uint64_t sum = 0;
+    for (size_t i = 0; i < a.size(); ++i) {
+        const bool in_a = a[i] != kAbSentinel, in_b = b[i] != kAbSentinel;
+        covered_a += in_a;
+        covered_b += in_b;
+        if (!in_a && !in_b) continue;
+        uint32_t d = 255;
+        if (in_a && in_b) {
+            d = 0;
+            for (int shift = 0; shift < 32; shift += 8)
+                d = std::max(d, static_cast<uint32_t>(std::abs(static_cast<int>(a[i] >> shift & 0xFF) -
+                                                               static_cast<int>(b[i] >> shift & 0xFF))));
+        }
+        differ += d > 2;
+        max = std::max(max, d);
+        sum += d;
+    }
+    const uint32_t covered = std::max(covered_a, covered_b);
+    std::fprintf(ab.file, "%u,%08x,%08x,%08x,%u,%u,%u,%u,%.3f\n", draw_dump().index ? draw_dump().index - 1 : 0,
+                 ab.vertex_key, ab.title_pixel_key, self ? ab.title_pixel_key : ab.pixel_key, covered_a, covered_b,
+                 differ, max, covered ? static_cast<double>(sum) / covered : 0.0);
+    ++ab.draws;
+    if (differ) ++ab.differing;
+    if (differ > ab.worst) {
+        ab.worst = differ;
+        ab.worst_a = std::move(a);
+        ab.worst_b = std::move(b);
+        ab.worst_width = scratch_w;
+        ab.worst_height = scratch_h;
+    }
+}
+
+// After the dumped frame: the summary line and the worst draw's two pictures.
+void finish_shader_ab(render::GfxDevice& device) {
+    ShaderAb& ab = shader_ab();
+    if (!ab.file) return;
+    std::fprintf(ab.file, "# %u draws compared, %u differ (> 2 levels in a channel)\n", ab.draws, ab.differing);
+    std::fclose(ab.file);
+    ab.file = nullptr;
+    ab.done_for = device.dump_file("");
+    std::fprintf(stderr, "[shader_ab] %u draws compared, %u differ -> %sshader_ab.csv\n", ab.draws, ab.differing,
+                 ab.done_for.c_str());
+    if (ab.worst) {
+        for (auto* pixels : {&ab.worst_a, &ab.worst_b})
+            for (uint32_t& p : *pixels)
+                if (p == kAbSentinel) p = 0xFF000000u;
+        write_bmp(device.dump_file("shader_ab_worst_title.bmp"), ab.worst_a.data(), ab.worst_width, ab.worst_height);
+        write_bmp(device.dump_file("shader_ab_worst_ours.bmp"), ab.worst_b.data(), ab.worst_width, ab.worst_height);
+    }
+}
+
 bool env_set(const char* name) {
     const char* env = std::getenv(name);
     return env && *env && *env != '0';
@@ -695,6 +860,9 @@ bool ngl_gfx_own_draws() {
 }
 
 void ngl_gfx_end_frame() {
+    game::RendererPcHooks& hooks = game::renderer_pc_hooks();
+    hooks.casters_last_frame = std::exchange(hooks.casters_this_frame, 0u);
+    if (render::GfxDevice* device = gfx(); device && shader_ab().file) finish_shader_ab(*device);
     if (render::GfxDevice* device = gfx(); device && draw_dump().file) finish_draw_dump(*device, objects(device));
     ++g_frame;
     if (g_frame % 60 == 0)
@@ -707,6 +875,9 @@ bool ngl_gfx_draw_user(render::Primitive primitive, const void* vertices, uint32
     if (!device) return false;
     DeviceObjects& o = objects(device);
     if (!apply(*device, o, stride)) return false;
+    if (shader_ab_mode() && device->dumping() && (shader_ab().ours || shader_ab_mode() == 2))
+        run_shader_ab(*device, o, stride, [&] { device->draw_user(primitive, vertices, count, stride, indices,
+                                                                    index_count, cache_key); });
     device->draw_user(primitive, vertices, count, stride, indices, index_count, cache_key);
     static bool told = false;
     if (!told) {

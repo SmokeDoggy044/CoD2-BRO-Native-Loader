@@ -45,7 +45,7 @@ public:
     bool pump_events();
     bool take_mark_request();
     bool take_highlight_toggle();
-    // F1..F9 pressed since the last call: bit n-1 for Fn (developer mode's keys).
+    // F1..F10 pressed since the last call: bit n-1 for Fn (developer mode's keys).
     uint32_t take_function_keys();
     // Backend::prompt: `show` presents the frame with these lines over it.
     std::optional<std::string> prompt(const std::vector<std::string>& heading,

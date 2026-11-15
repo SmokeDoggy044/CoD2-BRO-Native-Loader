@@ -221,6 +221,11 @@ bool apply_setting(Options& o, Combined& combined, const platform::SettingDef& d
         }
     } else if (key == "dev") {
         o.dev = on;
+    } else if (key == "debug-view") {
+        o.debug_view = v;
+    } else if (key == "orbit") {
+        o.dev = true;
+        o.orbit_file = v;
     } else if (key == "viewer") {
         o.dev = true;
         std::string list = v;

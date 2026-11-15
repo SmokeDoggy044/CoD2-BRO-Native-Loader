@@ -376,6 +376,8 @@ public:
     virtual std::string dump_file(const char* /*name*/) const { return {}; }
     // The target's pixels at the title's size (A8R8G8B8, width * height); false on failure.
     virtual bool read_target(TargetId target, uint32_t* pixels, uint32_t width, uint32_t height) = 0;
+    // The target's pixels as stored (render scale included); false when the back end does not say.
+    virtual bool target_size(TargetId /*target*/, uint32_t& /*width*/, uint32_t& /*height*/) { return false; }
 
     // --- Replacements ---
     // A picture of the PC's own standing for a texture whose contents hash to `content`

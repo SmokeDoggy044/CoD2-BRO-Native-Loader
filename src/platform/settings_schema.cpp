@@ -242,7 +242,15 @@ const SettingDef kSettings[] = {
     {"dev", "", T::Flag, G::Testing, kCli, 0, 0, nullptr, "false",
      "developer mode: an overlay (frame time, GPU memory, texture packs) and keys: F1 overlay on/off, F2 mods on/off, "
      "F3 enhanced graphics on/off, F4 next enhanced feature, F5 that feature on/off, F6 textures under the "
-     "crosshair (Vulkan), F7 pause; with --diag, F12 marks note what was switched and picked"},
+     "crosshair (Vulkan), F7 pause, F10 next debug view (see --debug-view); with --diag, F12 marks note what was "
+     "switched and picked"},
+    {"debug-view", "NAME", T::Text, G::Testing, kCli, 0, 0, nullptr, "off",
+     "what our own shaders show instead of the picture (Vulkan, Enhanced): off, lighting, shadow, sun-mask, "
+     "normals, roughness, lights, ao; draws without our shaders stay as they are"},
+    {"orbit", "FILE", T::Text, G::Testing, kCli, 0, 0, nullptr, "",
+     "camera orbit (developer mode, the lab): from the file's 'start N' presented frame on the game pauses and the "
+     "camera takes each pose line 'FORWARD LEFT UP YAW PITCH' (offsets in game units in the view's level frame, "
+     "yaw added to the view's, pitch in degrees or 'keep') for 'hold N' frames, then the program ends"},
     {"viewer", "M1,M2|@FILE", T::Text, G::Testing, kCli, 0, 0, nullptr, "",
      "object viewer (developer mode): F8 shows the next of these models (base names of the mission's .xbmesh "
      "files; @FILE: a list, e.g. tools/model_index.py UNPACKED --level N) in front of the camera and pauses the game, "

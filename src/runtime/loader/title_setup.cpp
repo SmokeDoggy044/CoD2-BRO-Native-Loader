@@ -40,6 +40,7 @@
 #include "qcommon.h"
 #include "dev_mode.h"
 #include "viewer.h"
+#include "orbit.h"
 #include "snd_env.h"
 #include "sound_engine.h"
 #include "kernel.h"
@@ -270,6 +271,8 @@ void configure_title_services(const Options& options, const fs::path& assets, co
         }
         if (!options.replay.shot_frames.empty()) d3d_config.frame_screenshot = &xbox::replay::screenshot_path;
     }
+    render::dev::on_debug_view([](uint32_t view) { game::renderer_pc_hooks().debug_view = view; });
+    if (!options.debug_view.empty()) render::dev::set_debug_view(options.debug_view.c_str());
     if (options.diag_dir) {
         d3d_config.diag_dir = options.diag_dir->string();
         d3d_config.diag_seconds = options.diag_seconds;
@@ -282,6 +285,8 @@ void configure_title_services(const Options& options, const fs::path& assets, co
             loader::set_viewer_models(options.viewer_models);
             render::dev::set_extra(&loader::viewer_frame);
         }
+        if (!options.orbit_file.empty() && loader::load_orbit(options.orbit_file))
+            render::dev::set_extra(&loader::orbit_frame);
         // The game's own pause (cl_paused, as its pause menu): the world stops, frames are still drawn.
         d3d_config.dev_pause = [](bool paused) {
             game::Cvar_Set("cl_paused", paused ? "1" : "0");

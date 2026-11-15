@@ -28,6 +28,10 @@ std::vector<std::string> g_pick_lines;  // the last pick, for the overlay
 std::string g_pick_mark;                // ... and for F12 marks
 bool g_paused = false;
 size_t g_feature = 0;  // index into GraphicsFeatures::kSwitches
+uint32_t g_debug_view = kViewOff;
+void (*g_debug_view_changed)(uint32_t) = nullptr;
+constexpr const char* kViewNames[] = {"off", "lighting", "shadow", "sun-mask", "normals", "roughness", "lights", "ao"};
+static_assert(std::size(kViewNames) == kViewCount);
 
 // Frame times over the last whole second.
 struct Timing {
@@ -79,6 +83,11 @@ void handle_keys(uint32_t keys, void (*pause)(bool)) {
         on = !on;
         switch_graphics(graphics_enhanced(), features);
     }
+    if (keys & key(10)) {
+        g_debug_view = (g_debug_view + 1) % kViewCount;
+        if (g_debug_view_changed) g_debug_view_changed(g_debug_view);
+        LOG_INFO("dev", "debug view %s", kViewNames[g_debug_view]);
+    }
     if ((keys & key(7)) && pause) {
         g_paused = !g_paused;
         pause(g_paused);
@@ -86,14 +95,14 @@ void handle_keys(uint32_t keys, void (*pause)(bool)) {
     }
 }
 
-// COD_BRO_DEV_KEYS="7@900,2@1100": F7 pressed at the 900th presented frame, F2 at the 1100th (unattended checks).
+// COD_BRO_DEV_KEYS="7@900,2@1100": F7 (1-10) pressed at the 900th presented frame, F2 at the 1100th (unattended checks).
 uint32_t scripted_keys() {
     static std::vector<std::pair<uint32_t, uint32_t>> script = [] {
         std::vector<std::pair<uint32_t, uint32_t>> list;
         if (const char* text = std::getenv("COD_BRO_DEV_KEYS")) {
             unsigned f = 0, at = 0;
             for (const char* p = text; std::sscanf(p, "%u@%u", &f, &at) == 2;) {
-                if (f >= 1 && f <= 9) list.emplace_back(at, key(static_cast<int>(f)));
+                if (f >= 1 && f <= 10) list.emplace_back(at, key(static_cast<int>(f)));
                 p = std::strchr(p, ',');
                 if (!p) break;
                 ++p;
@@ -218,7 +227,8 @@ std::vector<std::string> frame(Backend& backend, void (*pause)(bool)) {
     const texture_pack::Stats pack = texture_pack::stats();
     lines.push_back(std::string("DEV  F1 hide  F2 mods ") + (pack.covered ? on_off(texture_pack::enabled()) : "none") +
                     "  F3 enhanced " + on_off(graphics_enhanced()) + "  F4/F5 " + feature.key + " " +
-                    on_off(features.*feature.field) + "  F7 " + (g_paused ? "PAUSED" : "pause"));
+                    on_off(features.*feature.field) + "  F7 " + (g_paused ? "PAUSED" : "pause") + "  F10 view " +
+                    kViewNames[g_debug_view]);
     lines.push_back(g_timing.text);
     if (device) {
         const GfxDevice::Stats s = device->stats();
@@ -249,12 +259,29 @@ void set_paused(bool paused) {
 
 void set_extra(ExtraFrame extra) { g_extra = extra; }
 
+const char* debug_view_name(uint32_t view) { return view < kViewCount ? kViewNames[view] : "?"; }
+uint32_t debug_view() { return g_debug_view; }
+void on_debug_view(void (*changed)(uint32_t view)) { g_debug_view_changed = changed; }
+bool set_debug_view(const char* name) {
+    for (uint32_t i = 0; i < kViewCount; ++i)
+        if (std::strcmp(name, kViewNames[i]) == 0) {
+            g_debug_view = i;
+            if (g_debug_view_changed) g_debug_view_changed(g_debug_view);
+            return true;
+        }
+    std::string all;
+    for (const char* n : kViewNames) all += std::string(" ") + n;
+    std::fprintf(stderr, "no debug view \"%s\"; there are:%s\n", name, all.c_str());
+    return false;
+}
+
 std::string state_text() {
     std::string text = std::string("mods ") + on_off(texture_pack::enabled()) + ", graphics " +
                        (graphics_enhanced() ? "enhanced" : "original");
     const std::string features = graphics_features().format();
     if (!features.empty()) text += " (" + features + ")";
     if (g_paused) text += ", paused";
+    if (g_debug_view) text += std::string(", debug view ") + kViewNames[g_debug_view];
     if (!g_pick_mark.empty()) text += ", " + g_pick_mark;
     return text;
 }

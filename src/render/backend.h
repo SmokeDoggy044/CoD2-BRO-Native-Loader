@@ -240,7 +240,7 @@ public:
     virtual bool take_mark_request() = 0;
     // Diagnostics: true once after the user pressed the highlight key (F11).
     virtual bool take_highlight_toggle() = 0;
-    // F1..F9 pressed since the last call (GameWindow::take_function_keys).
+    // F1..F10 pressed since the last call (GameWindow::take_function_keys).
     virtual uint32_t take_function_keys() { return 0; }
     // Diagnostics: draw what needs untranslated features in solid magenta.
     virtual void set_highlight(bool on) = 0;

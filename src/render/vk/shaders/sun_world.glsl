@@ -4,6 +4,7 @@
 // Defines: BLEND (cdWorldBlend), LIGHTMAP, PROJ_TEX / PROJ_SMP / PROJ_COORD (the projector's slot and its
 // coordinates: the vertex program writes them to TEXCOORD2 for cdWorld, TEXCOORD3 for cdWorldBlend).
 // c0: (depth scale, depth offset, bias, strength): the receiver's caster-space depth = (z + offset) * scale.
+// c3.x: the debug view (render/dev_mode.h DebugView): lighting, shadow and sun-mask are ours here.
 // c1, c2: the projector coordinates (u, v, z, 1) to the sun mask's (t4: the light grid's sun weight around the
 // view, see tr_main.cpp grid_sun_mask); both zero: no mask. Where the baked lighting has no sun, no shadow.
 #extension GL_GOOGLE_include_directive : require
@@ -79,4 +80,32 @@ void main() {
 #endif
     alpha_test(result.w);
     color = result;
+    // Debug views (phase 2 tools), unfogged: 1 lighting = the light only (white textures), 2 shadow = the
+    // shadow's factor (white full sun; dark red: no sun in the baked lighting), 3 sun-mask = the baked-sun weight.
+    const int view = int(ps.c[3].x + 0.5);
+    if (view >= 1 && view <= 3) {
+        const vec3 q = PROJ_COORD.xyz / PROJ_COORD.w;
+        const bool inside = q.x > 0.0 && q.y > 0.0 && q.x < 1.0 && q.y < 1.0;
+        const float weight = inside ? baked_sun(q) : 1.0;
+#ifdef BLEND
+        const float lit = 1.0 - clamp(lost * v0.z, 0.0, 1.0);
+#ifdef LIGHTMAP
+        const vec3 light = T2.rgb;
+#else
+        const vec3 light = vec3(1.0);
+#endif
+#else
+        const float lit = 1.0 - clamp(lost * v0.w, 0.0, 1.0);
+#ifdef LIGHTMAP
+        const vec3 light = T1.rgb;
+#else
+        const vec3 light = vec3(1.0);
+#endif
+#endif
+        vec3 shown;
+        if (view == 1) shown = light * lit;
+        else if (view == 2) shown = weight < 0.01 ? vec3(0.45, 0.05, 0.05) : vec3(lit);
+        else shown = vec3(weight);
+        color = vec4(clamp(shown, 0.0, 1.0), result.w);
+    }
 }
