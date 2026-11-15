@@ -187,7 +187,7 @@ public:
     uint32_t take_function_keys() override { return window_.take_function_keys(); }
     void set_highlight(bool /*on*/) override {}  // V3
     uint32_t unsupported_draws() override { return gfx_->unsupported_draws() + xbox_draws_; }
-    void dump_next_frame() override { LOG_INFO("render", "Vulkan: draw dumps come with V3"); }
+    void dump_next_frame(const std::string& prefix) override { gfx_->dump_frame(prefix); }
     void set_gamma_ramp(const uint8_t (&ramp)[3][256]) override { window_.set_gamma_ramp(ramp); }
     bool window_to_screen(float x, float y, float& screen_x, float& screen_y) override {
         return window_.window_to_screen(x, y, screen_x, screen_y);

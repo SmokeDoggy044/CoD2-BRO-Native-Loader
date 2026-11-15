@@ -665,6 +665,13 @@ public:
     }
 
     // The pixel centres' surface pixels (render scale), as the D3D9 back end.
+    void dump_frame(const std::string& prefix) override {
+        dump_prefix_ = prefix;
+        dump_at_ = frames_ + 1;
+        LOG_INFO("render", "Vulkan: draws of frame %u to %s_draws.txt", dump_at_, prefix.c_str());
+    }
+    bool dumping() const override { return !dump_prefix_.empty() && frames_ == dump_at_; }
+    std::string dump_file(const char* name) const override { return dump_prefix_ + "_" + name; }
     bool read_target(TargetId id, uint32_t* pixels, uint32_t width, uint32_t height) override {
         auto it = targets_.find(id);
         if (it == targets_.end() || is_depth(it->second.format) || !pixels || !width || !height) return false;
@@ -860,6 +867,14 @@ public:
         }
         flat_frames_ = frame_is_flat() ? flat_frames_ + 1 : 0;
         if (++frames_ % 60 == 0) free_idle_replacements();
+        // Developers: COD_BRO_DUMP_FRAME=N:PREFIX dumps presented frame N as a --diag mark does (replays).
+        static const std::pair<uint32_t, std::string> dump_env = [] {
+            const char* text = std::getenv("COD_BRO_DUMP_FRAME");
+            const char* colon = text ? std::strchr(text, ':') : nullptr;
+            return colon ? std::pair<uint32_t, std::string>{static_cast<uint32_t>(std::atoi(text)), colon + 1}
+                         : std::pair<uint32_t, std::string>{0, {}};
+        }();
+        if (dump_env.first && frames_ + 1 == dump_env.first) dump_frame(dump_env.second);
         if (redirected_) {  // presented without finish_picture: the back buffer is the 8-bit image again
             Target& back = targets_[back_buffer_];
             std::swap(back.image, scene_);
@@ -2053,6 +2068,8 @@ private:
 
     Context& vk_;
     float scale_x_, scale_y_;
+    std::string dump_prefix_;  // dump_frame
+    uint32_t dump_at_ = 0;
     uint32_t next_id_ = 1;
     std::unordered_map<TargetId, Target> targets_;
     std::unordered_map<TextureId, Texture> textures_;

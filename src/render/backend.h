@@ -246,8 +246,9 @@ public:
     virtual void set_highlight(bool on) = 0;
     // Draws in the current frame so far that need untranslated features.
     virtual uint32_t unsupported_draws() = 0;
-    // Logs every draw of the next frame (see D3D9Draw::dump_draw).
-    virtual void dump_next_frame() = 0;
+    // Logs every draw of the next frame (see D3D9Draw::dump_draw). `prefix`: the mark's path without ".bmp"
+    // (Vulkan writes <prefix>_draws.txt and pictures of the frame's targets beside it).
+    virtual void dump_next_frame(const std::string& prefix) = 0;
     // The title's gamma ramp (red, green, blue: 256 entries each), applied to the
     // picture shown from the next present on (the Xbox applies it in the video DAC;
     // CoD2: BRO's brightness setting). Any thread.

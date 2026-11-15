@@ -442,6 +442,7 @@ std::vector<std::string> diagnostics() {
     const auto now = Clock::now();
     const auto seconds = std::chrono::duration_cast<std::chrono::seconds>(now - start).count();
     bool dump = false;
+    std::string dump_prefix;
 
     // Frame pacing: a "frames" line per second, and each stall (see FramePacing).
     static FramePacing pacing;
@@ -481,6 +482,7 @@ std::vector<std::string> diagnostics() {
         }
         LOG_INFO("diag", "MARK %u: draws of the next frame follow", marks);
         dump = true;
+        dump_prefix = g.config.diag_dir + "/mark_" + std::to_string(marks);
         flash = "MARK " + std::to_string(marks) + (note ? " saved with note" : " saved");
         flash_until = Clock::now() + std::chrono::seconds(3);
     }
@@ -509,10 +511,11 @@ std::vector<std::string> diagnostics() {
                      g.swap_count, name.c_str(), event.c_str());
         LOG_INFO("diag", "AUTO MARK %u: draws of the next frame follow", auto_marks);
         dump = true;
+        dump_prefix = g.config.diag_dir + "/automark_" + std::to_string(auto_marks);
         flash = "AUTO MARK " + std::to_string(auto_marks) + ": " + fresh.front().substr(0, 70);
         flash_until = Clock::now() + std::chrono::seconds(4);
     }
-    if (dump) g.backend->dump_next_frame();
+    if (dump) g.backend->dump_next_frame(dump_prefix);
 
     if (g.backend->take_highlight_toggle()) {
         highlight = !highlight;

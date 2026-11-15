@@ -386,7 +386,7 @@ public:
     uint32_t take_function_keys() override { return window_.take_function_keys(); }
     void set_highlight(bool on) override { draw_->set_highlight(on); }
     uint32_t unsupported_draws() override { return draw_->unsupported_draws(); }
-    void dump_next_frame() override { draw_->dump_next_frame(); }
+    void dump_next_frame(const std::string& /*prefix*/) override { draw_->dump_next_frame(); }
 
     void set_gamma_ramp(const uint8_t (&ramp)[3][256]) override { window_.set_gamma_ramp(ramp); }
 

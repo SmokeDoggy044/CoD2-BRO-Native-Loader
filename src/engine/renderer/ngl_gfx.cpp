@@ -315,7 +315,7 @@ bool layout_for(DeviceObjects& o, uint32_t declaration, render::LayoutId& layout
 
 // Ours (2.0): the sun shadow map's resolution over the title's 512 x 512 (times the render scale); the square it
 // covers grows with it (tr_main.cpp R_RenderTestShadow's kSunRadius).
-constexpr uint32_t kShadowTargetScale = 2;
+constexpr uint32_t kShadowTargetScale = 3;
 
 // A title surface header (D3DSurface) as a target of ours at the same memory.
 render::TargetId target_for(DeviceObjects& o, uint32_t surface) {
@@ -487,6 +487,118 @@ render::ShaderId shader_for(DeviceObjects& o, render::ShaderStage stage, uint32_
     return it->second;
 }
 
+// --diag marks (GfxDevice::dumping): every draw of the frame after a mark to <mark>_draws.txt, then pictures of
+// the colour targets it drew into besides the frame (<mark>_target_<memory>.bmp; the sun shadow map also decoded
+// as depth, <mark>_shadow_depth.bmp, and the sun mask, <mark>_sun_mask.bmp).
+struct DrawDump {
+    std::FILE* file = nullptr;
+    std::string done_for;  // the prefix already written (dumping() stays true until the device's frame moves)
+    uint32_t index = 0;
+    std::set<uint32_t> targets;  // title surface headers drawn into
+};
+DrawDump& draw_dump() {
+    static DrawDump d;
+    return d;
+}
+
+bool write_bmp(const std::string& path, const uint32_t* pixels, uint32_t width, uint32_t height) {
+    std::FILE* f = std::fopen(path.c_str(), "wb");
+    if (!f) return false;
+    const uint32_t bytes = width * height * 4;
+    uint8_t header[54] = {'B', 'M'};
+    const auto put = [&](size_t at, uint32_t v) { std::memcpy(header + at, &v, 4); };
+    put(2, 54 + bytes);
+    put(10, 54);
+    put(14, 40);
+    put(18, width);
+    put(22, static_cast<uint32_t>(-static_cast<int32_t>(height)));  // top-down
+    header[26] = 1;
+    header[28] = 32;
+    put(34, bytes);
+    std::fwrite(header, 1, sizeof header, f);
+    std::fwrite(pixels, 1, bytes, f);
+    std::fclose(f);
+    return true;
+}
+
+uint32_t surface_data(uint32_t surface) {
+    return surface ? reinterpret_cast<const uint32_t*>(static_cast<uintptr_t>(surface))[1] : 0;
+}
+
+void dump_draw(render::GfxDevice& device, const GfxState& s, uint32_t pixel_key, bool sun_caster,
+               const game::RendererPcHooks& hooks) {
+    DrawDump& d = draw_dump();
+    const std::string prefix = device.dump_file("");
+    if (prefix == d.done_for) return;
+    if (!d.file) {
+        d.file = std::fopen(device.dump_file("draws.txt").c_str(), "w");
+        if (!d.file) {
+            d.done_for = prefix;
+            return;
+        }
+        d.index = 0;
+        d.targets.clear();
+        std::fprintf(d.file, "frame %u; sun shadows: depth %d target %08x reach %.0f centre (%.0f %.0f) mask %ux%u key %u\n",
+                     g_frame, hooks.shadow_depth ? 1 : 0, hooks.shadow_target_data, hooks.shadow_reach,
+                     hooks.shadow_reach_center[0], hooks.shadow_reach_center[1], hooks.sun_mask_width,
+                     hooks.sun_mask_height, hooks.sun_mask_key);
+        const float* c = hooks.pixel_override_constants;
+        std::fprintf(d.file, "  receiver c0 (%g %g %g %g) c1 (%g %g %g %g) c2 (%g %g %g %g)\n", c[0], c[1], c[2], c[3],
+                     c[4], c[5], c[6], c[7], c[8], c[9], c[10], c[11]);
+        std::fprintf(d.file, "#n target(memory) vs ps [ours] mask blend depth(test write func) cull stencil textures(memory)\n");
+    }
+    d.targets.insert(s.color_target);
+    std::fprintf(d.file, "%u %08x vs %08x ps %08x%s m%x b%d d%d%d%d c%d s%d t", d.index++, surface_data(s.color_target),
+                 s.vertex_key, pixel_key, sun_caster ? " [caster]" : pixel_key != s.pixel_key ? " [receiver]" : "",
+                 s.blend.write_mask, s.blend.enable ? 1 : 0, s.depth_stencil.depth_test ? 1 : 0,
+                 s.depth_stencil.depth_write ? 1 : 0, static_cast<int>(s.depth_stencil.depth_func),
+                 static_cast<int>(s.raster.cull), s.depth_stencil.stencil ? 1 : 0);
+    for (uint32_t stage = 0; stage < render::kGfxStages; ++stage)
+        std::fprintf(d.file, " %08x", s.textures[stage] ? surface_data(s.textures[stage]) : 0);
+    std::fprintf(d.file, "\n");
+}
+
+// After the dumped frame: the pictures, then the file closed.
+void finish_draw_dump(render::GfxDevice& device, DeviceObjects& o) {
+    DrawDump& d = draw_dump();
+    if (!d.file) return;
+    std::fprintf(d.file, "%u draws\n", d.index);
+    std::fclose(d.file);
+    d.file = nullptr;
+    d.done_for = device.dump_file("");
+    const game::RendererPcHooks& hooks = game::renderer_pc_hooks();
+    for (uint32_t surface : d.targets) {
+        const auto* words = reinterpret_cast<const uint32_t*>(static_cast<uintptr_t>(surface));
+        const uint32_t format_word = words[3], size = words[4], data = words[1];
+        const uint32_t width = size ? (size & 0xFFF) + 1 : 1u << (format_word >> 20 & 0xF);
+        const uint32_t height = size ? (size >> 12 & 0xFFF) + 1 : 1u << (format_word >> 24 & 0xF);
+        if (width >= 640) continue;  // the frame: the mark's own picture
+        const render::TargetId target = target_for(o, surface);
+        const uint32_t w = width * 2, h = height * 2;
+        std::vector<uint32_t> pixels(size_t{w} * h);
+        if (!target || !device.read_target(target, pixels.data(), w, h)) continue;
+        char name[48];
+        std::snprintf(name, sizeof name, "target_%08x.bmp", data);
+        write_bmp(device.dump_file(name), pixels.data(), w, h);
+        if (data != hooks.shadow_target_data || !hooks.shadow_depth) continue;
+        // Packed 1 - depth (sun_common.glsl) as grey: white = nearest to the sun, black = no caster.
+        for (uint32_t& p : pixels) {
+            const float e = ((p >> 16 & 0xFF) + (p >> 8 & 0xFF) / 255.0f + (p & 0xFF) / 65025.0f) / 255.0f;
+            const uint32_t g = e > 0.0f ? 64 + static_cast<uint32_t>(std::min(1.0f, e) * 191.0f) : 0;
+            p = 0xFF000000u | g << 16 | g << 8 | g;
+        }
+        write_bmp(device.dump_file("shadow_depth.bmp"), pixels.data(), w, h);
+    }
+    if (hooks.sun_mask && hooks.sun_mask_width) {
+        std::vector<uint32_t> mask(size_t{hooks.sun_mask_width} * hooks.sun_mask_height);
+        for (size_t i = 0; i < mask.size(); ++i) {
+            const uint32_t g = hooks.sun_mask[i];
+            mask[i] = 0xFF000000u | g << 16 | g << 8 | g;
+        }
+        write_bmp(device.dump_file("sun_mask.bmp"), mask.data(), hooks.sun_mask_width, hooks.sun_mask_height);
+    }
+}
+
 // The recorded state onto the device; false if something cannot be ours yet.
 bool apply(render::GfxDevice& device, DeviceObjects& o, uint32_t stride) {
     const GfxState& s = *ngl_gfx_state();
@@ -548,6 +660,7 @@ bool apply(render::GfxDevice& device, DeviceObjects& o, uint32_t stride) {
     device.set_layout(layout);
     device.set_constants(render::ShaderStage::Vertex, 0, &s.vs_constants[0][0], 192);
     device.set_constants(render::ShaderStage::Pixel, 0, &s.ps_constants[0][0], 18);
+    if (device.dumping()) dump_draw(device, s, pixel_key, sun_caster, hooks);
     if (!sun_caster && hooks.pixel_override) {
         device.set_constants(render::ShaderStage::Pixel, 0, hooks.pixel_override_constants, 3);
         // Slot 4 (no world shader uses it): the sun mask.
@@ -582,6 +695,7 @@ bool ngl_gfx_own_draws() {
 }
 
 void ngl_gfx_end_frame() {
+    if (render::GfxDevice* device = gfx(); device && draw_dump().file) finish_draw_dump(*device, objects(device));
     ++g_frame;
     if (g_frame % 60 == 0)
         if (render::GfxDevice* device = gfx()) drop_unused_textures(objects(device));

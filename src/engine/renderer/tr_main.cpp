@@ -2859,9 +2859,13 @@ void XB_CDECL R_RenderTestShadow() {
         // toward the sun lies radius / tan(elevation) before the centre along the sun, and casters stand up to
         // kSunLift / sin(elevation) higher. Backing up only kSunLift (11-15e) clipped the casters near the view
         // whenever the sun was behind the camera (the centre is ~0.64 radius ahead of the view).
-        constexpr float kSunLift = 300.0f, kSunRadius = 3000.0f, kSunMargin = 1000.0f;
+        // The projector covers +-radius / 2 (u = dot / radius + 0.5). The original's centre, 0.45 radius along both
+        // square axes, leaves the view at the square's back corner: models next to the view fell off the map's
+        // edge as the camera turned (playtest 11-15g, mark dumps). Ours: 0.25 radius straight ahead - about
+        // 1000 units behind the view and 3000 ahead covered.
+        constexpr float kSunLift = 300.0f, kSunRadius = 4000.0f, kSunMargin = 1000.0f;
         radius = kSunRadius;
-        const Lanes ahead = mul(sub(up, across), radius * title_global<float>(0x0083f034));
+        const Lanes ahead = mul(f, radius * 0.25f);
         const float centre[3] = {view[12] + ahead.v[0], view[13] + ahead.v[1], view[14]};
         aim_at_sun(camera, sun);
         const float sin_elevation = -sun[2];

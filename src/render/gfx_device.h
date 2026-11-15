@@ -21,6 +21,7 @@
 // - Vertex inputs are numbered 0..15 (HLSL semantic TEXCOORDn), as the NV2A's v0..v15.
 
 #include <cstdint>
+#include <string>
 #include <vector>
 
 namespace render {
@@ -368,6 +369,11 @@ public:
     virtual bool take_pick(std::vector<PickHit>& /*hits*/) { return false; }
     // The title texture contents (render::hash_bytes) `texture` now holds, for the picker.
     virtual void label_texture(TextureId /*texture*/, uint64_t /*content*/) {}
+    // Diagnostics (--diag marks): dump_frame arms the next frame; while dumping(), the draw layer above logs each
+    // draw and saves pictures to dump_file(name) (<mark prefix>_<name>). Back ends without it never dump.
+    virtual void dump_frame(const std::string& /*prefix*/) {}
+    virtual bool dumping() const { return false; }
+    virtual std::string dump_file(const char* /*name*/) const { return {}; }
     // The target's pixels at the title's size (A8R8G8B8, width * height); false on failure.
     virtual bool read_target(TargetId target, uint32_t* pixels, uint32_t width, uint32_t height) = 0;
 
