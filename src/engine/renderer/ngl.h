@@ -61,6 +61,9 @@ struct RendererPcHooks {
     // Set and true: R_RenderTestShadow aims its camera (and so the projector) along the sun of the light grid
     // the view is in, not straight down. Ours (engine improvements 2.0).
     bool (*sun_shadows)() = nullptr;
+    // Set and true: the lit model classes (cdChar, cdGun, cdSimple, ...) light per pixel on our own shaders
+    // (engine improvements 2.1; Vulkan only). With sun shadows on they take our shaders too, to receive them.
+    bool (*pixel_lighting)() = nullptr;
     // Set by R_RenderTestShadow for the frame when its camera follows the sun: the shadow scene's casters (its draws
     // write alpha only) are drawn without culling - seen at a slant, the coarse caster meshes' open sides left holes.
     bool shadow_casters_double_sided = false;
@@ -88,6 +91,23 @@ struct RendererPcHooks {
     // none. sun_mask_key changes with the contents.
     const uint8_t* sun_mask = nullptr;
     uint32_t sun_mask_width = 0, sun_mask_height = 0, sun_mask_key = 0;
+    // With shadow_depth: the shadow texture's D3D header (the projector's, NglTexture::d3d_texture) and the
+    // projector's world -> texture matrix (nglAddShadowProjector's +0x00: u v z w = x row 0 + y row 1 + z row 2 +
+    // row 3), for receivers that compute their own coordinates (our model shaders, 2.1).
+    uint32_t shadow_texture = 0;
+    float shadow_projector[16] = {};
+    // The sun's direction of travel (z < 0) while shadow_depth is set: the object light that matches it is the one
+    // the shadow darkens.
+    float sun_direction[3] = {};
+    // The lit model draw being set up (nglComputeObjectLights fills it, ngl_gfx reads it at the draw): our model
+    // shaders' constants (render::kGfxVsOwn, own_model.glsl) - the object -> world rows and the node's lights in
+    // world space (up to render::kModelLights), sun index, light count. Rendering only.
+    struct ModelLights {
+        const void* node = nullptr;
+        float to_world[12] = {};
+        float lights[2][8][4] = {};  // [0]: (xyz, radius; 0 = directional), [1]: (r, g, b, inner radius)
+        int32_t count = 0, sun = -1;
+    } model;
     // Developers (the lab's camera orbit, --orbit): world scenes are drawn from this camera instead of the
     // refdef's. Rendering only; meant for a paused game. Offsets in the view's level frame (forward and left
     // with the view's yaw, up = world up), yaw added to the view's, pitch in degrees (positive looks down) or

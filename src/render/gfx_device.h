@@ -55,6 +55,11 @@ constexpr uint32_t kGfxVertexInputs = 16;
 // included); shaders that output clip space ignore it.
 constexpr uint32_t kGfxVsScreenToClip = 192;  // two registers
 constexpr uint32_t kGfxVsFog = 194;           // Fog::bias, Fog::scale, Fog::mode, 0
+// Ours (engine improvements 2.1): constants of our own model shaders (vk/shaders/own_model.glsl), read by their
+// vertex and pixel stages. Vulkan only (D3D9 ignores them).
+constexpr uint32_t kGfxVsOwn = 195;
+constexpr uint32_t kGfxVsOwnCount = 32;
+constexpr uint32_t kModelLights = 8;
 // Reserved pixel constants.
 constexpr uint32_t kGfxPsTexcoordScale = 18;  // c18..c25 per texture slot: (sx, sy, 1, 1), texel ->
                                               // normalized for the title's linear textures, else 1
@@ -73,6 +78,9 @@ enum OwnPixelShader : uint32_t {
     kOwnPsSunBlend = 0xFE000004,      // cdWorldBlend projected, no lightmap
     kOwnPsSunBlendLm = 0xFE000005,    // cdWorldBlend projected with lightmap
 };
+// Our GLSL ports of the lit model classes' title programs (tools/shader_glsl.py, vk/shaders/model_*): the title
+// key with this bit, for vertex programs with the title's variant (vertex declaration). Vulkan only.
+constexpr uint32_t kOwnModelShader = 0x40000000;
 
 // --- Resources ---
 

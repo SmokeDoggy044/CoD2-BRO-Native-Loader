@@ -2932,6 +2932,8 @@ void XB_CDECL R_RenderTestShadow() {
         constants[2] = kSunBias / (far - kNear);
         constants[3] = 1.0f;
         renderer_pc_hooks().shadow_depth = true;
+        renderer_pc_hooks().shadow_texture = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(texture->d3d_texture));
+        std::memcpy(renderer_pc_hooks().sun_direction, sun, sizeof sun);
         // c1 c2: the projector coordinates (u, v, z, 1) to the sun mask's texture coordinates. A point of the
         // box is r3 + across * radius * (u - 0.5) - up * radius * (v - 0.5) + sun * depth * z (r3 = the camera
         // moved box_shift along the sun); sample i of a row sits at texel centre (i + 0.5) / width.

@@ -1,6 +1,7 @@
 #include "ngl.h"
 
 #include <cstdarg>
+#include <cstdio>
 #include <cmath>
 #include <cstring>
 #include <vector>
@@ -2027,6 +2028,8 @@ void XB_CDECL nglAddShadowProjector(uint32_t flags, const float* matrix, const f
     }
 
     nglBuildProjectorPlanes(p + 0x38, p + 0x10);
+    // Ours (2.1): the sun projector's matrix for our model receivers.
+    if (renderer_pc_hooks().shadow_depth) std::memcpy(renderer_pc_hooks().shadow_projector, p, 64);
     nglLightSetAddProjector(2, p, flags);
 }
 
@@ -2203,6 +2206,49 @@ void XB_CDECL nglSelectMeshLightSet(NglMeshDrawNode* node) {
     }
 }
 
+namespace {
+
+// Ours (engine improvements 2.1): the node's lights in world space for our model shaders
+// (RendererPcHooks::model; host memory only, the title's state untouched).
+void note_model_lights(const NglMeshDrawNode* node, const NglLightSet* set) {
+    RendererPcHooks& hooks = renderer_pc_hooks();
+    if (!hooks.pixel_lighting && !hooks.shadow_depth) return;
+    RendererPcHooks::ModelLights& own = hooks.model;
+    const float* m = node->world;
+    own.node = node;
+    for (int row = 0; row < 3; ++row)
+        for (int k = 0; k < 4; ++k) own.to_world[row * 4 + k] = m[k * 4 + row];
+    own.count = 0;
+    own.sun = -1;
+    const float* sun = hooks.sun_direction;
+    for (const NglLight* light = set->object_lights; light && light != reinterpret_cast<const NglLight*>(set);
+         light = light->next_object) {
+        if (own.count == static_cast<int32_t>(render::kModelLights)) break;
+        const float* data = light->data;
+        float* a = own.lights[0][own.count];
+        float* b = own.lights[1][own.count];
+        if (light->type == 1) {
+            std::memcpy(a, data, 12);
+            a[3] = 0.0f;
+            b[3] = 0.0f;
+            const float length = std::sqrt(data[0] * data[0] + data[1] * data[1] + data[2] * data[2]);
+            if (hooks.shadow_depth && own.sun < 0 && length > 0.0f &&
+                data[0] * sun[0] + data[1] * sun[1] + data[2] * sun[2] > 0.9995f * length)
+                own.sun = own.count;
+        } else if (light->type == 0) {
+            std::memcpy(a, data, 12);
+            a[3] = data[9];
+            b[3] = data[8];
+        } else {
+            continue;
+        }
+        std::memcpy(b, data + 4, 12);
+        ++own.count;
+    }
+}
+
+}  // namespace
+
 void XB_CDECL nglComputeObjectLights(NglMeshDrawNode* node, float* directions, float* colors) {
     const float* m = node->world;
     const float* c = reinterpret_cast<const float*>(node->mesh + 0x20);
@@ -2237,6 +2283,7 @@ void XB_CDECL nglComputeObjectLights(NglMeshDrawNode* node, float* directions, f
         colors[8 + count] = 0.0f;
     }
     std::memcpy(colors + 12, set->ambient, 16);
+    note_model_lights(node, set);
 }
 
 void XB_THISCALL nglSetDecalZBias(uint8_t* self, uint32_t bias) {

@@ -32,6 +32,9 @@ struct GraphicsFeatures {
     // The game's shadow cast along the mission's sun (the light grid's directional light) instead of straight down
     // (Vulkan only; phase 2.0).
     bool sun_shadows = true;
+    // Characters, guns and props lit per pixel by their lights (the original lights each vertex; effect flashes per
+    // pixel with their falloff, up to 8 lights a model) - Vulkan only (phase 2.1).
+    bool pixel_lighting = true;
     float sharpness = 0.0f;        // 0..1
     float vibrance_amount = 0.0f;  // -1 (greyer) .. 1
     float lod_bias = 0.0f;         // -2 (sharpest) .. 0 (the game's)
@@ -51,6 +54,7 @@ struct GraphicsFeatures {
         {"smooth_models", &GraphicsFeatures::smooth_models},
         {"original_shadows", &GraphicsFeatures::original_shadows},
         {"sun_shadows", &GraphicsFeatures::sun_shadows},
+        {"pixel_lighting", &GraphicsFeatures::pixel_lighting},
     };
     struct Amount {
         const char* key;

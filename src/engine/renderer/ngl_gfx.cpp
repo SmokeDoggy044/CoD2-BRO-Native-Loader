@@ -607,7 +607,7 @@ void finish_draw_dump(render::GfxDevice& device, DeviceObjects& o) {
 // <prefix>_shader_ab.csv (draw index as in _draws.txt), <prefix>_shader_ab_worst_{title,ours}.bmp.
 struct ShaderAb {
     // apply()'s choice for the draw being made
-    bool ours = false, reapplying = false;
+    bool ours = false, reapplying = false, model = false;
     render::ShaderId vs = 0, ps = 0, title_vs = 0, title_ps = 0;
     uint32_t vertex_key = 0, title_pixel_key = 0, pixel_key = 0, color_surface = 0;
     // the frame's results
@@ -633,6 +633,94 @@ int shader_ab_mode() {
 }
 constexpr uint32_t kAbSentinel = 0x01FE02FDu;  // the scratch's clear colour: "not drawn"
 
+// Ours (engine improvements 2.1): the lit model classes' programs with GLSL ports of our own
+// (tools/shader_glsl.py; vk/shaders/model_shaders.csv lists the same keys).
+bool own_model_vertex(uint32_t key) {
+    switch (key) {
+    case 0x00899a00: case 0x00899d70: case 0x0089b030: case 0x0089b7c0: case 0x0089c4d0: case 0x0089ca40:
+        return true;
+    default:
+        return false;
+    }
+}
+bool own_model_pixel(uint32_t key) {
+    switch (key) {
+    case 0x00899b48: case 0x00899c40: case 0x00899eb8: case 0x00899fb0: case 0x0089b2a8: case 0x0089b3a0:
+    case 0x0089baa8: case 0x0089bba0: case 0x0089c628: case 0x0089c720: case 0x0089cb88: case 0x0089cc80:
+        return true;
+    default:
+        return false;
+    }
+}
+// Per frame: 0 = the title's shaders, else bit 0 pixel lighting, bit 1 sun shadow on models, bit 2 forced
+// (COD_BRO_MODEL_SHADERS=1: ours with both off - the 2.1a check that they equal the title's).
+uint32_t model_shader_mode(const game::RendererPcHooks& hooks) {
+    static uint32_t frame = ~0u, mode = 0;
+    if (frame != g_frame) {
+        frame = g_frame;
+        static const bool forced = [] {
+            const char* env = std::getenv("COD_BRO_MODEL_SHADERS");
+            return env && *env == '1';
+        }();
+        mode = 0;
+        if (hooks.pixel_lighting) {  // set on Vulkan only
+            if (hooks.pixel_lighting()) mode |= 1;
+            if (forced) mode |= 4;
+        }
+    }
+    uint32_t m = mode;
+    if (hooks.shadow_depth && hooks.shadow_texture) m |= 2;
+    return m;
+}
+
+void bind_sun_mask(render::GfxDevice& device, DeviceObjects& o, const game::RendererPcHooks& hooks) {
+    if (hooks.sun_mask && hooks.sun_mask_key != o.sun_mask_key) {
+        device.destroy_texture(o.sun_mask);
+        o.sun_mask = device.create_texture({render::TextureType::Tex2D, render::Format::L8, hooks.sun_mask_width,
+                                            hooks.sun_mask_height, 1, 1, false});
+        if (o.sun_mask) device.update_texture(o.sun_mask, 0, 0, hooks.sun_mask, hooks.sun_mask_width, 0);
+        o.sun_mask_key = hooks.sun_mask_key;
+    }
+    render::SamplerState clamp;
+    clamp.u = clamp.v = clamp.w = render::Address::Clamp;
+    device.set_texture(4, hooks.sun_mask ? o.sun_mask : 0);
+    device.set_sampler(4, clamp);
+}
+
+// Our model shaders' constants (own_model.glsl) and textures: t4 the sun mask, t5 the shadow map.
+// World units the receiver moves off its surface against the model's own coarse caster copy (acne): lab orbit m2
+// 11-15, speckle per pose 0 / 8 / 16 units: turn 135 0.22 / 0.08 / 0.07 (reference without model receivers 0.07).
+constexpr float kModelNormalOffset = 8.0f;
+void set_model_constants(render::GfxDevice& device, DeviceObjects& o, const game::RendererPcHooks& hooks,
+                         uint32_t mode) {
+    alignas(16) float own[render::kGfxVsOwnCount][4] = {};
+    const game::RendererPcHooks::ModelLights& m = hooks.model;
+    const bool shadow = (mode & 2) && m.sun >= 0;
+    own[0][0] = (mode & 1) ? 1.0f : 0.0f;
+    own[0][1] = static_cast<float>(shadow ? m.sun : -1);
+    own[0][2] = shadow ? 1.0f : 0.0f;
+    own[0][3] = static_cast<float>(hooks.debug_view);
+    std::memcpy(own[1], m.to_world, sizeof m.to_world);
+    if (shadow) {
+        const float* p = hooks.shadow_projector;  // u v z w = x p[0..3] + y p[4..7] + z p[8..11] + p[12..15]
+        for (int row = 0; row < 4; ++row)
+            for (int k = 0; k < 4; ++k) own[4 + row][k] = p[k * 4 + row];
+        own[7][0] = own[7][1] = own[7][2] = 0.0f;  // w = 1 (the world receivers' c14)
+        own[7][3] = 1.0f;
+        std::memcpy(own[8], hooks.pixel_override_constants, 12 * sizeof(float));  // c0 c1 c2 (sun_world.glsl)
+    }
+    own[11][0] = static_cast<float>(m.count);
+    own[11][1] = kModelNormalOffset;
+    std::memcpy(own[12], m.lights, sizeof m.lights);
+    device.set_constants(render::ShaderStage::Vertex, render::kGfxVsOwn, &own[0][0], render::kGfxVsOwnCount);
+    if (!shadow) return;
+    bind_sun_mask(device, o, hooks);
+    render::SamplerState border;
+    border.u = border.v = border.w = render::Address::Clamp;
+    device.set_texture(5, texture_for(o, hooks.shadow_texture, 0));
+    device.set_sampler(5, border);
+}
+
 // The recorded state onto the device; false if something cannot be ours yet.
 bool apply(render::GfxDevice& device, DeviceObjects& o, uint32_t stride) {
     const GfxState& s = *ngl_gfx_state();
@@ -647,11 +735,27 @@ bool apply(render::GfxDevice& device, DeviceObjects& o, uint32_t stride) {
     // Ours (2.0 sun shadows): casters write depth (their draws write alpha only), the receivers compare it.
     const game::RendererPcHooks& hooks = game::renderer_pc_hooks();
     const bool sun_caster = hooks.shadow_depth && shadow_caster_draw(s);
-    const uint32_t pixel_key = sun_caster ? render::kOwnPsSunCaster : hooks.pixel_override ? hooks.pixel_override : s.pixel_key;
-    const render::ShaderId ps = shader_for(o, render::ShaderStage::Pixel, pixel_key);
+    uint32_t pixel_key = sun_caster ? render::kOwnPsSunCaster : hooks.pixel_override ? hooks.pixel_override : s.pixel_key;
+    render::ShaderId ps = shader_for(o, render::ShaderStage::Pixel, pixel_key);
+    // Ours (2.1): the lit model classes on our GLSL ports (per-pixel lights, the sun's shadow).
+    render::ShaderId model_vs = 0;
+    const uint32_t model_mode = !sun_caster && !hooks.pixel_override && own_model_vertex(s.vertex_key) &&
+                                own_model_pixel(s.pixel_key) ? model_shader_mode(hooks) : 0;
+    if (model_mode) {
+        model_vs = shader_for(o, render::ShaderStage::Vertex, s.vertex_key | render::kOwnModelShader, variant);
+        const render::ShaderId model_ps =
+            model_vs ? shader_for(o, render::ShaderStage::Pixel, s.pixel_key | render::kOwnModelShader) : 0;
+        if (model_ps) {
+            pixel_key = s.pixel_key | render::kOwnModelShader;
+            ps = model_ps;
+        } else {
+            model_vs = 0;
+        }
+    }
     ShaderAb& ab = shader_ab();
     ab.ours = !sun_caster && pixel_key != s.pixel_key;
-    ab.vs = vs;
+    ab.model = model_vs != 0;
+    ab.vs = model_vs ? model_vs : vs;
     ab.ps = ps;
     ab.title_vs = vs;
     ab.title_ps = ab.ours ? shader_for(o, render::ShaderStage::Pixel, s.pixel_key) : ps;
@@ -701,11 +805,12 @@ bool apply(render::GfxDevice& device, DeviceObjects& o, uint32_t stride) {
         device.set_texture(stage, s.textures[stage] ? texture_for(o, s.textures[stage], s.palettes[stage]) : 0);
         device.set_sampler(stage, s.samplers[stage]);
     }
-    device.set_shaders(vs, ps);
+    device.set_shaders(model_vs ? model_vs : vs, ps);
     device.set_layout(layout);
     device.set_constants(render::ShaderStage::Vertex, 0, &s.vs_constants[0][0], 192);
     device.set_constants(render::ShaderStage::Pixel, 0, &s.ps_constants[0][0], 18);
     if (device.dumping() && !ab.reapplying) dump_draw(device, s, pixel_key, sun_caster, hooks);
+    if (model_vs) set_model_constants(device, o, hooks, model_mode);
     if (!sun_caster && hooks.pixel_override) {
         // c3.x: the debug view (RendererPcHooks::debug_view; tools for phase 2).
         alignas(16) float constants[16];
@@ -713,18 +818,7 @@ bool apply(render::GfxDevice& device, DeviceObjects& o, uint32_t stride) {
         constants[12] = static_cast<float>(hooks.debug_view);
         constants[13] = constants[14] = constants[15] = 0.0f;
         device.set_constants(render::ShaderStage::Pixel, 0, constants, 4);
-        // Slot 4 (no world shader uses it): the sun mask.
-        if (hooks.sun_mask && hooks.sun_mask_key != o.sun_mask_key) {
-            device.destroy_texture(o.sun_mask);
-            o.sun_mask = device.create_texture({render::TextureType::Tex2D, render::Format::L8, hooks.sun_mask_width,
-                                                hooks.sun_mask_height, 1, 1, false});
-            if (o.sun_mask) device.update_texture(o.sun_mask, 0, 0, hooks.sun_mask, hooks.sun_mask_width, 0);
-            o.sun_mask_key = hooks.sun_mask_key;
-        }
-        render::SamplerState clamp;
-        clamp.u = clamp.v = clamp.w = render::Address::Clamp;
-        device.set_texture(4, hooks.sun_mask ? o.sun_mask : 0);
-        device.set_sampler(4, clamp);
+        bind_sun_mask(device, o, hooks);  // slot 4 (no world shader uses it)
     }
     return true;
 }
@@ -773,7 +867,7 @@ void run_shader_ab(render::GfxDevice& device, DeviceObjects& o, uint32_t stride,
         device.set_shaders(title ? ab.title_vs : ab.vs, title ? ab.title_ps : ab.ps);
         if (title) {
             device.set_constants(render::ShaderStage::Pixel, 0, &s.ps_constants[0][0], 18);
-        } else if (ab.ours) {
+        } else if (ab.ours && !ab.model) {
             alignas(16) float constants[16];
             std::memcpy(constants, hooks.pixel_override_constants, 12 * sizeof(float));
             constants[12] = static_cast<float>(hooks.debug_view);

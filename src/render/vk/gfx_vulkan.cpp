@@ -407,6 +407,17 @@ public:
     }
     ShaderId create_title_shader(ShaderStage stage, uint32_t key, uint32_t variant) override {
         if (stage == ShaderStage::Pixel && key >= kOwnPsSunCaster && key <= kOwnPsSunBlendLm) return own_pixel_shader(key);
+        if ((key & kOwnModelShader) && key < 0x80000000u) {
+            char name[48];
+            const uint32_t title = key & ~kOwnModelShader;
+            if (stage == ShaderStage::Pixel)
+                std::snprintf(name, sizeof name, "model_ps_%08x.frag", title);
+            else if (variant)
+                std::snprintf(name, sizeof name, "model_vs_%08x_%08x.vert", title, variant);
+            else
+                std::snprintf(name, sizeof name, "model_vs_%08x.vert", title);
+            return own_shader(stage, name);
+        }
         const char kind = stage == ShaderStage::Vertex ? 'v' : 'p';
         for (unsigned i = 0; i < kTitleShaderCount; ++i)
             if (kTitleShaders[i].stage == kind && kTitleShaders[i].key == key && kTitleShaders[i].variant == variant)
@@ -420,7 +431,9 @@ public:
     ShaderId own_pixel_shader(uint32_t key) {
         static constexpr const char* kNames[] = {"sun_caster.frag", "sun_world.frag", "sun_world_lm.frag",
                                                  "sun_blend.frag", "sun_blend_lm.frag"};
-        const char* name = kNames[key - kOwnPsSunCaster];
+        return own_shader(ShaderStage::Pixel, kNames[key - kOwnPsSunCaster]);
+    }
+    ShaderId own_shader(ShaderStage stage, const char* name) {
         const vk::SpirvShader* code = vk::spirv_shader(name);
         VkShaderModule module = VK_NULL_HANDLE;
         if (code) {
@@ -430,12 +443,16 @@ public:
             vkCreateShaderModule(vk_.device(), &info, nullptr, &module);
         }
         if (!module) {
-            LOG_ERROR("render", "gfx: own pixel shader %s missing", name);
+            LOG_ERROR("render", "gfx: own shader %s missing", name);
             return 0;
         }
+        uint32_t inputs = 0;
+        if (stage == ShaderStage::Vertex) {
+            const auto* words = static_cast<const uint32_t*>(code->code);
+            inputs = spirv_input_mask(std::vector<uint32_t>(words, words + code->bytes / 4));
+        }
         const ShaderId id = next_id_++;
-        shaders_[id] = {ShaderStage::Pixel, module, 0,
-                        vk_.pipeline_libraries() ? shader_library(ShaderStage::Pixel, module) : VK_NULL_HANDLE};
+        shaders_[id] = {stage, module, inputs, vk_.pipeline_libraries() ? shader_library(stage, module) : VK_NULL_HANDLE};
         return id;
     }
     // Pipelines keep no reference to their modules: a module can go at once.
@@ -574,7 +591,8 @@ public:
     }
     void set_constants(ShaderStage stage, uint32_t first, const float* values, uint32_t count) override {
         auto& constants = stage == ShaderStage::Vertex ? vs_constants_ : ps_constants_;
-        const uint32_t limit = stage == ShaderStage::Vertex ? kGfxVsScreenToClip : kGfxPsTexcoordScale;
+        uint32_t limit = stage == ShaderStage::Vertex ? kGfxVsScreenToClip : kGfxPsTexcoordScale;
+        if (stage == ShaderStage::Vertex && first >= kGfxVsOwn) limit = kGfxVsOwn + kGfxVsOwnCount;  // ours (2.1)
         if (first >= limit) return;
         count = std::min(count, limit - first);
         std::memcpy(constants.data() + first * 4, values, count * 16);
@@ -1270,7 +1288,9 @@ private:
             VkDescriptorSetLayoutBinding& b = bindings[i];
             b.binding = i;
             b.descriptorCount = 1;
-            b.stageFlags = i == kVkVertexConstantsBinding ? VK_SHADER_STAGE_VERTEX_BIT : VK_SHADER_STAGE_FRAGMENT_BIT;
+            // The vertex constants reach the pixel stage too: our model shaders read their lights there (2.1).
+            b.stageFlags = i == kVkVertexConstantsBinding ? VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT
+                                                          : VK_SHADER_STAGE_FRAGMENT_BIT;
             b.descriptorType = i < kVkFirstImageBinding     ? VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER
                                : i < kVkFirstSamplerBinding ? VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE
                                                             : VK_DESCRIPTOR_TYPE_SAMPLER;

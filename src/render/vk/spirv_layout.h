@@ -21,7 +21,7 @@ constexpr uint32_t kVkPixelConstantsBinding = 1;
 constexpr uint32_t kVkFirstImageBinding = 2;
 constexpr uint32_t kVkFirstSamplerBinding = 10;
 constexpr uint32_t kVkBindingCount = 18;
-constexpr uint32_t kVkVertexConstants = 195;  // float4 registers (kGfxVsFog + 1)
+constexpr uint32_t kVkVertexConstants = 227;  // float4 registers (kGfxVsOwn + kGfxVsOwnCount)
 constexpr uint32_t kVkPixelConstants = 29;    // kGfxPsReserved
 
 constexpr uint32_t kVkLocationColor0 = 0;
