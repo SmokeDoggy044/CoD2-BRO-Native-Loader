@@ -654,15 +654,46 @@ int line_loss(const float a[3], const float b[3], float db[3], std::string* desc
 
 }  // namespace
 
-SndPropagation SndEnv_Propagation(const float listener[3], const float source[3], std::string* describe) {
+namespace {
+
+// Partial cover (3.3): 30 directions spread evenly over a sphere (a Fibonacci lattice), for points over the
+// sound's size besides the centre and the muzzle point.
+constexpr int kCoverPoints = 30;
+const std::array<std::array<float, 3>, kCoverPoints>& cover_directions() {
+    static const auto directions = [] {
+        std::array<std::array<float, 3>, kCoverPoints> d{};
+        const float golden = 3.14159265f * (3.0f - std::sqrt(5.0f));
+        for (int i = 0; i < kCoverPoints; ++i) {
+            const float z = 1.0f - 2.0f * (float(i) + 0.5f) / kCoverPoints;
+            const float r = std::sqrt(std::max(0.0f, 1.0f - z * z));
+            d[i] = {r * std::cos(golden * float(i)), r * std::sin(golden * float(i)), z};
+        }
+        return d;
+    }();
+    return directions;
+}
+
+}  // namespace
+
+SndPropagation SndEnv_Propagation(const float listener[3], const float source[3], bool partial_cover,
+                                  std::string* describe) {
     SndPropagation p;
-    std::array<float, 3> points[kOcclusionPoints];
-    if (!scene() || !occlusion_points(listener, source, points)) return p;
-    const Line centre = trace_line(listener, points[0].data());
-    if (centre.share <= 0.0f || blocked(listener, points[1].data()) <= 0.0f) return p;  // in view: all of it
+    std::array<float, 3> fixed[kOcclusionPoints];
+    if (!scene() || !occlusion_points(listener, source, fixed)) return p;
+    const Line centre = trace_line(listener, fixed[0].data());
+    if (centre.share <= 0.0f || blocked(listener, fixed[1].data()) <= 0.0f) return p;  // in view: all of it
+    // The points: the 7 of occlusion, or (partial cover) the centre, the muzzle point and 30 over a sphere of the
+    // same size (40 units round the centre) - finer steps as cover changes.
+    std::vector<std::array<float, 3>> points(fixed, fixed + (partial_cover ? 2 : kOcclusionPoints));
+    if (partial_cover) {
+        constexpr float kRadius = 40.0f;
+        for (const auto& d : cover_directions())
+            points.push_back({fixed[0][0] + d[0] * kRadius, fixed[0][1] + d[1] * kRadius, fixed[0][2] + d[2] * kRadius});
+    }
+    const int count = int(points.size());
     float share = 0;
     double energy[3] = {0, 0, 0};
-    for (int i = 0; i < kOcclusionPoints; ++i) {
+    for (int i = 0; i < count; ++i) {
         const float line_share = i == 0 ? centre.share : blocked(listener, points[i].data());
         share += line_share;
         if (line_share <= 0.0f) {
@@ -679,9 +710,9 @@ SndPropagation SndEnv_Propagation(const float listener[3], const float source[3]
         }
         for (int b = 0; b < 3; ++b) energy[b] += std::pow(10.0, -db[b] / 10.0);
     }
-    for (double& e : energy) e /= kOcclusionPoints;
+    for (double& e : energy) e /= count;
     const float cost = detour(listener, points[0].data(), centre);
-    p.occlusion = std::min(share / float(kOcclusionPoints), cost);
+    p.occlusion = std::min(share / float(count), cost);
     if (cost < 1.0f)
         for (int b = 0; b < 3; ++b)
             energy[b] = std::max(energy[b], std::pow(10.0, -(kDetourBase[b] + kDetourSlope[b] * cost) / 10.0));
@@ -710,6 +741,7 @@ namespace {
 // The sound rays' worker thread (3.1): one job at a time - the probe (when due) and every listed voice's occlusion.
 struct RayJob {
     bool probe = false;
+    bool partial_cover = false;
     float listener[3] = {0, 0, 0};
     std::vector<SndVoiceRay> voices;
 };
@@ -755,7 +787,7 @@ RayResult run_job(const RayJob& job) {
     RayResult r;
     if (job.probe) r.probed = probe_environment(job.listener, r.target);
     r.voices = job.voices;
-    for (SndVoiceRay& v : r.voices) v.propagation = SndEnv_Propagation(job.listener, v.position);
+    for (SndVoiceRay& v : r.voices) v.propagation = SndEnv_Propagation(job.listener, v.position, job.partial_cover);
     g_scene.reset();  // a finished level's scene is not kept alive by this thread
     return r;
 }
@@ -822,11 +854,12 @@ private:
 };
 RayWorker g_worker;
 uint32_t g_last_probe = 0;  // the update of the last posted probe
+bool g_partial_cover_last = false;  // as last passed to SndEnv_Update (the mark dump)
 
 }  // namespace
 
-void SndEnv_Update(audio::SoundDevice& device, const audio::Listener& l, bool reverb, std::vector<SndVoiceRay> voices,
-                   std::vector<SndVoiceRay>& done) {
+void SndEnv_Update(audio::SoundDevice& device, const audio::Listener& l, bool reverb, bool partial_cover,
+                   std::vector<SndVoiceRay> voices, std::vector<SndVoiceRay>& done) {
     State& s = g_state;
     const uint32_t update = s.updates++;
     done.clear();
@@ -834,6 +867,8 @@ void SndEnv_Update(audio::SoundDevice& device, const audio::Listener& l, bool re
     bool have = false;
     RayJob job;
     job.probe = reverb && update - g_last_probe >= kProbeEvery;
+    job.partial_cover = partial_cover;
+    g_partial_cover_last = partial_cover;
     for (int k = 0; k < 3; ++k) job.listener[k] = l.position[k];
     job.voices = std::move(voices);
     if (g_check.on) {  // the game's traces in the check: the game thread only
@@ -958,7 +993,7 @@ void SndEnv_DescribeVoiceForMark(const float listener[3], const float source[3],
     if (centre.share > 0.0f) add("    detour cost %.2f\n", double(detour(listener, points[0].data(), centre)));
     add("    occlusion now %.2f\n", double(SndEnv_Occlusion(listener, source)));
     std::string solids;
-    const SndPropagation p = SndEnv_Propagation(listener, source, &solids);
+    const SndPropagation p = SndEnv_Propagation(listener, source, g_partial_cover_last, &solids);
     add("    transmission now: loss %.1f / %.1f / %.1f dB (low / mid / high), detour cost %.2f\n", double(p.loss_db[0]),
         double(p.loss_db[1]), double(p.loss_db[2]), double(p.detour));
     if (!solids.empty()) out += "    " + solids + "\n";

@@ -27,7 +27,9 @@ struct SndPropagation {
     float loss_db[3] = {0, 0, 0};
     float detour = 1;  // the edge detour's cost (1: none)
 };
-SndPropagation SndEnv_Propagation(const float listener[3], const float source[3], std::string* describe = nullptr);
+// `partial_cover` (3.3): 32 lines over the sound's size instead of the 7.
+SndPropagation SndEnv_Propagation(const float listener[3], const float source[3], bool partial_cover,
+                                  std::string* describe = nullptr);
 // The loss as the sound device's band gains (the middle as the gain, the outer bands relative, at most 1).
 audio::Transmission SndEnv_ToTransmission(const float loss_db[3]);
 
@@ -41,7 +43,7 @@ struct SndVoiceRay {
 // Once per sound update (SndHw_Update) on an enhanced device, game thread: hands the ray worker (3.1) this update's
 // listener, the probe when due (`reverb`) and `voices` to trace, when it is idle; applies what it finished since:
 // the environment (probes now and then, turned with the listener every time) and the voices' occlusion in `done`.
-void SndEnv_Update(audio::SoundDevice& device, const audio::Listener& listener, bool reverb,
+void SndEnv_Update(audio::SoundDevice& device, const audio::Listener& listener, bool reverb, bool partial_cover,
                    std::vector<SndVoiceRay> voices, std::vector<SndVoiceRay>& done);
 // COD_BRO_SOUND_TIME=1: the game thread's time in the enhanced sound update (`ns`, measured by the caller) counted;
 // a log line every 600 updates with the ray worker's job times.

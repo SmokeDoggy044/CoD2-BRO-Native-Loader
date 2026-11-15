@@ -2308,7 +2308,9 @@ std::vector<SndVoiceRay> occlusion_voices(const float listener[3]) {
             if (!position[0] && !position[1] && !position[2]) continue;  // not placed yet: next update
             o.owner = owner;
             const SndPropagation p =
-                near_listener(listener, position) ? SndPropagation{} : SndEnv_Propagation(listener, position);
+                near_listener(listener, position)
+                    ? SndPropagation{}
+                    : SndEnv_Propagation(listener, position, false);  // 7 lines here; the worker refines
             o.target = o.current = p.occlusion;
             for (int b = 0; b < 3; ++b) o.loss_target[b] = o.loss[b] = p.loss_db[b];
             send_occlusion(i, o);
@@ -2610,7 +2612,7 @@ uint32_t XB_CDECL SndHw_Update() {
     if (reverb || occlusion) {
         const auto timer_start = std::chrono::steady_clock::now();
         std::vector<SndVoiceRay> done;
-        SndEnv_Update(device(), listener, reverb,
+        SndEnv_Update(device(), listener, reverb, device().has(audio::Feature::PartialCover),
                       occlusion ? occlusion_voices(listener.position) : std::vector<SndVoiceRay>{}, done);
         if (occlusion) apply_occlusion(done);
         SndEnv_CountGameTime(uint64_t(

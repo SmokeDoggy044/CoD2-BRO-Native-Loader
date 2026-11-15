@@ -201,6 +201,9 @@ const SettingDef kSettings[] = {
     {"transmission", "on|off", T::Switch, G::Sound, kLiveIni, 0, 0, nullptr, "on",
      "enhanced, with occlusion: sound through walls by material and thickness (off: one fixed muffle)", "enhanced",
      "transmission"},
+    {"partial-cover", "on|off", T::Switch, G::Sound, kLiveIni, 0, 0, nullptr, "on",
+     "enhanced, with occlusion: 32 lines over a sound's size for partial cover (off: 7)", "enhanced",
+     "partial_cover"},
     {"reverb-amount", "DB", T::Float, G::Sound, kLiveIni, -12, 12, nullptr, "0",
      "enhanced reverb: level in dB (-12..12)", "reverb", "amount"},
     {"reverb-decay", "X", T::Float, G::Sound, kLiveIni, 0.25, 4, nullptr, "1",
@@ -495,6 +498,10 @@ const SettingUi kUi[] = {
     {"transmission", nullptr, "Transmission",
      "With occlusion: what comes through a wall depends on its material and thickness - wood and sandbags pass "
      "muffled, glass a lot, concrete and rock little (never quieter than -18 dB). Off: every wall muffles alike.",
+     nullptr, nullptr, "audio=enhanced"},
+    {"partial-cover", nullptr, "Partial cover",
+     "With occlusion: a sound half hidden behind cover is muffled by how much of it is hidden, in fine steps (32 "
+     "lines to it instead of 7).",
      nullptr, nullptr, "audio=enhanced"},
     {"close-boost", nullptr, "Close-range boost",
      "Gunfire and bullets louder near you: full within 15 m, fading to the game's own level at 30 m (your own "
