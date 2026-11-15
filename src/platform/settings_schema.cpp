@@ -128,6 +128,9 @@ const SettingDef kSettings[] = {
     {"smooth-models", "on|off", T::Switch, G::Graphics, kLiveIni, 0, 0, nullptr, "off",
      "enhanced: rounder characters, guns and props (their triangles curved and cut finer)", "graphics-features",
      "smooth_models"},
+    {"original-shadows", "on|off", T::Switch, G::Graphics, kLiveIni, 0, 0, nullptr, "on",
+     "enhanced: the game's own shadows under moving models (off: for our own shadows, later)", "graphics-features",
+     "original_shadows"},
     {"texture-detail", "on|off", T::Switch, G::Graphics, kLiveIni, 0, 0, nullptr, "on",
      "enhanced: sharper textures in the distance, by --lod-bias", "graphics-features", "texture_detail"},
     {"lod-bias", "X", T::Float, G::Graphics, kLiveIni, -2, 0, nullptr, "0",
@@ -380,6 +383,9 @@ const SettingUi kUi[] = {
     {"smooth-models", nullptr, "Smooth models",
      "Rounder characters, guns and props: their triangles curved and cut finer (the levels keep their shapes). "
      "Sharp edges stay sharp.", nullptr, nullptr, "graphics=enhanced"},
+    {"original-shadows", nullptr, "Original shadows",
+     "The game's own shadows: soldiers and vehicles cast them straight down onto the ground. Turn off to see the "
+     "level without them.", nullptr, nullptr, "graphics=enhanced"},
     {"texture-detail", nullptr, "Texture detail",
      "Sharper textures in the distance (finer mipmaps); too far below 0 they shimmer when moving.", nullptr, nullptr,
      "graphics=enhanced"},

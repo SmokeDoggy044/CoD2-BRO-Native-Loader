@@ -55,6 +55,9 @@ struct RendererPcHooks {
     bool mark_scenes = false;
     // Set and true: characters, guns and props are drawn smoothed (nglDrawMeshSectionSmoothed).
     bool (*smooth_models)() = nullptr;
+    // Set and false: the game's dynamic shadows are not projected onto the level (R_RenderTestShadow still
+    // draws its texture: the pass changes the casters' LOD, game state). Ours (engine improvements 2.0).
+    bool (*original_shadows)() = nullptr;
 };
 RendererPcHooks& renderer_pc_hooks();
 // The 16:9 scene aspect, or the wider one in RendererPcHooks.

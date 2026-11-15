@@ -25,6 +25,10 @@ struct GraphicsFeatures {
     bool vibrance = true;        // stronger colours where they are weak, by `vibrance_amount`
     bool texture_detail = true;  // sharper textures in the distance, by `lod_bias`
     bool smooth_models = false;  // rounder characters, guns and props (mesh_smooth.h); off: parked 11-14
+    // The game's own dynamic shadows (r_testshadow: moving models' silhouettes from straight above, projected onto
+    // the level). The one switch that keeps something original: on by default and always on with enhanced off;
+    // off makes room for our own shadows (phase 2.0).
+    bool original_shadows = true;
     float sharpness = 0.0f;        // 0..1
     float vibrance_amount = 0.0f;  // -1 (greyer) .. 1
     float lod_bias = 0.0f;         // -2 (sharpest) .. 0 (the game's)
@@ -42,6 +46,7 @@ struct GraphicsFeatures {
         {"vibrance", &GraphicsFeatures::vibrance},
         {"texture_detail", &GraphicsFeatures::texture_detail},
         {"smooth_models", &GraphicsFeatures::smooth_models},
+        {"original_shadows", &GraphicsFeatures::original_shadows},
     };
     struct Amount {
         const char* key;
@@ -97,7 +102,7 @@ struct GraphicsFeatures {
 void set_graphics(bool enhanced, const GraphicsFeatures& features);
 bool graphics_enhanced();
 GraphicsFeatures graphics_features();
-// The features that apply now: the chosen ones with enhanced on, else all off.
+// The features that apply now: the chosen ones with enhanced on, else all off (original_shadows on).
 GraphicsFeatures active_graphics_features();
 
 }  // namespace render

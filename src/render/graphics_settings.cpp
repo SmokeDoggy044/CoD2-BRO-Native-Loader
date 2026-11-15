@@ -32,6 +32,7 @@ GraphicsFeatures active_graphics_features() {
     if (g_enhanced) return g_features;
     GraphicsFeatures off;
     for (const auto& s : GraphicsFeatures::kSwitches) off.*s.field = false;
+    off.original_shadows = true;  // the original's look includes its shadows
     return off;
 }
 

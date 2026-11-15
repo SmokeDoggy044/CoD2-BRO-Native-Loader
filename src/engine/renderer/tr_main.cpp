@@ -2664,6 +2664,10 @@ void XB_CDECL R_RenderTestShadow() {
 
     const float radius = title_global<float>(0x008db19c);
     alignas(16) const float scale[4] = {radius, 0.0f - radius, title_global<float>(0x0083ebec), radius};  // 500
+    // Our original-shadows switch off: the shadow texture is still drawn (the casters' LOD changes in
+    // R_AddDObjSurfaces are game state: replays drift without them), only not projected onto the level.
+    const auto keep = renderer_pc_hooks().original_shadows;
+    if (keep && !keep()) return;
     nglAddShadowProjector(0xffffffff, camera, scale, 2, 0, address_of(texture));
 }
 
