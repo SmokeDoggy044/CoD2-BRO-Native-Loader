@@ -27,6 +27,7 @@ public:
     uint32_t channels = 0;  // of the current callback buffer
     ALuint filter = 0;      // the direct sound's low-pass (EFX), made when first wanted
     bool filtered = false;  // attached
+    std::atomic<uint64_t> sum_squares{0}, samples{0};  // what render_callback handed OpenAL (take_level)
 };
 
 namespace {
@@ -46,6 +47,11 @@ ALsizei AL_APIENTRY render_callback(void* user, void* data, ALsizei bytes) noexc
     auto& source = *static_cast<Output::Source*>(user);
     const size_t frame_bytes = size_t{source.channels} * sizeof(int16_t);
     const size_t produced = source.voice.render(static_cast<int16_t*>(data), static_cast<size_t>(bytes) / frame_bytes);
+    const int16_t* samples = static_cast<const int16_t*>(data);
+    uint64_t sum = 0;
+    for (size_t i = 0, n = produced * source.channels; i < n; ++i) sum += uint64_t(int64_t(samples[i]) * samples[i]);
+    source.sum_squares.fetch_add(sum, std::memory_order_relaxed);
+    source.samples.fetch_add(produced * source.channels, std::memory_order_relaxed);
     return static_cast<ALsizei>(produced * frame_bytes);  // short: the source stops after this
 }
 
@@ -235,6 +241,17 @@ std::unique_ptr<Output> Output::open(const OutputConfig& config) {
     LOG_INFO("audio", "OpenAL %s on %s%s, %s", alGetString(AL_VERSION), output->loopback_ ? "loopback" : (name ? name : "?"),
              config.device == OutputConfig::Device::ManualLoopback ? " (manual)" : "", mode_name(mode));
     output->set_enhanced(config.enhanced && config.features.resampler, config.enhanced && config.features.reverb);
+    if (output->loopback_ && !config.capture_path.empty()) {
+        output->capture_ = std::fopen(config.capture_path.c_str(), "wb");
+        if (!output->capture_) {
+            LOG_ERROR("audio", "cannot write the capture %s", config.capture_path.c_str());
+        } else {
+            const uint8_t header[44] = {};  // written for real when the capture ends
+            std::fwrite(header, 1, sizeof(header), output->capture_);
+            LOG_INFO("audio", "capturing the output to %s (stereo 16-bit, %u Hz)", config.capture_path.c_str(),
+                     unsigned(config.rate));
+        }
+    }
     if (output->loopback_ && config.device != OutputConfig::Device::ManualLoopback)
         output->driver_ = std::thread([raw = output.get()] { raw->drive_loopback(); });
     return output;
@@ -243,6 +260,7 @@ std::unique_ptr<Output> Output::open(const OutputConfig& config) {
 Output::~Output() {
     stopping_ = true;
     if (driver_.joinable()) driver_.join();
+    finish_capture();
     for (auto& source : sources_) {
         alDeleteSources(1, &source->source);
         alDeleteBuffers(1, &source->buffer);
@@ -261,7 +279,7 @@ void Output::drive_loopback() {
     std::vector<int16_t> scratch(kChunk * 2);
     auto next = steady_clock::now();
     while (!stopping_) {
-        if (!paused_) alcRenderSamplesSOFT(device_, scratch.data(), static_cast<ALCsizei>(kChunk));
+        if (!paused_) mix(scratch.data(), kChunk);
         next += nanoseconds(static_cast<int64_t>(kChunk * 1e9 / rate_ / speed_));
         std::this_thread::sleep_until(next);
     }
@@ -277,7 +295,54 @@ void Output::set_paused(bool paused) {
 }
 
 void Output::render(int16_t* out, size_t frames) {
-    if (loopback_) alcRenderSamplesSOFT(device_, out, static_cast<ALCsizei>(frames));
+    if (loopback_) mix(out, frames);
+}
+
+void Output::mix(int16_t* out, size_t frames) {
+    alcRenderSamplesSOFT(device_, out, static_cast<ALCsizei>(frames));
+    if (capture_) {
+        capture_bytes_ += std::fwrite(out, 1, frames * 4, capture_);
+        // The header is kept current about once a second: a run that ends with exit() still leaves a valid file.
+        const uint64_t before = rendered_.load(std::memory_order_relaxed);
+        if ((before + frames) / rate_ != before / rate_) write_capture_header();
+    }
+    rendered_.fetch_add(frames, std::memory_order_relaxed);
+}
+
+void Output::finish_capture() {
+    if (!capture_) return;
+    write_capture_header();
+    std::fclose(capture_);
+    capture_ = nullptr;
+    LOG_INFO("audio", "capture written: %.1f s", double(capture_bytes_) / 4 / rate_);
+}
+
+void Output::write_capture_header() {
+    // RIFF/WAVE, PCM stereo 16-bit.
+    const auto le32 = [](uint8_t* p, uint32_t v) { for (int i = 0; i < 4; ++i) p[i] = uint8_t(v >> (8 * i)); };
+    uint8_t h[44];
+    std::memcpy(h, "RIFF", 4);
+    le32(h + 4, uint32_t(36 + capture_bytes_));
+    std::memcpy(h + 8, "WAVEfmt ", 8);
+    le32(h + 16, 16);
+    le32(h + 20, 1 | (2u << 16));  // PCM, 2 channels
+    le32(h + 24, rate_);
+    le32(h + 28, rate_ * 4);
+    le32(h + 32, 4 | (16u << 16));  // block align 4, 16 bits
+    std::memcpy(h + 36, "data", 4);
+    le32(h + 40, uint32_t(capture_bytes_));
+    std::fseek(capture_, 0, SEEK_SET);
+    std::fwrite(h, 1, sizeof(h), capture_);
+    std::fseek(capture_, 0, SEEK_END);
+    std::fflush(capture_);
+}
+
+float Output::take_level(Source* source) {
+    if (!source) return -1.0f;
+    const uint64_t n = source->samples.exchange(0, std::memory_order_relaxed);
+    const uint64_t sum = source->sum_squares.exchange(0, std::memory_order_relaxed);
+    if (!n) return -1.0f;
+    return float(std::sqrt(double(sum) / double(n)) / 32768.0);
 }
 
 Output::Source* Output::add_source(Voice& voice) {

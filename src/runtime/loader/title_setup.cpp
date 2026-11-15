@@ -86,6 +86,75 @@ namespace loader {
 // --replay-no-draw with --replay-shots: frames drawn before each picture (2 s: texture caches, fades, motion blur).
 constexpr uint32_t kDrawFramesBeforeShot = 120;
 
+// --audio-capture's tables (phase 3.0 tools): per presented frame the capture's sample position and the listener,
+// every 6th frame each playing voice. Written on the presenting thread after the frame's other work.
+struct AudioCaptureTables {
+    std::FILE* frames = nullptr;
+    std::FILE* voices = nullptr;
+    void (*inner)() = nullptr;  // the frame_presented it wraps
+    uint32_t count = 0;         // presented frames (outside a replay)
+};
+AudioCaptureTables g_capture;
+
+// A mark's <prefix>_sound.txt (phase 3.0 tools): the listener's surroundings and every playing voice - gains as the
+// output got them and each occlusion line.
+void write_sound_mark(const char* prefix) {
+    static const char* const kCategories[] = {"effects", "dialogue", "music", "interface", "ambience", "gunfire", "bullets", "own gunfire"};
+    float l[3];
+    audio::listener_position(l);
+    std::string text;
+    game::SndEnv_DescribeForMark(l, text);
+    std::vector<audio::VoiceRow> rows = audio::voice_rows();
+    std::sort(rows.begin(), rows.end(), [](const auto& a, const auto& b) {
+        return a.spatial != b.spatial ? a.spatial : a.distance < b.distance;
+    });
+    char line[512];
+    std::snprintf(line, sizeof(line), "\n%zu voices playing (%s sound), spatial nearest first:\n", rows.size(),
+                  audio::enhanced() ? "enhanced" : "original");
+    text += line;
+    for (const audio::VoiceRow& r : rows) {
+        std::snprintf(line, sizeof(line),
+                      "voice %08x %s%s: at %.0f %.0f %.0f, distance %.0f, distance gain %.3f, volume %.3f, occlusion "
+                      "%.2f, out gain %.4f, direct %.2f hf %.2f, send %.2f, level %.4f\n",
+                      unsigned(r.id), kCategories[size_t(r.category)], r.spatial ? "" : " (not placed)",
+                      double(r.position[0]), double(r.position[1]), double(r.position[2]), double(r.distance),
+                      double(r.distance_gain), double(r.volume), double(r.occlusion), double(r.gain),
+                      double(r.direct_gain), double(r.direct_gain_hf), double(r.send_gain), double(r.level));
+        text += line;
+        if (r.spatial) game::SndEnv_DescribeVoiceForMark(l, r.position, text);
+    }
+    const std::string path = std::string(prefix) + "_sound.txt";
+    if (std::FILE* f = std::fopen(path.c_str(), "w")) {
+        std::fputs(text.c_str(), f);
+        std::fclose(f);
+        LOG_INFO("audio", "sound at the mark: %s", path.c_str());
+    }
+}
+
+void audio_capture_frame() {
+    if (g_capture.inner) g_capture.inner();
+    const audio::Output* out = audio::output();
+    if (!out) return;
+    const uint32_t frame = xbox::replay::active() ? xbox::replay::frame_number() : g_capture.count;
+    ++g_capture.count;
+    const unsigned long long sample = out->rendered_frames();
+    float l[3];
+    audio::listener_position(l);
+    std::fprintf(g_capture.frames, "%u,%llu,%.1f,%.1f,%.1f\n", frame, sample, double(l[0]), double(l[1]), double(l[2]));
+    if (frame % 6) return;
+    static const char* const kCategories[] = {"effects", "dialogue", "music", "interface", "ambience", "gunfire", "bullets", "own_gunfire"};
+    for (const audio::VoiceRow& r : audio::voice_rows())
+        std::fprintf(g_capture.voices, "%u,%llu,%08x,%s,%d,%.1f,%.1f,%.1f,%.1f,%.4f,%.4f,%.3f,%.5f,%.3f,%.3f,%.3f,%.5f\n",
+                     frame, sample, unsigned(r.id), kCategories[size_t(r.category)], int(r.spatial),
+                     double(r.position[0]), double(r.position[1]), double(r.position[2]), double(r.distance),
+                     double(r.distance_gain), double(r.volume), double(r.occlusion), double(r.gain),
+                     double(r.direct_gain), double(r.direct_gain_hf), double(r.send_gain), double(r.level));
+    if (frame % 600 == 0) {
+        std::fflush(g_capture.frames);
+        std::fflush(g_capture.voices);
+    }
+}
+
 uint32_t current_kthread() {
     const loader::ThreadEnv* env = loader::current_thread_env();
     return env ? static_cast<uint32_t>(reinterpret_cast<uintptr_t>(env->kthread)) : 0;
@@ -112,8 +181,10 @@ void configure_title_services(const Options& options, const fs::path& assets, co
     audio::OutputConfig audio_config;
     // A faster replay has to consume its sound faster too (the title waits for its packets): silent, at that speed.
     const bool fast_replay = options.replay.mode == xbox::replay::Mode::Replay && options.replay_speed != 1;
-    audio_config.device = options.silent || fast_replay ? audio::OutputConfig::Device::Loopback
-                                                         : audio::OutputConfig::Device::Default;
+    audio_config.device = options.silent || fast_replay || options.audio_capture
+                              ? audio::OutputConfig::Device::Loopback
+                              : audio::OutputConfig::Device::Default;
+    if (options.audio_capture) audio_config.capture_path = options.audio_capture->string();
     if (fast_replay) audio_config.speed = options.replay_speed;
     audio_config.device_name = options.audio_device;
     audio_config.speakers = options.speakers;
@@ -282,13 +353,36 @@ void configure_title_services(const Options& options, const fs::path& assets, co
         }
         if (!options.replay.shot_frames.empty()) d3d_config.frame_screenshot = &xbox::replay::screenshot_path;
     }
-    render::dev::on_debug_view([](uint32_t view) { game::renderer_pc_hooks().debug_view = view; });
+    if (options.audio_capture) {
+        const std::string base = options.audio_capture->string();
+        g_capture.frames = std::fopen((base + ".frames.csv").c_str(), "w");
+        g_capture.voices = std::fopen((base + ".voices.csv").c_str(), "w");
+        if (g_capture.frames && g_capture.voices) {
+            std::fputs("frame,sample,listener_x,listener_y,listener_z\n", g_capture.frames);
+            std::fputs("frame,sample,voice,category,spatial,x,y,z,distance,distance_gain,volume,occlusion,gain,direct,"
+                       "direct_hf,send,level\n", g_capture.voices);
+            g_capture.inner = d3d_config.frame_presented;
+            d3d_config.frame_presented = &audio_capture_frame;
+        } else {
+            LOG_ERROR("audio", "cannot write the capture tables beside %s", base.c_str());
+        }
+    }
+    render::dev::on_debug_view([](uint32_t view) {
+        game::renderer_pc_hooks().debug_view = view;
+        if (view != render::dev::kViewSound) render::dev::set_shapes({});
+    });
+    game::renderer_pc_hooks().set_overlay_shapes = [](std::vector<render::dev::Shape>&& shapes) {
+        render::dev::set_shapes(std::move(shapes));
+    };
     if (!options.debug_view.empty()) render::dev::set_debug_view(options.debug_view.c_str());
     if (options.diag_dir) {
         d3d_config.diag_dir = options.diag_dir->string();
         d3d_config.diag_seconds = options.diag_seconds;
         d3d_config.pause_audio = &audio::set_paused;
-        d3d_config.log_audio = [] { audio::log_voices(&game::SndEnv_DescribeOcclusion); };
+        d3d_config.log_audio = [](const char* prefix) {
+            audio::log_voices(&game::SndEnv_DescribeOcclusion);
+            write_sound_mark(prefix);
+        };
     }
     if (options.dev && !options.compare) {
         d3d_config.dev = true;

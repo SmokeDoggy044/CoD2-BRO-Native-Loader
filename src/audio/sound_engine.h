@@ -9,6 +9,7 @@
 
 #include <mutex>
 #include <span>
+#include <vector>
 
 #include "category_volumes.h"
 #include "kernel.h"
@@ -64,6 +65,22 @@ void set_paused(bool paused);
 // distance, volume and occlusion; `describe` (optional) explains each occluded one's occlusion
 // from the listener's and the voice's positions (game coordinates).
 void log_voices(void (*describe)(const float listener[3], const float source[3], char* out, size_t size) = nullptr);
+
+// Every playing voice as the output last got it (the capture's voice table, tools/audio_compare.py). `level` = what
+// the voice rendered since the previous call, RMS of full scale before any gain (-1: nothing); out level = level x
+// gain x direct_gain. Not spatial: no position, distance 0, distance gain 1.
+struct VoiceRow {
+    uint32_t id = 0;
+    Category category = Category::Effects;
+    bool spatial = false;
+    float position[3] = {0, 0, 0};  // game coordinates
+    float distance = 0, distance_gain = 1, volume = 1, occlusion = 0;
+    float gain = 0, direct_gain = 1, direct_gain_hf = 1, send_gain = 0;  // send 0: no reverb send
+    float level = -1;
+};
+std::vector<VoiceRow> voice_rows();
+// The listener's position (game coordinates) as last set by the game.
+void listener_position(float out[3]);
 
 // The output, once the device is open (tests render through it).
 Output* output();

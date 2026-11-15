@@ -64,6 +64,7 @@ struct Options {
     bool silent = false;
     double replay_speed = 1;  // --replay-speed
     bool replay_no_draw = false;  // --replay-no-draw
+    std::optional<fs::path> audio_capture;  // --audio-capture: the mixed output as WAV (silent run) + tables
     bool audio_enhanced = true;  // --audio
     audio::OutputConfig::Speakers speakers = audio::OutputConfig::Speakers::Auto;
     std::string audio_device;    // empty: the system's

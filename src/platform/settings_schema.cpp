@@ -312,6 +312,9 @@ const SettingDef kSettings[] = {
     {"replay-no-draw", "", T::Flag, G::Developer, kCli, 0, 0, nullptr, "false",
      "with --replay: no draws or clears on the GPU (game logic only, faster checks); with --replay-shots only the "
      "frames just before each picture are drawn"},
+    {"audio-capture", "FILE", T::Path, G::Developer, kCli, 0, 0, nullptr, "",
+     "the mixed sound output into FILE (WAV, no sound heard) with FILE.frames.csv (frame -> sample, listener) and "
+     "FILE.voices.csv (every voice 10 times a second), for tools/audio_compare.py"},
     {"replay-dump", "N[-M[:S]] DIR", T::Custom, G::Developer, kCli, 0, 0, nullptr, "",
      "with --record/--replay: game state of frame N (or every [S-th] frame N..M) to DIR (tools/replay_diff.py)"},
     {"replay-shots", "N,N.. DIR", T::Custom, G::Developer, kCli, 0, 0, nullptr, "",

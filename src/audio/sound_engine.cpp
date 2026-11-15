@@ -60,6 +60,7 @@ struct VoiceImpl {
     float pan = 0.0f;
     bool reverb_send = false;
     float occlusion = 0.0f;
+    Output::SourceParams last;  // as last handed to the output (voice_rows, log_voices)
     Category category = Category::Effects;
     Spatial current, pending;
     bool has_pending = false;
@@ -158,6 +159,7 @@ private:
     friend void audio::set_enhanced_features(const EnhancedFeatures& features);
     friend void audio::log_voices(void (*)(const float*, const float*, char*, size_t));
     friend void audio::set_category_volumes(const CategoryVolumes& volumes);
+    friend std::vector<VoiceRow> audio::voice_rows();
     void update_listener();
     void sync(VoiceImpl& v);
     void packet_done(VoiceImpl& v, const Packet& packet, uint32_t status);
@@ -279,6 +281,7 @@ void Engine::update(VoiceImpl& v) {
         params.gain = 0.0f;
         params.position[0] = params.position[1] = params.position[2] = 0.0f;
     }
+    v.last = params;
     o->update(v.source, params);
 }
 
@@ -843,11 +846,12 @@ void log_voices(void (*describe)(const float listener[3], const float source[3],
         const float d = std::sqrt((p[0] - l[0]) * (p[0] - l[0]) + (p[1] - l[1]) * (p[1] - l[1]) +
                                   (p[2] - l[2]) * (p[2] - l[2]));
         LOG_INFO("audio", "voice %08x %s: distance %.0f (min %.0f, max %.0f), distance gain %.2f, volume %.2f, "
-                 "occlusion %.2f",
+                 "occlusion %.2f, out gain %.3f direct %.2f hf %.2f send %.2f%s",
                  unsigned(reinterpret_cast<uintptr_t>(&v->header)),
                  kCategories[size_t(v->category)], double(d), double(v->current.min_distance),
                  double(v->current.max_distance), double(g.distance_gain(*v)), double(v->volume),
-                 double(v->occlusion));
+                 double(v->occlusion), double(v->last.gain), double(v->last.direct_gain),
+                 double(v->last.direct_gain_hf), double(v->last.send_gain), v->last.reverb_send ? "" : " (no reverb)");
         if (describe && v->occlusion > 0.0f) {
             char text[2048];
             describe(l, p, text, sizeof(text));
@@ -856,6 +860,40 @@ void log_voices(void (*describe)(const float listener[3], const float source[3],
         ++count;
     }
     LOG_INFO("audio", "%d world voices playing (%s sound)", count, g.config.enhanced ? "enhanced" : "original");
+}
+
+std::vector<VoiceRow> voice_rows() {
+    Guard lock(g.mutex, TestLock::State);
+    std::vector<VoiceRow> rows;
+    const float* l = g.current_listener.position;
+    for (VoiceImpl* v : g.voices) {
+        if (!v->refs || !v->voice.playing()) continue;
+        VoiceRow r;
+        r.id = unsigned(reinterpret_cast<uintptr_t>(&v->header));
+        r.category = v->category;
+        r.spatial = g.is_spatial(*v);
+        if (r.spatial) {
+            const float* p = v->current.position;
+            for (int i = 0; i < 3; ++i) r.position[i] = p[i];
+            r.distance = std::sqrt((p[0] - l[0]) * (p[0] - l[0]) + (p[1] - l[1]) * (p[1] - l[1]) +
+                                   (p[2] - l[2]) * (p[2] - l[2]));
+            r.distance_gain = g.distance_gain(*v);
+        }
+        r.volume = v->volume;
+        r.occlusion = v->occlusion;
+        r.gain = v->last.gain;
+        r.direct_gain = v->last.direct_gain;
+        r.direct_gain_hf = v->last.direct_gain_hf;
+        r.send_gain = v->last.reverb_send ? v->last.send_gain : 0.0f;
+        r.level = Output::take_level(v->source);
+        rows.push_back(r);
+    }
+    return rows;
+}
+
+void listener_position(float out[3]) {
+    Guard lock(g.mutex, TestLock::State);
+    for (int i = 0; i < 3; ++i) out[i] = g.current_listener.position[i];
 }
 
 Output* output() {

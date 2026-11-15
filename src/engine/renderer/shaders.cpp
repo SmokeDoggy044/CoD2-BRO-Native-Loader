@@ -1366,6 +1366,8 @@ void draw_world(const NglMeshNode* node, const WorldClass& k) {
         v.tan_down = base[5] != 0.0f ? 1.0f / std::fabs(base[5]) : 0.75f;
         v.fog_start = scene->fog[0];
         v.fog_end = scene->fog[1];
+        renderer_pc_hooks().scene_tan_across = v.tan_across;
+        renderer_pc_hooks().scene_tan_down = v.tan_down;
         if (renderer_pc_hooks().set_scene_view) renderer_pc_hooks().set_scene_view(v);
     }
     c[40] = scene->fog[2];

@@ -10,6 +10,7 @@
 
 #include <atomic>
 #include <cstdint>
+#include <cstdio>
 #include <memory>
 #include <mutex>
 #include <string>
@@ -33,6 +34,7 @@ struct OutputConfig {
     Device device = Device::Default;  // ManualLoopback: nothing renders unless render() is called
     uint32_t rate = 48000;            // loopback rate
     double speed = 1;                 // Loopback: rendered this many times faster than real time (--replay-speed)
+    std::string capture_path;         // Loopback: everything rendered also into this WAV file (--audio-capture)
     std::string device_name;          // Default: this output device (empty: the system's)
     Speakers speakers = Speakers::Auto;
     // Our improvements (resampling here; the sound device's own); false: as on the Xbox. Each
@@ -86,10 +88,18 @@ public:
     bool is_loopback() const { return loopback_; }
     // Loopback only: mixes `frames` stereo 16-bit frames.
     void render(int16_t* out, size_t frames);
+    // Loopback: stereo frames rendered so far (the capture's position; tools/audio_compare.py aligns by it).
+    uint64_t rendered_frames() const { return rendered_.load(std::memory_order_relaxed); }
+    // The level the source's voice handed OpenAL since the last call (before gains): RMS of full scale (0..1), -1
+    // when it rendered nothing. For the capture's voice table.
+    static float take_level(Source* source);
 
 private:
     Output() = default;
     void drive_loopback();
+    void mix(int16_t* out, size_t frames);  // loopback: renders, counts, captures
+    void finish_capture();
+    void write_capture_header();
 
     bool reset_device();
 
@@ -111,6 +121,9 @@ private:
     std::thread driver_;
     std::atomic<bool> stopping_{false};
     std::atomic<bool> paused_{false};
+    std::atomic<uint64_t> rendered_{0};
+    std::FILE* capture_ = nullptr;
+    uint64_t capture_bytes_ = 0;
 };
 
 }  // namespace audio

@@ -42,6 +42,7 @@ enum DebugView : uint32_t {
     kViewLights,     // lights per draw: 0 black, 1 blue, 2 green, 3 yellow, 4+ red
     kViewAo,         // ambient occlusion only (white = open)
     kViewHeight,     // the height map as grey (surface maps, 2.2)
+    kViewSound,      // the picture as it is + the sound paths of the nearest voices drawn over it (phase 3.0; shapes)
     kViewCount
 };
 const char* debug_view_name(uint32_t view);
@@ -50,6 +51,19 @@ uint32_t debug_view();
 bool set_debug_view(const char* name);
 // Called with the new view whenever it changes (the loader passes it on to the game's renderer).
 void on_debug_view(void (*changed)(uint32_t view));
+
+// Lines and markers drawn over the picture (Vulkan; the sound view): coordinates are shares of the picture
+// (0..1, x right, y down). Set from any thread (the game's sound update); the latest set is drawn every frame until
+// replaced. A Circle is centred at (x0, y0) with radius x1 (share of the picture's height); `label` beside it.
+struct Shape {
+    enum Kind : uint8_t { Line, Circle } kind = Line;
+    float x0 = 0, y0 = 0, x1 = 0, y1 = 0;
+    uint32_t color = 0xffffffff;  // ImGui's ABGR (0xAABBGGRR)
+    float thickness = 1.5f;
+    std::string label;
+};
+void set_shapes(std::vector<Shape> shapes);
+std::vector<Shape> shapes();
 
 // What developer mode switched, in one line ("" when nothing): written with F12 marks.
 std::string state_text();

@@ -276,6 +276,21 @@ Environment facing(Environment e, const audio::Listener& l) {
     return e;
 }
 
+constexpr float kLevel[8][3] = {{1, 0, 0},           {0.7071f, 0.7071f, 0}, {0, 1, 0},  {-0.7071f, 0.7071f, 0},
+                               {-1, 0, 0},          {-0.7071f, -0.7071f, 0}, {0, -1, 0}, {0.7071f, -0.7071f, 0}};
+constexpr float kUp[5][3] = {{0, 0, 1},
+                            {0.7071f, 0, 0.7071f},
+                            {-0.7071f, 0, 0.7071f},
+                            {0, 0.7071f, 0.7071f},
+                            {0, -0.7071f, 0.7071f}};
+constexpr float kDown[3] = {0, 0, -1};
+
+// Surface type names (bits 20-24 of a hit's surface flags), for the mark dump.
+constexpr const char* kSurfaceNames[32] = {
+    "default", "bark", "brick", "carpet", "cloth", "concrete", "dirt", "flesh", "foliage", "glass", "grass", "gravel",
+    "ice", "metal", "mud", "paper", "plaster", "rock", "sand", "snow", "water", "wood", "asphalt", "23", "24", "25",
+    "26", "27", "28", "29", "30", "31"};
+
 struct State {
     uint32_t updates = 0;
     bool active = false;
@@ -297,14 +312,6 @@ void SndEnv_Update(audio::SoundDevice& device, const audio::Listener& l) {
         s.active = false;
         return;
     }
-    static const float kLevel[8][3] = {{1, 0, 0},           {0.7071f, 0.7071f, 0}, {0, 1, 0},  {-0.7071f, 0.7071f, 0},
-                                       {-1, 0, 0},          {-0.7071f, -0.7071f, 0}, {0, -1, 0}, {0.7071f, -0.7071f, 0}};
-    static const float kUp[5][3] = {{0, 0, 1},
-                                    {0.7071f, 0, 0.7071f},
-                                    {-0.7071f, 0, 0.7071f},
-                                    {0, 0.7071f, 0.7071f},
-                                    {0, -0.7071f, 0.7071f}};
-    static const float kDown[3] = {0, 0, -1};
     Probe p;
     int hits = 0;
     auto material = [&](const Hit& hit) {
@@ -399,7 +406,7 @@ bool occlusion_points(const float listener[3], const float source[3], std::array
 // blocked, a way over or round the hit - points above it and to its sides - with both legs clear
 // is looked for, and the sound is only as muffled as that detour is long (the path idea of
 // Rainbow Six Siege's and Hitman's propagation, over one edge). Returns 0..1 (1: no way found).
-float detour(const float listener[3], const float point[3], const Line& line) {
+float detour(const float listener[3], const float point[3], const Line& line, float* edge_out = nullptr) {
     const float d[3] = {point[0] - listener[0], point[1] - listener[1], point[2] - listener[2]};
     const float straight = std::sqrt(d[0] * d[0] + d[1] * d[1] + d[2] * d[2]);
     float side[3] = {-d[1], d[0], 0};
@@ -424,7 +431,10 @@ float detour(const float listener[3], const float point[3], const Line& line) {
             const float extra = std::sqrt(a[0] * a[0] + a[1] * a[1] + a[2] * a[2]) +
                                 std::sqrt(b[0] * b[0] + b[1] * b[1] + b[2] * b[2]) - straight;
             // Grazing an edge already costs a little; 200 units (5 m) further round: all.
-            best = std::min(best, 0.2f + 0.8f * std::clamp(extra / 200.0f, 0.0f, 1.0f));
+            const float cost = 0.2f + 0.8f * std::clamp(extra / 200.0f, 0.0f, 1.0f);
+            if (cost < best && edge_out)
+                for (int k = 0; k < 3; ++k) edge_out[k] = edge[k];
+            best = std::min(best, cost);
         }
         if (best < 1.0f) break;  // the nearest way found
     }
@@ -476,6 +486,104 @@ void SndEnv_DescribeOcclusion(const float listener[3], const float source[3], ch
 void SndEnv_SetTuning(const audio::ReverbTuning& tuning) {
     std::lock_guard lock(g_tuning_mutex);
     g_tuning = tuning;
+}
+
+void SndEnv_DescribeForMark(const float listener[3], std::string& out) {
+    char line[256];
+    const auto add = [&](const char* format, auto... args) {
+        std::snprintf(line, sizeof(line), format, args...);
+        out += line;
+    };
+    if (!world_loaded()) {
+        out += "no world loaded\n";
+        return;
+    }
+    add("listener %.0f %.0f %.0f\n", double(listener[0]), double(listener[1]), double(listener[2]));
+    const Environment& e = g_state.current;
+    add("environment%s: room %.0f mB (hf %.0f), decay %.2f s (hf ratio %.2f), reflections %.0f mB at %.0f ms, late "
+        "%.0f mB at %.0f ms\n",
+        g_state.active ? "" : " (none active)", double(e.room), double(e.room_hf), double(e.decay_time),
+        double(e.decay_hf_ratio), double(e.reflections), double(e.reflections_delay * 1000), double(e.reverb),
+        double(e.reverb_delay * 1000));
+    out += "probe rays (world direction: distance, surface):\n";
+    const auto ray = [&](const char* group, const float* d) {
+        const Hit hit = trace(listener, d);
+        if (hit.hit)
+            add("  %-5s %5.2f %5.2f %5.2f: %6.0f %s\n", group, double(d[0]), double(d[1]), double(d[2]),
+                double(hit.distance), kSurfaceNames[hit.type]);
+        else
+            add("  %-5s %5.2f %5.2f %5.2f: open\n", group, double(d[0]), double(d[1]), double(d[2]));
+    };
+    for (const auto& d : kLevel) ray("level", d);
+    for (const auto& d : kUp) ray("up", d);
+    ray("down", kDown);
+}
+
+void SndEnv_DescribeVoiceForMark(const float listener[3], const float source[3], std::string& out) {
+    char line[256];
+    const auto add = [&](const char* format, auto... args) {
+        std::snprintf(line, sizeof(line), format, args...);
+        out += line;
+    };
+    std::array<float, 3> points[kOcclusionPoints];
+    if (!world_loaded() || !occlusion_points(listener, source, points)) {
+        out += "    (no lines: no world or at the listener)\n";
+        return;
+    }
+    static const char* const kPointNames[kOcclusionPoints] = {"centre", "toward", "toward-up", "left", "right", "up",
+                                                              "down"};
+    for (int i = 0; i < kOcclusionPoints; ++i) {
+        const Line l = trace_line(listener, points[i].data());
+        if (!l.traced) {
+            add("    %-9s short\n", kPointNames[i]);
+            continue;
+        }
+        if (l.fraction >= 1.0f) {
+            add("    %-9s clear\n", kPointNames[i]);
+            continue;
+        }
+        const float d[3] = {l.hit[0] - listener[0], l.hit[1] - listener[1], l.hit[2] - listener[2]};
+        add("    %-9s %s %s at %.0f %.0f %.0f (%.0f from listener), contents %x, blocks %.2f\n", kPointNames[i],
+            l.fraction <= 0.0f ? "inside" : "hit", kSurfaceNames[(l.flags >> 20) & 31], double(l.hit[0]),
+            double(l.hit[1]), double(l.hit[2]), double(std::sqrt(d[0] * d[0] + d[1] * d[1] + d[2] * d[2])),
+            unsigned(l.contents), double(l.share));
+    }
+    const Line centre = trace_line(listener, points[0].data());
+    if (centre.share > 0.0f) add("    detour cost %.2f\n", double(detour(listener, points[0].data(), centre)));
+    add("    occlusion now %.2f\n", double(SndEnv_Occlusion(listener, source)));
+}
+
+size_t SndEnv_SoundPaths(const float listener[3], const float source[3], SoundPathLine* out, size_t max) {
+    std::array<float, 3> points[kOcclusionPoints];
+    if (!world_loaded() || !occlusion_points(listener, source, points)) return 0;
+    size_t n = 0;
+    const auto add = [&](const float* a, const float* b, SoundPathLine::Kind kind) {
+        if (n >= max) return;
+        for (int k = 0; k < 3; ++k) {
+            out[n].from[k] = a[k];
+            out[n].to[k] = b[k];
+        }
+        out[n++].kind = kind;
+    };
+    Line centre;
+    for (int i = 0; i < kOcclusionPoints; ++i) {
+        const Line l = trace_line(listener, points[i].data());
+        if (i == 0) centre = l;
+        if (!l.traced || l.fraction >= 1.0f) {
+            add(listener, points[i].data(), SoundPathLine::Clear);
+        } else {
+            add(listener, l.hit, l.share < 1.0f ? SoundPathLine::Glass : SoundPathLine::Blocked);
+            add(l.hit, points[i].data(), SoundPathLine::Beyond);
+        }
+    }
+    if (centre.share > 0.0f) {
+        float edge[3];
+        if (detour(listener, points[0].data(), centre, edge) < 1.0f) {
+            add(listener, edge, SoundPathLine::Detour);
+            add(edge, points[0].data(), SoundPathLine::Detour);
+        }
+    }
+    return n;
 }
 
 audio::ReverbTuning SndEnv_Tuning() {

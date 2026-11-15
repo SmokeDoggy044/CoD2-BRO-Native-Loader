@@ -459,17 +459,35 @@ std::vector<std::string> diagnostics() {
     if (auto stall = pacing.take_stall())
         LOG_INFO("frames", "stall %.1f s before frame %u", stall->seconds, stall->frame);
 
-    if (g.backend->take_mark_request()) {
+    // COD_BRO_MARKS="900,1500": marks at those presented frames without a note prompt (unattended checks of the
+    // mark dumps).
+    static const std::vector<uint32_t> scripted_marks = [] {
+        std::vector<uint32_t> list;
+        if (const char* text = std::getenv("COD_BRO_MARKS"))
+            for (const char* p = text; *p;) {
+                char* end = nullptr;
+                const unsigned long v = std::strtoul(p, &end, 10);
+                if (end == p) break;
+                list.push_back(uint32_t(v));
+                p = *end == ',' ? end + 1 : end;
+            }
+        return list;
+    }();
+    const bool scripted_mark =
+        std::find(scripted_marks.begin(), scripted_marks.end(), g.swap_count) != scripted_marks.end();
+    if (g.backend->take_mark_request() || scripted_mark) {
         ++marks;
         const std::string shot = g.config.diag_dir + "/mark_" + std::to_string(marks) + ".bmp";
         g.backend->save_back_buffer(shot.c_str());
         LOG_INFO("diag", "MARK %u at %llds, frame %u: %s", marks, static_cast<long long>(seconds), g.swap_count,
                  shot.c_str());
-        if (g.config.log_audio) g.config.log_audio();
+        if (g.config.log_audio)
+            g.config.log_audio((g.config.diag_dir + "/mark_" + std::to_string(marks)).c_str());
         if (g.config.pause_audio) g.config.pause_audio(true);
         g_unmeasured_until.store(INT64_MAX, std::memory_order_relaxed);
-        const auto note = g.backend->prompt({"MARK " + std::to_string(marks) + " saved - game paused",
-                                             "What is wrong here? (one or two sentences)"});
+        const auto note = scripted_mark ? std::optional<std::string>("(scripted mark)")
+                                        : g.backend->prompt({"MARK " + std::to_string(marks) + " saved - game paused",
+                                                             "What is wrong here? (one or two sentences)"});
         if (g.config.pause_audio && !dev::paused()) g.config.pause_audio(false);  // F7's pause stays
         g_unmeasured_until.store(session_second() + 1, std::memory_order_relaxed);
         std::string text = note ? *note : "";

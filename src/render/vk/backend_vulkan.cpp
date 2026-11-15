@@ -685,10 +685,35 @@ private:
                       static_cast<float>(area.height() * 7 / 10), width, height, notice_width * kTextU,
                       notice_height * kTextV, 2);
         }
-        if (window_.menu_open()) {
+        const std::vector<dev::Shape> shapes =
+            dev::debug_view() == dev::kViewSound ? dev::shapes() : std::vector<dev::Shape>{};
+        if ((window_.menu_open() || !shapes.empty()) && window_.ensure_ui()) {
             ImGui_ImplVulkan_NewFrame();
-            window_.menu_frame();
-            if (ImDrawData* data = ImGui::GetDrawData()) ImGui_ImplVulkan_RenderDrawData(data, cmd);
+            const auto draw_shapes = [&] {
+                // Picture shares -> ImGui's coordinates (window points; the framebuffer may be scaled).
+                const ImVec2 scale = ImGui::GetIO().DisplayFramebufferScale;
+                const float sx = scale.x > 0 ? scale.x : 1.0f, sy = scale.y > 0 ? scale.y : 1.0f;
+                const auto at = [&](float x, float y) {
+                    return ImVec2((float(dest.left) + x * float(dest.width())) / sx,
+                                  (float(dest.top) + y * float(dest.height())) / sy);
+                };
+                ImDrawList* list = ImGui::GetBackgroundDrawList();
+                for (const dev::Shape& shape : shapes) {
+                    if (shape.kind == dev::Shape::Line) {
+                        list->AddLine(at(shape.x0, shape.y0), at(shape.x1, shape.y1), shape.color, shape.thickness);
+                    } else {
+                        const ImVec2 c = at(shape.x0, shape.y0);
+                        const float r = std::max(2.0f, shape.x1 * float(dest.height()) / sy);
+                        list->AddCircle(c, r, shape.color, 0, shape.thickness);
+                    }
+                    if (!shape.label.empty()) {
+                        const ImVec2 p = shape.kind == dev::Shape::Line ? at(shape.x1, shape.y1) : at(shape.x0, shape.y0);
+                        list->AddText(ImVec2(p.x + 6, p.y - 6), shape.color, shape.label.c_str());
+                    }
+                }
+            };
+            if (window_.ui_frame(draw_shapes))
+                if (ImDrawData* data = ImGui::GetDrawData()) ImGui_ImplVulkan_RenderDrawData(data, cmd);
         }
         vkCmdEndRendering(cmd);
         vk_.transition(target, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);

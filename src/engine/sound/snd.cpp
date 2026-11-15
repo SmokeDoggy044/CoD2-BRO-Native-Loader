@@ -3,9 +3,13 @@
 #include <algorithm>
 #include <atomic>
 #include <cmath>
+#include <cstdio>
 #include <cstring>
+#include <string>
+#include <vector>
 
 #include "cg_ents.h"
+#include "dev_mode.h"
 #include "cl.h"
 #include "fe.h"
 #include "fe_options.h"
@@ -2311,6 +2315,94 @@ void update_occlusion(const float listener[3]) {
     }
 }
 
+// Developers (phase 3.0 tools): with the "sound" debug view, the nearest playing 3D voices and the lines their
+// occlusion traces drawn over the picture, 20 times a second: a ring at each sound (green in the clear .. red
+// occluded; label: slot, distance, occlusion), clear lines green, blocked parts red up to the hit, glass blue, the
+// rest of a blocked line dim, a detour yellow. Projected through the cgame view (refdef origin 0x00972bb0, axes
+// 0x00972bc0) and the scene's field of view; drawing only, nothing of the game changes.
+void update_sound_view(const float listener[3]) {
+    static uint32_t tick = 0;
+    if (++tick % 3) return;
+    std::vector<render::dev::Shape> shapes;
+    const float* origin = &title_global<float>(0x00972bb0);
+    const float* axis = &title_global<float>(0x00972bc0);  // forward, left, up
+    float tan_x = renderer_pc_hooks().scene_tan_across, tan_y = renderer_pc_hooks().scene_tan_down;
+    if (tan_x <= 0.0f || tan_y <= 0.0f) {
+        tan_x = std::tan(title_global<float>(0x00972ba0) * 3.14159265f / 360.0f);
+        tan_y = std::tan(title_global<float>(0x00972ba4) * 3.14159265f / 360.0f);
+    }
+    constexpr float kNearDepth = 4.0f;
+    const auto view = [&](const float* p, float out[3]) {  // depth, across, up
+        const float d[3] = {p[0] - origin[0], p[1] - origin[1], p[2] - origin[2]};
+        for (int r = 0; r < 3; ++r) out[r] = axis[r * 3] * d[0] + axis[r * 3 + 1] * d[1] + axis[r * 3 + 2] * d[2];
+    };
+    const auto screen = [&](const float v[3], float& x, float& y) {
+        x = 0.5f - 0.5f * v[1] / (v[0] * tan_x);
+        y = 0.5f - 0.5f * v[2] / (v[0] * tan_y);
+    };
+    const auto line = [&](const float* a, const float* b, uint32_t color, float thickness) {
+        float va[3], vb[3];
+        view(a, va);
+        view(b, vb);
+        if (va[0] < kNearDepth && vb[0] < kNearDepth) return;
+        // Clipped at the near depth (lines from the listener start behind the camera in third person views).
+        float* const behind = va[0] < kNearDepth ? va : vb[0] < kNearDepth ? vb : nullptr;
+        if (behind) {
+            const float* other = behind == va ? vb : va;
+            const float t = (kNearDepth - behind[0]) / (other[0] - behind[0]);
+            for (int k = 0; k < 3; ++k) behind[k] += (other[k] - behind[k]) * t;
+        }
+        render::dev::Shape s;
+        screen(va, s.x0, s.y0);
+        screen(vb, s.x1, s.y1);
+        s.color = color;
+        s.thickness = thickness;
+        shapes.push_back(std::move(s));
+    };
+    struct Near {
+        float distance;
+        uint32_t slot;
+    };
+    std::vector<Near> near;
+    const uint32_t count = std::min(title_global<uint32_t>(0x008bed00), 256u);
+    for (uint32_t i = 0; i < count; ++i) {
+        uint8_t* const voice = &title_global<uint8_t>(0x00911548 + i * 0xe0);
+        if (voice[0xc0] != 4 || !(voice[0xc3] & 1)) continue;
+        const float* p = &snd_at<float>(voice, 0x54);
+        if (!std::isfinite(p[0]) || (!p[0] && !p[1] && !p[2])) continue;
+        const float d[3] = {p[0] - listener[0], p[1] - listener[1], p[2] - listener[2]};
+        near.push_back({std::sqrt(d[0] * d[0] + d[1] * d[1] + d[2] * d[2]), i});
+    }
+    std::sort(near.begin(), near.end(), [](const Near& a, const Near& b) { return a.distance < b.distance; });
+    constexpr size_t kShown = 6;
+    for (size_t n = 0; n < near.size() && n < kShown; ++n) {
+        const uint32_t i = near[n].slot;
+        const float* p = &snd_at<float>(&title_global<uint8_t>(0x00911548 + i * 0xe0), 0x54);
+        SoundPathLine paths[16];
+        const size_t lines = SndEnv_SoundPaths(listener, p, paths, std::size(paths));
+        for (size_t k = 0; k < lines; ++k) {
+            static const uint32_t kColors[] = {0xc000ff00, 0xe00000ff, 0xe0ff8000, 0x600000ff, 0xe000ffff};
+            line(paths[k].from, paths[k].to, kColors[paths[k].kind], paths[k].kind == SoundPathLine::Detour ? 2.5f : 1.5f);
+        }
+        const float centre[3] = {p[0], p[1], p[2] + 48};
+        float v[3];
+        view(centre, v);
+        if (v[0] < kNearDepth) continue;
+        const float o = std::clamp(g_occlusion[i].current, 0.0f, 1.0f);
+        render::dev::Shape ring;
+        ring.kind = render::dev::Shape::Circle;
+        screen(v, ring.x0, ring.y0);
+        ring.x1 = std::clamp(24.0f / (v[0] * tan_y), 0.006f, 0.05f);
+        ring.color = 0xff000000u | (uint32_t(255 * (1 - o)) << 8) | uint32_t(255 * o);
+        ring.thickness = 2.5f;
+        char label[64];
+        std::snprintf(label, sizeof(label), "#%u %.0f occ %.2f", unsigned(i), double(near[n].distance), double(o));
+        ring.label = label;
+        shapes.push_back(std::move(ring));
+    }
+    renderer_pc_hooks().set_overlay_shapes(std::move(shapes));
+}
+
 }  // namespace
 
 uint32_t XB_CDECL SndHw_Update() {
@@ -2473,6 +2565,8 @@ uint32_t XB_CDECL SndHw_Update() {
     // Enhanced only (our additions): the reverb around the listener, occlusion.
     if (device().has(audio::Feature::Reverb)) SndEnv_Update(device(), listener);
     if (device().has(audio::Feature::Occlusion)) update_occlusion(listener.position);
+    if (renderer_pc_hooks().debug_view == render::dev::kViewSound && renderer_pc_hooks().set_overlay_shapes)
+        update_sound_view(listener.position);
     device().commit();
     synch_playback();
     device().do_work();

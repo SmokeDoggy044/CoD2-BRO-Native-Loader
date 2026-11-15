@@ -62,7 +62,12 @@ public:
     void set_menu_renderer(std::function<bool()> init_renderer, std::function<void()> shutdown_renderer);
     bool menu_open() const { return menu_open_; }
     // ImGui's frame: the menu's widgets (NewFrame ... Render), after the renderer's own NewFrame.
-    void menu_frame();
+    void menu_frame() { ui_frame(nullptr); }
+    // The same with developer drawings first (`extra`, called inside the frame; ImGui's background list); the menu
+    // only while open. False when Dear ImGui is not set up (no frame made).
+    bool ui_frame(const std::function<void()>& extra);
+    // Dear ImGui set up (the first time: now); false if it cannot start. Call before the renderer's NewFrame.
+    bool ensure_ui() { return menu_ready_ || init_menu(); }
     // Takes down the menu's renderer and Dear ImGui (before the back end's device goes).
     void close_menu();
 

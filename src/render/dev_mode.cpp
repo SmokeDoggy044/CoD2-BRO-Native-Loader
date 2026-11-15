@@ -8,6 +8,7 @@
 #include <fstream>
 #include <unordered_map>
 #include <iterator>
+#include <mutex>
 
 #include "enhanced_graphics.h"
 #include "gfx_device.h"
@@ -31,7 +32,7 @@ size_t g_feature = 0;  // index into GraphicsFeatures::kSwitches
 uint32_t g_debug_view = kViewOff;
 void (*g_debug_view_changed)(uint32_t) = nullptr;
 constexpr const char* kViewNames[] = {"off", "lighting", "shadow", "sun-mask", "normals", "roughness", "lights", "ao",
-                                     "height"};
+                                     "height", "sound"};
 static_assert(std::size(kViewNames) == kViewCount);
 
 // Frame times over the last whole second.
@@ -259,6 +260,21 @@ void set_paused(bool paused) {
 }
 
 void set_extra(ExtraFrame extra) { g_extra = extra; }
+
+namespace {
+std::mutex g_shapes_mutex;
+std::vector<Shape> g_shapes;
+}  // namespace
+
+void set_shapes(std::vector<Shape> shapes) {
+    std::lock_guard lock(g_shapes_mutex);
+    g_shapes = std::move(shapes);
+}
+
+std::vector<Shape> shapes() {
+    std::lock_guard lock(g_shapes_mutex);
+    return g_shapes;
+}
 
 const char* debug_view_name(uint32_t view) { return view < kViewCount ? kViewNames[view] : "?"; }
 uint32_t debug_view() { return g_debug_view; }

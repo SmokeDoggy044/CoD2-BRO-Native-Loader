@@ -258,12 +258,15 @@ void GameWindow::set_menu_open(bool open) {
     LOG_INFO("render", "PC menu %s", open ? "opened" : "closed");
 }
 
-void GameWindow::menu_frame() {
+bool GameWindow::ui_frame(const std::function<void()>& extra) {
+    if (!menu_ready_) return false;
     ImGui_ImplSDL3_NewFrame();
     ImGui::NewFrame();
-    const bool keep = pc_menu_();
+    if (extra) extra();
+    const bool keep = !menu_open_ || !pc_menu_ || pc_menu_();
     ImGui::Render();
     if (!keep) set_menu_open(false);
+    return true;
 }
 
 void GameWindow::set_gamma_ramp(const uint8_t (&ramp)[3][256]) {

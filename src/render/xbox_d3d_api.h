@@ -36,7 +36,7 @@ struct D3DConfig {
     std::string diag_dir;
     uint32_t diag_seconds = 10;
     void (*pause_audio)(bool paused) = nullptr;  // while a mark's note is typed
-    void (*log_audio)() = nullptr;               // at a mark: what is playing
+    void (*log_audio)(const char* prefix) = nullptr;  // at a mark: what is playing (files: prefix + "_sound.txt")
     // Developer mode (--dev, render/dev_mode.h): overlay and live switches. dev_pause stops/resumes the game.
     bool dev = false;
     void (*dev_pause)(bool paused) = nullptr;

@@ -256,6 +256,8 @@ bool apply_setting(Options& o, Combined& combined, const platform::SettingDef& d
         if (on) o.replay.exit_at_end = false;
     } else if (key == "replay-speed") {
         o.replay_speed = std::atof(v.c_str());
+    } else if (key == "audio-capture") {
+        o.audio_capture = fs::path(v);
     } else if (key == "replay-no-draw") {
         o.replay_no_draw = on;
     } else if (key == "own-main") {

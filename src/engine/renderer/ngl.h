@@ -7,12 +7,16 @@
 #include "scene_view.h"
 #include <cstddef>
 #include <cstdint>
+#include <vector>
 
 #include "compiler.h"
 
 namespace render {
 class GfxDevice;
 struct DisplayDesc;
+namespace dev {
+struct Shape;
+}
 }
 
 namespace game {
@@ -89,6 +93,10 @@ struct RendererPcHooks {
     // Developers (phase 2 tools): what our own shaders show instead of the picture (render/dev_mode.h DebugView,
     // set by the loader from --debug-view and F10).
     uint32_t debug_view = 0;
+    // Developers (the sound debug view, render/dev_mode.h kViewSound): shapes over the picture (render::dev::set_shapes).
+    void (*set_overlay_shapes)(std::vector<render::dev::Shape>&& shapes) = nullptr;
+    // The main scene's tan of the half field of view (across, down), as last handed to set_scene_view; 0: none yet.
+    float scene_tan_across = 0.0f, scene_tan_down = 0.0f;
     // With shadow_depth: where the baked lighting has the sun (the light grid's sun weight per sample of the
     // view's grid area, 0..255, sun_mask_width x sun_mask_height); the receivers map it through c1 c2. Null:
     // none. sun_mask_key changes with the contents.
