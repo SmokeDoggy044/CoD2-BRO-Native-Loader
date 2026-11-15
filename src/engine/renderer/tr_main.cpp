@@ -2426,6 +2426,11 @@ uint32_t XB_CDECL R_AddDObjSurfaces(DObj* obj, uint8_t* entity, const float* mat
                 for (int k = 0; k < 3; ++k)
                     world[k] = add(add(mul(m0, r[k].v[0]), mul(m1, r[k].v[1])), mul(m2, r[k].v[2]));
                 world[3] = transform_point(matrix, matrix + 4, matrix + 8, matrix + 12, r[3]);
+                // Ours (2.0 sun shadows): the part's own place for its shadow copy. The original copies every rigid
+                // part at the entity's matrix (bone ignored: a tank's turret shadow sat inside the hull's, which
+                // straight down hid); kept before the far-distance shrink below changes `world`.
+                alignas(16) Lanes part_world[4] = {world[0], world[1], world[2], world[3]};
+                float entity_scale = 0.0f;  // 0: not scaled
                 if (limit_depth) {
                     // Pull the mesh in to end at the far distance, shrunk to look the same.
                     const float* c = reinterpret_cast<const float*>(mesh + 0x20);
@@ -2470,6 +2475,7 @@ uint32_t XB_CDECL R_AddDObjSurfaces(DObj* obj, uint8_t* entity, const float* mat
                     if (scaled) {
                         rigid.flags |= 2;
                         for (float& lane : rigid.scale) lane = scale;
+                        entity_scale = scale;
                     }
                 }
                 if (nglListAddMesh(mesh, world[0].v, &rigid.flags, &params_word) <= 0) continue;
@@ -2485,7 +2491,13 @@ uint32_t XB_CDECL R_AddDObjSurfaces(DObj* obj, uint8_t* entity, const float* mat
                                                                   : obj->lod;
                 rigid.flags |= 0x80;
                 rigid.distance = title_global<float>(0x0083f0dc);  // 100000
-                nglListAddMesh(part_mesh(lod_parts(model, shadow_lod), i), matrix, &rigid.flags, &params_word);
+                const float* shadow_matrix = matrix;
+                if (renderer_pc_hooks().shadow_depth) {  // ours: see part_world
+                    shadow_matrix = part_world[0].v;
+                    rigid.flags = entity_scale != 0.0f ? 0x82 : 0x80;
+                    for (float& lane : rigid.scale) lane = entity_scale;
+                }
+                nglListAddMesh(part_mesh(lod_parts(model, shadow_lod), i), shadow_matrix, &rigid.flags, &params_word);
                 obj->forced_lod = -1;
                 nglSetCurrentScene(saved);
             }
