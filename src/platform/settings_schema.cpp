@@ -137,6 +137,12 @@ const SettingDef kSettings[] = {
     {"pixel-lighting", "on|off", T::Switch, G::Graphics, kLiveIni, 0, 0, nullptr, "on",
      "enhanced (Vulkan): characters, guns and props lit per pixel (smoother light, flashes with their falloff)",
      "graphics-features", "pixel_lighting"},
+    {"normal-maps", "on|off", T::Switch, G::Graphics, kLiveIni, 0, 0, nullptr, "on",
+     "enhanced (Vulkan, with a surface maps mod): surface detail from normal maps in the lighting",
+     "graphics-features", "normal_maps"},
+    {"specular", "on|off", T::Switch, G::Graphics, kLiveIni, 0, 0, nullptr, "on",
+     "enhanced (Vulkan, with a surface maps mod): a slight shine where the surface is smooth", "graphics-features",
+     "specular"},
     {"texture-detail", "on|off", T::Switch, G::Graphics, kLiveIni, 0, 0, nullptr, "on",
      "enhanced: sharper textures in the distance, by --lod-bias", "graphics-features", "texture_detail"},
     {"lod-bias", "X", T::Float, G::Graphics, kLiveIni, -2, 0, nullptr, "0",
@@ -407,6 +413,12 @@ const SettingUi kUi[] = {
      "Characters, guns and props lit per pixel instead of per corner: smoother light on their shapes, and muzzle "
      "flashes and explosions light the side facing them. They also receive the sun shadows. Vulkan only.", nullptr,
      nullptr, "graphics=enhanced"},
+    {"normal-maps", nullptr, "Normal maps",
+     "Surface detail (bumps, seams, grain) from the surface maps mod lights up with the sun and flashes. Needs "
+     "the surface maps mod; Vulkan only.", nullptr, nullptr, "graphics=enhanced"},
+    {"specular", nullptr, "Shine",
+     "A slight shine on smooth surfaces (metal, helmets, wet stone) under the sun and flashes, from the surface "
+     "maps mod's roughness. Needs the surface maps mod; Vulkan only.", nullptr, nullptr, "graphics=enhanced"},
     {"texture-detail", nullptr, "Texture detail",
      "Sharper textures in the distance (finer mipmaps); too far below 0 they shimmer when moving.", nullptr, nullptr,
      "graphics=enhanced"},

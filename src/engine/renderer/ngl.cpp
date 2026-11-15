@@ -2212,7 +2212,7 @@ namespace {
 // (RendererPcHooks::model; host memory only, the title's state untouched).
 void note_model_lights(const NglMeshDrawNode* node, const NglLightSet* set) {
     RendererPcHooks& hooks = renderer_pc_hooks();
-    if (!hooks.pixel_lighting && !hooks.shadow_depth) return;
+    if (!hooks.lighting_features && !hooks.shadow_depth) return;
     RendererPcHooks::ModelLights& own = hooks.model;
     const float* m = node->world;
     own.node = node;

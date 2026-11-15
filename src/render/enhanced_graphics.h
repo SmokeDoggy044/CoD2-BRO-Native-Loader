@@ -35,6 +35,10 @@ struct GraphicsFeatures {
     // Characters, guns and props lit per pixel by their lights (the original lights each vertex; effect flashes per
     // pixel with their falloff, up to 8 lights a model) - Vulkan only (phase 2.1).
     bool pixel_lighting = true;
+    // With the surface maps mod (phase 2.2): their normal maps bend the light on models and the level (2.3, 2.4).
+    bool normal_maps = true;
+    // A slight shine from the surface maps' roughness under the sun and flashes (2.3; the original has none).
+    bool specular = true;
     float sharpness = 0.0f;        // 0..1
     float vibrance_amount = 0.0f;  // -1 (greyer) .. 1
     float lod_bias = 0.0f;         // -2 (sharpest) .. 0 (the game's)
@@ -55,6 +59,8 @@ struct GraphicsFeatures {
         {"original_shadows", &GraphicsFeatures::original_shadows},
         {"sun_shadows", &GraphicsFeatures::sun_shadows},
         {"pixel_lighting", &GraphicsFeatures::pixel_lighting},
+        {"normal_maps", &GraphicsFeatures::normal_maps},
+        {"specular", &GraphicsFeatures::specular},
     };
     struct Amount {
         const char* key;

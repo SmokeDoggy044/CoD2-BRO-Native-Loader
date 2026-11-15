@@ -667,10 +667,12 @@ bool own_model_pixel(uint32_t key) {
         return false;
     }
 }
+uint32_t g_lighting_features = 0;  // RendererPcHooks::lighting_features of this frame (model_shader_mode)
 // Per frame: 0 = the title's shaders, else bit 0 pixel lighting, bit 1 sun shadow on models, bit 2 forced
 // (COD_BRO_MODEL_SHADERS=1: ours with both off - the 2.1a check that they equal the title's).
 uint32_t model_shader_mode(const game::RendererPcHooks& hooks) {
     static uint32_t frame = ~0u, mode = 0;
+    uint32_t& features = g_lighting_features;
     if (frame != g_frame) {
         frame = g_frame;
         static const bool forced = [] {
@@ -678,8 +680,10 @@ uint32_t model_shader_mode(const game::RendererPcHooks& hooks) {
             return env && *env == '1';
         }();
         mode = 0;
-        if (hooks.pixel_lighting) {  // set on Vulkan only
-            if (hooks.pixel_lighting()) mode |= 1;
+        features = 0;
+        if (hooks.lighting_features) {  // set on Vulkan only
+            features = hooks.lighting_features();
+            if (features & game::kLightingPixel) mode |= 1;
             if (forced) mode |= 4;
         }
     }
@@ -724,6 +728,9 @@ void bind_surface_maps(render::GfxDevice& device, DeviceObjects& o, float& prese
 // World units the receiver moves off its surface against the model's own coarse caster copy (acne): lab orbit m2
 // 11-15, speckle per pose 0 / 8 / 16 units: turn 135 0.22 / 0.08 / 0.07 (reference without model receivers 0.07).
 constexpr float kModelNormalOffset = 8.0f;
+// 2.3: normal maps at full strength; specular "on at low strength" (user 11-15): GGX x this.
+constexpr float kModelNormalMapStrength = 1.0f;
+constexpr float kModelSpecularStrength = 0.35f;
 void set_model_constants(render::GfxDevice& device, DeviceObjects& o, const game::RendererPcHooks& hooks,
                          uint32_t mode) {
     alignas(16) float own[render::kGfxVsOwnCount][4] = {};
@@ -748,6 +755,11 @@ void set_model_constants(render::GfxDevice& device, DeviceObjects& o, const game
     // Surface maps of the model's texture (stage 0): t6 normal, t7 roughness + height (2.2); own[0].w's views and
     // own[11].w = 1 when both are there.
     bind_surface_maps(device, o, own[11][3]);
+    // own[28]: (normal map strength, specular strength, cavity strength, 0) - per pixel only, with maps (2.3).
+    if ((mode & 1) && own[11][3] != 0.0f) {
+        own[28][0] = (g_lighting_features & game::kLightingNormalMaps) ? kModelNormalMapStrength : 0.0f;
+        own[28][1] = (g_lighting_features & game::kLightingSpecular) ? kModelSpecularStrength : 0.0f;
+    }
     device.set_constants(render::ShaderStage::Vertex, render::kGfxVsOwn, &own[0][0], render::kGfxVsOwnCount);
     if (!shadow) return;
     bind_sun_mask(device, o, hooks);

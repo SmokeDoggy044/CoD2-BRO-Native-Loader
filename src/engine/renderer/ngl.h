@@ -61,9 +61,10 @@ struct RendererPcHooks {
     // Set and true: R_RenderTestShadow aims its camera (and so the projector) along the sun of the light grid
     // the view is in, not straight down. Ours (engine improvements 2.0).
     bool (*sun_shadows)() = nullptr;
-    // Set and true: the lit model classes (cdChar, cdGun, cdSimple, ...) light per pixel on our own shaders
-    // (engine improvements 2.1; Vulkan only). With sun shadows on they take our shaders too, to receive them.
-    bool (*pixel_lighting)() = nullptr;
+    // Set (Vulkan only): the phase 2 lighting switches now, as kLighting* bits. Pixel lighting: the lit model classes
+    // (cdChar, cdGun, cdSimple, ...) light per pixel on our own shaders (2.1); with sun shadows on they take our
+    // shaders too, to receive them.
+    uint32_t (*lighting_features)() = nullptr;
     // Set by R_RenderTestShadow for the frame when its camera follows the sun: the shadow scene's casters (its draws
     // write alpha only) are drawn without culling - seen at a slant, the coarse caster meshes' open sides left holes.
     bool shadow_casters_double_sided = false;
@@ -117,6 +118,15 @@ struct RendererPcHooks {
     uint32_t casters_last_frame = 0, casters_this_frame = 0;
     float camera_offset[3] = {};
     float camera_yaw = 0.0f, camera_pitch = 0.0f;
+};
+// RendererPcHooks::lighting_features bits.
+enum : uint32_t {
+    kLightingPixel = 1,
+    kLightingNormalMaps = 2,
+    kLightingSpecular = 4,
+    kLightingAo = 8,
+    kLightingCavity = 16,
+    kLightingWorldLights = 32,
 };
 RendererPcHooks& renderer_pc_hooks();
 // The 16:9 scene aspect, or the wider one in RendererPcHooks.

@@ -183,8 +183,10 @@ void configure_title_services(const Options& options, const fs::path& assets, co
         };
         if (options.renderer == render::BackendConfig::Api::Vulkan) {
             game::renderer_pc_hooks().sun_shadows = [] { return render::active_graphics_features().sun_shadows; };
-            game::renderer_pc_hooks().pixel_lighting = [] {
-                return render::active_graphics_features().pixel_lighting;
+            game::renderer_pc_hooks().lighting_features = [] {
+                const render::GraphicsFeatures f = render::active_graphics_features();
+                return (f.pixel_lighting ? game::kLightingPixel : 0u) | (f.normal_maps ? game::kLightingNormalMaps : 0u) |
+                       (f.specular ? game::kLightingSpecular : 0u);
             };
         }
     }

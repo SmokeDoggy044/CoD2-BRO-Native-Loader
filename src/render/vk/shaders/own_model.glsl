@@ -11,6 +11,7 @@
 //   11: (light count, normal offset in world units, specular, surface maps bound 0/1)
 //   12..19: light i (xyz, radius): radius 0 = directional, xyz its direction of travel; else the position
 //   20..27: light i (r, g, b, inner radius)
+//   28: (normal map strength, specular strength, cavity strength, 0): 0 = off (per pixel with surface maps only)
 // Textures: t4 = the sun mask (L8), t5 = the sun's shadow map (packed depth, sun_common.glsl), t6 / t7 = the
 // surface maps of t0's texture (normal; roughness + height), sampled at t0's coordinates.
 
@@ -196,6 +197,45 @@ vec3 own_light(int i, vec3 p, out vec3 toward) {
     return b.rgb * clamp(1.0 - (dist - b.w) / (a.w - b.w), 0.0, 1.0);
 }
 
+bool own_has_maps() { return OWN(11).w != 0.0; }
+vec4 own_surface() {
+    return own_has_maps() ? textureProj(sampler2D(tex7, smp7), t0 * texcoord_scale[0]) : vec4(0.0);
+}
+
+// The normal map's normal in world space (2.3): tangent frame per pixel from the position and texture coordinate
+// derivatives ("cotangent frame", no vertex tangents); the maps' X follows +u, Y +v (D3D rows; checked against
+// their height maps). Called in uniform control flow (the derivatives).
+vec3 own_mapped_normal(vec3 n) {
+    const vec2 uv = t0.xy / t0.w * texcoord_scale[0].xy;
+    const vec2 xy = textureProj(sampler2D(tex6, smp6), t0 * texcoord_scale[0]).rg * 2.0 - 1.0;
+    const vec3 ts = vec3(xy, sqrt(max(0.0, 1.0 - dot(xy, xy))));
+    const vec3 dp1 = dFdx(world_pos), dp2 = dFdy(world_pos);
+    const vec2 duv1 = dFdx(uv), duv2 = dFdy(uv);
+    const vec3 dp2perp = cross(dp2, n), dp1perp = cross(n, dp1);
+    const vec3 tangent = dp2perp * duv1.x + dp1perp * duv2.x;
+    const vec3 bitangent = dp2perp * duv1.y + dp1perp * duv2.y;
+    const float scale = max(dot(tangent, tangent), dot(bitangent, bitangent));
+    if (!(scale > 1e-20)) return n;  // no texture gradient (a flat-mapped or degenerate triangle)
+    const float inv = inversesqrt(scale);
+    const vec3 mapped = normalize(mat3(tangent * inv, bitangent * inv, n) * ts);
+    return normalize(mix(n, mapped, OWN(28).x));
+}
+
+// GGX specular (dielectric F0 0.04) for light `toward` with colour `light` at roughness r: D G F / (4 N.V), i.e.
+// the BRDF times N.L (Smith G carries N.L).
+vec3 own_specular(vec3 n, vec3 v, vec3 toward, vec3 light, float r) {
+    const vec3 h = normalize(toward + v);
+    const float nl = max(dot(n, toward), 0.0), nv = max(dot(n, v), 1e-3), nh = max(dot(n, h), 0.0);
+    const float a = max(r * r, 0.02), a2 = a * a;
+    const float d = nh * nh * (a2 - 1.0) + 1.0;
+    const float D = a2 / (3.14159265 * d * d);
+    const float k = a * 0.5;
+    const float G = nl / (nl * (1.0 - k) + k) * nv / (nv * (1.0 - k) + k);
+    const float F = 0.04 + 0.96 * pow(1.0 - max(dot(h, v), 0.0), 5.0);
+    return light * (D * G * F / (4.0 * nv));
+}
+
+vec3 g_spec = vec3(0.0);
 vec3 g_light = vec3(1.0);
 float g_lost = 0.0;
 int g_lights = 0;
@@ -204,41 +244,59 @@ vec3 g_normal = vec3(0.0, 0.0, 1.0);
 // The diffuse colour the title's combiners take as V0.
 vec4 own_model_v0(vec4 vertex_color) {
     g_light = vertex_color.rgb;
-    g_normal = normalize(world_normal);
+    const vec3 geometric = normalize(world_normal);
+    g_normal = geometric;
     const bool pixel = OWN(0).x != 0.0, shadow = OWN(0).z != 0.0;
     const int sun = int(OWN(0).y);
     g_lights = int(OWN(11).x);
     if (!pixel && !shadow) return vertex_color;
-    vec3 n = g_normal;
-    if (pixel) {
-        vec3 sum = vsc.c[17].rgb;  // the ambient
-        for (int i = 0; i < g_lights && i < 8; ++i) {
-            vec3 toward;
-            const vec3 light = own_light(i, world_pos, toward);
-            sum += light * max(dot(n, toward), 0.0);
-        }
-        g_light = sum;
-    }
+    // The shading normal: the normal map's where there is one (2.3).
+    vec3 n = geometric;
+    if (pixel && OWN(28).x > 0.0) n = own_mapped_normal(geometric);
+    g_normal = n;
+    // Roughness floor 0.4: the old textures' maps get no mirror-sharp highlights (lab m2 11-15: p95 rise 163 levels
+    // without it).
+    const float roughness = OWN(28).y > 0.0 ? clamp(own_surface().r, 0.4, 1.0) : 1.0;
+    const vec4 eye_object = vec4(vsc.c[19].xyz, 1.0);  // the camera in object space (the fog's)
+    const vec3 eye = vec3(dot(OWN(1), eye_object), dot(OWN(2), eye_object), dot(OWN(3), eye_object));
+    const vec3 view = normalize(eye - world_pos);
+    // The sun's share lost to the shadow map (receiver off its surface along the GEOMETRIC normal, more where the sun
+    // grazes it, so the model's own coarse caster copy does not shadow its lit side).
+    g_lost = 0.0;
     if (shadow && sun >= 0) {
         vec3 toward;
-        const vec3 sun_color = own_light(sun, world_pos, toward);
-        const float facing = dot(n, toward);
-        // Normal offset: the receiver moved off its surface (more where the sun grazes it), so the model's own
-        // coarse caster copy does not shadow its lit side.
+        own_light(sun, world_pos, toward);
+        const float facing = dot(geometric, toward);
         const float offset = OWN(11).y * (1.0 + 2.0 * (1.0 - clamp(facing, 0.0, 1.0)));
-        g_lost = facing > 0.0 ? own_sun_lost(world_pos + n * offset) : 0.0;
-        g_light = max(g_light - sun_color * max(facing, 0.0) * g_lost, vec3(0.0));
+        g_lost = facing > 0.0 ? own_sun_lost(world_pos + geometric * offset) : 0.0;
+    }
+    if (pixel) {
+        vec3 sum = vsc.c[17].rgb;  // the ambient
+        g_spec = vec3(0.0);
+        for (int i = 0; i < g_lights && i < 8; ++i) {
+            vec3 toward;
+            vec3 light = own_light(i, world_pos, toward);
+            if (i == sun) light *= 1.0 - g_lost;
+            sum += light * max(dot(n, toward), 0.0);
+            // Shine from the sun and point lights only (the grid's other directions are bounce light).
+            if (OWN(28).y > 0.0 && (i == sun || OWN(12 + i).w != 0.0))
+                g_spec += own_specular(n, view, toward, light, roughness);  // includes N.L
+        }
+        // "Low strength" (user 11-15): scaled, then softly capped at 0.3 per channel.
+        g_spec *= OWN(28).y;
+        g_spec = 0.3 * g_spec / (0.3 + g_spec);
+        g_light = sum;
+    } else if (shadow && sun >= 0) {
+        vec3 toward;
+        const vec3 sun_color = own_light(sun, world_pos, toward);
+        g_light = max(g_light - sun_color * max(dot(geometric, toward), 0.0) * g_lost, vec3(0.0));
     }
     return vec4(g_light, vertex_color.w);
 }
 
-bool own_has_maps() { return OWN(11).w != 0.0; }
-vec4 own_surface() {
-    return own_has_maps() ? textureProj(sampler2D(tex7, smp7), t0 * texcoord_scale[0]) : vec4(0.0);
-}
-
 void own_model_out(vec4 result) {
-    color = result;
+    // Shine on top of the combiners' result, faded with the fog as the surface colour is.
+    color = vec4(min(result.rgb + g_spec * clamp(fog, 0.0, 1.0), vec3(1.0)), result.w);
     const int view = int(OWN(0).w + 0.5);
     if (view == 5 || view == 8) {  // roughness, height: grey; magenta where the texture has no maps
         const vec4 s = own_surface();
