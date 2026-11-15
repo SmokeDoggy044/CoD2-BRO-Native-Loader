@@ -4,6 +4,8 @@
 // Defines: BLEND (cdWorldBlend), LIGHTMAP, PROJ_TEX / PROJ_SMP / PROJ_COORD (the projector's slot and its
 // coordinates: the vertex program writes them to TEXCOORD2 for cdWorld, TEXCOORD3 for cdWorldBlend).
 // c0: (depth scale, depth offset, bias, strength): the receiver's caster-space depth = (z + offset) * scale.
+// c1, c2: the projector coordinates (u, v, z, 1) to the sun mask's (t4: the light grid's sun weight around the
+// view, see tr_main.cpp grid_sun_mask); both zero: no mask. Where the baked lighting has no sun, no shadow.
 #extension GL_GOOGLE_include_directive : require
 #include "sun_common.glsl"
 
@@ -13,10 +15,23 @@ vec4 sample_stage(texture2D t, sampler s, vec4 coord, int n, float kill) {
     return v;
 }
 
+layout(set = 0, binding = 6) uniform texture2D tex4;
+layout(set = 0, binding = 14) uniform sampler smp4;
+
+// Whether the baked lighting has the sun here (0..1).
+float baked_sun(vec3 p) {
+    if (ps.c[1] == vec4(0.0)) return 1.0;
+    const vec2 g = vec2(dot(ps.c[1], vec4(p, 1.0)), dot(ps.c[2], vec4(p, 1.0)));
+    if (g.x < 0.0 || g.y < 0.0 || g.x > 1.0 || g.y > 1.0) return 1.0;
+    return smoothstep(0.15, 0.6, texture(sampler2D(tex4, smp4), g).r);
+}
+
 // How much of the sun this point loses (0..1).
 float sun_shadow(vec4 coord) {
     const vec3 p = coord.xyz / coord.w;
     if (p.x <= 0.0 || p.y <= 0.0 || p.x >= 1.0 || p.y >= 1.0) return 0.0;
+    const float sun = baked_sun(p);
+    if (sun <= 0.0) return 0.0;
     const float receiver = (p.z + ps.c[0].y) * ps.c[0].x - ps.c[0].z;
     const ivec2 size = textureSize(sampler2D(PROJ_TEX, PROJ_SMP), 0);
     const vec2 pos = p.xy * vec2(size) - 0.5;
@@ -32,7 +47,7 @@ float sun_shadow(vec4 coord) {
             // e = 1 - the caster's depth; 0 = none.
             if (e > 0.0 && 1.0 - e < receiver) sum += wx[i] * wy[j];
         }
-    return sum;
+    return sum * sun;
 }
 
 void main() {

@@ -76,7 +76,12 @@ struct RendererPcHooks {
     // Set around one draw: our pixel shader (render::OwnPixelShader) in place of the title's, with c0 =
     // pixel_override_constants. Vulkan only.
     uint32_t pixel_override = 0;
-    float pixel_override_constants[4] = {};
+    float pixel_override_constants[12] = {};  // c0..c2
+    // With shadow_depth: where the baked lighting has the sun (the light grid's sun weight per sample of the
+    // view's grid area, 0..255, sun_mask_width x sun_mask_height); the receivers map it through c1 c2. Null:
+    // none. sun_mask_key changes with the contents.
+    const uint8_t* sun_mask = nullptr;
+    uint32_t sun_mask_width = 0, sun_mask_height = 0, sun_mask_key = 0;
 };
 RendererPcHooks& renderer_pc_hooks();
 // The 16:9 scene aspect, or the wider one in RendererPcHooks.

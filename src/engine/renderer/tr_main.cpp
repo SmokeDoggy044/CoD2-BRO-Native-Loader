@@ -1,7 +1,9 @@
 #include "tr_main.h"
 
 #include <cmath>
+#include <algorithm>
 #include <cstring>
+#include <vector>
 
 #include "dobj.h"
 #include "lanes.h"
@@ -2607,10 +2609,11 @@ namespace {
 // Ours (2.0): the sun of the light grid at `position`: its one directional light (RGridLight.point == 0, the last
 // of the lights its samples refer to; tools/data/sun_by_mission.csv), as the light's travel direction. Searched
 // once per grid.
-bool grid_sun(const float* position, float* direction) {
+bool grid_sun(const float* position, float* direction, int32_t* index = nullptr) {
     static const RLightGrid* cached_grid = nullptr;
     static float cached[3];
     static bool cached_found = false;
+    static int32_t cached_index = -1;
     int32_t cell = -1;
     const auto* grid = static_cast<const RLightGrid*>(R_GetCellLighting(position, 0, &cell));
     if (!grid || !grid->lights) return false;
@@ -2632,11 +2635,50 @@ bool grid_sun(const float* position, float* direction) {
             const float length = std::sqrt(o[0] * o[0] + o[1] * o[1] + o[2] * o[2]);
             for (int k = 0; k < 3; ++k) cached[k] = o[k] / length;
             cached_found = true;
+            cached_index = i;
             break;
         }
     }
     if (cached_found) std::memcpy(direction, cached, sizeof cached);
+    if (index) *index = cached_index;
     return cached_found;
+}
+
+// Ours (2.0 step 2): the sun weight of each sample of the grid area the view is in (its light reference to the
+// sun, as 0..255 of the grid's strongest), for the receivers to leave baked shadow alone. Cached per area.
+struct SunMask {
+    const RLightGridArea* area = nullptr;
+    std::vector<uint8_t> weights;
+    uint32_t key = 0;
+};
+const SunMask* grid_sun_mask(const float* position, int32_t sun) {
+    static SunMask mask;
+    static uint32_t next_key = 1;
+    int32_t cell = -1;
+    const auto* grid = static_cast<const RLightGrid*>(R_GetCellLighting(position, 0, &cell));
+    if (!grid || sun < 0) return nullptr;
+    const RLightGridArea* area = nullptr;
+    for (int32_t i = 0; i < grid->area_count; ++i)
+        if (grid->areas[i].cell == cell) area = &grid->areas[i];
+    if (!area || area->width < 2 || area->height < 2) return nullptr;
+    if (area != mask.area) {
+        mask.area = area;
+        mask.key = next_key++;
+        const auto weight = [&](uint32_t sample) -> uint32_t {
+            const uint16_t* reference = grid->references + (sample >> 17) * 2;
+            for (uint32_t k = 0; k < ((sample >> 15) & 3); ++k)
+                if (reference[k * 2] == sun) return reference[k * 2 + 1];
+            return 0;
+        };
+        uint32_t strongest = 1;
+        int32_t samples = 0;
+        for (int32_t i = 0; i < grid->area_count; ++i) samples += grid->areas[i].width * grid->areas[i].height;
+        for (int32_t i = 0; i < samples; ++i) strongest = std::max(strongest, weight(grid->samples[i]));
+        mask.weights.resize(size_t{area->width} * area->height);
+        for (size_t i = 0; i < mask.weights.size(); ++i)
+            mask.weights[i] = static_cast<uint8_t>(std::min<uint32_t>(255, weight(grid->samples[area->first + i]) * 255 / strongest));
+    }
+    return &mask;
 }
 
 // The shadow camera turned to look along `sun` (rows: 0 across, 1 up, 2 forward = sun, 3 position kept): row 1
@@ -2700,7 +2742,9 @@ void XB_CDECL R_RenderTestShadow() {
     renderer_pc_hooks().shadow_reach = 0.0f;
     renderer_pc_hooks().shadow_depth = false;
     renderer_pc_hooks().shadow_target_data = reinterpret_cast<const uint32_t*>(texture->d3d_texture)[1];
-    if (const auto sun_hook = renderer_pc_hooks().sun_shadows; sun_hook && sun_hook() && grid_sun(view + 12, sun)) {
+    renderer_pc_hooks().sun_mask = nullptr;
+    int32_t sun_index = -1;
+    if (const auto sun_hook = renderer_pc_hooks().sun_shadows; sun_hook && sun_hook() && grid_sun(view + 12, sun, &sun_index)) {
         renderer_pc_hooks().shadow_casters_double_sided = true;
         // Step 2: a larger square (kSunRadius; the original's 700 let shadows end 1000 units ahead), its centre
         // ahead of the view as the original's (0.45 of the radius along its diagonal), and a box deep enough for
@@ -2727,6 +2771,27 @@ void XB_CDECL R_RenderTestShadow() {
         constants[2] = kSunBias / (far - kNear);
         constants[3] = 1.0f;
         renderer_pc_hooks().shadow_depth = true;
+        // c1 c2: the projector coordinates (u, v, z, 1) to the sun mask's texture coordinates. A point of the
+        // box is r3 + across * radius * (u - 0.5) - up * radius * (v - 0.5) + sun * depth * z (r3 = the camera
+        // moved box_shift along the sun); sample i of a row sits at texel centre (i + 0.5) / width.
+        std::memset(constants + 4, 0, 8 * sizeof(float));
+        if (const SunMask* mask = grid_sun_mask(view + 12, sun_index)) {
+            const RLightGridArea& area = *mask->area;
+            for (int axis = 0; axis < 2; ++axis) {
+                const float to_texel = 1.0f / (area.cell_size[axis] * (axis ? area.height : area.width));
+                const float r3 = camera[12 + axis] + sun[axis] * box_shift;
+                float* row = constants + 4 + axis * 4;
+                row[0] = camera[axis] * radius * to_texel;
+                row[1] = -camera[4 + axis] * radius * to_texel;
+                row[2] = sun[axis] * box_depth * to_texel;
+                row[3] = (r3 - 0.5f * radius * camera[axis] + 0.5f * radius * camera[4 + axis] - area.origin[axis]) *
+                             to_texel + 0.5f / (axis ? area.height : area.width);
+            }
+            renderer_pc_hooks().sun_mask = mask->weights.data();
+            renderer_pc_hooks().sun_mask_width = area.width;
+            renderer_pc_hooks().sun_mask_height = area.height;
+            renderer_pc_hooks().sun_mask_key = mask->key;
+        }
     }
 
     // Clear the texture.

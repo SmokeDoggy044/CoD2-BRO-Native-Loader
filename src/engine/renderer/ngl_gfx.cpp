@@ -238,6 +238,8 @@ struct DeviceObjects {
     // and the frame it was last cleared.
     std::unordered_map<uint64_t, render::TargetId> sun_depth;
     uint32_t sun_depth_frame = ~0u;
+    render::TextureId sun_mask = 0;  // RendererPcHooks::sun_mask as a texture, of sun_mask_key
+    uint32_t sun_mask_key = 0;
 };
 
 DeviceObjects& device_objects() {
@@ -540,8 +542,21 @@ bool apply(render::GfxDevice& device, DeviceObjects& o, uint32_t stride) {
     device.set_layout(layout);
     device.set_constants(render::ShaderStage::Vertex, 0, &s.vs_constants[0][0], 192);
     device.set_constants(render::ShaderStage::Pixel, 0, &s.ps_constants[0][0], 18);
-    if (!sun_caster && hooks.pixel_override)
-        device.set_constants(render::ShaderStage::Pixel, 0, hooks.pixel_override_constants, 1);
+    if (!sun_caster && hooks.pixel_override) {
+        device.set_constants(render::ShaderStage::Pixel, 0, hooks.pixel_override_constants, 3);
+        // Slot 4 (no world shader uses it): the sun mask.
+        if (hooks.sun_mask && hooks.sun_mask_key != o.sun_mask_key) {
+            device.destroy_texture(o.sun_mask);
+            o.sun_mask = device.create_texture({render::TextureType::Tex2D, render::Format::L8, hooks.sun_mask_width,
+                                                hooks.sun_mask_height, 1, 1, false});
+            if (o.sun_mask) device.update_texture(o.sun_mask, 0, 0, hooks.sun_mask, hooks.sun_mask_width, 0);
+            o.sun_mask_key = hooks.sun_mask_key;
+        }
+        render::SamplerState clamp;
+        clamp.u = clamp.v = clamp.w = render::Address::Clamp;
+        device.set_texture(4, hooks.sun_mask ? o.sun_mask : 0);
+        device.set_sampler(4, clamp);
+    }
     return true;
 }
 
