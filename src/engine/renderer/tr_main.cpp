@@ -2855,12 +2855,20 @@ void XB_CDECL R_RenderTestShadow() {
         // that square's far side under a low sun (radius / tan(elevation) along the sun, plus the lift).
         // Radius 3000 with the map at twice the resolution (ngl_gfx kShadowTargetScale): 1500 let vehicles ~2000
         // ahead lose their shadow (playtest 11-15).
-        constexpr float kSunLift = 300.0f, kSunDepth = 9000.0f, kSunRadius = 3000.0f;
+        // The camera starts at the square's sun-side edge: ground up to radius / sin(elevation) from the centre
+        // toward the sun lies radius / tan(elevation) before the centre along the sun, and casters stand up to
+        // kSunLift / sin(elevation) higher. Backing up only kSunLift (11-15e) clipped the casters near the view
+        // whenever the sun was behind the camera (the centre is ~0.64 radius ahead of the view).
+        constexpr float kSunLift = 300.0f, kSunRadius = 3000.0f, kSunMargin = 1000.0f;
         radius = kSunRadius;
         const Lanes ahead = mul(sub(up, across), radius * title_global<float>(0x0083f034));
         const float centre[3] = {view[12] + ahead.v[0], view[13] + ahead.v[1], view[14]};
         aim_at_sun(camera, sun);
-        const float back = kSunLift / -sun[2];
+        const float sin_elevation = -sun[2];
+        const float cos_elevation = std::sqrt(std::max(0.0f, 1.0f - sin_elevation * sin_elevation));
+        const float ground_reach = radius * cos_elevation / sin_elevation;
+        const float back = ground_reach + kSunLift / sin_elevation;
+        const float kSunDepth = back + ground_reach + kSunMargin;
         for (int k = 0; k < 3; ++k) camera[12 + k] = centre[k] - sun[k] * back;
         camera[15] = camera[12];
         // The square lands stretched by 1 / sin(elevation) along the sun: its far corner from the centre.
