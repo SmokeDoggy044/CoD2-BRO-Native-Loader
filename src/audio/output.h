@@ -53,6 +53,7 @@ public:
         float position[3] = {0, 0, 0};            // OpenAL coordinates (right-handed)
         bool reverb_send = false;                 // to set_environment's reverb
         float direct_gain = 1.0f, direct_gain_hf = 1.0f;  // a low-pass on the direct sound (EFX); 1, 1: none
+        float direct_gain_lf = 1.0f;                      // below 1: a band-pass (low shelf too)
         float send_gain = 1.0f;                           // the reverb send's level (1 to 4)
     };
     class Source;

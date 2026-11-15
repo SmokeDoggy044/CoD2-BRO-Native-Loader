@@ -60,6 +60,7 @@ struct VoiceImpl {
     float pan = 0.0f;
     bool reverb_send = false;
     float occlusion = 0.0f;
+    Transmission transmission;  // set_transmission's (all 1: none)
     Output::SourceParams last;  // as last handed to the output (voice_rows, log_voices)
     Category category = Category::Effects;
     Spatial current, pending;
@@ -112,6 +113,7 @@ public:
     bool enhanced() override;
     void set_occlusion(VoiceId voice, float amount) override;
     bool has(Feature feature) override;
+    void set_transmission(VoiceId voice, const Transmission& transmission) override;
     bool feature_on(Feature feature) const { return config.enhanced && config.features.has(feature); }  // locked
     void apply_enhanced();  // locked: after config.enhanced or features changed
 
@@ -266,8 +268,15 @@ void Engine::update(VoiceImpl& v) {
     // and heard a little more through the room: its reverb send up to +3 dB (sound reaching the
     // listener by reflections; +6 dB made blocked gunfire in the open a wash, playtest 10-30).
     if (feature_on(Feature::Occlusion) && v.occlusion > 0.0f && is_spatial(v)) {
-        params.direct_gain = 1.0f - 0.3f * v.occlusion;
-        params.direct_gain_hf = 1.0f - 0.5f * v.occlusion;
+        if (feature_on(Feature::Transmission)) {
+            // Through the walls by material and thickness (game side: snd_env.cpp, phase 3.2).
+            params.direct_gain = v.transmission.gain;
+            params.direct_gain_lf = v.transmission.gain_lf;
+            params.direct_gain_hf = v.transmission.gain_hf;
+        } else {
+            params.direct_gain = 1.0f - 0.3f * v.occlusion;
+            params.direct_gain_hf = 1.0f - 0.5f * v.occlusion;
+        }
         if (params.reverb_send) params.send_gain = 1.0f + 0.4f * v.occlusion;
     }
     // A position or level that is not a number (seen once, 10-30: an entity gone NaN just before a
@@ -706,6 +715,18 @@ void Engine::set_occlusion(VoiceId id, float amount) {
     });
 }
 
+void Engine::set_transmission(VoiceId id, const Transmission& transmission) {
+    change(id, [&](VoiceImpl& v) {
+        Transmission t;
+        t.gain = std::clamp(transmission.gain, 0.0f, 1.0f);
+        t.gain_lf = std::clamp(transmission.gain_lf, 0.0f, 1.0f);
+        t.gain_hf = std::clamp(transmission.gain_hf, 0.0f, 1.0f);
+        if (v.transmission == t) return;
+        v.transmission = t;
+        update(v);
+    });
+}
+
 }  // namespace
 
 SoundDevice& sound_device() { return g; }
@@ -722,7 +743,7 @@ std::span<const xbox::KernelImpl> device_methods() {
         "SoundDevice::set_spatial_mode", "SoundDevice::set_distance_curve", "SoundDevice::set_listener",
         "SoundDevice::listener", "SoundDevice::commit", "SoundDevice::start_synched", "SoundDevice::set_headphones",
         "SoundDevice::do_work", "SoundDevice::set_category", "SoundDevice::set_environment",
-        "SoundDevice::enhanced", "SoundDevice::set_occlusion", "SoundDevice::has",
+        "SoundDevice::enhanced", "SoundDevice::set_occlusion", "SoundDevice::has", "SoundDevice::set_transmission",
     };
     static const std::vector<xbox::KernelImpl> methods = [] {
         void* const* vtable = *reinterpret_cast<void* const* const*>(&g);
@@ -884,6 +905,7 @@ std::vector<VoiceRow> voice_rows() {
         r.gain = v->last.gain;
         r.direct_gain = v->last.direct_gain;
         r.direct_gain_hf = v->last.direct_gain_hf;
+        r.direct_gain_lf = v->last.direct_gain_lf;
         r.send_gain = v->last.reverb_send ? v->last.send_gain : 0.0f;
         r.level = Output::take_level(v->source);
         rows.push_back(r);

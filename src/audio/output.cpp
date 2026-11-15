@@ -25,7 +25,8 @@ public:
     ALuint source = 0;
     ALuint buffer = 0;
     uint32_t channels = 0;  // of the current callback buffer
-    ALuint filter = 0;      // the direct sound's low-pass (EFX), made when first wanted
+    ALuint filter = 0;      // the direct sound's low-pass or band-pass (EFX), made when first wanted
+    ALint filter_type = 0;  // its AL_FILTER_TYPE
     bool filtered = false;  // attached
     std::atomic<uint64_t> sum_squares{0}, samples{0};  // what render_callback handed OpenAL (take_level)
 };
@@ -396,13 +397,19 @@ void Output::update(Source* source, const SourceParams& params) {
                    AL_FILTER_NULL);
     // The filter's values are copied when it is attached: attached again after each change.
     const float direct_gain = params.direct_gain / send;
-    const bool filter = direct_gain < 1.0f || params.direct_gain_hf < 1.0f;
+    const bool filter = direct_gain < 1.0f || params.direct_gain_hf < 1.0f || params.direct_gain_lf < 1.0f;
     if (reverb_slot_ && (filter || source->filtered)) {
-        if (filter && !source->filter) {
-            alGenFilters(1, &source->filter);
-            alFilteri(source->filter, AL_FILTER_TYPE, AL_FILTER_LOWPASS);
+        const ALint type = params.direct_gain_lf < 1.0f ? AL_FILTER_BANDPASS : AL_FILTER_LOWPASS;
+        if (filter && !source->filter) alGenFilters(1, &source->filter);
+        if (filter && source->filter_type != type) {
+            alFilteri(source->filter, AL_FILTER_TYPE, type);
+            source->filter_type = type;
         }
-        if (filter) {
+        if (filter && type == AL_FILTER_BANDPASS) {
+            alFilterf(source->filter, AL_BANDPASS_GAIN, std::clamp(direct_gain, 0.0f, 1.0f));
+            alFilterf(source->filter, AL_BANDPASS_GAINLF, std::clamp(params.direct_gain_lf, 0.0f, 1.0f));
+            alFilterf(source->filter, AL_BANDPASS_GAINHF, std::clamp(params.direct_gain_hf, 0.0f, 1.0f));
+        } else if (filter) {
             alFilterf(source->filter, AL_LOWPASS_GAIN, std::clamp(direct_gain, 0.0f, 1.0f));
             alFilterf(source->filter, AL_LOWPASS_GAINHF, std::clamp(params.direct_gain_hf, 0.0f, 1.0f));
         }

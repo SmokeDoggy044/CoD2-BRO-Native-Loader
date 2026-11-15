@@ -561,6 +561,152 @@ float SndEnv_Occlusion(const float listener[3], const float source[3]) {
 
 namespace {
 
+// Transmission (3.2): sound through a solid, per band (below ~250 Hz, middle, above ~5 kHz), in dB at the material's
+// reference thickness (world units); thicker or thinner by the mass law, 6 dB per doubling, within [half, +24 dB].
+// Building figures (sound reduction of single walls, e.g. Sharp / ISO 12354 tables: 2 cm timber ~20 dB, half a
+// brick ~40 dB, 20 cm concrete ~50 dB, 4 mm glass ~25 dB at mid) scaled to how game walls are built; "est." =
+// no measured figure, set by similar materials. The game's walls are often thin brushes standing for thick ones.
+struct TransmissionLoss {
+    float db[3];
+    float reference;  // world units
+};
+constexpr TransmissionLoss kTransmission[32] = {
+    {{25, 35, 45}, 8},   // 0 default (est.: a plastered wall)
+    {{10, 16, 24}, 4},   // 1 bark (est.: as wood)
+    {{32, 42, 52}, 8},   // 2 brick
+    {{14, 20, 26}, 2},   // 3 carpet (est.: with what it lies on)
+    {{2, 4, 7}, 1},      // 4 cloth (a curtain)
+    {{36, 46, 56}, 8},   // 5 concrete
+    {{30, 40, 50}, 8},   // 6 dirt (earth banks)
+    {{8, 12, 18}, 8},    // 7 flesh (est.)
+    {{2, 4, 7}, 8},      // 8 foliage (not traced)
+    {{14, 22, 28}, 1},   // 9 glass, a window pane
+    {{30, 40, 50}, 8},   // 10 grass (the ground under it)
+    {{30, 40, 50}, 8},   // 11 gravel
+    {{25, 35, 45}, 8},   // 12 ice (est.)
+    {{14, 22, 30}, 1},   // 13 metal (sheet / plate)
+    {{30, 40, 50}, 8},   // 14 mud
+    {{2, 4, 6}, 1},      // 15 paper
+    {{24, 32, 40}, 4},   // 16 plaster
+    {{40, 50, 60}, 8},   // 17 rock
+    {{22, 32, 42}, 8},   // 18 sand (sandbags)
+    {{25, 35, 45}, 8},   // 19 snow (est.)
+    {{30, 40, 50}, 8},   // 20 water
+    {{10, 16, 24}, 4},   // 21 wood (planks)
+    {{36, 46, 56}, 8},   // 22 asphalt (est.: as concrete)
+    {{25, 35, 45}, 8}, {{25, 35, 45}, 8}, {{25, 35, 45}, 8}, {{25, 35, 45}, 8}, {{25, 35, 45}, 8},
+    {{25, 35, 45}, 8}, {{25, 35, 45}, 8}, {{25, 35, 45}, 8}, {{25, 35, 45}, 8},  // unused
+};
+// A detour over or round an edge (diffraction) loses by its cost (0.2 grazing .. 1 none found), highs most.
+constexpr float kDetourBase[3] = {1, 2, 4}, kDetourSlope[3] = {6, 12, 20};
+constexpr float kTransmissionFloor = 18.0f;  // dB, the middle band: never quieter (user 11-15, realistic but trackable)
+
+void add_slab(uint8_t surface, float thickness, float db[3]) {
+    const TransmissionLoss& m = kTransmission[surface & 31];
+    const float scale = 6.0f * std::log2(std::max(thickness, 0.25f) / m.reference);
+    for (int b = 0; b < 3; ++b) db[b] += std::clamp(m.db[b] + scale, m.db[b] * 0.5f, m.db[b] + 24.0f);
+}
+
+// What the solids between a and b take from a sound, per band (dB), the line trimmed as trace_line's. Each solid
+// is an enter .. leave pair of the scene's crossings; a leave without its enter (the line started inside) is not
+// counted, an enter without a leave runs to the end. Returns the number of solids.
+int line_loss(const float a[3], const float b[3], float db[3], std::string* describe = nullptr) {
+    constexpr float kListenerGap = 32.0f, kPointGap = 12.0f;
+    const AcousticScene* sc = scene();
+    const float d[3] = {b[0] - a[0], b[1] - a[1], b[2] - a[2]};
+    const float length = std::sqrt(d[0] * d[0] + d[1] * d[1] + d[2] * d[2]);
+    if (!sc || length <= kListenerGap + kPointGap) return 0;
+    const float s = kListenerGap / length, t = kPointGap / length;
+    const float from[3] = {a[0] + d[0] * s, a[1] + d[1] * s, a[2] + d[2] * s};
+    const float to[3] = {b[0] - d[0] * t, b[1] - d[1] * t, b[2] - d[2] * t};
+    const float traced = length - kListenerGap - kPointGap;
+    AcousticScene::Crossing crossings[32];
+    const size_t n = std::min<size_t>(sc->crossings(from, to, kSolidMask, crossings, std::size(crossings)), 32);
+    int solids = 0;
+    bool inside = false;
+    float enter = 0;
+    uint8_t surface = 0;
+    const auto slab = [&](float leave) {
+        const float thickness = (leave - enter) * traced;
+        add_slab(surface, thickness, db);
+        ++solids;
+        if (describe) {
+            char text[96];
+            std::snprintf(text, sizeof(text), " %s %.0f", kSurfaceNames[surface & 31], double(thickness));
+            *describe += text;
+        }
+    };
+    for (size_t i = 0; i < n; ++i) {
+        const AcousticScene::Crossing& c = crossings[i];
+        if (c.entering) {
+            if (inside) slab(c.t);  // a solid inside a solid (overlapping brushes): the outer one ends here
+            inside = true;
+            enter = c.t;
+            surface = c.surface;
+        } else if (inside) {
+            slab(c.t);
+            inside = false;
+        }
+    }
+    if (inside) slab(1.0f);
+    return solids;
+}
+
+}  // namespace
+
+SndPropagation SndEnv_Propagation(const float listener[3], const float source[3], std::string* describe) {
+    SndPropagation p;
+    std::array<float, 3> points[kOcclusionPoints];
+    if (!scene() || !occlusion_points(listener, source, points)) return p;
+    const Line centre = trace_line(listener, points[0].data());
+    if (centre.share <= 0.0f || blocked(listener, points[1].data()) <= 0.0f) return p;  // in view: all of it
+    float share = 0;
+    double energy[3] = {0, 0, 0};
+    for (int i = 0; i < kOcclusionPoints; ++i) {
+        const float line_share = i == 0 ? centre.share : blocked(listener, points[i].data());
+        share += line_share;
+        if (line_share <= 0.0f) {
+            for (double& e : energy) e += 1.0;
+            continue;
+        }
+        float db[3] = {0, 0, 0};
+        if (describe) *describe += i ? " |" : "lines:";
+        if (!line_loss(listener, points[i].data(), db, describe)) {
+            // Blocked by the trace but no solid between the crossings (a one-sided mesh seen from its front with
+            // nothing behind it, e.g. a terrain edge): as a thin default wall.
+            add_slab(0, 2.0f, db);
+            if (describe) *describe += " (surface only)";
+        }
+        for (int b = 0; b < 3; ++b) energy[b] += std::pow(10.0, -db[b] / 10.0);
+    }
+    for (double& e : energy) e /= kOcclusionPoints;
+    const float cost = detour(listener, points[0].data(), centre);
+    p.occlusion = std::min(share / float(kOcclusionPoints), cost);
+    if (cost < 1.0f)
+        for (int b = 0; b < 3; ++b)
+            energy[b] = std::max(energy[b], std::pow(10.0, -(kDetourBase[b] + kDetourSlope[b] * cost) / 10.0));
+    float db[3];
+    for (int b = 0; b < 3; ++b) db[b] = float(-10.0 * std::log10(std::max(energy[b], 1e-12)));
+    // The floor holds the middle band; the others keep their difference to it (behind concrete: quieter AND dull),
+    // the highs at most 12 dB below the middle there.
+    const float mid = std::min(db[1], kTransmissionFloor);
+    p.loss_db[1] = mid;
+    p.loss_db[0] = std::max(0.0f, mid + std::min(db[0] - db[1], 0.0f));
+    p.loss_db[2] = mid + std::clamp(db[2] - db[1], 0.0f, 12.0f);
+    p.detour = cost;
+    return p;
+}
+
+audio::Transmission SndEnv_ToTransmission(const float loss_db[3]) {
+    audio::Transmission t;
+    t.gain = std::pow(10.0f, -loss_db[1] / 20.0f);
+    t.gain_lf = std::min(1.0f, std::pow(10.0f, -(loss_db[0] - loss_db[1]) / 20.0f));
+    t.gain_hf = std::min(1.0f, std::pow(10.0f, -(loss_db[2] - loss_db[1]) / 20.0f));
+    return t;
+}
+
+namespace {
+
 // The sound rays' worker thread (3.1): one job at a time - the probe (when due) and every listed voice's occlusion.
 struct RayJob {
     bool probe = false;
@@ -609,7 +755,7 @@ RayResult run_job(const RayJob& job) {
     RayResult r;
     if (job.probe) r.probed = probe_environment(job.listener, r.target);
     r.voices = job.voices;
-    for (SndVoiceRay& v : r.voices) v.occlusion = SndEnv_Occlusion(job.listener, v.position);
+    for (SndVoiceRay& v : r.voices) v.propagation = SndEnv_Propagation(job.listener, v.position);
     g_scene.reset();  // a finished level's scene is not kept alive by this thread
     return r;
 }
@@ -811,6 +957,11 @@ void SndEnv_DescribeVoiceForMark(const float listener[3], const float source[3],
     const Line centre = trace_line(listener, points[0].data());
     if (centre.share > 0.0f) add("    detour cost %.2f\n", double(detour(listener, points[0].data(), centre)));
     add("    occlusion now %.2f\n", double(SndEnv_Occlusion(listener, source)));
+    std::string solids;
+    const SndPropagation p = SndEnv_Propagation(listener, source, &solids);
+    add("    transmission now: loss %.1f / %.1f / %.1f dB (low / mid / high), detour cost %.2f\n", double(p.loss_db[0]),
+        double(p.loss_db[1]), double(p.loss_db[2]), double(p.detour));
+    if (!solids.empty()) out += "    " + solids + "\n";
 }
 
 size_t SndEnv_SoundPaths(const float listener[3], const float source[3], SoundPathLine* out, size_t max) {

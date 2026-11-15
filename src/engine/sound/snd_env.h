@@ -13,16 +13,30 @@
 namespace audio {
 class SoundDevice;
 struct Listener;
+struct Transmission;
 }
 
 namespace game {
 
-// A 3D voice whose occlusion the worker traces (slot and owner identify it when the result comes back).
+// What reaches the listener of a sound (3.2): the occlusion amount as before (0 in view .. 1; the reverb send, the
+// sound view) and the direct sound's loss per band (dB: below ~250 Hz, middle, above ~5 kHz; the middle at most 18, the highs up to 12
+// more) - through
+// each solid on the occlusion lines by material and thickness, or round the nearest edge, whichever is louder.
+struct SndPropagation {
+    float occlusion = 0;
+    float loss_db[3] = {0, 0, 0};
+    float detour = 1;  // the edge detour's cost (1: none)
+};
+SndPropagation SndEnv_Propagation(const float listener[3], const float source[3], std::string* describe = nullptr);
+// The loss as the sound device's band gains (the middle as the gain, the outer bands relative, at most 1).
+audio::Transmission SndEnv_ToTransmission(const float loss_db[3]);
+
+// A 3D voice whose propagation the worker traces (slot and owner identify it when the result comes back).
 struct SndVoiceRay {
     uint32_t slot = 0;
     int32_t owner = 0;
     float position[3] = {0, 0, 0};
-    float occlusion = 0;  // the result
+    SndPropagation propagation;  // the result
 };
 // Once per sound update (SndHw_Update) on an enhanced device, game thread: hands the ray worker (3.1) this update's
 // listener, the probe when due (`reverb`) and `voices` to trace, when it is idle; applies what it finished since:

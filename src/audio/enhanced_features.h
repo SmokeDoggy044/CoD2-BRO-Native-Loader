@@ -20,6 +20,7 @@ enum class Feature : uint8_t {
     Reverb,      // reverb by the place around the listener
     Occlusion,   // sounds behind walls muffled
     CloseBoost,  // gunfire, bullets and the player's gun louder nearby (CategoryVolumes)
+    Transmission,  // with occlusion: through walls by material and thickness, three bands (else a fixed muffle)
 };
 
 struct EnhancedFeatures {
@@ -28,6 +29,7 @@ struct EnhancedFeatures {
     bool reverb = true;
     bool occlusion = true;
     bool close_boost = true;
+    bool transmission = true;
 
     bool operator==(const EnhancedFeatures&) const = default;
 
@@ -42,6 +44,7 @@ struct EnhancedFeatures {
         {"reverb", &EnhancedFeatures::reverb, Feature::Reverb},
         {"occlusion", &EnhancedFeatures::occlusion, Feature::Occlusion},
         {"close_boost", &EnhancedFeatures::close_boost, Feature::CloseBoost},
+        {"transmission", &EnhancedFeatures::transmission, Feature::Transmission},
     };
 
     bool has(Feature feature) const {

@@ -2270,7 +2270,16 @@ namespace {
 struct Occlusion {
     int32_t owner = -1;  // the voice record's owner (+0xcc) when traced; another: a new sound
     float target = 0.0f, current = 0.0f;
+    float loss_target[3] = {0, 0, 0}, loss[3] = {0, 0, 0};  // transmission (3.2): dB per band, glides as well
 };
+
+void send_occlusion(uint32_t i, const Occlusion& o) {
+    uint8_t* const slot = &title_global<uint8_t>(0x0090a940 + i * 0x6c);
+    uint8_t* const voice = &title_global<uint8_t>(0x00911548 + i * 0xe0);
+    const audio::VoiceId id = voice_id(slot, (voice[0xc3] & 2) ? 0x30 : 0);
+    device().set_transmission(id, SndEnv_ToTransmission(o.loss));
+    device().set_occlusion(id, o.current);
+}
 Occlusion g_occlusion[256];
 
 constexpr float kNearListener = 48.0f;  // world units
@@ -2286,7 +2295,6 @@ std::vector<SndVoiceRay> occlusion_voices(const float listener[3]) {
     if (!std::isfinite(listener[0]) || !std::isfinite(listener[1]) || !std::isfinite(listener[2])) return voices;
     const uint32_t count = std::min(title_global<uint32_t>(0x008bed00), 256u);
     for (uint32_t i = 0; i < count; ++i) {
-        uint8_t* const slot = &title_global<uint8_t>(0x0090a940 + i * 0x6c);
         uint8_t* const voice = &title_global<uint8_t>(0x00911548 + i * 0xe0);
         Occlusion& o = g_occlusion[i];
         if (voice[0xc0] != 4 || !(voice[0xc3] & 1)) {  // not a playing 3D voice
@@ -2299,12 +2307,16 @@ std::vector<SndVoiceRay> occlusion_voices(const float listener[3]) {
         if (o.owner != owner) {
             if (!position[0] && !position[1] && !position[2]) continue;  // not placed yet: next update
             o.owner = owner;
-            o.target = o.current = near_listener(listener, position) ? 0.0f : SndEnv_Occlusion(listener, position);
-            device().set_occlusion(voice_id(slot, (voice[0xc3] & 2) ? 0x30 : 0), o.current);
+            const SndPropagation p =
+                near_listener(listener, position) ? SndPropagation{} : SndEnv_Propagation(listener, position);
+            o.target = o.current = p.occlusion;
+            for (int b = 0; b < 3; ++b) o.loss_target[b] = o.loss[b] = p.loss_db[b];
+            send_occlusion(i, o);
             continue;
         }
         if (near_listener(listener, position)) {
             o.target = 0.0f;
+            for (float& l : o.loss_target) l = 0.0f;
             continue;
         }
         SndVoiceRay ray;
@@ -2318,18 +2330,26 @@ std::vector<SndVoiceRay> occlusion_voices(const float listener[3]) {
 
 // The worker's results as targets (when the voice is still the same sound), then each voice's glide.
 void apply_occlusion(const std::vector<SndVoiceRay>& done) {
-    for (const SndVoiceRay& r : done)
-        if (r.slot < 256 && g_occlusion[r.slot].owner == r.owner) g_occlusion[r.slot].target = r.occlusion;
+    for (const SndVoiceRay& r : done) {
+        if (r.slot >= 256 || g_occlusion[r.slot].owner != r.owner) continue;
+        Occlusion& o = g_occlusion[r.slot];
+        o.target = r.propagation.occlusion;
+        for (int b = 0; b < 3; ++b) o.loss_target[b] = r.propagation.loss_db[b];
+    }
     const uint32_t count = std::min(title_global<uint32_t>(0x008bed00), 256u);
     for (uint32_t i = 0; i < count; ++i) {
         Occlusion& o = g_occlusion[i];
         if (o.owner < 0) continue;
-        const float step = (o.target - o.current) * 0.2f;
-        if (std::fabs(step) < 0.002f && o.current == o.target) continue;
-        o.current = std::fabs(o.target - o.current) < 0.01f ? o.target : o.current + step;
-        uint8_t* const slot = &title_global<uint8_t>(0x0090a940 + i * 0x6c);
-        uint8_t* const voice = &title_global<uint8_t>(0x00911548 + i * 0xe0);
-        device().set_occlusion(voice_id(slot, (voice[0xc3] & 2) ? 0x30 : 0), o.current);
+        bool changed = false;
+        const auto glide = [&](float& current, float target, float snap) {
+            if (current == target) return;
+            const float step = (target - current) * 0.2f;
+            current = std::fabs(target - current) < snap ? target : current + step;
+            changed = true;
+        };
+        glide(o.current, o.target, 0.01f);
+        for (int b = 0; b < 3; ++b) glide(o.loss[b], o.loss_target[b], 0.1f);
+        if (changed) send_occlusion(i, o);
     }
 }
 

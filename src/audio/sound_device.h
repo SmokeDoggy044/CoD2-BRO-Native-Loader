@@ -88,6 +88,15 @@ struct Environment {
     float reverb_pan[3] = {0, 0, 0};
 };
 
+// What reaches the listener of a world voice's direct sound, per band (amplitude, 1 = all): below ~250 Hz, the
+// middle, above ~5 kHz. EFX can only lower the outer bands against the middle: low and high <= 1 relative to it.
+struct Transmission {
+    float gain = 1.0f;     // the middle band
+    float gain_lf = 1.0f;  // low, relative to gain
+    float gain_hf = 1.0f;  // high, relative to gain
+    bool operator==(const Transmission&) const = default;
+};
+
 struct Listener {
     float position[3] = {0, 0, 0};
     float velocity[3] = {0, 0, 0};
@@ -160,6 +169,9 @@ public:
     virtual void set_occlusion(VoiceId voice, float amount) = 0;
     // Enhanced and this improvement switched on (EnhancedFeatures).
     virtual bool has(Feature feature) = 0;
+    // Enhanced, occlusion and transmission on: the direct sound per band (amplitude, 1 = all of it) in place of the
+    // fixed muffle that set_occlusion's amount gives (which still sets the reverb send).
+    virtual void set_transmission(VoiceId voice, const Transmission& transmission) = 0;
 
 protected:
     ~SoundDevice() = default;
