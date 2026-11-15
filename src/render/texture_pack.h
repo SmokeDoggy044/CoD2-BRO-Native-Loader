@@ -47,12 +47,23 @@ struct Stats {
     size_t pending = 0;    // queued for the loading thread
     size_t failed = 0;     // unreadable files
     size_t uncovered = 0;  // different title textures asked for that no mod covers
+    size_t maps = 0;       // textures with surface maps
 };
 Stats stats();
 // The mod folder covering `content`, or "" (developer mode's texture picker).
 std::string covering_mod(uint64_t content);
 
-// A DDS file (DXT1 / DXT5, with or without mip levels) as a replacement; null if it is not one.
+// Surface maps (phase 2.2): a mod's maps/<16 hex digits>_normal.dds (BC5: X, Y; DirectX green) and _surface.dds
+// (BC5: R roughness, G height), keyed by the same content hash as textures/ (the ORIGINAL texture's, so they also
+// serve with the colour pack off). Loaded on the same thread; as replacement() / version().
+enum class SurfaceMap : uint8_t { Normal, Surface };
+constexpr uint32_t kSurfaceMaps = 2;
+std::shared_ptr<const TextureReplacement> surface_map(uint64_t content, SurfaceMap kind);
+uint32_t surface_map_version(uint64_t content, SurfaceMap kind);
+// Whether any mod has maps for `content` (no loading).
+bool has_surface_maps(uint64_t content);
+
+// A DDS file (DXT1 / DXT5 / BC5, with or without mip levels) as a replacement; null if it is not one.
 std::shared_ptr<TextureReplacement> read_dds(const std::filesystem::path& file);
 
 }  // namespace render::texture_pack

@@ -241,6 +241,7 @@ struct DeviceObjects {
     uint32_t sun_depth_frame = ~0u;
     render::TextureId sun_mask = 0;  // RendererPcHooks::sun_mask as a texture, of sun_mask_key
     uint32_t sun_mask_key = 0;
+    uint64_t stage_content[render::kGfxStages] = {};  // apply(): the bound title textures' content hashes (2.2)
 };
 
 DeviceObjects& device_objects() {
@@ -385,7 +386,19 @@ void log_texture(uint64_t content, uint32_t format, const render::TextureLayout&
     std::fflush(file);
 }
 
-render::TextureId texture_for(DeviceObjects& o, uint32_t header, uint32_t palette_header) {
+render::TextureId texture_for(DeviceObjects& o, uint32_t header, uint32_t palette_header, uint64_t* content_out = nullptr);
+render::TextureId texture_for_content(DeviceObjects& o, uint32_t header, uint32_t palette_header, uint64_t& content_out);
+
+// The title texture as ours; *content_out = its content hash (texture_hash.h; 0 for render targets / unknown).
+render::TextureId texture_for(DeviceObjects& o, uint32_t header, uint32_t palette_header, uint64_t* content_out) {
+    uint64_t content = 0;
+    const render::TextureId id = texture_for_content(o, header, palette_header, content);
+    if (content_out) *content_out = content;
+    return id;
+}
+
+render::TextureId texture_for_content(DeviceObjects& o, uint32_t header, uint32_t palette_header,
+                                      uint64_t& content_out) {
     const auto* words = reinterpret_cast<const uint32_t*>(static_cast<uintptr_t>(header));
     const uint32_t data = words[1], format = words[3], size_field = words[4];
     if (!format) return 0;
@@ -408,6 +421,7 @@ render::TextureId texture_for(DeviceObjects& o, uint32_t header, uint32_t palett
     const uint64_t key = render::hash_bytes(key_words, sizeof(key_words));
     TitleTexture& t = o.textures[key];
     t.used_frame = g_frame;
+    content_out = t.content;
     if (t.shown && t.checked_frame == g_frame) return t.shown;
     t.checked_frame = g_frame;
 
@@ -428,6 +442,7 @@ render::TextureId texture_for(DeviceObjects& o, uint32_t header, uint32_t palett
     if (t.shown && content == t.content && t.shown == (replacement ? replacement : t.own)) return t.shown;
     if (t.shown) t.changed_frame = g_frame;
     t.content = content;
+    content_out = content;
     if (replacement) return t.shown = replacement;
 
     if (!t.own) {
@@ -687,6 +702,24 @@ void bind_sun_mask(render::GfxDevice& device, DeviceObjects& o, const game::Rend
     device.set_sampler(4, clamp);
 }
 
+// Surface maps (2.2) for the texture on stage 0: t6 the normal map, t7 roughness (R) + height (G), sampled as
+// that texture (addressing), trilinear; `present` = 1 when both are bound.
+void bind_surface_maps(render::GfxDevice& device, DeviceObjects& o, float& present) {
+    const uint64_t content = o.stage_content[0];
+    const render::TextureId normal = content ? device.surface_map_texture(content, 0) : 0;
+    const render::TextureId surface = normal ? device.surface_map_texture(content, 1) : 0;
+    present = normal && surface ? 1.0f : 0.0f;
+    render::SamplerState wrap = ngl_gfx_state()->samplers[0];  // as the texture they belong to
+    wrap.alpha_kill = false;
+    wrap.min = wrap.mag = wrap.mip = render::Filter::Linear;
+    wrap.max_level = 0;
+    wrap.lod_bias = 0.0f;
+    device.set_texture(6, present != 0.0f ? normal : 0);
+    device.set_texture(7, present != 0.0f ? surface : 0);
+    device.set_sampler(6, wrap);
+    device.set_sampler(7, wrap);
+}
+
 // Our model shaders' constants (own_model.glsl) and textures: t4 the sun mask, t5 the shadow map.
 // World units the receiver moves off its surface against the model's own coarse caster copy (acne): lab orbit m2
 // 11-15, speckle per pose 0 / 8 / 16 units: turn 135 0.22 / 0.08 / 0.07 (reference without model receivers 0.07).
@@ -712,6 +745,9 @@ void set_model_constants(render::GfxDevice& device, DeviceObjects& o, const game
     own[11][0] = static_cast<float>(m.count);
     own[11][1] = kModelNormalOffset;
     std::memcpy(own[12], m.lights, sizeof m.lights);
+    // Surface maps of the model's texture (stage 0): t6 normal, t7 roughness + height (2.2); own[0].w's views and
+    // own[11].w = 1 when both are there.
+    bind_surface_maps(device, o, own[11][3]);
     device.set_constants(render::ShaderStage::Vertex, render::kGfxVsOwn, &own[0][0], render::kGfxVsOwnCount);
     if (!shadow) return;
     bind_sun_mask(device, o, hooks);
@@ -802,7 +838,10 @@ bool apply(render::GfxDevice& device, DeviceObjects& o, uint32_t stride) {
     device.set_raster(s.raster);
     device.set_fog(s.fog);
     for (uint32_t stage = 0; stage < render::kGfxStages; ++stage) {
-        device.set_texture(stage, s.textures[stage] ? texture_for(o, s.textures[stage], s.palettes[stage]) : 0);
+        o.stage_content[stage] = 0;
+        device.set_texture(stage, s.textures[stage] ? texture_for(o, s.textures[stage], s.palettes[stage],
+                                                                   &o.stage_content[stage])
+                                                    : 0);
         device.set_sampler(stage, s.samplers[stage]);
     }
     device.set_shaders(model_vs ? model_vs : vs, ps);

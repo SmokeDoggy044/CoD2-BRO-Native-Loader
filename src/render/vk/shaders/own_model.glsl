@@ -8,10 +8,11 @@
 //   0: (pixel lighting 0/1, the sun's light index or -1, sun shadow 0/1, debug view)
 //   1..3: object -> world rows        4..7: world -> projector rows (u, v, z, w)
 //   8: shadow depth (scale, offset, bias, strength) as sun_world.glsl's c0      9, 10: sun mask rows (c1, c2)
-//   11: (light count, normal offset in world units, specular, 0)
+//   11: (light count, normal offset in world units, specular, surface maps bound 0/1)
 //   12..19: light i (xyz, radius): radius 0 = directional, xyz its direction of travel; else the position
 //   20..27: light i (r, g, b, inner radius)
-// Textures: t4 = the sun mask (L8), t5 = the sun's shadow map (packed depth, sun_common.glsl).
+// Textures: t4 = the sun mask (L8), t5 = the sun's shadow map (packed depth, sun_common.glsl), t6 / t7 = the
+// surface maps of t0's texture (normal; roughness + height), sampled at t0's coordinates.
 
 #define OWN_COUNT 32
 
@@ -99,6 +100,10 @@ layout(set = 0, binding = 10) uniform sampler smp0;
 layout(set = 0, binding = 11) uniform sampler smp1;
 layout(set = 0, binding = 14) uniform sampler smp4;
 layout(set = 0, binding = 15) uniform sampler smp5;
+layout(set = 0, binding = 8) uniform texture2D tex6;  // surface maps (2.2): normal X Y (DirectX green)
+layout(set = 0, binding = 9) uniform texture2D tex7;  // R roughness, G height
+layout(set = 0, binding = 16) uniform sampler smp6;
+layout(set = 0, binding = 17) uniform sampler smp7;
 layout(location = 0) in vec4 v0;
 layout(location = 1) in vec4 v1;
 layout(location = 2) in vec4 t0;
@@ -227,9 +232,19 @@ vec4 own_model_v0(vec4 vertex_color) {
     return vec4(g_light, vertex_color.w);
 }
 
+bool own_has_maps() { return OWN(11).w != 0.0; }
+vec4 own_surface() {
+    return own_has_maps() ? textureProj(sampler2D(tex7, smp7), t0 * texcoord_scale[0]) : vec4(0.0);
+}
+
 void own_model_out(vec4 result) {
     color = result;
     const int view = int(OWN(0).w + 0.5);
+    if (view == 5 || view == 8) {  // roughness, height: grey; magenta where the texture has no maps
+        const vec4 s = own_surface();
+        color = vec4(own_has_maps() ? vec3(view == 5 ? s.r : s.g) : vec3(1.0, 0.0, 1.0), result.w);
+        return;
+    }
     if (view == 1) color = vec4(clamp(g_light, 0.0, 1.0), result.w);
     else if (view == 2) color = vec4(g_mask < 0.01 ? vec3(0.45, 0.05, 0.05) : vec3(1.0 - g_lost), result.w);
     else if (view == 3) color = vec4(vec3(g_mask), result.w);

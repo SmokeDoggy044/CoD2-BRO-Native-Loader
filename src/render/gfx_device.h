@@ -393,6 +393,14 @@ public:
     // prompts), or 0 for none. The same id while the replacement stays the same; a new one when
     // it changes (asked again every frame the texture is drawn).
     virtual TextureId replacement_texture(uint64_t content, bool mipmaps) = 0;
+    // Surface maps (phase 2.2, render/texture_pack.h): kind 0 = normal (BC5 X Y), 1 = roughness + height (BC5) for
+    // the title texture `content`, or 0 (none, or not loaded yet). Freed as replacements when not bound for a while.
+    // Vulkan only.
+    virtual TextureId surface_map_texture(uint64_t content, uint32_t kind) {
+        (void)content;
+        (void)kind;
+        return 0;
+    }
 
 protected:
     ~GfxDevice() = default;

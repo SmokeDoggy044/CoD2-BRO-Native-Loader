@@ -31,7 +31,8 @@ struct TextureReplacement {
     std::vector<uint32_t> pixels;  // A8R8G8B8, width * height; mipmaps are made from it
     // Or ready-made blocks (texture packs, src/platform/mods.h): DXT1/DXT5, levels[0] = width x height, each next
     // level half the size; `pixels` then stays empty. Fewer levels than a full chain is fine.
-    enum class Compression : uint8_t { None, Dxt1, Dxt5 };
+    // Bc5: two channels (surface maps, phase 2.2: normal X/Y, roughness/height), Vulkan only.
+    enum class Compression : uint8_t { None, Dxt1, Dxt5, Bc5 };
     Compression compression = Compression::None;
     std::vector<std::vector<uint8_t>> levels;
 };

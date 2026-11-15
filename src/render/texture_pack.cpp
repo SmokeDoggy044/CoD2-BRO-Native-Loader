@@ -36,7 +36,9 @@ struct Entry {
 std::mutex g_mutex;
 std::condition_variable g_wake;
 std::unordered_map<uint64_t, Entry> g_entries;
-std::deque<uint64_t> g_queue;
+std::unordered_map<uint64_t, Entry> g_maps[kSurfaceMaps];  // surface maps (phase 2.2), per kind
+// What the loading thread reads next: the content and 0 (colour) or 1 + the SurfaceMap.
+std::deque<std::pair<uint64_t, uint8_t>> g_queue;
 std::thread g_worker;
 bool g_stop = false;
 bool g_enabled = true;
@@ -69,17 +71,19 @@ void work() {
     for (;;) {
         g_wake.wait(lock, [] { return g_stop || !g_queue.empty(); });
         if (g_stop) return;
-        const uint64_t content = g_queue.front();
+        const auto [content, kind] = g_queue.front();
         g_queue.pop_front();
-        auto it = g_entries.find(content);
-        if (it == g_entries.end()) continue;
+        auto& entries = kind ? g_maps[kind - 1] : g_entries;
+        auto it = entries.find(content);
+        if (it == entries.end()) continue;
         const fs::path file = it->second.file;
         lock.unlock();
         std::shared_ptr<const TextureReplacement> picture = read_dds(file);
-        if (!picture) LOG_WARN("mods", "%s: not a DXT1/DXT5 DDS; the original texture stays", file.string().c_str());
+        if (picture && (kind != 0) != (picture->compression == TextureReplacement::Compression::Bc5)) picture = nullptr;
+        if (!picture) LOG_WARN("mods", "%s: not a %s DDS; left out", file.string().c_str(), kind ? "BC5" : "DXT1/DXT5");
         lock.lock();
-        it = g_entries.find(content);
-        if (it == g_entries.end()) continue;
+        it = entries.find(content);
+        if (it == entries.end()) continue;
         it->second.picture = std::move(picture);
         it->second.state = it->second.picture ? State::Ready : State::Failed;
         ++it->second.generation;
@@ -100,6 +104,8 @@ std::shared_ptr<TextureReplacement> read_dds(const fs::path& file) {
     auto picture = std::make_shared<TextureReplacement>();
     if (std::memcmp(&data[84], "DXT1", 4) == 0) picture->compression = TextureReplacement::Compression::Dxt1;
     else if (std::memcmp(&data[84], "DXT5", 4) == 0) picture->compression = TextureReplacement::Compression::Dxt5;
+    else if (std::memcmp(&data[84], "ATI2", 4) == 0 || std::memcmp(&data[84], "BC5U", 4) == 0)
+        picture->compression = TextureReplacement::Compression::Bc5;
     else return nullptr;
     picture->width = width;
     picture->height = height;
@@ -142,11 +148,27 @@ std::vector<Mod> open(const fs::path& mods_dir, std::string_view mod_list) {
             it->second.mod = mod.folder_name;
             ++mod.textures;
         }
-        LOG_INFO("mods", "%s %s%s%s: %zu textures", mod.name.c_str(), mod.version.c_str(),
-                 mod.author.empty() ? "" : " by ", mod.author.c_str(), mod.textures);
+        size_t maps = 0;
+        for (const auto& entry : fs::directory_iterator(folder / "maps", ec)) {
+            const std::string stem = entry.path().stem().string();
+            uint64_t content;
+            if (entry.path().extension() != ".dds" || stem.size() < 18 || stem[16] != '_' ||
+                !parse_hex(stem.substr(0, 16), content))
+                continue;
+            const std::string kind = stem.substr(17);
+            const int k = kind == "normal" ? 0 : kind == "surface" ? 1 : -1;
+            if (k < 0) continue;
+            auto [it, added] = g_maps[k].try_emplace(content);
+            if (!added) continue;
+            it->second.file = entry.path();
+            it->second.mod = mod.folder_name;
+            maps += k == 0;
+        }
+        LOG_INFO("mods", "%s %s%s%s: %zu textures, %zu with surface maps", mod.name.c_str(), mod.version.c_str(),
+                 mod.author.empty() ? "" : " by ", mod.author.c_str(), mod.textures, maps);
         mods.push_back(std::move(mod));
     }
-    if (!g_entries.empty()) {
+    if (!g_entries.empty() || !g_maps[0].empty() || !g_maps[1].empty()) {
         g_stop = false;
         g_worker = std::thread(work);
         // Joined before the thread object's own destructor runs (a joinable one would terminate the process).
@@ -165,9 +187,14 @@ void close() {
     if (g_worker.joinable()) g_worker.join();
     std::lock_guard lock(g_mutex);
     g_entries.clear();
+    for (auto& maps : g_maps) maps.clear();
     g_queue.clear();
     g_uncovered.clear();
 }
+
+namespace {
+std::shared_ptr<const TextureReplacement> deliver(Entry& e, uint64_t content, uint8_t kind);
+}  // namespace
 
 std::shared_ptr<const TextureReplacement> replacement(uint64_t content) {
     std::lock_guard lock(g_mutex);
@@ -177,12 +204,18 @@ std::shared_ptr<const TextureReplacement> replacement(uint64_t content) {
         return nullptr;
     }
     if (!g_enabled) return nullptr;
-    Entry& e = it->second;
+    return deliver(it->second, content, 0);
+}
+
+namespace {
+
+// An entry's picture once loaded (the caller holds g_mutex): queued on first ask, handed out when ready.
+std::shared_ptr<const TextureReplacement> deliver(Entry& e, uint64_t content, uint8_t kind) {
     switch (e.state) {
         case State::Known:
         case State::Delivered:
             e.state = State::Queued;
-            g_queue.push_back(content);
+            g_queue.emplace_back(content, kind);
             g_wake.notify_one();
             return nullptr;
         case State::Ready: {
@@ -194,6 +227,29 @@ std::shared_ptr<const TextureReplacement> replacement(uint64_t content) {
         default:
             return nullptr;
     }
+}
+
+}  // namespace
+
+std::shared_ptr<const TextureReplacement> surface_map(uint64_t content, SurfaceMap kind) {
+    std::lock_guard lock(g_mutex);
+    auto& maps = g_maps[static_cast<uint32_t>(kind)];
+    auto it = maps.find(content);
+    if (it == maps.end() || !g_enabled) return nullptr;
+    return deliver(it->second, content, static_cast<uint8_t>(1 + static_cast<uint32_t>(kind)));
+}
+
+uint32_t surface_map_version(uint64_t content, SurfaceMap kind) {
+    std::lock_guard lock(g_mutex);
+    auto& maps = g_maps[static_cast<uint32_t>(kind)];
+    auto it = maps.find(content);
+    if (it == maps.end()) return 0;
+    return it->second.generation + (g_toggles << 20);
+}
+
+bool has_surface_maps(uint64_t content) {
+    std::lock_guard lock(g_mutex);
+    return g_enabled && g_maps[0].count(content) != 0;
 }
 
 uint32_t version(uint64_t content) {
@@ -227,6 +283,7 @@ Stats stats() {
         else if (e.state == State::Failed) ++s.failed;
     }
     s.uncovered = g_uncovered.size();
+    s.maps = g_maps[0].size();
     return s;
 }
 

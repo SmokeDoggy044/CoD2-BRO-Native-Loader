@@ -41,6 +41,7 @@ enum DebugView : uint32_t {
     kViewRoughness,  // the roughness map as grey
     kViewLights,     // lights per draw: 0 black, 1 blue, 2 green, 3 yellow, 4+ red
     kViewAo,         // ambient occlusion only (white = open)
+    kViewHeight,     // the height map as grey (surface maps, 2.2)
     kViewCount
 };
 const char* debug_view_name(uint32_t view);

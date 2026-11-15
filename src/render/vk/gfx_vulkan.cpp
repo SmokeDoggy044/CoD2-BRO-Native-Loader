@@ -21,6 +21,7 @@
 #include "enhanced_graphics.h"
 #include "log.h"
 #include "texture_hash.h"
+#include "texture_pack.h"
 #include "spirv_layout.h"
 #include "title_shaders.h"
 #include "vk_shaders.h"
@@ -743,24 +744,8 @@ public:
         TextureImageDesc image;
         image.width = picture->width;
         image.height = picture->height;
-        if (picture->compression != TextureReplacement::Compression::None) {
-            const bool dxt1 = picture->compression == TextureReplacement::Compression::Dxt1;
-            image.format = dxt1 ? VK_FORMAT_BC1_RGBA_UNORM_BLOCK : VK_FORMAT_BC3_UNORM_BLOCK;
-            image.levels = mipmaps ? static_cast<uint32_t>(picture->levels.size()) : 1;
-            if (!vk_.create_texture_image(t.image, image)) return 0;
-            t.desc.format = dxt1 ? Format::DXT1 : Format::DXT5;
-            t.desc.width = image.width;
-            t.desc.height = image.height;
-            t.desc.levels = image.levels;
-            uint32_t width = image.width, height = image.height;
-            for (uint32_t i = 0; i < image.levels; ++i) {
-                const uint32_t row = replacement_block_row_bytes(picture->compression, width);
-                vk_.upload_level(t.image, i, 0, picture->levels[i].data(), row, (height + 3) / 4, row, 0);
-                width = std::max(width / 2, 1u);
-                height = std::max(height / 2, 1u);
-            }
-            return r.id;
-        }
+        if (picture->compression != TextureReplacement::Compression::None)
+            return upload_blocks(r.id, *picture, mipmaps) ? r.id : 0;
         image.levels = mipmaps ? full_chain(image.width, image.height, 1) : 1;
         if (!vk_.create_texture_image(t.image, image)) return 0;
         t.desc.width = image.width;
@@ -777,6 +762,61 @@ public:
             vk_.upload_level(t.image, i, 0, level.data(), width * 4, height, width * 4, 0);
         }
         return r.id;
+    }
+
+    // A pack picture's ready-made blocks (DXT1, DXT5, BC5) as the texture's image.
+    bool upload_blocks(TextureId id, const TextureReplacement& picture, bool mipmaps) {
+        auto& t = textures_[id];
+        TextureImageDesc image;
+        image.width = picture.width;
+        image.height = picture.height;
+        const auto c = picture.compression;
+        image.format = c == TextureReplacement::Compression::Dxt1  ? VK_FORMAT_BC1_RGBA_UNORM_BLOCK
+                       : c == TextureReplacement::Compression::Bc5 ? VK_FORMAT_BC5_UNORM_BLOCK
+                                                                   : VK_FORMAT_BC3_UNORM_BLOCK;
+        image.levels = mipmaps ? static_cast<uint32_t>(picture.levels.size()) : 1;
+        if (!vk_.create_texture_image(t.image, image)) return false;
+        t.desc.format = c == TextureReplacement::Compression::Dxt1 ? Format::DXT1 : Format::DXT5;  // block size
+        t.desc.width = image.width;
+        t.desc.height = image.height;
+        t.desc.levels = image.levels;
+        uint32_t width = image.width, height = image.height;
+        for (uint32_t i = 0; i < image.levels; ++i) {
+            const uint32_t row = replacement_block_row_bytes(c, width);
+            vk_.upload_level(t.image, i, 0, picture.levels[i].data(), row, (height + 3) / 4, row, 0);
+            width = std::max(width / 2, 1u);
+            height = std::max(height / 2, 1u);
+        }
+        return true;
+    }
+
+    // Surface maps (2.2): kept with the replacements (same idle freeing), keyed apart from them.
+    TextureId surface_map_texture(uint64_t content, uint32_t kind) override {
+        if (!content || kind >= texture_pack::kSurfaceMaps) return 0;
+        const auto map = static_cast<texture_pack::SurfaceMap>(kind);
+        const uint64_t map_content = content ^ (0x9E3779B97F4A7C15ull * (kind + 1));
+        const uint64_t key = replacement_key(map_content, true);  // destroy_texture finds it by t.replacement
+        const uint32_t version = texture_pack::surface_map_version(content, map);
+        if (!version && !texture_pack::has_surface_maps(content)) return 0;
+        auto known = replacements_.find(key);
+        if (known != replacements_.end()) {
+            Texture& t = textures_[known->second.id];
+            if (known->second.version == version) return t.image ? known->second.id : 0;
+            vk_.destroy_image(t.image);
+        }
+        Replacement& r = replacements_[key];
+        r.version = version;
+        if (!r.id) {
+            r.id = next_id_++;
+            if (replacement_bound_.size() <= r.id) replacement_bound_.resize(r.id + 1, 0);
+            replacement_bound_[r.id] = frames_;
+            Texture& t = textures_[r.id];
+            t.replacement = map_content;
+            t.mipmaps = true;
+        }
+        const std::shared_ptr<const TextureReplacement> picture = texture_pack::surface_map(content, map);
+        if (!picture || !replacement_valid(*picture)) return 0;
+        return upload_blocks(r.id, *picture, true) ? r.id : 0;
     }
 
     // --- VulkanGfxDevice ---

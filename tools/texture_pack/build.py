@@ -2,7 +2,7 @@
 """Phase 1d texture pack builder: dump textures -> PBRify 4x (headless) -> curation masks -> DXT + mips -> mod folder.
 
 usage: tools/texture_pack/build.py WORK [--source REGEX] [--bridge CSV ...] [--limit N] [--stage all|select|upscale|
-                                  encode|pack|maps] [--curation CSV] [--zip] [--pbr] ...
+                                  encode|pack|maps|maps-pack] [--curation CSV] [--zip] [--pbr] ...
 
 WORK holds every stage's output, so each stage resumes where it stopped and later stages rerun cheaply:
   WORK/select.csv           chosen textures: runtime key, dump row, size, alpha use, wrap per axis, skip reason
@@ -37,6 +37,7 @@ import csv
 import io
 import os
 import re
+import shutil
 import struct
 import subprocess
 import sys
@@ -491,6 +492,53 @@ def maps_encode(args, rows):
           f" x {len(MAP_LABELS)} maps, {total / 2**20:.0f} MB")
 
 
+def maps_pack(args):
+    """The 'surface maps' mod (phase 2.2, its own mod beside the texture pack - user 11-15): WORK/maps_mod/ with
+    mod.ini (kind=surface-maps) and maps/<key>_normal.dds (BC5, as maps_dds; hard-linked) and maps/<key>_surface.dds
+    (BC5: R = roughness, G = height - the two BC4 files' blocks interleaved, no re-encoding; the game has two texture
+    slots for maps)."""
+    src = args.work / "maps_dds"
+    mod = args.work / "maps_mod"
+    out = mod / "maps"
+    out.mkdir(parents=True, exist_ok=True)
+    (mod / "mod.ini").write_text(f"name={args.name} surface maps\nversion={args.version}\nauthor={args.author}\n"
+                                 f"kind=surface-maps\nsource=Call of Duty 2: Big Red One (Xbox) retail dump; maps "
+                                 f"from PBRify's map models (CC0)\n")
+    keys = sorted({f.name[:16] for f in src.glob("*_normal.dds")})
+    written = 0
+    for key in keys:
+        normal, rough, height = (src / f"{key}_{k}.dds" for k in ("normal", "roughness", "height"))
+        if not (rough.exists() and height.exists()):
+            continue
+        dst = out / f"{key}_normal.dds"
+        if not dst.exists():
+            try:
+                dst.hardlink_to(normal)
+            except OSError:
+                shutil.copyfile(normal, dst)
+        dst = out / f"{key}_surface.dds"
+        if dst.exists() and dst.stat().st_mtime >= max(rough.stat().st_mtime, height.stat().st_mtime):
+            continue
+        r, h = rough.read_bytes(), height.read_bytes()
+        if r[:128] != h[:128] or len(r) != len(h):
+            print(f"maps-pack: {key}: roughness and height differ in size; skipped")
+            continue
+        w, hh, levels = struct.unpack_from("<I", r, 16)[0], struct.unpack_from("<I", r, 12)[0], \
+            struct.unpack_from("<I", r, 28)[0]
+        blocks_r, blocks_h = r[128:], h[128:]
+        body = bytearray(len(blocks_r) * 2)
+        for i in range(0, len(blocks_r), 8):
+            body[2 * i:2 * i + 8] = blocks_r[i:i + 8]
+            body[2 * i + 8:2 * i + 16] = blocks_h[i:i + 8]
+        top = ((w + 3) // 4) * ((hh + 3) // 4) * 16
+        tmp = dst.with_suffix(".part")
+        tmp.write_bytes(dds_header(w, hh, levels, b"ATI2", top) + bytes(body))
+        tmp.rename(dst)
+        written += 1
+    total = sum(p.stat().st_size for p in out.glob("*.dds"))
+    print(f"maps-pack: {mod} ({len(keys)} textures, {written} surface files written, {total / 2**20:.0f} MB)")
+
+
 def pack(args):
     rows = read_select(args.work)
     mod = args.work / "mod"
@@ -519,7 +567,8 @@ def pack(args):
 def main():
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("work", type=Path)
-    p.add_argument("--stage", default="all", choices=["all", "select", "upscale", "encode", "pack", "maps"])
+    p.add_argument("--stage", default="all", choices=["all", "select", "upscale", "encode", "pack", "maps",
+                                                              "maps-pack"])
     p.add_argument("--unpacked", type=Path, default=ROOT / "unpacked")
     p.add_argument("--manifest", type=Path, default=ROOT / "textures/original/manifest.csv")
     p.add_argument("--source", default="", help="regex on the dump pack path")
@@ -550,7 +599,7 @@ def main():
             args.source or args.bridge or args.limit or args.curation):
         stages.remove("select")  # keep an earlier selection when nothing new was asked for
     for stage in stages:
-        globals()[stage](args)
+        globals()[stage.replace("-", "_")](args)
     return 0
 
 

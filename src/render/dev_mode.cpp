@@ -30,7 +30,8 @@ bool g_paused = false;
 size_t g_feature = 0;  // index into GraphicsFeatures::kSwitches
 uint32_t g_debug_view = kViewOff;
 void (*g_debug_view_changed)(uint32_t) = nullptr;
-constexpr const char* kViewNames[] = {"off", "lighting", "shadow", "sun-mask", "normals", "roughness", "lights", "ao"};
+constexpr const char* kViewNames[] = {"off", "lighting", "shadow", "sun-mask", "normals", "roughness", "lights", "ao",
+                                     "height"};
 static_assert(std::size(kViewNames) == kViewCount);
 
 // Frame times over the last whole second.
