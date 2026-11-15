@@ -2686,17 +2686,29 @@ void XB_CDECL R_RenderTestShadow() {
     const float reach = title_global<float>(0x008db19c) * title_global<float>(0x0083f034);  // 0.45
     const Lanes lift = {{0.0f, 0.0f, title_global<float>(0x008db1a0), 0.0f}};
     store_lanes(camera + 12, add(add(sub(lanes(view + 12), mul(across, reach)), mul(up, reach)), lift));
-    // Ours (2.0): along the mission's sun. The box centre stays where the original puts it; the camera backs up
-    // along the sun by the original's lift over the sun's steepness, so casters at the view's height stay in front.
-    if (const auto sun_hook = renderer_pc_hooks().sun_shadows; sun_hook && sun_hook()) {
-        float sun[3];
-        if (grid_sun(view + 12, sun)) {
-            const float centre[3] = {camera[12], camera[13], camera[14] - title_global<float>(0x008db1a0)};
-            aim_at_sun(camera, sun);
-            const float back = title_global<float>(0x008db1a0) / -sun[2];
-            for (int k = 0; k < 3; ++k) camera[12 + k] = centre[k] - sun[k] * back;
-            camera[15] = camera[12];
-        }
+    // Ours (2.0): along the mission's sun. The box centre stays where the original puts it (at the view's height);
+    // the camera backs up along the sun to kSunLift above it, so tall casters (tanks) are not cut by the near
+    // plane, and the casters' depth and the projector box reach kSunDepth along the sun from the camera (a low sun
+    // puts the ground several times farther along its axis than straight down: the original's 500 deep box,
+    // centred on the camera, cut the shadows into pieces).
+    float far = title_global<float>(0x008db1a4);
+    float box_depth = title_global<float>(0x0083ebec);  // 500
+    float box_shift = 0.0f;
+    float sun[3] = {};
+    renderer_pc_hooks().shadow_casters_double_sided = false;
+    renderer_pc_hooks().shadow_reach = 0.0f;
+    if (const auto sun_hook = renderer_pc_hooks().sun_shadows; sun_hook && sun_hook() && grid_sun(view + 12, sun)) {
+        renderer_pc_hooks().shadow_casters_double_sided = true;
+        constexpr float kSunLift = 300.0f, kSunDepth = 1500.0f;
+        const float centre[3] = {camera[12], camera[13], camera[14] - title_global<float>(0x008db1a0)};
+        aim_at_sun(camera, sun);
+        const float back = kSunLift / -sun[2];
+        for (int k = 0; k < 3; ++k) camera[12 + k] = centre[k] - sun[k] * back;
+        camera[15] = camera[12];
+        renderer_pc_hooks().shadow_reach = title_global<float>(0x008db19c) / -sun[2];
+        far = kSunDepth;
+        box_depth = kSunDepth;
+        box_shift = kSunDepth * 0.5f;
     }
 
     // Clear the texture.
@@ -2722,7 +2734,7 @@ void XB_CDECL R_RenderTestShadow() {
     nglSetColorWriteMask(0x1000000);
     nglSetAspect(1.0f);
     nglSetCameraMatrix(camera);
-    nglSetOrthographic(0.1f, title_global<float>(0x008db1a4));
+    nglSetOrthographic(0.1f, far);
     const float inverse = title_global<float>(0x0083eb20) / title_global<float>(0x008db19c);
     const float extent = inverse * title_global<float>(0x0083eba8);           // 2
     const float negative_extent = inverse * title_global<float>(0x0083ec5c);  // -2
@@ -2738,12 +2750,21 @@ void XB_CDECL R_RenderTestShadow() {
     nglPopScene();
 
     const float radius = title_global<float>(0x008db19c);
-    alignas(16) const float scale[4] = {radius, 0.0f - radius, title_global<float>(0x0083ebec), radius};  // 500
+    alignas(16) const float scale[4] = {radius, 0.0f - radius, box_depth, radius};  // 500 (ours: kSunDepth)
     // Our original-shadows switch off: the shadow texture is still drawn (the casters' LOD changes in
     // R_AddDObjSurfaces are game state: replays drift without them), only not projected onto the level.
     const auto keep = renderer_pc_hooks().original_shadows;
     if (keep && !keep()) return;
-    nglAddShadowProjector(0xffffffff, camera, scale, 2, 0, address_of(texture));
+    if (box_shift == 0.0f) {
+        nglAddShadowProjector(0xffffffff, camera, scale, 2, 0, address_of(texture));
+        return;
+    }
+    // The box from the camera to kSunDepth along the sun (moving it along its z keeps the texture mapping).
+    alignas(16) float shifted[16];
+    std::memcpy(shifted, camera, sizeof shifted);
+    for (int k = 0; k < 3; ++k) shifted[12 + k] += sun[k] * box_shift;
+    shifted[15] = shifted[12];
+    nglAddShadowProjector(0xffffffff, shifted, scale, 2, 0, address_of(texture));
 }
 
 // The original's frame (aligned to 16, 0xa0 bytes: its locals - the view matrix copy at

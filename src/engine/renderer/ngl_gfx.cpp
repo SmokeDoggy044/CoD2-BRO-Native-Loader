@@ -139,6 +139,8 @@ void derive() {
     s.depth_stencil.stencil = rs[kRsStencilEnable] != 0;
     s.depth_stencil.stencil_fail = render::gfx_stencil_op(rs[kRsStencilFail]);
     s.raster.cull = render::gfx_cull(rs[kRsCullMode], rs[kRsFrontFace]);
+    if (s.blend.write_mask == render::kColorAlpha && game::renderer_pc_hooks().shadow_casters_double_sided)
+        s.raster.cull = render::Cull::None;  // ours (2.0): sun shadow casters
     s.raster.fill = render::gfx_fill(rs[kRsFillMode]);
     s.raster.depth_bias = r.offset_fill ? r.offset_bias : 0.0f;
     s.raster.slope_bias = r.offset_fill ? r.offset_scale : 0.0f;

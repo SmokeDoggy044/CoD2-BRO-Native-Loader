@@ -61,6 +61,12 @@ struct RendererPcHooks {
     // Set and true: R_RenderTestShadow aims its camera (and so the projector) along the sun of the light grid
     // the view is in, not straight down. Ours (engine improvements 2.0).
     bool (*sun_shadows)() = nullptr;
+    // Set by R_RenderTestShadow for the frame when its camera follows the sun: the shadow scene's casters (its draws
+    // write alpha only) are drawn without culling - seen at a slant, the coarse caster meshes' open sides left holes.
+    bool shadow_casters_double_sided = false;
+    // Set with it: how far (horizontally) from the projector a world mesh still receives the shadow; 0 = the
+    // original's 0x008db19c. A slanted shadow camera's square lands stretched along the sun by 1 / sin(elevation).
+    float shadow_reach = 0.0f;
 };
 RendererPcHooks& renderer_pc_hooks();
 // The 16:9 scene aspect, or the wider one in RendererPcHooks.

@@ -1309,7 +1309,9 @@ void draw_world(const NglMeshNode* node, const WorldClass& k) {
     if (set->projectors[0] != reinterpret_cast<NglLight*>(set->projectors)) {
         const float* projector = set->projectors[0]->data;
         Lanes d = sub(with_w_one(world_center(), k.one), with_w_one(lanes(projector + 0x28), k.one));
-        const float radius = *reinterpret_cast<const float*>(draw->mesh + 0x30) + title_global<float>(0x008db19c);
+        const float reach = renderer_pc_hooks().shadow_reach;  // ours (2.0): sun shadows reach farther
+        const float radius = *reinterpret_cast<const float*>(draw->mesh + 0x30) +
+                             (reach > 0.0f ? reach : title_global<float>(0x008db19c));
         d.v[2] = 0;
         bool reached = true;
         if (title_global<uint8_t>(0x0095f6d1) == 0) {
