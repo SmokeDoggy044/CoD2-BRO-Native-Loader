@@ -25,6 +25,7 @@ enum class Feature : uint8_t {
     Openings,      // with occlusion: sound round corners and through openings, heard from there
     ReverbDetail,  // with reverb: a few hundred rays from around the listener, three bands (else 14 rays)
     Echoes,        // outdoors: slap-back echoes of gunfire off distant walls and cliffs
+    Air,           // the air takes the highs of distant sounds (duller with distance, the falloff stays)
 };
 
 struct EnhancedFeatures {
@@ -38,6 +39,7 @@ struct EnhancedFeatures {
     bool openings = true;
     bool reverb_detail = true;
     bool echoes = true;
+    bool air = true;
 
     bool operator==(const EnhancedFeatures&) const = default;
 
@@ -57,6 +59,7 @@ struct EnhancedFeatures {
         {"openings", &EnhancedFeatures::openings, Feature::Openings},
         {"reverb_detail", &EnhancedFeatures::reverb_detail, Feature::ReverbDetail},
         {"echoes", &EnhancedFeatures::echoes, Feature::Echoes},
+        {"air", &EnhancedFeatures::air, Feature::Air},
     };
 
     bool has(Feature feature) const {

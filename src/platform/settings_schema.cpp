@@ -212,6 +212,9 @@ const SettingDef kSettings[] = {
      "enhanced", "reverb_detail"},
     {"echoes", "on|off", T::Switch, G::Sound, kLiveIni, 0, 0, nullptr, "on",
      "enhanced: outdoors, slap-back echoes of gunfire off distant walls and cliffs", "enhanced", "echoes"},
+    {"air", "on|off", T::Switch, G::Sound, kLiveIni, 0, 0, nullptr, "on",
+     "enhanced: distant sounds duller (the air takes the highs; loudness by distance stays the game's)", "enhanced",
+     "air"},
     {"reverb-amount", "DB", T::Float, G::Sound, kLiveIni, -12, 12, nullptr, "0",
      "enhanced reverb: level in dB (-12..12)", "reverb", "amount"},
     {"reverb-decay", "X", T::Float, G::Sound, kLiveIni, 0.25, 4, nullptr, "1",
@@ -521,6 +524,10 @@ const SettingUi kUi[] = {
      nullptr, nullptr, "audio=enhanced"},
     {"echoes", nullptr, "Echoes",
      "Outdoors, gunfire comes back faintly off distant buildings and cliffs.", nullptr, nullptr, "audio=enhanced"},
+    {"air", nullptr, "Air absorption",
+     "Distant sounds lose their highs the way air takes them (about 4 dB at 100 m), so far gunfire sounds farther "
+     "away. How loud a sound is by its distance stays the game's own.",
+     nullptr, nullptr, "audio=enhanced"},
     {"close-boost", nullptr, "Close-range boost",
      "Gunfire and bullets louder near you: full within 15 m, fading to the game's own level at 30 m (your own "
      "gunfire always full). The game mixes them quietly; 0 dB = its level.",

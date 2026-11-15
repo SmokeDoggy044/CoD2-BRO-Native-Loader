@@ -284,6 +284,17 @@ void Engine::update(VoiceImpl& v) {
         }
         if (params.reverb_send) params.send_gain = 1.0f + 0.4f * v.occlusion;
     }
+    // Air (3.6): the air takes the highs with distance (ISO 9613-1, 20 C, 50 % humidity: ~40 dB/km above the 5 kHz
+    // shelf, ~4.7 dB/km in the middle); on top of whatever the walls left. World voices only.
+    if (feature_on(Feature::Air) && is_spatial(v) && v.current.mode == SpatialMode::World) {
+        const float* p = v.current.position;
+        const float* l = current_listener.position;
+        const float metres = 0.0254f * std::sqrt((p[0] - l[0]) * (p[0] - l[0]) + (p[1] - l[1]) * (p[1] - l[1]) +
+                                                 (p[2] - l[2]) * (p[2] - l[2]));
+        const float mid_db = 0.0047f * metres, high_db = 0.040f * metres;
+        params.direct_gain *= std::pow(10.0f, -mid_db / 20.0f);
+        params.direct_gain_hf *= std::pow(10.0f, -(high_db - mid_db) / 20.0f);
+    }
     // Echoes (3.5): gunfire into the slap-back echo, as loud as the place gives (set_echo).
     if (feature_on(Feature::Echoes) && echo.level > 0.0f &&
         (v.category == Category::Gunfire || v.category == Category::OwnGunfire))
