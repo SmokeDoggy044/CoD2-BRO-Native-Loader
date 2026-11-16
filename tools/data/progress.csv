@@ -3491,7 +3491,7 @@ address,name,section,module,state,tested,matched
 000d13f0,Save_NotifyListener4,.text,qcommon,replaced,30,10
 000d1410,Save_Init,.text,qcommon,replaced,96,96
 000d1440,Save_EnumMemoryUnits,.text,qcommon,set-aside,2,0
-000d1500,Save_CalculateSignature,.text,qcommon,set-aside,0,0
+000d1500,Save_CalculateSignature,.text,qcommon,untested,0,0
 000d1570,Save_GetProgressFraction,.text,qcommon,replaced,1,1
 000d1610,BytesToBlocks,.text,qcommon,replaced,0,0
 000d1630,Save_PortToDevice,.text,qcommon,replaced,2,2
@@ -7801,7 +7801,7 @@ address,name,section,module,state,tested,matched
 001ef880,_qsort,.text,mslib,untested,0,0
 001efb10,_strstr,.text,mslib,untested,0,0
 001efba0,_memchr,.text,mslib,untested,0,0
-001efc4d,FID_conflict:_wprintf,.text,mslib,library,0,0
+001efc4d,FID_conflict:_wprintf,.text,mslib,untested,0,0
 001efca8,FUN_001efca8,.text,mslib,unnamed,0,0
 001efcb3,srand,.text,crt,untested,0,0
 001efcc0,_rand,.text,mslib,untested,0,0
@@ -11338,7 +11338,7 @@ address,name,section,module,state,tested,matched
 0030cd70,FE_FormatPlayTime,.text,client,replaced,3,3
 0030cdf0,FE_SplitPlayTime2,.text,client,replaced,0,0
 0030cf70,AutosaveMenu_MarkSlotsEmpty,.text,client,matched,1,1
-0030cf90,MissionSuccessFailMenu_DialogReturnTrue,.text,client,set-aside,0,0
+0030cf90,MissionSuccessFailMenu_DialogReturnTrue,.text,client,untested,0,0
 0030cfb0,MissionSuccessFailMenu_ClearTexts,.text,client,replaced,7,7
 0030cfd0,MissionSuccessFailMenu_SetFailedText,.text,client,replaced,61,61
 0030d0b0,FE_FormatPlayTime2,.text,client,replaced,24,24

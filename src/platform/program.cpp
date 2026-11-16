@@ -1,7 +1,14 @@
 #include "program.h"
 
+#include <atomic>
 #include <cerrno>
+#include <cstdio>
+#include <cstdlib>
 #include <cstring>
+#include <mutex>
+#include <thread>
+#include <chrono>
+#include <vector>
 
 #include "log.h"
 #include "paths.h"
@@ -18,6 +25,43 @@ extern char** environ;
 namespace fs = std::filesystem;
 
 namespace platform {
+
+namespace {
+std::mutex g_end_mutex;
+std::vector<void (*)()>& end_tasks() {
+    static std::vector<void (*)()> tasks;
+    return tasks;
+}
+}  // namespace
+
+void at_end_process(void (*task)()) {
+    std::lock_guard lock(g_end_mutex);
+    end_tasks().push_back(task);
+}
+
+[[noreturn]] void end_process(int code) {
+    // The first caller ends the process; a second one (another thread at the same moment) waits for it.
+    static std::atomic<bool> ending{false};
+    if (ending.exchange(true))
+        for (;;) std::this_thread::sleep_for(std::chrono::seconds(1));
+    std::vector<void (*)()> tasks;
+    {
+        std::lock_guard lock(g_end_mutex);
+        tasks = end_tasks();
+    }
+    for (auto it = tasks.rbegin(); it != tasks.rend(); ++it) (*it)();
+    terminate_now(code);
+}
+
+[[noreturn]] void terminate_now(int code) {
+    std::fflush(nullptr);
+#if defined(_WIN32)
+    // ExitProcess (which _Exit uses) still runs every DLL's detach code under the loader lock - graphics and sound
+    // drivers among them - after the other threads are gone: it could hang there. Nothing is left to tear down.
+    TerminateProcess(GetCurrentProcess(), static_cast<UINT>(code));
+#endif
+    std::_Exit(code);
+}
 
 #if defined(_WIN32)
 

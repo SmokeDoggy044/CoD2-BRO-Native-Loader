@@ -7588,6 +7588,67 @@ void XB_CDECL SV_MapRestartCheck_f() {
     title_function<void XB_THISCALL(uint8_t*, uint32_t)>(*reinterpret_cast<uint32_t*>(*reinterpret_cast<uint8_t**>(again) + 0xc))(again, 6);
 }
 
+// "map_restart" (0x002cfba0): checkpoint and cl_paused "0", the game's checkpoint cleared, every script thread
+// aborted, the in-game screens told 6 with the pause screen's +0x58 = 2.
+void XB_CDECL SV_MapRestart_f() {
+    Cvar_Set2(tstr(0x008353b8), const_cast<char*>(tstr(0x0082e098)), 1);  // checkpoint "0"
+    Cvar_Set2(tstr(0x0082ca00), const_cast<char*>(tstr(0x0082e098)), 1);  // cl_paused "0"
+    uint8_t* const game = title_global<uint8_t*>(0x0095f4e0);
+    title_global<uint8_t>(0x0095f678) = 0;
+    title_global<uint8_t>(0x0095f679) = 0;
+    game[0] = 0;
+    TitleRegs regs{};
+    regs.edi = u32(game);
+    qc_call_regs(own_address(&G_ClearCheckpoint_entry), &regs, 0, nullptr);  // G_ClearCheckpoint (EDI)
+    own_function<void XB_STDCALL(uint32_t)>(&Scr_AbortAllThreads)(0x008dd1d8);
+    title_global<uint8_t>(0x0095f919) = 1;
+    uint8_t* const screens = title_global<uint8_t*>(0x0095f8fc);
+    *reinterpret_cast<uint32_t*>(*reinterpret_cast<uint8_t**>(*reinterpret_cast<uint8_t**>(screens + 4) + 0x18) + 0x58) = 2;
+    uint8_t* const again = title_global<uint8_t*>(0x0095f8fc);
+    title_global<uint8_t>(0x0095f508) = 1;
+    title_function<void XB_THISCALL(uint8_t*, uint32_t)>(*reinterpret_cast<uint32_t*>(*reinterpret_cast<uint8_t**>(again) + 0xc))(again, 6);
+}
+
+// "map_restart_comp" (0x002c0100): every script thread aborted, the restart flag set.
+void XB_CDECL SV_MapRestartComp_f() {
+    own_function<void XB_STDCALL(uint32_t)>(&Scr_AbortAllThreads)(0x008dd1d8);
+    title_global<uint8_t>(0x0095f508) = 1;
+}
+
+// "quick_start" (0x002a8870).
+void XB_CDECL Cmd_QuickStart_f() { title_global<uint8_t>(0x0093fcd0) = 1; }
+
+// "invert" (0x002a8840): 0x008dce71 set; the pitch cvar (0x00929c0c +0x1c) negated while above 0.
+void XB_CDECL Cmd_Invert_f() {
+    uint8_t* const cvar = title_global<uint8_t*>(0x00929c0c);
+    title_global<uint8_t>(0x008dce71) = 1;
+    if (!cvar) return;
+    float& value = *reinterpret_cast<float*>(cvar + 0x1c);
+    if (value > title_global<float>(0x0083eafc)) value *= title_global<float>(0x0083eb34);  // > 0: * -1
+}
+
+// "loadgame_continue" (0x002c5130): a jump to map_restart_check.
+void XB_CDECL SV_LoadGameContinue_f() { SV_MapRestartCheck_f(); }
+
+// "stringUsage" (0x002a8880): nothing in this build.
+void XB_CDECL Cmd_StringUsage_f() {}
+
+// "load_mp_exe" (the original 0x002cf920, Cmd_LaunchMultiplayer_f, relaunches the console into the multiplayer
+// executable): on our own platform the host starts the multiplayer program instead and this one ends.
+void XB_CDECL Cmd_LoadMultiplayer_f() {
+    if (native_platform() && title_host().launch_multiplayer) {
+        title_host().launch_multiplayer();
+        return;
+    }
+    title_function<void XB_CDECL()>(0x002cf920)();
+}
+
+// "frontend" (0x002af760): "frontend 1" clears 0x0095f914.
+void XB_CDECL Cmd_Frontend_f() {
+    if (title_global<uint32_t>(0x00934248) > 1 && title_global<const char*>(0x0092df94)[0] == '1')  // cmd_argc, argv 1
+        title_global<uint8_t>(0x0095f914) = 0;
+}
+
 // Loc_ListStringFiles (list in ESI; dir on the stack).
 PLATFORM_ASM_ENTRY(Loc_ListStringFiles_entry,
                    "pushl %esi\n pushl 8(%esp)\n" PLATFORM_ASM_CALL(Loc_ListStringFiles) "addl $8, %esp\n ret")

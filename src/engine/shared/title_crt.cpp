@@ -753,6 +753,17 @@ int32_t XB_CDECL title_sprintf(char* out, const char* format, ...) {
     return n;
 }
 
+// printf (0x001efc4d): the debug output, which a retail console has nowhere to show - formatted (the count) and
+// dropped.
+int32_t XB_CDECL title_printf(const char* format, ...) {
+    char text[1024];
+    va_list args;
+    va_start(args, format);
+    const int32_t n = title_vsnprintf(text, sizeof(text), format, args);
+    va_end(args);
+    return n;
+}
+
 int32_t XB_CDECL title_atol(const char* text) {
     const auto* p = reinterpret_cast<const unsigned char*>(text);
     while (*p == ' ' || (*p >= '\t' && *p <= '\r')) ++p;

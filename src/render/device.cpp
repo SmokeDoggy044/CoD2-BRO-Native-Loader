@@ -33,6 +33,7 @@
 #include "kernel_memory.h"
 #include "title_calls.h"
 #include "log.h"
+#include "program.h"
 #include "nv2a.h"
 #include "xbox_d3d.h"
 #include "xbox_d3d_api.h"
@@ -614,7 +615,7 @@ uint32_t present_frame() {
     if (!g.backend->pump_events() || g.quit_requested.load()) {
         LOG_INFO("render", "%s", g.quit_requested.load() ? "quit from the game's menu" : "window closed");
         g.backend->save_caches();
-        std::exit(0);
+        platform::end_process(0);
     }
     device_field<uint32_t>(kDeviceSwapCount) = ++g.swap_count;
     return g.swap_count;

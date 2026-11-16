@@ -303,6 +303,9 @@ void XB_CDECL Save_CloseDevice();
 int32_t XB_CDECL Save_TranslateError(int32_t error);
 // 0x000d1410: 0x00920afc = value, default drive names (0x007cfa40), port 8, result 0; returns the result.
 uint32_t XB_CDECL Save_Init(uint32_t value);
+// 0x000d1500: *length = 0x14 (when given); with `signature`, the XCalculateSignature (flags 0) of `size` bytes at
+// `data` into its 20 bytes. Save_Update checks a read save's last 0x20 bytes with it.
+void XB_CDECL Save_CalculateSignature(const uint8_t* data, uint32_t size, uint8_t* signature, uint32_t* length);
 // 0x000d1610: (bytes + 0x3fff) >> 14 (16 KB blocks); the high half goes to ECX (no caller reads it).
 uint32_t XB_CDECL BytesToBlocks(uint32_t bytes_lo, uint32_t bytes_hi);
 // 0x000d1630: memory-unit port 0..7 -> controller port/slot {0, 1, 2, 3}[port / 2], port % 2; -18 when

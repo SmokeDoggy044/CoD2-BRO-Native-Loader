@@ -627,4 +627,32 @@ void XB_CDECL IN_GrenadeAttackUp();
 extern "C" PLATFORM_HIDDEN int32_t XB_CDECL Key_GetKey(const char* command);
 extern "C" void Key_GetKey_entry(void);
 
+
+// Input commands registered by address (0x002cd5a0 +prone, 0x002cd550 -prone, 0x002c7d40 raisestance, 0x002c7cf0
+// togglecrouch, 0x002c7ca0 toggleprone, 0x002c7c70 goprone, 0x002c7c40 gocrouch, 0x002c7bc0 +gostand, 0x002b45f0
+// -gostand, 0x002db660/0x002bb900 +/-leanrightswitchnext, 0x002db640/0x002bb8f0 +/-leanleftswitchnext,
+// 0x002cd4d0/0x002bb8c0 +/-activatemoveup, 0x002bb890/0x002bb870 +/-activatemelee, 0x002bb840/0x002bb820
+// +/-activatereload, 0x002abe70/0x002abe60 +/-analogsticklean).
+void XB_CDECL CL_ProneDown_f();
+void XB_CDECL CL_ProneUp_f();
+void XB_CDECL CL_RaiseStance_f();
+void XB_CDECL CL_ToggleCrouch_f();
+void XB_CDECL CL_ToggleProne_f();
+void XB_CDECL CL_GoProne_f();
+void XB_CDECL CL_GoCrouch_f();
+void XB_CDECL CL_GoStandDown_f();
+void XB_CDECL CL_GoStandUp_f();
+void XB_CDECL CL_LeanRightSwitchNextDown_f();
+void XB_CDECL CL_LeanRightSwitchNextUp_f();
+void XB_CDECL CL_LeanLeftSwitchNextDown_f();
+void XB_CDECL CL_LeanLeftSwitchNextUp_f();
+void XB_CDECL CL_ActivateMoveUpDown_f();
+void XB_CDECL CL_ActivateMoveUpUp_f();
+void XB_CDECL CL_ActivateMeleeDown_f();
+void XB_CDECL CL_ActivateMeleeUp_f();
+void XB_CDECL CL_ActivateReloadDown_f();
+void XB_CDECL CL_ActivateReloadUp_f();
+void XB_CDECL CL_AnalogStickLeanDown_f();
+void XB_CDECL CL_AnalogStickLeanUp_f();
+
 }  // namespace game

@@ -1,4 +1,5 @@
 #include "menu_walk.h"
+#include "program.h"
 
 #include <cstdio>
 #include <cstdlib>
@@ -170,8 +171,7 @@ void finish(int code, const char* why) {
         std::fclose(g_walk.log);
     }
     LOG_INFO("walk", "menu walk ends: %s", why);
-    std::fflush(nullptr);
-    std::_Exit(code);
+    platform::end_process(code);
 }
 
 bool pointer_source(ScriptedPointer& out) {

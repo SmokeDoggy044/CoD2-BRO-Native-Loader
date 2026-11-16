@@ -4,6 +4,7 @@
 // faults on the Xbox). Everything else (our code, host libraries) is reported only
 // when nothing handles it: drivers catch some of their own access violations.
 
+#include "program.h"
 #include "crash.h"
 
 #define WIN32_LEAN_AND_MEAN
@@ -51,7 +52,7 @@ const char* exception_name(DWORD code) {
     LOG_ERROR("crash", "esp=%08lx ebp=%08lx eflags=%08lx", c.Esp, c.Ebp, c.EFlags);
     log_backtrace(c.Eip, c.Ebp);
     run_fatal_exit_hook(true);
-    std::_Exit(3);
+    platform::terminate_now(3);
 }
 
 LONG CALLBACK title_fault_handler(EXCEPTION_POINTERS* pointers) {
@@ -72,7 +73,7 @@ BOOL WINAPI console_handler(DWORD event) {
     if (!name) return FALSE;
     LOG_INFO("loader", "stopped by %s", name);
     run_fatal_exit_hook(false);
-    std::_Exit(130);
+    platform::terminate_now(130);
 }
 
 }  // namespace

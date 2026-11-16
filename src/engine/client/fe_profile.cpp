@@ -10,6 +10,7 @@
 #include "movie.h"
 #include "qcommon_core.h"
 #include "qcommon_fs.h"
+#include "snd.h"
 
 // As fe_menus.cpp: the entries move the C frame below a gap and hand the C version the entry ESP; every title call
 // then runs where the original's would (the text setters keep a stack buffer's address in a heap record). 192 KB
@@ -1649,6 +1650,166 @@ void XB_THISCALL ProfileMenu_RestoreSelection(uint8_t* menu) {
         call(field<uint8_t*>(menu, 0x40), 0x6c, 0x0082c37c);  // FEMENU_OP_HELPBAR
     else
         call(field<uint8_t*>(menu, 0x40), 0x6c, 0x0082b10c);  // FEMENU_LOAD_HELPBAR_XBOX
+}
+
+
+// --- Dialog button handlers (UIDialog_HandleSelect: thiscall on the dialog, AL = close it). The title keeps their
+// addresses in the dialogs' handler slots; our own executable has no original code behind them. ---
+
+namespace {
+uint8_t* front_end_mgr() { return title_global<uint8_t*>(0x0095f8f8); }
+// The front end manager's vtable +0x0c (the screen switch) with `arg`.
+void front_end_switch(uint32_t arg) { call(front_end_mgr(), 0x0c, arg); }
+const char* title_text(uint32_t address) { return reinterpret_cast<const char*>(uintptr_t{address}); }
+// The four slots' "changed" flags (+0x6c, 12 bytes apart), then FE_SaveSlotsUpdateText (ESI = the menu).
+void refresh_slots(uint8_t* menu) {
+    for (int32_t i = 0; i < 4; ++i) menu[0x6c + i * 0xc] = 1;
+    title_call(own_address(&FE_SaveSlotsUpdateText_entry), esi_regs(menu));
+}
+// The load/save result dialogs' way back: modes 1 and 3 switch to `mode13`, the rest to 1 (+0x5c) or 2.
+void leave_profile_dialog(uint32_t mode13) {
+    const int32_t mode = field<int32_t>(front_end_screen(0x3c), 0x4c);
+    title_global<uint8_t>(0x0095f91a) = 0;
+    if (mode == 1 || mode == 3) {
+        front_end_switch(mode13);
+        return;
+    }
+    front_end_switch(field<int32_t>(front_end_screen(0x3c), 0x5c) != 0 ? 1 : 2);
+}
+}  // namespace
+
+uint8_t XB_THISCALL ProfileMenu_LoadConfirmYes(uint8_t*) {
+    title_call(own_address(&ProfileMenu_StartLoad_entry), TitleRegs{});
+    return 0;
+}
+
+uint8_t XB_THISCALL AutosaveMenu_DialogResume(uint8_t*) {
+    field<int32_t>(in_game_screen(0x1c), 0x44) = 0;
+    call(in_game_screen(0x1c), 0x40);
+    return 0;
+}
+
+uint8_t XB_THISCALL MissionSuccessFailMenu_DialogReturnTrue(uint8_t*) { return 1; }
+uint8_t XB_THISCALL ProfileMenu_DeleteNo(uint8_t*) { return 1; }
+uint8_t XB_THISCALL PauseMenu_DialogNo(uint8_t*) { return 1; }
+
+uint8_t XB_THISCALL ProfileMenu_LoadSuccessOk(uint8_t*) {
+    uint8_t* const screen = front_end_screen(0x3c);
+    if (field<int32_t>(screen, 0x48) == 0) {
+        field<int32_t>(screen, 0x48) = 1;
+        return 1;
+    }
+    leave_profile_dialog(1);
+    return 1;
+}
+
+uint8_t XB_THISCALL ProfileMenu_ReturnToMain(uint8_t*) {
+    leave_profile_dialog(0);
+    return 1;
+}
+
+uint8_t XB_THISCALL ProfileMenu_ContinueAndReboot(uint8_t*) {
+    title_global<uint8_t>(0x0095ee08) = field<int32_t>(in_game_screen(0x1c), 0x48) == 4;
+    Cmd_ExecuteRegisteredCommand(title_text(0x0082c894));  // "reboot"
+    return 1;
+}
+
+uint8_t XB_THISCALL ProfileMenu_ContinueWithoutSaving(uint8_t*) {
+    uint8_t* const screen = front_end_screen(0x3c);
+    if (field<int32_t>(screen, 0x48) == 0 && field<int32_t>(screen, 0x4c) == 1) {
+        refresh_slots(screen);
+        field<int32_t>(front_end_screen(0x3c), 0x48) = 1;
+        return 1;
+    }
+    // +0x48 unset with another mode leaves through the 1-or-2 switch; set, by the mode.
+    if (field<int32_t>(screen, 0x48) == 0) {
+        title_global<uint8_t>(0x0095f91a) = 0;
+        front_end_switch(field<int32_t>(front_end_screen(0x3c), 0x5c) != 0 ? 1 : 2);
+        return 1;
+    }
+    leave_profile_dialog(1);
+    return 1;
+}
+
+uint8_t XB_THISCALL ProfileMenu_InsertCardOk(uint8_t*) {
+    DialogMgr_CloseDialog(dialog_mgr());
+    field<int32_t>(front_end_screen(0x3c), 0x48) = 1;
+    refresh_slots(front_end_screen(0x3c));
+    return 1;
+}
+
+uint8_t XB_THISCALL AutosaveMenu_SaveWarningRetry(uint8_t*) {
+    in_game_screen(0x1c)[0x50] = 0;
+    title_call(own_address(&AutosaveMenu_ShowSaveWarning_entry), esi_regs(in_game_screen(0x1c)));
+    return 0;
+}
+
+// The pause menu's confirmations: reload the checkpoint, restart the mission, quit to the main menu.
+uint8_t XB_THISCALL PauseMenu_ReloadYes(uint8_t*) {
+    field<int32_t>(in_game_screen(0x18), 0x58) = 2;
+    auto items = [] { return field<uint8_t**>(in_game_screen(0x18), 4); };
+    call(items()[0], 0x30, 0x0082ad04);  // FEMENU_RELOADING
+    call(items()[1], 0x34, kEmptyString);
+    call(items()[2], 0x34, kEmptyString);
+    call(items()[2], 0x20, 1);
+    call(field<uint8_t*>(in_game_screen(0x18), 0x50), 0x7c, 0);
+    call(field<uint8_t*>(in_game_screen(0x18), 0x38), 0x78, kEmptyString);
+    S_ResumeAllChannels(title_global<uint8_t*>(0x0095f4c4));
+    Cvar_Set2(title_text(0x0082ca00), const_cast<char*>(title_text(0x0082e098)), 1);  // cl_paused 0
+    Cmd_ExecuteRegisteredCommand(title_text(0x0082abdc));                               // map_restart_internal
+    return 1;
+}
+
+uint8_t XB_THISCALL PauseMenu_RestartYes(uint8_t*) {
+    title_global<uint8_t>(0x0095f919) = 0;
+    TitleRegs regs{};
+    regs.ebx = title_global<uint32_t>(0x0095f4c4);
+    title_call(own_address(&S_StopAllSounds_entry), regs);
+    RumbleQueue_ClearAll(title_global<uint8_t*>(0x0095f5c4));
+    SndSys_Update();
+    Cvar_Set2(title_text(0x0082ca00), const_cast<char*>(title_text(0x0082e098)), 1);  // cl_paused 0
+    title_global<uint32_t>(0x0095f470) = 0;
+    title_global<uint32_t>(0x0095f474) = 0;
+    uint8_t* const hud = title_global<uint8_t*>(0x0095f8f0);
+    call(field<uint8_t*>(hud, 0x3c), 0x78, kEmptyString);
+    field<float>(hud, 0x60) = title_global<float>(0x0083eb34);  // -1
+    title_global<uint8_t>(0x008dce69) = field<uint8_t*>(field<uint8_t*>(title_global<uint8_t*>(0x0095f8fc), 4), 0)[0x40];
+    Cmd_ExecuteRegisteredCommand(title_text(0x0082c874));  // map_restart
+    return 1;
+}
+
+uint8_t XB_THISCALL PauseMenu_QuitYes(uint8_t*) {
+    title_global<uint8_t>(0x0095ee08) = 1;
+    Cvar_Set2(title_text(0x0082c89c), const_cast<char*>(title_text(0x0082e058)), 1);  // g_reloading 1
+    Cmd_ExecuteRegisteredCommand(title_text(0x0082c894));                              // reboot
+    return 1;
+}
+
+uint8_t XB_THISCALL ProfileMenu_DeleteYes(uint8_t*) {
+    show_dialog(0x0082adc4);  // MEM_XBOX_DELETE_WARNING
+    layout_buttons();
+    field<int32_t>(front_end_screen(0x3c), 0x48) = 2;
+    const int32_t slot = field<int16_t>(front_end_screen(0x3c), 0x22);
+    uint8_t* const s = saves();
+    const uintptr_t record = s[0x11e7 + slot] ? address_of(s) + 0x28c + uint32_t(slot) * 0x3cc : 0;
+    uint8_t* const profile = reinterpret_cast<uint8_t*>(record + 0x1c);  // as the original: no check of an empty slot
+    profile[0] = 0;
+    title_call(own_address(&Profile_SetDefaults_entry), esi_regs(profile));
+    front_end_screen(0x3c)[0x34] = 1;
+    TitleRegs regs{};
+    regs.ebx = address_of(saves());
+    const uint32_t args[2] = {static_cast<uint32_t>(field<int16_t>(front_end_screen(0x3c), 0x22)), 1};
+    title_call(own_address(&SaveSlot_Init_entry), regs, 2, args);
+    return 0;
+}
+
+uint8_t XB_THISCALL ProfileMenu_LoadConfirmNo(uint8_t*) {
+    show_dialog(0x0082ae40);                          // MEM_CANCEL_LOAD
+    add_button_inline(0x0082c8b8, 0x0030d2f0);        // MEM_DIALOG_YES: ProfileMenu_ReturnToMain
+    add_button_inline(0x0082c8a8, 0x00013300);        // MEM_DIALOG_NO: ProfileMenu_LoadConfirmYes
+    select_no();
+    layout_buttons();
+    return 0;
 }
 
 }  // namespace game

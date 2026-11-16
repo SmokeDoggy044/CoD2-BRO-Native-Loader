@@ -363,6 +363,7 @@ int loader_main(int argc, char** argv) {
     compare.after_fork = audio::release_after_fork;
     loader::compare::install(game::functions(), compare);
     std::atexit([] { loader::compare::flush(); });
+    platform::at_end_process([] { loader::compare::flush(); });
     if (const size_t missed = loader::missed_title_addresses()) {
         LOG_WARN("loader", "%zu of the port's changes were not found in this release (see above)", missed);
         // The campaign started anyway before there was a map (0.1.8 on the issue #9 disc).

@@ -1,4 +1,5 @@
 #include "viewer.h"
+#include "program.h"
 
 #include <algorithm>
 #include <cstdint>
@@ -77,7 +78,7 @@ std::vector<std::string> viewer_frame(uint32_t keys) {
         }
         if (g_since_show == kPauseAfter + g_turntable.steps * g_turntable.frames + 2) {
             LOG_INFO("dev", "viewer turntable done");
-            std::exit(0);  // the lab's run is over (its pictures are written as the frames are shown)
+            platform::end_process(0);  // the lab's run is over (its pictures are written as the frames are shown)
         }
     } else if (!g_shown.empty() && g_turning) {
         g_yaw += kDegreesPerFrame;

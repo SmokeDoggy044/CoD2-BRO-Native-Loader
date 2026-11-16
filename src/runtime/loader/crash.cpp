@@ -1,4 +1,5 @@
 #include "crash.h"
+#include "program.h"
 
 #include <atomic>
 #include <chrono>
@@ -73,7 +74,7 @@ void fatal_with_backtrace(const char* message, uint32_t eip, uint32_t ebp) {
     LOG_ERROR("fatal", "%s", message);
     log_backtrace(eip, ebp);
     run_fatal_exit_hook(true);
-    std::_Exit(1);
+    platform::terminate_now(1);
 }
 
 void set_fatal_exit_hook(void (*hook)(bool error)) { g_exit_hook = hook; }

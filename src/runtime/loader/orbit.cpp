@@ -1,4 +1,5 @@
 #include "orbit.h"
+#include "program.h"
 
 #include <cmath>
 #include <cstdio>
@@ -80,7 +81,7 @@ std::vector<std::string> orbit_frame(uint32_t) {
         if (index >= g_orbit.poses.size()) {
             if (index == g_orbit.poses.size() && (g_frames - first) % g_orbit.hold == 2) {
                 LOG_INFO("dev", "orbit done");
-                std::exit(0);  // the lab's run is over (its pictures are written as the frames are shown)
+                platform::end_process(0);  // the lab's run is over (its pictures are written as the frames are shown)
             }
         } else if (static_cast<int>(index) != g_shown) {
             g_shown = static_cast<int>(index);

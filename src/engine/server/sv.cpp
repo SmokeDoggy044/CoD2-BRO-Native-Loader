@@ -346,11 +346,11 @@ void XB_CDECL SV_AddOperatorCommands() {
     // {name, handler} in the original's order: map_restart_internal, map_restart, map_restart_check, ...,
     // reboot, load_mp_exe, the three map commands (SV_Map_f), loadgame, loadlastsave, the skill commands ...
     static const uint32_t kCommands[][2] = {
-        {0x0082abdc, own_address(&SV_MapRestartInternal_f)}, {0x0082c874, 0x002cfba0}, {0x0082abf4, own_address(&SV_MapRestartCheck_f)}, {0x00832f1c, 0x002c0100},
-        {0x00832f10, 0x002a8870}, {0x00832f08, 0x002a8840}, {0x0082c894, own_address(&Cmd_RelaunchTitle_f)}, {0x0082c51c, 0x002cf920},
+        {0x0082abdc, own_address(&SV_MapRestartInternal_f)}, {0x0082c874, own_address(&SV_MapRestart_f)}, {0x0082abf4, own_address(&SV_MapRestartCheck_f)}, {0x00832f1c, own_address(&SV_MapRestartComp_f)},
+        {0x00832f10, own_address(&Cmd_QuickStart_f)}, {0x00832f08, own_address(&Cmd_Invert_f)}, {0x0082c894, own_address(&Cmd_RelaunchTitle_f)}, {0x0082c51c, own_address(&Cmd_LoadMultiplayer_f)},
         {0x00832f00, own_address(&SV_Map_f)}, {0x00832efc, own_address(&SV_Map_f)}, {0x00832fa8, own_address(&SV_Map_f)}, {0x00832ef0, own_address(&SV_LoadGame_f)},
-        {0x00832edc, own_address(&SV_LoadLastSave_f)}, {0x00832ec8, 0x002c5130}, {0x00832eb8, own_address(&SV_SetSkillHard)}, {0x00832ea4, own_address(&SV_SetSkillMedium)},
-        {0x00832e94, own_address(&SV_SetSkillEasy)}, {0x00832e88, 0x002a8880}, {0x00832e7c, 0x002af760},
+        {0x00832edc, own_address(&SV_LoadLastSave_f)}, {0x00832ec8, own_address(&SV_LoadGameContinue_f)}, {0x00832eb8, own_address(&SV_SetSkillHard)}, {0x00832ea4, own_address(&SV_SetSkillMedium)},
+        {0x00832e94, own_address(&SV_SetSkillEasy)}, {0x00832e88, own_address(&Cmd_StringUsage_f)}, {0x00832e7c, own_address(&Cmd_Frontend_f)},
     };
     if (title_global<uint32_t>(0x0098f2cc)) return;
     title_global<uint32_t>(0x0098f2cc) = 1;

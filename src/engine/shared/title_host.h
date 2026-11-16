@@ -42,6 +42,9 @@ struct TitleHost {
     // (0x1000 bytes) as its LaunchDataPage, on the same window and devices. Called on the title's main thread;
     // does not return.
     void (*relaunch)(const uint8_t* page) = nullptr;
+    // The main menu's Multiplayer ("load_mp_exe"): the multiplayer is another program; the host starts it and ends
+    // this one. Null: the title's own relaunch.
+    void (*launch_multiplayer)() = nullptr;
     // The LaunchDataPage the previous title left (its address in contiguous memory, 0 = none); XGetLaunchInfo takes
     // it and frees it with free_contiguous.
     uint32_t* launch_data_page = nullptr;

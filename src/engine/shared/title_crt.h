@@ -16,6 +16,7 @@ namespace game {
 // 0x001eea95 _vsprintf / 0x001ee901 _sprintf. Wide arguments (%S, %ls, %C, %lc) are 16-bit, as on the Xbox.
 int32_t XB_CDECL title_vsprintf(char* out, const char* format, va_list args);
 int32_t XB_CDECL title_sprintf(char* out, const char* format, ...);
+int32_t XB_CDECL title_printf(const char* format, ...);  // 0x001efc4d
 // 0x001eeb81 _atol
 int32_t XB_CDECL title_atol(const char* text);
 // 0x001eed80 _strncpy

@@ -227,8 +227,7 @@ int load_options(int argc, char** argv, std::optional<Options>& parsed_out) {
     for (int i = 1; i < argc; ++i)
         if (std::string_view(argv[i]) == "--check-settings") {
             const int result = check_settings_file();
-            std::fflush(nullptr);
-            std::_Exit(result);
+            platform::end_process(result);
         }
     // settings.ini first, so the command line overrides it. A reboot re-reads it.
     // Not with --compare: the comparison runs the game as on the Xbox, whatever the
@@ -351,7 +350,7 @@ bool start_session(const Options& options, int argc, char** argv) {
         }
         LOG_ERROR("fatal", "uncaught C++ exception: %s", what);
         loader::run_fatal_exit_hook(true);
-        std::_Exit(3);
+        platform::terminate_now(3);
     });
     return true;
 }
@@ -402,7 +401,7 @@ int run_title(XbeImage& image, ThreadEnv& env, const Options& options) {
         xbox::restore_memory();
         loader::reset_thread_ids();
         if (!xbox::place_launch_data_page(page)) LOG_ERROR("loader", "restart: no memory for the launch data");
-        if (std::exchange(replay_pending, false) && !xbox::replay::start(options.replay)) std::_Exit(1);
+        if (std::exchange(replay_pending, false) && !xbox::replay::start(options.replay)) platform::end_process(1);
         LOG_INFO("loader", "starting title at %08x", image.entry_point());
         loader::run_on_xbox_stack(image.entry_point(), env, args);
     }

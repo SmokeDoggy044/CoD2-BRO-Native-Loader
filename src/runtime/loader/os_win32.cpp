@@ -1,6 +1,7 @@
 // Windows side of the loader's platform layer (os.h) and its entry point, called by
 // the stub executable (win32_stub.c) once it holds the Xbox address ranges.
 
+#include "program.h"
 #include "os.h"
 
 #define WIN32_LEAN_AND_MEAN
@@ -230,7 +231,7 @@ void restart(const std::vector<std::string>& args) {
     }
     CloseHandle(process.hThread);
     CloseHandle(process.hProcess);
-    std::_Exit(0);
+    platform::end_process(0);
 }
 
 void show_error(const std::string& title, const std::string& text) {
@@ -257,7 +258,7 @@ namespace loader::os {
     for (std::string& arg : args) argv.push_back(arg.data());
     argv.push_back(nullptr);
     // exit, not a return: the stub's code is gone once the XBE is mapped.
-    std::exit(program_main(count, argv.data()));
+    platform::end_process(program_main(count, argv.data()));
 }
 
 }  // namespace loader::os

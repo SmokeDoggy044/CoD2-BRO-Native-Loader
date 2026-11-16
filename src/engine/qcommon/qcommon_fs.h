@@ -1130,6 +1130,16 @@ void XB_CDECL SV_MapRestartInternal_f();
 // 0x002c00b0 ("map_restart_check", gap, m3 recording 11-12): like map_restart_internal without the checkpoint reset -
 // the game flag set, all script threads aborted, the in-game screens told 6 (vtable +0xc) with +0x18's +0x58 = 2.
 void XB_CDECL SV_MapRestartCheck_f();
+// Commands registered by address: 0x002cfba0 map_restart, 0x002c0100 map_restart_comp, 0x002a8870 quick_start,
+// 0x002a8840 invert, 0x002c5130 loadgame_continue, 0x002a8880 stringUsage, 0x002af760 frontend.
+void XB_CDECL SV_MapRestart_f();
+void XB_CDECL SV_MapRestartComp_f();
+void XB_CDECL Cmd_QuickStart_f();
+void XB_CDECL Cmd_Invert_f();
+void XB_CDECL SV_LoadGameContinue_f();
+void XB_CDECL Cmd_StringUsage_f();
+void XB_CDECL Cmd_Frontend_f();
+void XB_CDECL Cmd_LoadMultiplayer_f();  // "load_mp_exe": Cmd_LaunchMultiplayer_f, or the host's multiplayer
 // 0x002cfc70 (list std::string in ESI): the ".str" files under `dir` ("dir/file;" each, Loc_LoadStringDir_r);
 // their count (0x00929cd8). Dead.
 extern "C" PLATFORM_HIDDEN int32_t XB_CDECL Loc_ListStringFiles(const char* dir, uint8_t* list);

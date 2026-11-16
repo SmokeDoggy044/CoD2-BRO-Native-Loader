@@ -8,6 +8,7 @@
 #include <vector>
 
 #include "log.h"
+#include "program.h"
 
 namespace xbox::replay {
 namespace {
@@ -303,7 +304,7 @@ void finish() {
         LOG_WARN("replay", "%u of %u frames differed, the first at frame %u", g_mismatches, g_checked, g_first_mismatch);
     else
         LOG_INFO("replay", "all %u frames matched", g_checked);
-    if (g_config.exit_at_end) std::exit(g_mismatches ? 3 : 0);
+    if (g_config.exit_at_end) platform::end_process(g_mismatches ? 3 : 0);
 }
 
 }  // namespace

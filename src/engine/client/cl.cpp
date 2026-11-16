@@ -602,16 +602,16 @@ uint8_t* XB_CDECL CL_InitInput() {
         {0x0082d694, own_address(&IN_MeleeDown)}, {0x0083504c, own_address(&IN_MeleeUp)}, {0x0082dfc0, own_address(&IN_ActivateDown)},
         {0x00835040, own_address(&IN_ActivateUp)}, {0x0082d640, own_address(&IN_ReloadDown)}, {0x00835038, own_address(&IN_ReloadUp)},
         {0x0082be38, own_address(&IN_LeanLeftDown)}, {0x0083502c, own_address(&IN_LeanLeftUp)}, {0x0082be5c, own_address(&IN_LeanRightDown)},
-        {0x00835020, own_address(&IN_LeanRightUp)}, {0x00835018, 0x002cd5a0}, {0x00835010, 0x002cd550},
+        {0x00835020, own_address(&IN_LeanRightUp)}, {0x00835018, own_address(&CL_ProneDown_f)}, {0x00835010, own_address(&CL_ProneUp_f)},
         {0x0082d654, own_address(&IN_SprintDown)}, {0x00835008, own_address(&IN_SprintUp)}, {0x00835000, own_address(&IN_MLookDown)},
-        {0x00834ff8, own_address(&IN_MLookUp)}, {0x0082d610, own_address(&IN_LowerStance)}, {0x0082bed8, 0x002c7d40},
-        {0x00834fe8, 0x002c7cf0}, {0x00834fdc, 0x002c7ca0}, {0x00834fd4, 0x002c7c70},
-        {0x00834fc8, 0x002c7c40}, {0x00834fbc, 0x002c7bc0}, {0x00834fb0, 0x002b45f0},
-        {0x0082d5ac, 0x002db660}, {0x00834f98, 0x002bb900}, {0x0082d5d4, 0x002db640},
-        {0x00834f84, 0x002bb8f0}, {0x0082d678, own_address(&IN_GrenadeAttackDown)}, {0x00834f74, own_address(&IN_GrenadeAttackUp)},
-        {0x00834f64, 0x002cd4d0}, {0x00834f54, 0x002bb8c0}, {0x00834f44, 0x002bb890},
-        {0x00834f34, 0x002bb870}, {0x0082d6cc, 0x002bb840}, {0x00834f24, 0x002bb820},
-        {0x00834f10, 0x002abe70}, {0x00834efc, 0x002abe60},
+        {0x00834ff8, own_address(&IN_MLookUp)}, {0x0082d610, own_address(&IN_LowerStance)}, {0x0082bed8, own_address(&CL_RaiseStance_f)},
+        {0x00834fe8, own_address(&CL_ToggleCrouch_f)}, {0x00834fdc, own_address(&CL_ToggleProne_f)}, {0x00834fd4, own_address(&CL_GoProne_f)},
+        {0x00834fc8, own_address(&CL_GoCrouch_f)}, {0x00834fbc, own_address(&CL_GoStandDown_f)}, {0x00834fb0, own_address(&CL_GoStandUp_f)},
+        {0x0082d5ac, own_address(&CL_LeanRightSwitchNextDown_f)}, {0x00834f98, own_address(&CL_LeanRightSwitchNextUp_f)}, {0x0082d5d4, own_address(&CL_LeanLeftSwitchNextDown_f)},
+        {0x00834f84, own_address(&CL_LeanLeftSwitchNextUp_f)}, {0x0082d678, own_address(&IN_GrenadeAttackDown)}, {0x00834f74, own_address(&IN_GrenadeAttackUp)},
+        {0x00834f64, own_address(&CL_ActivateMoveUpDown_f)}, {0x00834f54, own_address(&CL_ActivateMoveUpUp_f)}, {0x00834f44, own_address(&CL_ActivateMeleeDown_f)},
+        {0x00834f34, own_address(&CL_ActivateMeleeUp_f)}, {0x0082d6cc, own_address(&CL_ActivateReloadDown_f)}, {0x00834f24, own_address(&CL_ActivateReloadUp_f)},
+        {0x00834f10, own_address(&CL_AnalogStickLeanDown_f)}, {0x00834efc, own_address(&CL_AnalogStickLeanUp_f)},
     };
     for (const auto& command : kCommands) Cmd_AddCommand(&title_global<const char>(command.name), command.function);
     title_global<uint8_t*>(0x00929808) =
@@ -3799,5 +3799,102 @@ void XB_CDECL IN_GrenadeAttackUp() {
     }
     if (cvar_integer(0x0093efe8)) Cvar_SetValue(&title_global<const char>(0x00835190), 0.0f);  // cl_altFireButtonDown
 }
+
+
+// --- Input commands the title registers by address (cl.cpp's command table): stance, lean-or-switch-weapon and the
+// combined activate buttons, analog-stick lean. ---
+
+namespace {
+char* cl_text(uint32_t address) { return reinterpret_cast<char*>(uintptr_t{address}); }
+// Stance changes are ignored while either of these is set.
+bool stance_held() { return title_global<int32_t>(0x00934180) != 0 || title_global<int32_t>(0x00934000) != 0; }
+int32_t cvar_int(uint32_t pointer) { return field<int32_t>(title_global<uint8_t*>(pointer), 0x20); }
+void set_cvar(uint32_t name, uint32_t value) { Cvar_Set2(cl_text(name), cl_text(value), 1); }
+constexpr uint32_t kStance = 0x008351c0, kStanceTemp = 0x008351cc;  // "cl_stance", "cl_stanceTemp"
+constexpr uint32_t kZero = 0x0082e098, kOne = 0x0082e058, kTwo = 0x008351bc;
+// The activate combos pick the plain button while the player uses something (0x009605fc) or is in a state of
+// 0x00960240 & 0x106000; else their own.
+bool activate_plain() {
+    return title_global<int32_t>(0x009605fc) != 0 || (title_global<uint32_t>(0x00960240) & 0x106000) != 0;
+}
+}  // namespace
+
+void XB_CDECL CL_ProneDown_f() {
+    IN_KeyDown(kbutton(0x00934170));
+    set_cvar(kStanceTemp, stance_held() ? kOne : kZero);
+}
+void XB_CDECL CL_ProneUp_f() {
+    IN_KeyUp(kbutton(0x00934170));
+    set_cvar(kStanceTemp, stance_held() ? kOne : kZero);
+}
+void XB_CDECL CL_RaiseStance_f() {
+    if (stance_held()) return;
+    const int32_t stance = cvar_int(0x00927b20);
+    if (stance > 1) set_cvar(kStance, kOne);
+    else if (stance > 0) set_cvar(kStance, kZero);
+}
+void XB_CDECL CL_ToggleCrouch_f() {
+    if (!stance_held()) set_cvar(kStance, cvar_int(0x00927b20) == 1 ? kZero : kOne);
+}
+void XB_CDECL CL_ToggleProne_f() {
+    if (!stance_held()) set_cvar(kStance, cvar_int(0x00927b20) == 2 ? kZero : kTwo);
+}
+void XB_CDECL CL_GoProne_f() {
+    if (!stance_held()) set_cvar(kStance, kTwo);
+}
+void XB_CDECL CL_GoCrouch_f() {
+    if (!stance_held()) set_cvar(kStance, kOne);
+}
+// +gostand: within the hold time (cvar 0x00927ddc) of the last stand, or standing already, a jump (0x00933fd8);
+// else stand up (the time noted, 0x0098ad34).
+void XB_CDECL CL_GoStandDown_f() {
+    IN_KeyDown(kbutton(0x00934008));
+    const int32_t hold = cvar_int(0x00927ddc);
+    const int32_t now = title_global<int32_t>(0x00947710);  // com_frameTime
+    const bool jump = hold > 0 ? now - title_global<int32_t>(0x0098ad34) < hold : cvar_int(0x00927b20) == 0;
+    if (jump) {
+        IN_KeyDown(kbutton(0x00933fd8));
+        title_global<int32_t>(0x0098ad34) = 0;
+        return;
+    }
+    title_global<int32_t>(0x0098ad34) = now;
+    if (!stance_held()) set_cvar(kStance, kZero);
+}
+void XB_CDECL CL_GoStandUp_f() {
+    IN_KeyUp(kbutton(0x00934008));
+    IN_KeyUp(kbutton(0x00933fd8));
+}
+// Lean while the weapon is up for it (0x009601ac bit 0x20), else the next / previous weapon.
+void XB_CDECL CL_LeanRightSwitchNextDown_f() {
+    if (title_global<uint8_t>(0x009601ac) & 0x20) IN_KeyDown(kbutton(0x00934158));
+    else CG_NextWeapon_f();
+}
+void XB_CDECL CL_LeanRightSwitchNextUp_f() { IN_KeyUp(kbutton(0x00934158)); }
+void XB_CDECL CL_LeanLeftSwitchNextDown_f() {
+    if (title_global<uint8_t>(0x009601ac) & 0x20) IN_KeyDown(kbutton(0x00934140));
+    else CG_PrevWeapon_f();
+}
+void XB_CDECL CL_LeanLeftSwitchNextUp_f() { IN_KeyUp(kbutton(0x00934140)); }
+void XB_CDECL CL_ActivateMoveUpDown_f() {
+    if (activate_plain()) IN_KeyDown(kbutton(0x009340b0));
+    else IN_UpDown();
+}
+void XB_CDECL CL_ActivateMoveUpUp_f() {
+    IN_KeyUp(kbutton(0x00934008));
+    IN_KeyUp(kbutton(0x00933fd8));
+    IN_KeyUp(kbutton(0x009340b0));
+}
+void XB_CDECL CL_ActivateMeleeDown_f() { IN_KeyDown(kbutton(activate_plain() ? 0x009340b0 : 0x00934098)); }
+void XB_CDECL CL_ActivateMeleeUp_f() {
+    IN_KeyUp(kbutton(0x009340b0));
+    IN_KeyUp(kbutton(0x00934098));
+}
+void XB_CDECL CL_ActivateReloadDown_f() { IN_KeyDown(kbutton(activate_plain() ? 0x009340b0 : 0x00934128)); }
+void XB_CDECL CL_ActivateReloadUp_f() {
+    IN_KeyUp(kbutton(0x009340b0));
+    IN_KeyUp(kbutton(0x00934128));
+}
+void XB_CDECL CL_AnalogStickLeanDown_f() { field<int32_t>(title_global<uint8_t*>(0x00929c2c), 0x20) = 1; }
+void XB_CDECL CL_AnalogStickLeanUp_f() { field<int32_t>(title_global<uint8_t*>(0x00929c2c), 0x20) = 0; }
 
 }  // namespace game

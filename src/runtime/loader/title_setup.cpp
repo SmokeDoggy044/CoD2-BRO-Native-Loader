@@ -260,6 +260,19 @@ void configure_title_services(const Options& options, const fs::path& assets, co
         };
         host.reserve = &xbox::title_reserve;
         host.relaunch = [](const uint8_t* page) { loader::request_title_restart(page, xbox::kLaunchDataPageSize); };
+        // The multiplayer runs on the loader (its renderer is the original's): started beside us with our data folder.
+        static std::vector<std::string> multiplayer_args;
+        multiplayer_args = {"--multiplayer"};
+        if (options.data) multiplayer_args.insert(multiplayer_args.end(), {"--data", options.data->string()});
+        host.launch_multiplayer = [] {
+            const std::filesystem::path loader_program = platform::sibling_executable("cod_bro_loader");
+            LOG_INFO("loader", "Multiplayer: starting %s", loader_program.string().c_str());
+            if (!platform::start_program(loader_program, multiplayer_args)) {
+                LOG_ERROR("loader", "cannot start %s", loader_program.string().c_str());
+                return;
+            }
+            render::request_quit();
+        };
         host.launch_data_page = &xbox::launch_data_page_word();
         host.language = options.language;
         host.widescreen = options.widescreen;
@@ -376,7 +389,7 @@ void configure_title_services(const Options& options, const fs::path& assets, co
             if (!report.empty()) LOG_WARN("crt", "\n%s", report.c_str());
             LOG_INFO("crt", "check: %d difference(s)", differences);
             std::fflush(nullptr);
-            std::_Exit(differences ? 3 : 0);
+            platform::end_process(differences ? 3 : 0);
         };
     } else if (options.replay.mode != xbox::replay::Mode::Off) {
         d3d_config.frame_presented = &xbox::replay::frame;
@@ -396,7 +409,7 @@ void configure_title_services(const Options& options, const fs::path& assets, co
     }
     if (!options.menu_walk.empty() && !loader::load_menu_walk(options.menu_walk, options.menu_walk_dir)) {
         std::fflush(nullptr);
-        std::_Exit(2);  // an unattended run without its script would only sit in the menus
+        platform::end_process(2);  // an unattended run without its script would only sit in the menus
     }
     if (!options.menu_walk.empty()) {
         static void (*inner)() = nullptr;

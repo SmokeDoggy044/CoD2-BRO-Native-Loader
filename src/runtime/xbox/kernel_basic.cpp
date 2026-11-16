@@ -4,6 +4,7 @@
 // 64-bit values are returned as int64_t rather than LARGE_INTEGER: GCC returns
 // structs through a hidden pointer on i386, MSVC (and the Xbox) in EDX:EAX.
 
+#include "program.h"
 #include <algorithm>
 #include <atomic>
 #include <chrono>
@@ -97,10 +98,10 @@ uint32_t XB_CDECL DbgPrint(const char* format, ...) {
             g_config.reboot(xbe, std::span(page, kLaunchDataPageSize));
         }
         LOG_ERROR("kernel", "HalReturnToFirmware: cannot launch %s", path);
-        std::exit(1);
+        platform::end_process(1);
     }
     LOG_INFO("kernel", "HalReturnToFirmware(%u): the title quit to the dashboard", routine);
-    std::exit(0);
+    platform::end_process(0);
 }
 
 // Only recorded; the list links inside the struct are left alone.

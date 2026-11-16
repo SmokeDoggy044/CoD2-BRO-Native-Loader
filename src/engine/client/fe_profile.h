@@ -234,4 +234,23 @@ extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL ProfileMenu_HandleSelect(uint8_t* m
 extern "C" void ProfileMenu_HandleSelect_entry(void);
 void XB_THISCALL ProfileMenu_RestoreSelection(uint8_t* menu);             // 0x00338a40
 
+
+// Dialog button handlers (thiscall on the dialog; AL = close it), by their title addresses.
+uint8_t XB_THISCALL ProfileMenu_LoadConfirmYes(uint8_t* dialog);           // 0x00013300: ProfileMenu_StartLoad, 0
+uint8_t XB_THISCALL AutosaveMenu_DialogResume(uint8_t* dialog);            // 0x0030cef0: autosave screen +0x44 = 0, its +0x40
+uint8_t XB_THISCALL MissionSuccessFailMenu_DialogReturnTrue(uint8_t* dialog);  // 0x0030cf90: 1
+uint8_t XB_THISCALL ProfileMenu_DeleteNo(uint8_t* dialog);                 // 0x0030d130: 1
+uint8_t XB_THISCALL ProfileMenu_LoadSuccessOk(uint8_t* dialog);            // 0x0030d1e0: MEM_LOAD_SUCCESS OK
+uint8_t XB_THISCALL ProfileMenu_ReturnToMain(uint8_t* dialog);             // 0x0030d2f0: MEM_RETURN_TO_MAIN / cancel YES
+uint8_t XB_THISCALL PauseMenu_DialogNo(uint8_t* dialog);                   // 0x0030e6a0: 1
+uint8_t XB_THISCALL ProfileMenu_ContinueAndReboot(uint8_t* dialog);        // 0x003125d0: "reboot"
+uint8_t XB_THISCALL ProfileMenu_ContinueWithoutSaving(uint8_t* dialog);    // 0x0031b250
+uint8_t XB_THISCALL ProfileMenu_InsertCardOk(uint8_t* dialog);             // 0x00325870
+uint8_t XB_THISCALL PauseMenu_ReloadYes(uint8_t* dialog);                  // 0x0032d370: map_restart_internal
+uint8_t XB_THISCALL PauseMenu_RestartYes(uint8_t* dialog);                 // 0x0032dc70: map_restart
+uint8_t XB_THISCALL PauseMenu_QuitYes(uint8_t* dialog);                    // 0x0032dd00: g_reloading 1, reboot
+uint8_t XB_THISCALL AutosaveMenu_SaveWarningRetry(uint8_t* dialog);        // 0x003335a0
+uint8_t XB_THISCALL ProfileMenu_DeleteYes(uint8_t* dialog);                // 0x00334960: MEM_XBOX_DELETE_WARNING
+uint8_t XB_THISCALL ProfileMenu_LoadConfirmNo(uint8_t* dialog);            // 0x00338520: MEM_CANCEL_LOAD YES/NO
+
 }  // namespace game

@@ -5729,6 +5729,16 @@ int32_t XB_CDECL Save_GetNextMemoryUnit() {
     return -1;
 }
 
+void XB_CDECL Save_CalculateSignature(const uint8_t* data, uint32_t size, uint8_t* signature, uint32_t* length) {
+    if (length) *length = 0x14;
+    if (!signature) return;
+    const uint32_t context = XCalculateSignatureBegin(0);
+    XCalculateSignatureUpdate(context, data, size);
+    uint8_t digest[0x14] = {};
+    XCalculateSignatureEnd(context, digest);
+    std::memcpy(signature, digest, sizeof(digest));
+}
+
 long double XB_CDECL Save_GetProgressFraction() {
     // (sectors done - 1) / sectors + (1 / sectors) * (bytes done / buffer size), on the x87 (unsigned
     // FILD + 2^32 corrections); 0 when idle or no port.
@@ -5973,9 +5983,8 @@ uint8_t XB_CDECL Save_Update() {
     if (title_global<uint32_t>(kSaveOpState) == 1) {
         uint32_t length = 0;
         uint8_t signature[0x20];
-        title_function<void XB_CDECL(uint32_t, uint32_t, uint8_t*, uint32_t*)>(0x000d1500)(
-            title_global<uint32_t>(0x00920ae8), title_global<uint32_t>(0x00920aec) - 0x20, signature,
-            &length);  // Save_CalculateSignature
+        Save_CalculateSignature(reinterpret_cast<const uint8_t*>(uintptr_t{title_global<uint32_t>(0x00920ae8)}),
+                                title_global<uint32_t>(0x00920aec) - 0x20, signature, &length);
         const char* const stored = reinterpret_cast<const char*>(
             uintptr_t{title_global<uint32_t>(0x00920ae8) + title_global<uint32_t>(0x00920aec) - 0x20});
         if (own_function<int32_t XB_CDECL(const char*, const uint8_t*, uint32_t)>(&title_strncmp)(stored, signature,

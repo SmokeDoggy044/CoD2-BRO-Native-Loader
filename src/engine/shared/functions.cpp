@@ -3485,6 +3485,7 @@ const Function kFunctions[] = {
     {"Save_NotifyListener4", 0x000d13f0, 0, code(&Save_NotifyListener4), 0, Result::Eax, Status::Replaced},
     {"Save_Init", 0x000d1410, 0, code(&Save_Init), 4, Result::Eax, Status::Replaced},
     {"Save_EnumMemoryUnits", 0x000d1440, 0, code(&Save_EnumMemoryUnits), 0, Result::Eax, Status::Compare},
+    {"Save_CalculateSignature", 0x000d1500, 0, code(&Save_CalculateSignature), 16, Result::None, Status::Compare},
     {"Save_GetProgressFraction", 0x000d1570, 0, code(&Save_GetProgressFraction), 0, Result::St0, Status::Replaced},
     {"BytesToBlocks", 0x000d1610, 0, code(&BytesToBlocks), 8, Result::Eax, Status::Replaced},
     {"Save_PortToDevice", 0x000d1630, 0, code(&Save_PortToDevice), 12, Result::Eax, Status::Replaced},
@@ -10052,6 +10053,51 @@ const Function kFunctions[] = {
     {"AdvancedOptionsMenu_RestoreSelection", 0x00329c50, 0, code(&AdvancedOptionsMenu_RestoreSelection), 0, Result::None, Status::Replaced},
     {"FE_SetupAdvancedOptionsMenu", 0x00329480, 0, code(&FE_SetupAdvancedOptionsMenu_entry), 0, Result::None, Status::Replaced},
     {"FE_SetupPauseMenu", 0x00329c80, 0, code(&FE_SetupPauseMenu_entry), 0, Result::None, Status::Replaced},
+    {"ProfileMenu_LoadConfirmYes", 0x00013300, 0, code(&ProfileMenu_LoadConfirmYes), 0, Result::Al, Status::Compare},  // dialog button handler (gap)
+    {"AutosaveMenu_DialogResume", 0x0030cef0, 0, code(&AutosaveMenu_DialogResume), 0, Result::Al, Status::Compare},  // dialog button handler (gap)
+    {"MissionSuccessFailMenu_DialogReturnTrue", 0x0030cf90, 0, code(&MissionSuccessFailMenu_DialogReturnTrue), 0, Result::Al, Status::Compare},  // dialog button handler (gap)
+    {"ProfileMenu_DeleteNo", 0x0030d130, 0, code(&ProfileMenu_DeleteNo), 0, Result::Al, Status::Compare},  // dialog button handler (gap)
+    {"ProfileMenu_LoadSuccessOk", 0x0030d1e0, 0, code(&ProfileMenu_LoadSuccessOk), 0, Result::Al, Status::Compare},  // dialog button handler (gap)
+    {"ProfileMenu_ReturnToMain", 0x0030d2f0, 0, code(&ProfileMenu_ReturnToMain), 0, Result::Al, Status::Compare},  // dialog button handler (gap)
+    {"PauseMenu_DialogNo", 0x0030e6a0, 0, code(&PauseMenu_DialogNo), 0, Result::Al, Status::Compare},  // dialog button handler (gap)
+    {"ProfileMenu_ContinueAndReboot", 0x003125d0, 0, code(&ProfileMenu_ContinueAndReboot), 0, Result::Al, Status::Compare},  // dialog button handler (gap)
+    {"ProfileMenu_ContinueWithoutSaving", 0x0031b250, 0, code(&ProfileMenu_ContinueWithoutSaving), 0, Result::Al, Status::Compare},  // dialog button handler (gap)
+    {"ProfileMenu_InsertCardOk", 0x00325870, 0, code(&ProfileMenu_InsertCardOk), 0, Result::Al, Status::Compare},  // dialog button handler (gap)
+    {"PauseMenu_ReloadYes", 0x0032d370, 0, code(&PauseMenu_ReloadYes), 0, Result::Al, Status::Compare},  // dialog button handler (gap)
+    {"PauseMenu_RestartYes", 0x0032dc70, 0, code(&PauseMenu_RestartYes), 0, Result::Al, Status::Compare},  // dialog button handler (gap)
+    {"PauseMenu_QuitYes", 0x0032dd00, 0, code(&PauseMenu_QuitYes), 0, Result::Al, Status::Compare},  // dialog button handler (gap)
+    {"AutosaveMenu_SaveWarningRetry", 0x003335a0, 0, code(&AutosaveMenu_SaveWarningRetry), 0, Result::Al, Status::Compare},  // dialog button handler (gap)
+    {"ProfileMenu_DeleteYes", 0x00334960, 0, code(&ProfileMenu_DeleteYes), 0, Result::Al, Status::Compare},  // dialog button handler (gap)
+    {"ProfileMenu_LoadConfirmNo", 0x00338520, 0, code(&ProfileMenu_LoadConfirmNo), 0, Result::Al, Status::Compare},  // dialog button handler (gap)
+    {"CL_ProneDown_f", 0x002cd5a0, 0, code(&CL_ProneDown_f), 0, Result::None, Status::Compare},  // command registered by address (gap)
+    {"CL_ProneUp_f", 0x002cd550, 0, code(&CL_ProneUp_f), 0, Result::None, Status::Compare},  // command registered by address (gap)
+    {"CL_RaiseStance_f", 0x002c7d40, 0, code(&CL_RaiseStance_f), 0, Result::None, Status::Compare},  // command registered by address (gap)
+    {"CL_ToggleCrouch_f", 0x002c7cf0, 0, code(&CL_ToggleCrouch_f), 0, Result::None, Status::Compare},  // command registered by address (gap)
+    {"CL_ToggleProne_f", 0x002c7ca0, 0, code(&CL_ToggleProne_f), 0, Result::None, Status::Compare},  // command registered by address (gap)
+    {"CL_GoProne_f", 0x002c7c70, 0, code(&CL_GoProne_f), 0, Result::None, Status::Compare},  // command registered by address (gap)
+    {"CL_GoCrouch_f", 0x002c7c40, 0, code(&CL_GoCrouch_f), 0, Result::None, Status::Compare},  // command registered by address (gap)
+    {"CL_GoStandDown_f", 0x002c7bc0, 0, code(&CL_GoStandDown_f), 0, Result::None, Status::Compare},  // command registered by address (gap)
+    {"CL_GoStandUp_f", 0x002b45f0, 0, code(&CL_GoStandUp_f), 0, Result::None, Status::Compare},  // command registered by address (gap)
+    {"CL_LeanRightSwitchNextDown_f", 0x002db660, 0, code(&CL_LeanRightSwitchNextDown_f), 0, Result::None, Status::Compare},  // command registered by address (gap)
+    {"CL_LeanRightSwitchNextUp_f", 0x002bb900, 0, code(&CL_LeanRightSwitchNextUp_f), 0, Result::None, Status::Compare},  // command registered by address (gap)
+    {"CL_LeanLeftSwitchNextDown_f", 0x002db640, 0, code(&CL_LeanLeftSwitchNextDown_f), 0, Result::None, Status::Compare},  // command registered by address (gap)
+    {"CL_LeanLeftSwitchNextUp_f", 0x002bb8f0, 0, code(&CL_LeanLeftSwitchNextUp_f), 0, Result::None, Status::Compare},  // command registered by address (gap)
+    {"CL_ActivateMoveUpDown_f", 0x002cd4d0, 0, code(&CL_ActivateMoveUpDown_f), 0, Result::None, Status::Compare},  // command registered by address (gap)
+    {"CL_ActivateMoveUpUp_f", 0x002bb8c0, 0, code(&CL_ActivateMoveUpUp_f), 0, Result::None, Status::Compare},  // command registered by address (gap)
+    {"CL_ActivateMeleeDown_f", 0x002bb890, 0, code(&CL_ActivateMeleeDown_f), 0, Result::None, Status::Compare},  // command registered by address (gap)
+    {"CL_ActivateMeleeUp_f", 0x002bb870, 0, code(&CL_ActivateMeleeUp_f), 0, Result::None, Status::Compare},  // command registered by address (gap)
+    {"CL_ActivateReloadDown_f", 0x002bb840, 0, code(&CL_ActivateReloadDown_f), 0, Result::None, Status::Compare},  // command registered by address (gap)
+    {"CL_ActivateReloadUp_f", 0x002bb820, 0, code(&CL_ActivateReloadUp_f), 0, Result::None, Status::Compare},  // command registered by address (gap)
+    {"CL_AnalogStickLeanDown_f", 0x002abe70, 0, code(&CL_AnalogStickLeanDown_f), 0, Result::None, Status::Compare},  // command registered by address (gap)
+    {"CL_AnalogStickLeanUp_f", 0x002abe60, 0, code(&CL_AnalogStickLeanUp_f), 0, Result::None, Status::Compare},  // command registered by address (gap)
+    {"SV_MapRestart_f", 0x002cfba0, 0, code(&SV_MapRestart_f), 0, Result::None, Status::Compare},  // command registered by address (gap)
+    {"SV_MapRestartComp_f", 0x002c0100, 0, code(&SV_MapRestartComp_f), 0, Result::None, Status::Compare},  // command registered by address (gap)
+    {"Cmd_QuickStart_f", 0x002a8870, 0, code(&Cmd_QuickStart_f), 0, Result::None, Status::Compare},  // command registered by address (gap)
+    {"Cmd_Invert_f", 0x002a8840, 0, code(&Cmd_Invert_f), 0, Result::None, Status::Compare},  // command registered by address (gap)
+    {"SV_LoadGameContinue_f", 0x002c5130, 0, code(&SV_LoadGameContinue_f), 0, Result::None, Status::Compare},  // command registered by address (gap)
+    {"Cmd_StringUsage_f", 0x002a8880, 0, code(&Cmd_StringUsage_f), 0, Result::None, Status::Compare},  // command registered by address (gap)
+    {"Cmd_Frontend_f", 0x002af760, 0, code(&Cmd_Frontend_f), 0, Result::None, Status::Compare},  // command registered by address (gap)
+    {"_printf", 0x001efc4d, 0, code(&title_printf), 4, Result::Eax, Status::Compare},
     {"UIDialog_HandleSelect", 0x00329fa0, 0, code(&UIDialog_HandleSelect), 4, Result::None, Status::Compare},  // was FUN_00329fa0 (gap)
     {"FE_SetupMemcardMenu", 0x00329fe0, 0, code(&FE_SetupMemcardMenu_entry), 0, Result::None, Status::Replaced},
     {"FE_SetupLoginStatus", 0x0032a660, 0, code(&FE_SetupLoginStatus_entry), 4, Result::None, Status::Replaced},

@@ -472,8 +472,23 @@ in --compare runs.
   <shot>.txt, all states in walk.txt.
 - Found on the way, in the own exe (`cod_bro`, not the loader): the front end's save list needed the kernel's ANSI
   conversion (WideCharToMultiByte has a native branch now) and called the set-aside Live invite check after the
-  profile screen (skipped on our own platform); next on that path is the SDK's save signature
-  (Save_CalculateSignature) - the own exe cannot reach the menus with saves yet, walks use the loader.
+  profile screen (skipped on our own platform); next on that path was the SDK's save signature
+  (Save_CalculateSignature, C since 2026-11-16).
+- **The own exe through the menus (2026-11-16):** what the replays never reach - code the title holds by address
+  in data our C passes along: 16 dialog button handlers (thiscall on the dialog, AL = close; profile load / delete /
+  memory-unit dialogs, the pause menu's Restart / Quit / reload confirmations), 28 console commands of the client
+  and server tables (stance, lean-or-switch, the activate combos, map_restart, loadgame_continue, frontend, ...) and
+  printf. Found by listing the code addresses in our C's dialog and command tables that have no row (the walks'
+  `--own-main --text-clear` saw only the load dialog's OK). The 4 Xbox Live dialog handlers stay set aside.
+  Multiplayer from the main menu: `TitleHost::launch_multiplayer` starts `cod_bro_loader --multiplayer` (the
+  multiplayer runs on the loader) and the own exe quits. Checks: every stored walk plus Restart/Quit-to-menu walks
+  on `cod_bro`; `gap_check.sh` (loader --own-main and HOST=1) over m0-m7 - dumps equal to p30's (m0/m3/m6: host
+  stack words only), no original code run.
+- **Ending the process (2026-11-16):** every normal end (window closed, Quit, a replay's or walk's end, the Windows
+  re-exec) goes through `platform::end_process`: its registered tasks (the compare results), all streams flushed,
+  then the process ends - on Windows with TerminateProcess. `std::exit` / `_Exit` ran static destructors, atexit
+  handlers and every DLL's detach code after Windows had already killed the other threads: the Windows build hung
+  there after every run (with or without texture packs, seen under Wine); now m4_smoke ends 45 s in, exit code 0.
 
 ### 4.1 done (2026-11-15): mouse in the menus
 
