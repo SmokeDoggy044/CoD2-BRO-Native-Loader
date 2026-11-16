@@ -53,6 +53,8 @@ public:
     virtual void set_frame_buffers(const SurfaceDesc& back, const SurfaceDesc& depth) = 0;
     // Everything made from title memory goes (targets other than the frame buffers included).
     virtual void forget_title_resources() = 0;
+    // The frame trace of a dumped frame (dump_frame): one more step by the back end (the CPU frame upload).
+    virtual void trace_step(const char* what, const std::string& detail) = 0;
 };
 
 // `config`: the back buffer, the device's depth buffer and the render scale (resolved, > 0).

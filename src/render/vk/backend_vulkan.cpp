@@ -121,6 +121,7 @@ public:
             return;
         vk_.upload(upload_, pixels, pitch, 4);
         blit(upload_, *gfx_->back_buffer_image(), VK_FILTER_LINEAR);
+        gfx_->trace_step("cpu_upload", "the CPU-written back buffer (movie frame) blitted in");
     }
 
     // At the render scale, pillarboxed frames at their own shape.

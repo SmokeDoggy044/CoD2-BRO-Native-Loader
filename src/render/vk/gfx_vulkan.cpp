@@ -532,9 +532,13 @@ public:
         color_ = color;
         depth_ = has_depth ? depth : 0;
         vk_.set_target(&c->second.image, has_depth ? &d->second.image : nullptr);
+        if (dumping()) trace_step("set_target", trace_detail());
     }
 
     void clear(uint32_t flags, uint32_t color, float depth, uint32_t stencil) override {
+        char clear_text[48];
+        std::snprintf(clear_text, sizeof(clear_text), "flags %x colour %08x, ", flags, color);
+        const TraceAfter trace_after{this, "clear", clear_text};
         if (g_skip_gpu_draws || !color_) return;
         begin_draw();  // the Xbox path's CPU writes to the back buffer first
         VkClearAttachment attachments[2]{};
@@ -620,6 +624,7 @@ public:
     void set_index_buffer(BufferId buffer) override { index_buffer_ = buffer; }
 
     void draw(Primitive primitive, uint32_t first_vertex, uint32_t vertex_count) override {
+        const TraceAfter trace_after{this, "draw", {}};
         if (g_skip_gpu_draws || !enough_vertices(primitive, vertex_count)) return;
         if (!bind_streams() || !prepare(primitive)) return;
         const PickScope pick_scope(*this);
@@ -631,6 +636,7 @@ public:
     }
 
     void draw_indexed(Primitive primitive, uint32_t first_index, uint32_t index_count, int32_t base_vertex) override {
+        const TraceAfter trace_after{this, "draw_indexed", {}};
         if (g_skip_gpu_draws || !enough_vertices(primitive, index_count)) return;
         if (primitive == Primitive::Quads) {
             static bool once = false;
@@ -652,6 +658,7 @@ public:
     // is prepared again (once; the space is empty after a flush).
     void draw_user(Primitive primitive, const void* vertices, uint32_t vertex_count, uint32_t stride,
                    const uint16_t* indices, uint32_t index_count, uint64_t cache_key) override {
+        const TraceAfter trace_after{this, "draw_user", {}};
         if (g_skip_gpu_draws || !vertices || !stride || !vertex_count) return;
         if (!enough_vertices(primitive, indices ? index_count : vertex_count) || (indices && primitive == Primitive::Quads))
             return;
@@ -705,6 +712,68 @@ public:
         LOG_INFO("render", "Vulkan: draws of frame %u to %s_draws.txt", dump_at_, prefix.c_str());
     }
     bool dumping() const override { return !dump_prefix_.empty() && frames_ == dump_at_; }
+
+    // Frame trace (developers: a --diag mark's dump, COD_BRO_DUMP_FRAME on replays): every target switch, clear,
+    // draw and back-buffer upload of the dumped frame in order, each followed by the back buffer's mean
+    // brightness in its left / centre / right thirds after that step -> <prefix>_trace.txt. Reads the back buffer
+    // after every step (a GPU wait each): only for the one frame.
+    void trace_step(const char* what, const std::string& detail) override {
+        if (!dumping()) return;
+        if (!trace_file_) {
+            trace_file_ = std::fopen(dump_file("trace.txt").c_str(), "w");
+            if (!trace_file_) return;
+            std::fprintf(trace_file_, "# frame %u: step, detail | back buffer mean (0-255) left / centre / right "
+                                      "thirds after it\n", frames_);
+        }
+        std::string stats = "?";
+        auto back = targets_.find(back_buffer_);
+        std::vector<uint32_t> px;
+        if (back != targets_.end() && (back->second.format == Format::BGRA8 || back->second.format == Format::BGRX8) &&
+            back->second.image && vk_.read(back->second.image, px)) {
+            const uint32_t w = back->second.image.width, h = back->second.image.height;
+            double sum[3] = {};
+            uint64_t n[3] = {};
+            for (uint32_t y = 0; y < h; y += 4)
+                for (uint32_t x = 0; x < w; x += 4) {
+                    const uint32_t v = px[static_cast<size_t>(y) * w + x];
+                    const int part = x < w / 3 ? 0 : x < 2 * w / 3 ? 1 : 2;
+                    sum[part] += (((v >> 16) & 0xff) + ((v >> 8) & 0xff) + (v & 0xff)) / 3.0;
+                    ++n[part];
+                }
+            char text[64];
+            std::snprintf(text, sizeof(text), "%.1f / %.1f / %.1f", sum[0] / std::max<uint64_t>(n[0], 1),
+                          sum[1] / std::max<uint64_t>(n[1], 1), sum[2] / std::max<uint64_t>(n[2], 1));
+            stats = text;
+        }
+        std::fprintf(trace_file_, "%4u %-12s %-70s | %s\n", trace_steps_++, what, detail.c_str(), stats.c_str());
+    }
+    // Traces its step when it goes (after every return of the function it guards).
+    struct TraceAfter {
+        Device* self;
+        const char* what;
+        std::string extra;
+        ~TraceAfter() {
+            if (self->dumping()) self->trace_step(what, extra + self->trace_detail());
+        }
+    };
+    // Target and bound texture of a step.
+    std::string trace_detail() const {
+        char text[160];
+        const TextureId t = bound_textures_[0];
+        auto it = textures_.find(t);
+        std::string texture = "none";
+        if (t && it != textures_.end()) {
+            char tt[96];
+            std::snprintf(tt, sizeof(tt), "tex %u %ux%u%s%s", t, it->second.desc.width, it->second.desc.height,
+                          it->second.target ? " (target)" : "", it->second.replacement ? " (replacement)" : "");
+            texture = tt;
+        }
+        auto target = targets_.find(color_);
+        std::snprintf(text, sizeof(text), "target %u (%08x)%s, %s", color_,
+                      target != targets_.end() ? target->second.xbox_data : 0, color_ == back_buffer_ ? " back" : "",
+                      texture.c_str());
+        return text;
+    }
     std::string dump_file(const char* name) const override { return dump_prefix_ + "_" + name; }
     bool target_size(TargetId id, uint32_t& width, uint32_t& height) override {
         auto it = targets_.find(id);
@@ -990,6 +1059,12 @@ public:
             pick_hits_.clear();
         }
         flat_frames_ = frame_is_flat() ? flat_frames_ + 1 : 0;
+        if (trace_file_) {
+            if (dumping()) trace_step("end_frame", {});
+            std::fclose(trace_file_);
+            trace_file_ = nullptr;
+            trace_steps_ = 0;
+        }
         if (++frames_ % 60 == 0) free_idle_replacements();
         // Developers: COD_BRO_DUMP_FRAME=N:PREFIX dumps presented frame N as a --diag mark does (replays).
         static const std::pair<uint32_t, std::string> dump_env = [] {
@@ -1044,6 +1119,10 @@ public:
         for (auto& [id, texture] : textures_) vk_.destroy_image(texture.image);
         for (auto& [id, buffer] : buffers_) release_buffer(buffer);
         textures_.clear();
+        // The kept frame buffers' texture views went with textures_: their ids must not be handed out again
+        // (a front end that sampled the back buffer before a level drew black over the movie after the restart).
+        for (TargetId kept : {back_buffer_, depth_buffer_})
+            if (auto it = targets_.find(kept); it != targets_.end()) it->second.texture[0] = it->second.texture[1] = 0;
         buffers_.clear();
         replacements_.clear();
         for (TextureId& bound : bound_textures_) bound = 0;
@@ -2212,6 +2291,8 @@ private:
     Context& vk_;
     float scale_x_, scale_y_;
     std::string dump_prefix_;  // dump_frame
+    std::FILE* trace_file_ = nullptr;  // trace_step: the dumped frame's trace
+    uint32_t trace_steps_ = 0;
     uint32_t dump_at_ = 0;
     uint32_t next_id_ = 1;
     std::unordered_map<TargetId, Target> targets_;
