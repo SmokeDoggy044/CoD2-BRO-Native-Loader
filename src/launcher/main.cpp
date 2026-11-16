@@ -90,7 +90,7 @@ void SDLCALL folder_picked(void*, const char* const* files, int) {
     g_picked = files[0];
 }
 
-// The Texture Packs tab's folder of downloaded release files, and a chosen disc image (same thread rule).
+// The Texture Packs tab's folder of downloaded release files, and a chosen disc dump (same thread rule).
 std::optional<std::string> g_pack_folder;
 std::optional<std::string> g_disc_image;
 
@@ -135,7 +135,7 @@ public:
     // Developer (COD_BRO_LAUNCHER_PAGE): opens "options", "mods", "packs" or "tech" instead of the front page.
     void show_page(std::string_view page) {
         if (page == "options") page_ = Page::Options;
-        // COD_BRO_LAUNCHER_IMAGE=FILE: as if that disc image had been chosen (unattended checks of the page).
+        // COD_BRO_LAUNCHER_IMAGE=FILE: as if that disc dump had been chosen (unattended checks of the page).
         if (const char* image = std::getenv("COD_BRO_LAUNCHER_IMAGE"); image && *image) {
             disc_image_ = image;
             check_game_files(disc_image_);
@@ -792,13 +792,13 @@ private:
             ImGui::TextColored(ImVec4(0.45f, 0.85f, 0.45f, 1), "Game files found.");
         else
             ImGui::TextColored(ImVec4(1.0f, 0.6f, 0.3f, 1),
-                               "Extract them from your disc image, or copy your game dump into this folder.");
+                               "Extract them from your disc dump, or copy already extracted game files into this folder.");
         ImGui::BeginDisabled(busy);
-        if (ImGui::Button("Extract from a disc image...")) {
-            static const SDL_DialogFileFilter kFilters[] = {{"Xbox disc images", "iso;xiso"}, {"All files", "*"}};
+        if (ImGui::Button("Extract from a disc dump...")) {
+            static const SDL_DialogFileFilter kFilters[] = {{"Xbox disc dumps", "iso;xiso"}, {"All files", "*"}};
             SDL_ShowOpenFileDialog(disc_image_picked, nullptr, window_, kFilters, 2, nullptr, false);
         }
-        ImGui::SetItemTooltip("An image of your game disc (XISO or a full image): checked first, then extracted "
+        ImGui::SetItemTooltip("A dump of your game disc (XISO or a full dump): checked first, then extracted "
                               "into the folder above.");
         ImGui::SameLine();
         if (ImGui::Button("Open folder")) open_folder(dir);
@@ -866,7 +866,7 @@ private:
         ImGui::SameLine();
         ImGui::TextDisabled("into %s", dir.string().c_str());
         if (ImGui::BeginPopupModal("replace game files", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
-            ImGui::Text("This folder already has game files. Replace them with the disc image's?");
+            ImGui::Text("This folder already has game files. Replace them with the disc dump's?");
             ImGui::TextDisabled("Files of the same names are overwritten; nothing else in the folder is touched.");
             if (ImGui::Button("Replace")) {
                 start_extract(check);

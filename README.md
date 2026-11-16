@@ -245,7 +245,7 @@ For the details:
 - [docs/developers/own-renderer.md](docs/developers/own-renderer.md): our own renderer, step by step
 - [docs/developers/texture-packs.md](docs/developers/texture-packs.md): texture pack releases (format, keys from
   the player's own textures, the launcher's install)
-- [docs/developers/game-files.md](docs/developers/game-files.md): the launcher's edition check and disc image
+- [docs/developers/game-files.md](docs/developers/game-files.md): the launcher's edition check and disc dump
   import
 - [docs/developers/rendering.md](docs/developers/rendering.md), [docs/developers/multiplayer.md](docs/developers/multiplayer.md)
   and [docs/developers/playtesting.md](docs/developers/playtesting.md): graphics, multiplayer and testing

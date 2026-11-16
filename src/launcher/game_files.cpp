@@ -185,7 +185,7 @@ std::unique_ptr<DiscImage> DiscImage::open(const fs::path& path, std::string& er
         }
     }
     if (base == UINT64_MAX) {
-        error = "not an Xbox disc image (no Xbox file system found)";
+        error = "not an Xbox disc dump (no Xbox file system found)";
         return nullptr;
     }
     uint32_t root_sector, root_size;
@@ -201,12 +201,12 @@ std::unique_ptr<DiscImage> DiscImage::open(const fs::path& path, std::string& er
         pending.pop_back();
         if (!size) continue;
         if (++tables > 100000 || size > (64u << 20)) {
-            error = "the image's file system is damaged";
+            error = "the dump's file system is damaged";
             return nullptr;
         }
         std::vector<uint8_t> table(size);
         if (!image->read(base + uint64_t{sector} * kSector, table.data(), size)) {
-            error = "the image is shorter than its file system says (incomplete copy?)";
+            error = "the dump is shorter than its file system says (incomplete copy?)";
             return nullptr;
         }
         std::vector<uint32_t> stack{0};
@@ -228,7 +228,7 @@ std::unique_ptr<DiscImage> DiscImage::open(const fs::path& path, std::string& er
             if (left) stack.push_back(uint32_t{left} * 4);
             if (right) stack.push_back(uint32_t{right} * 4);
             if (name.empty() || name == "." || name == ".." || name.find_first_of("/\\:") != std::string::npos) {
-                error = "the image's file system is damaged (bad name)";
+                error = "the dump's file system is damaged (bad name)";
                 return nullptr;
             }
             if (attributes & 0x10) {
@@ -236,7 +236,7 @@ std::unique_ptr<DiscImage> DiscImage::open(const fs::path& path, std::string& er
             } else {
                 const uint64_t offset = base + uint64_t{start} * kSector;
                 if (offset + length > image->size_) {
-                    error = "the image is shorter than its file system says (incomplete copy?)";
+                    error = "the dump is shorter than its file system says (incomplete copy?)";
                     return nullptr;
                 }
                 image->files_.push_back({prefix + name, length, offset});
@@ -269,7 +269,7 @@ std::string GameFilesCheck::summary() const {
     if (!missing.empty()) text += std::to_string(missing.size()) + " missing";
     if (!damaged.empty()) text += std::string(missing.empty() ? "" : ", ") + std::to_string(damaged.size()) + " damaged";
     text += " (" + (missing.empty() ? damaged.front() : missing.front()) +
-            (missing.size() + damaged.size() > 1 ? ", ..." : "") + "). Make a new copy of the disc.";
+            (missing.size() + damaged.size() > 1 ? ", ..." : "") + "). Make a new dump of the disc.";
     return text;
 }
 
@@ -383,7 +383,7 @@ bool extract_disc_image(const fs::path& image_path, const GameFileTable::Edition
             }
             const uint32_t n = static_cast<uint32_t>(std::min<uint64_t>(buffer.size(), f.size - at));
             if (!image->read(f.offset + at, buffer.data(), n)) {
-                error = "cannot read " + f.path + " from the image";
+                error = "cannot read " + f.path + " from the dump";
                 return false;
             }
             platform::sha1::update(c, buffer.data(), n);
@@ -402,7 +402,7 @@ bool extract_disc_image(const fs::path& image_path, const GameFileTable::Edition
         platform::sha1::final(c, digest);
         if (auto it = expected.find(lower(f.path)); it != expected.end() && hex(digest, 20) != it->second->sha1) {
             fs::remove(part, ec);
-            error = f.path + " in the image is damaged; nothing after it was extracted. Make a new copy of the disc.";
+            error = f.path + " in the dump is damaged; nothing after it was extracted. Make a new dump of the disc.";
             return false;
         }
         fs::rename(part, out_path, ec);

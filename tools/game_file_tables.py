@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 """The launcher's game-file tables (src/launcher/game_files.txt): every file of a known edition of the game with
-its size and SHA-1, from a disc image (XISO or a full image) or a folder of extracted files. Names, sizes and
+its size and SHA-1, from a disc dump (XISO or a full dump) or a folder of extracted files. Names, sizes and
 checksums only - no game data.
 
 usage: tools/game_file_tables.py OUT EDITION=SOURCE [EDITION=SOURCE ...]
   EDITION: an id (standard, collectors) and a name after a colon: standard:"Standard edition"
-  SOURCE:  an image file or a folder
+  SOURCE:  a disc dump file or a folder
 
-OUT format (src/launcher/disc_image.h reads it):
+OUT format (src/launcher/game_files.h reads it):
   edition <id> <sha1 of default.xbe> <name>
   <sha1> <size> <path with forward slashes>          (that edition's files, sorted by path)
 """
@@ -23,7 +23,7 @@ PARTITIONS = [0, 0x18300000, 0xFD90000, 0x2080000]  # XISO, XGD1, XGD2, XGD3 gam
 
 
 def image_files(path):
-    """(path, size, read(offset, n) source) of every file in an Xbox disc image."""
+    """(path, size, read(offset, n) source) of every file in an Xbox disc dump."""
     f = open(path, "rb")
     base = None
     for start in PARTITIONS:

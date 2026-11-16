@@ -1,6 +1,6 @@
-// Developer tool (not a test): the launcher's game-file check and disc image extraction without the window.
-//   game_files_tool check SOURCE            (an image or a folder)
-//   game_files_tool extract IMAGE TARGET    (checks first; extracts only a usable image)
+// Developer tool (not a test): the launcher's game-file check and disc dump extraction without the window.
+//   game_files_tool check SOURCE            (a disc dump or a folder)
+//   game_files_tool extract DUMP TARGET     (checks first; extracts only a usable dump)
 // The table: game_files.txt beside the program, or COD_BRO_GAME_FILE_TABLE.
 
 #include <atomic>
@@ -13,7 +13,7 @@
 int main(int argc, char** argv) {
     const std::string what = argc > 1 ? argv[1] : "";
     if (!((what == "check" && argc == 3) || (what == "extract" && argc == 4))) {
-        std::fprintf(stderr, "usage: game_files_tool check SOURCE | extract IMAGE TARGET\n");
+        std::fprintf(stderr, "usage: game_files_tool check SOURCE | extract DUMP TARGET\n");
         return 2;
     }
     const auto table = launcher::load_game_file_table();

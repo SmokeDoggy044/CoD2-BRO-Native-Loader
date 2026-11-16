@@ -1,4 +1,4 @@
-// The launcher's game files (src/launcher/game_files.h) on small made-up disc images: an XISO and a full image
+// The launcher's game files (src/launcher/game_files.h) on small made-up disc dumps: an XISO and a full image
 // (game partition at the XGD2 offset), recognised by default.xbe, checked, extracted; damaged, incomplete and
 // unknown copies; a folder check.
 

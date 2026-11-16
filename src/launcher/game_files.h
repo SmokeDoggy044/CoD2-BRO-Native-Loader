@@ -1,7 +1,7 @@
 #pragma once
 
-// The player's game files (no UI; main.cpp's Game files section, tests/game_files_test.cpp): an Xbox disc image
-// (XISO, or a full image with the game partition further in) or a folder of extracted files, recognised by
+// The player's game files (no UI; main.cpp's Game files section, tests/game_files_test.cpp): an Xbox disc dump
+// (XISO, or a full dump with the game partition further in) or a folder of extracted files, recognised by
 // default.xbe's SHA-1 and checked file by file against the known editions (game_files.txt beside the launcher,
 // made by tools/game_file_tables.py: paths, sizes and SHA-1s only), and the image extracted into the game files
 // folder.
@@ -37,7 +37,7 @@ std::optional<GameFileTable> parse_game_file_table(const std::string& text);
 // game_files.txt beside the launcher (or COD_BRO_GAME_FILE_TABLE), or nothing.
 std::optional<GameFileTable> load_game_file_table();
 
-// An Xbox disc image's file system (XDVDFS).
+// An Xbox disc dump's file system (XDVDFS).
 class DiscImage {
 public:
     struct Entry {
