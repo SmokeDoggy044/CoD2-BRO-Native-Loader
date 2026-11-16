@@ -25,12 +25,10 @@ if(WIN32)
 else()
     target_compile_definitions(cod_bro_launcher PRIVATE COD_BRO_PACKAGE="linux.tar.gz")
 endif()
-# The program Play starts: the route-B loader while there is one, else the game.
-if(COD_BRO_BUILD_LOADER)
-    target_compile_definitions(cod_bro_launcher PRIVATE COD_BRO_GAME_EXECUTABLE="cod_bro_loader")
-else()
-    target_compile_definitions(cod_bro_launcher PRIVATE COD_BRO_GAME_EXECUTABLE="cod_bro")
-endif()
+# The program Play starts: our own engine. The multiplayer still runs on the route-B loader (its renderer is the
+# original's), so Multiplayer starts that.
+target_compile_definitions(cod_bro_launcher PRIVATE COD_BRO_GAME_EXECUTABLE="cod_bro"
+    COD_BRO_MULTIPLAYER_EXECUTABLE="cod_bro_loader")
 
 # The known editions' file lists (tools/game_file_tables.py) next to the launcher, as in a release.
 add_custom_target(game_file_table ALL

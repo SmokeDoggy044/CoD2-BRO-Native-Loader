@@ -27,5 +27,5 @@ set(COD_BRO_README_REQUIREMENTS "- Linux on a 64-bit (or 32-bit) x86 PC, glibc $
 
 The other libraries are in lib/ (see LICENSES/BUNDLED.txt).")
 set(COD_BRO_README_SETTINGS "~/.local/share/cod_bro/settings.ini")
-set(COD_BRO_README_HELP "./cod_bro_loader --help")
+set(COD_BRO_README_HELP "./cod_bro --help")
 configure_file("${COD_BRO_README_IN}" "${prefix}/README.txt" @ONLY)

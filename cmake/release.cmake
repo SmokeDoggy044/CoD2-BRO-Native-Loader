@@ -1,6 +1,6 @@
 # The player release (route B, 32-bit Linux): `cmake --install` / `cpack` lay out
 #
-#   cod_bro_launcher, cod_bro_loader, default_xbe_symbols.txt, codmp_xbe_symbols.txt, *_signatures.txt, README.txt
+#   cod_bro_launcher, cod_bro (the game), cod_bro_loader (multiplayer), default_xbe_symbols.txt, codmp_xbe_symbols.txt, *_signatures.txt, README.txt
 #   lib/libcod_bro_game.so     the decompiled game code
 #   packaging/assets/README.md          the player copies the game dump here
 #   lib/                      the libraries the executables need beyond glibc and
@@ -13,7 +13,7 @@
 set(COD_BRO_RELEASE_DEPS "" CACHE PATH
     "Libraries for the release built by packaging/sniper (with licenses/); empty: the system's")
 
-set(release_programs cod_bro_loader cod_bro_launcher)
+set(release_programs cod_bro cod_bro_loader cod_bro_launcher)
 
 # lib/ next to the executables. An old-style RPATH (not RUNPATH) also applies to the
 # libraries' own dependencies (OpenAL Soft -> fmt, DXVK -> libdisplay-info).
@@ -41,7 +41,9 @@ install(RUNTIME_DEPENDENCY_SET release_libraries
 install(FILES ${PROJECT_SOURCE_DIR}/tools/data/default_xbe_symbols.txt
               ${PROJECT_SOURCE_DIR}/tools/data/codmp_xbe_symbols.txt
               ${PROJECT_SOURCE_DIR}/tools/data/default_xbe_signatures.txt
-              ${PROJECT_SOURCE_DIR}/tools/data/codmp_xbe_signatures.txt DESTINATION .)
+              ${PROJECT_SOURCE_DIR}/tools/data/codmp_xbe_signatures.txt
+              ${PROJECT_SOURCE_DIR}/tools/data/code_section_data.txt
+              ${PROJECT_SOURCE_DIR}/tools/data/level_eh_code.txt DESTINATION .)
 install(FILES ${PROJECT_SOURCE_DIR}/packaging/assets/README.md DESTINATION assets)
 install(FILES ${PROJECT_SOURCE_DIR}/src/launcher/game_files.txt DESTINATION .)
 install(DIRECTORY ${PROJECT_SOURCE_DIR}/LICENSES/ DESTINATION LICENSES)
@@ -64,7 +66,7 @@ install(FILES "${imgui_source_dir}/LICENSE.txt" DESTINATION LICENSES/bundled REN
 FetchContent_GetProperties(stb SOURCE_DIR stb_source_dir)
 install(FILES "${stb_source_dir}/LICENSE" DESTINATION LICENSES/bundled RENAME stb.txt)
 install(FILES "${PROJECT_SOURCE_DIR}/third_party/zstd/LICENSE" DESTINATION LICENSES/bundled RENAME zstd.txt)
-set(imgui_note "Dear ImGui v1.91.9 (built into cod_bro_launcher and cod_bro_loader)\n  license: LICENSES/bundled/Dear-ImGui.txt\n  source:  https://github.com/ocornut/imgui\nstb_truetype (built into cod_bro_loader)\n  license: LICENSES/bundled/stb.txt\n  source:  https://github.com/nothings/stb\nzstd 1.5.7 decoder (built into cod_bro_loader)\n  license: LICENSES/bundled/zstd.txt\n  source:  https://github.com/facebook/zstd\nFonts in src/text/fonts/: SIL Open Font License 1.1, see src/text/fonts/README.md and src/text/fonts/licenses/\n")
+set(imgui_note "Dear ImGui v1.91.9 (built into cod_bro_launcher, cod_bro and cod_bro_loader)\n  license: LICENSES/bundled/Dear-ImGui.txt\n  source:  https://github.com/ocornut/imgui\nstb_truetype (built into cod_bro and cod_bro_loader)\n  license: LICENSES/bundled/stb.txt\n  source:  https://github.com/nothings/stb\nzstd 1.5.7 decoder (built into cod_bro and cod_bro_loader)\n  license: LICENSES/bundled/zstd.txt\n  source:  https://github.com/facebook/zstd\nFonts in src/text/fonts/: SIL Open Font License 1.1, see src/text/fonts/README.md and src/text/fonts/licenses/\n")
 if(COD_BRO_RELEASE_DEPS)
     file(GLOB dep_licenses "${COD_BRO_RELEASE_DEPS}/licenses/*.txt")
     list(FILTER dep_licenses EXCLUDE REGEX "/BUNDLED\\.txt$")

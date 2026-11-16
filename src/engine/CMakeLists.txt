@@ -180,6 +180,9 @@ if(COD_BRO_BUILD_LOADER AND CMAKE_SYSTEM_NAME STREQUAL "Linux")
     add_library(game_code SHARED ${game_code_sources})
     set_target_properties(game_code PROPERTIES OUTPUT_NAME cod_bro_game
                           LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
+    # Threads and dl: separate libraries before glibc 2.34 (the sniper release build).
+    find_package(Threads REQUIRED)
+    target_link_libraries(game_code PRIVATE Threads::Threads ${CMAKE_DL_LIBS})
     # Calls to its own functions stay in the library: at -O0 template helpers (std::atomic's
     # memory_order operators, initializer_list) are weak out-of-line copies, and without this they
     # bind to the loader's copies - host code to the harness ("called host code").

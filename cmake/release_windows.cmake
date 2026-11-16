@@ -1,7 +1,8 @@
 # The player release for Windows (route B, 32-bit, cross-built with MinGW-w64 by the
 # windows-mingw-release presets): `cmake --install` / `cpack` lay out
 #
-#   cod_bro_launcher.exe, cod_bro_loader.exe (stub) + cod_bro_loader_core.dll,
+#   cod_bro_launcher.exe, cod_bro.exe + cod_bro_core.dll (the game), cod_bro_loader.exe (stub) + cod_bro_loader_core.dll
+#   (multiplayer),
 #   OpenAL32.dll, default_xbe_symbols.txt, codmp_xbe_symbols.txt, *_signatures.txt, README.txt
 #   dxvk/d3d9.dll             DXVK (Direct3D 9 on Vulkan); the game falls back to the
 #                             system's d3d9.dll without it or without Vulkan
@@ -11,11 +12,13 @@
 # The GCC runtime and SDL3 are linked in; OpenAL Soft stays a DLL (LGPL: replaceable).
 # DXVK comes from packaging/windows-dxvk/build.sh (run it once before the release).
 
-install(TARGETS cod_bro_loader cod_bro_loader_core cod_bro_launcher OpenAL RUNTIME DESTINATION .)
+install(TARGETS cod_bro cod_bro_core cod_bro_loader cod_bro_loader_core cod_bro_launcher OpenAL RUNTIME DESTINATION .)
 install(FILES ${PROJECT_SOURCE_DIR}/tools/data/default_xbe_symbols.txt
               ${PROJECT_SOURCE_DIR}/tools/data/codmp_xbe_symbols.txt
               ${PROJECT_SOURCE_DIR}/tools/data/default_xbe_signatures.txt
-              ${PROJECT_SOURCE_DIR}/tools/data/codmp_xbe_signatures.txt DESTINATION .)
+              ${PROJECT_SOURCE_DIR}/tools/data/codmp_xbe_signatures.txt
+              ${PROJECT_SOURCE_DIR}/tools/data/code_section_data.txt
+              ${PROJECT_SOURCE_DIR}/tools/data/level_eh_code.txt DESTINATION .)
 install(FILES ${PROJECT_SOURCE_DIR}/packaging/assets/README.md DESTINATION assets)
 install(FILES ${PROJECT_SOURCE_DIR}/src/launcher/game_files.txt DESTINATION .)
 install(DIRECTORY ${PROJECT_SOURCE_DIR}/LICENSES/ DESTINATION LICENSES)
@@ -41,7 +44,7 @@ If the game does not start, a message names the log file to send:
 
 OpenAL32.dll and DXVK are included (see LICENSES/BUNDLED.txt).")
 set(COD_BRO_README_SETTINGS "%APPDATA%\\cod_bro\\settings.ini")
-set(COD_BRO_README_HELP "cod_bro_loader --help (from a console)")
+set(COD_BRO_README_HELP "cod_bro --help (from a console)")
 configure_file(${PROJECT_SOURCE_DIR}/packaging/README.txt.in ${CMAKE_BINARY_DIR}/README.txt @ONLY NEWLINE_STYLE CRLF)
 install(FILES ${CMAKE_BINARY_DIR}/README.txt DESTINATION .)
 
@@ -54,10 +57,10 @@ FetchContent_GetProperties(openal_soft SOURCE_DIR openal_dir)
 file(GLOB openal_fmt_license "${openal_dir}/fmt-*/LICENSE")
 # file|name|title|source
 set(bundled_licenses
-    "${sdl3_dir}/LICENSE.txt|SDL3|SDL3 3.2.10 (built into cod_bro_loader_core.dll and cod_bro_launcher.exe)|https://github.com/libsdl-org/SDL"
+    "${sdl3_dir}/LICENSE.txt|SDL3|SDL3 3.2.10 (built into cod_bro_core.dll, cod_bro_loader_core.dll and cod_bro_launcher.exe)|https://github.com/libsdl-org/SDL"
     "${imgui_dir}/LICENSE.txt|Dear-ImGui|Dear ImGui v1.91.9 (built into cod_bro_launcher.exe)|https://github.com/ocornut/imgui"
-    "${stb_dir}/LICENSE|stb|stb_truetype (built into cod_bro_loader_core.dll)|https://github.com/nothings/stb"
-    "${PROJECT_SOURCE_DIR}/third_party/zstd/LICENSE|zstd|zstd 1.5.7 decoder (built into cod_bro_loader_core.dll)|https://github.com/facebook/zstd"
+    "${stb_dir}/LICENSE|stb|stb_truetype (built into cod_bro_core.dll and cod_bro_loader_core.dll)|https://github.com/nothings/stb"
+    "${PROJECT_SOURCE_DIR}/third_party/zstd/LICENSE|zstd|zstd 1.5.7 decoder (built into cod_bro_core.dll and cod_bro_loader_core.dll)|https://github.com/facebook/zstd"
     "${openal_dir}/COPYING|OpenAL-Soft|OpenAL Soft 1.24.2 (OpenAL32.dll, LGPL: can be replaced with any compatible build)|https://github.com/kcat/openal-soft"
     "${openal_dir}/BSD-3Clause|OpenAL-Soft-BSD-3-Clause|OpenAL Soft, BSD-3-Clause parts|"
     "${openal_dir}/LICENSE-pffft|OpenAL-Soft-pffft|OpenAL Soft, pffft|"

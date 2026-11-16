@@ -376,7 +376,8 @@ private:
     // Saves and starts the game; true when it started (the launcher then closes).
     bool start_game(bool multiplayer) {
         if (!save()) return false;
-        const fs::path game = platform::sibling_executable(COD_BRO_GAME_EXECUTABLE);
+        const fs::path game =
+            platform::sibling_executable(multiplayer ? COD_BRO_MULTIPLAYER_EXECUTABLE : COD_BRO_GAME_EXECUTABLE);
         std::vector<std::string> args;
         if (multiplayer) args.push_back("--multiplayer");
         if (profile_) args.insert(args.end(), {"--profile", "auto"});

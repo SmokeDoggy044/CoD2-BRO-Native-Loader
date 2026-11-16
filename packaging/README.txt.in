@@ -1,26 +1,36 @@
-Call of Duty 2: Big Red One - native loader for PC, prototype @PROJECT_VERSION@
-===================================================================
+Call of Duty 2: Big Red One - Custom Engine @PROJECT_VERSION@
+=========================================================
 
-A native loader for @COD_BRO_README_SYSTEM@: it runs the original Xbox game's code directly
-on your PC's CPU (the Xbox is an x86 machine too), with the Xbox's system
-software (kernel, Direct3D, DirectSound, controllers) replaced by our own code.
-The CPU is not emulated and nothing is recompiled. It needs your own copy of the
-game; no game code or data is included.
+Our own engine implementation of Call of Duty 2: Big Red One for
+@COD_BRO_README_SYSTEM@: the renderer, sound, script engine, game logic and menus are
+rewritten as source code of our own. The game's maps, models, sounds and
+mission scripts come from your own copy of the Xbox game; no game code or data
+is included.
 
-This is a prototype and the proof of concept for a full native build: the
-whole single-player campaign is playable.
-Multiplayer works over System Link (your local network); Xbox Live is not
-available.
+The whole single-player campaign is playable. Multiplayer works over System
+Link (your local network); Xbox Live is not available.
 
 
 Setup
 -----
 
-Copy your game dump into the assets folder.
+Start cod_bro_launcher. In Options, General, choose "Extract from a disc
+dump..." and pick the dump of your game disc (an XISO or a full dump): the
+launcher checks it against the known editions and extracts it into the assets
+folder. Or copy an already extracted dump into the assets folder yourself; the
+launcher checks that too.
 
-Then start cod_bro_launcher. It shows whether the game files are found, lets
-you use another folder instead, sets the options below, and starts the game.
-(cod_bro_loader starts the game directly with the saved settings.)
+Then set the options below and press Play. (cod_bro starts the game directly
+with the saved settings.)
+
+
+Texture packs
+-------------
+
+Optional sharper textures (4x) for the levels and the menus, and surface maps
+for Enhanced Graphics: install them on the launcher's Data Files page, Texture
+Packs tab. They download from GitHub (SmokeDoggy044/cod_bro_tex) and only work
+with your own game files.
 
 
 Requirements
@@ -63,28 +73,29 @@ Options
 -------
 
 The launcher saves its settings in @COD_BRO_README_SETTINGS@, next to
-the saves. Every setting is also a command-line option of cod_bro_loader, which
-then wins over the file; @COD_BRO_README_HELP@ lists them.
+the saves. Every setting is also a command-line option of cod_bro, which then
+wins over the file; @COD_BRO_README_HELP@ lists them.
 
 
 Reporting a problem
 -------------------
 
 Every start writes log.txt next to settings.ini; the "Open log folder" button
-on the launcher's Help tab opens that folder, and "Open save folder" the
+on the launcher's Tech Support page opens that folder, and "Open save folder" the
 saves. Attach log.txt to your report (copy it first: the next start replaces
 it), plus the save folder if the problem depends on your progress.
 
-For a low frame rate, tick "Measure performance" on the Help tab before pressing
-Play and play to where it gets slow: the log then also says where the time went.
+For a low frame rate, tick "Measure performance" on the Tech Support page
+before pressing Play and play to where it gets slow: the log then also says
+where the time went.
 
 
 Licenses
 --------
 
-The port is free software under the GNU General Public License, version 2 or
+The engine is free software under the GNU General Public License, version 2 or
 later; its source code is on GitHub (SmokeDoggy044/CoD2-BRO-Native-Loader). The
 bundled libraries have their own licenses: see LICENSES/. The fonts in src/text/fonts/
 (used by the launcher's "Sharper text" option) are free fonts under the SIL Open
 Font License; their licenses are in src/text/fonts/licenses/. Call of Duty 2: Big Red
-One belongs to its owners; this port contains none of its code or data.
+One belongs to its owners; this release contains none of its code or data.
