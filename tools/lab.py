@@ -15,7 +15,7 @@ run: every mission's recording (recordings/<m>/*.rep, the first) is replayed onc
   few minutes per variant, variants in parallel. Pictures land in OUT/<variant>/<mission>/shot_<frame>.bmp, logs next
   to them. Then compare runs.
   Capture points: tools/data/capture_points.csv (mission,frame,label); a mission without rows gets 8 frames spread
-  over its recording. Variants: NAME="extra loader options"; default: original="--graphics original" and
+  over its recording. --between: 7 frames halfway between those 8 instead (other views of the same recordings). Variants: NAME="extra loader options"; default: original="--graphics original" and
   enhanced="--graphics enhanced". The first variant is the baseline.
 compare: per capture point and variant against the baseline: share of pixels that differ (largest channel > 8),
   PSNR, sharpness (mean absolute Laplacian, variant / baseline), mean brightness change. Writes OUT/report.html
@@ -75,14 +75,17 @@ def recording_info(rep):
     return int(out[0]), out[1]
 
 
-def capture_points(mission, frames):
+def capture_points(mission, frames, between=False):
     rows = []
-    if POINTS.exists():
+    if POINTS.exists() and not between:
         with open(POINTS, newline="") as f:
             rows = [(int(r["frame"]), r["label"]) for r in csv.DictReader(f) if r["mission"] == mission]
     if not rows:
         start = min(600, frames // 4)
-        rows = [(start + (frames - 60 - start) * i // 7, f"auto {i + 1}") for i in range(8)]
+        if between:  # halfway between the default points: a fresh set of views
+            rows = [(start + (frames - 60 - start) * (2 * i + 1) // 14, f"between {i + 1}") for i in range(7)]
+        else:
+            rows = [(start + (frames - 60 - start) * i // 7, f"auto {i + 1}") for i in range(8)]
     return sorted(rows)
 
 
@@ -129,7 +132,7 @@ def cmd_run(args):
     for mission in args.mission:
         rep = recording_for(mission)
         frames, recorded_mission = recording_info(rep)
-        points = capture_points(mission, frames)
+        points = capture_points(mission, frames, args.between)
         jobs += [(v, mission, rep, frames, recorded_mission, points) for v in variants]
     with open(out / "variants.txt", "w") as f:
         f.writelines(f"{name}={' '.join(options)}\n" for name, options in variants)
@@ -603,6 +606,8 @@ def main():
     r.add_argument("--variant", action="append")
     r.add_argument("--loader", type=Path, default=DEFAULT_LOADER)
     r.add_argument("--speed", type=float, default=3)
+    r.add_argument("--between", action="store_true",
+                   help="7 points halfway between the default 8 (ignores capture_points.csv): other views")
     r.add_argument("--jobs", type=int, default=max(1, min(4, (os.cpu_count() or 4) // 4)))
     c = sub.add_parser("compare")
     c.add_argument("out")

@@ -4,7 +4,7 @@
 # Dear ImGui: cmake/imgui.cmake.
 
 # The update check and the updater (no UI), also used by the tests.
-add_library(launcher_update STATIC update_check.cpp updater.cpp texture_packs.cpp)
+add_library(launcher_update STATIC update_check.cpp updater.cpp texture_packs.cpp game_files.cpp)
 target_include_directories(launcher_update PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(launcher_update PUBLIC platform)
 target_compile_definitions(launcher_update PRIVATE COD_BRO_VERSION="${PROJECT_VERSION}")
@@ -31,3 +31,9 @@ if(COD_BRO_BUILD_LOADER)
 else()
     target_compile_definitions(cod_bro_launcher PRIVATE COD_BRO_GAME_EXECUTABLE="cod_bro")
 endif()
+
+# The known editions' file lists (tools/game_file_tables.py) next to the launcher, as in a release.
+add_custom_target(game_file_table ALL
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different ${CMAKE_CURRENT_SOURCE_DIR}/game_files.txt ${CMAKE_BINARY_DIR}/bin/game_files.txt
+    COMMENT "Copying game_files.txt")
+add_dependencies(cod_bro_launcher game_file_table)

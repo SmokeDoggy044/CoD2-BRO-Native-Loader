@@ -188,6 +188,10 @@ if(COD_BRO_BUILD_LOADER AND CMAKE_SYSTEM_NAME STREQUAL "Linux")
     # host files, built into this library.
     target_sources(game_code PRIVATE ${PROJECT_SOURCE_DIR}/src/platform/vmem_posix.cpp
                                      ${PROJECT_SOURCE_DIR}/src/platform/file_posix.cpp)
+    # 64-bit file offsets as in src/platform (source properties are per directory): reads past 2 GB (an installed
+    # texture pack's pack.dat) would wrap otherwise.
+    set_source_files_properties(${PROJECT_SOURCE_DIR}/src/platform/file_posix.cpp PROPERTIES
+                                COMPILE_DEFINITIONS _FILE_OFFSET_BITS=64)
 else()
     add_library(game_code STATIC ${game_code_sources})
     target_link_libraries(game_code PRIVATE platform)

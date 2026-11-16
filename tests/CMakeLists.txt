@@ -195,3 +195,11 @@ endif()
 # Developer tool: the launcher's texture pack install without its window (not a test).
 add_executable(texture_pack_install texture_pack_install.cpp)
 target_link_libraries(texture_pack_install PRIVATE launcher_update)
+
+add_executable(game_files_test game_files_test.cpp)
+target_link_libraries(game_files_test PRIVATE launcher_update)
+add_test(NAME game_files_test COMMAND game_files_test)
+
+# Developer tool: the launcher's game-file check and disc image extraction without its window (not a test).
+add_executable(game_files_tool game_files_tool.cpp)
+target_link_libraries(game_files_tool PRIVATE launcher_update)

@@ -17,6 +17,7 @@
 #include <unordered_set>
 
 #include "chacha20.h"
+#include "file.h"
 #include "log.h"
 #include "texture_index.h"
 
@@ -85,9 +86,12 @@ bool parse_hex(const std::string& s, uint64_t& out) {
 // pack, or a key from another texture: the zstd frame check fails).
 std::vector<uint8_t> unpack(const Entry& e, uint64_t content, const std::array<uint8_t, 32>& key) {
     std::vector<uint8_t> stored(e.stored);
-    std::ifstream in(e.file, std::ios::binary);
-    if (!in.seekg(static_cast<std::streamoff>(e.offset)) ||
-        !in.read(reinterpret_cast<char*>(stored.data()), static_cast<std::streamsize>(stored.size())))
+    // pack.dat can pass 4 GB: 64-bit positioned reads (platform::File), not stream seeks.
+    std::error_code ec;
+    const auto file = platform::File::open(e.file, platform::File::Access::Read, false, ec);
+    uint32_t done = 0;
+    if (!file || e.stored > UINT32_MAX ||
+        !file->read_at(e.offset, stored.data(), static_cast<uint32_t>(stored.size()), done, ec) || done != stored.size())
         return {};
     const auto nonce = platform::texture_nonce(content, e.kind);
     platform::chacha20_xor(key.data(), nonce.data(), 0, stored.data(), stored.size());

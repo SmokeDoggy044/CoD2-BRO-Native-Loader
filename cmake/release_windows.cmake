@@ -17,6 +17,7 @@ install(FILES ${PROJECT_SOURCE_DIR}/tools/data/default_xbe_symbols.txt
               ${PROJECT_SOURCE_DIR}/tools/data/default_xbe_signatures.txt
               ${PROJECT_SOURCE_DIR}/tools/data/codmp_xbe_signatures.txt DESTINATION .)
 install(FILES ${PROJECT_SOURCE_DIR}/packaging/assets/README.md DESTINATION assets)
+install(FILES ${PROJECT_SOURCE_DIR}/src/launcher/game_files.txt DESTINATION .)
 install(DIRECTORY ${PROJECT_SOURCE_DIR}/LICENSES/ DESTINATION LICENSES)
 
 set(dxvk_dir "${PROJECT_SOURCE_DIR}/build/windows-dxvk/out")

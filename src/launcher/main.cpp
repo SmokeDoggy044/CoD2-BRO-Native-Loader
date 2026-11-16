@@ -21,6 +21,7 @@
 
 #include "bindings.h"
 #include "front_picture.h"
+#include "game_files.h"
 #include "imgui.h"
 #include "imgui_impl_sdl3.h"
 #include "imgui_impl_sdlrenderer3.h"
@@ -89,8 +90,15 @@ void SDLCALL folder_picked(void*, const char* const* files, int) {
     g_picked = files[0];
 }
 
-// The Texture Packs tab's folder of downloaded release files (same thread rule).
+// The Texture Packs tab's folder of downloaded release files, and a chosen disc image (same thread rule).
 std::optional<std::string> g_pack_folder;
+std::optional<std::string> g_disc_image;
+
+void SDLCALL disc_image_picked(void*, const char* const* files, int) {
+    if (!files || !files[0]) return;
+    std::lock_guard lock(g_picked_mutex);
+    g_disc_image = files[0];
+}
 
 void SDLCALL pack_folder_picked(void*, const char* const* files, int) {
     if (!files || !files[0]) return;
@@ -119,12 +127,19 @@ public:
         if (auto keys = platform::combined_setting(settings_, "keys")) input::parse_bindings(*keys, bindings_);
         launcher::remove_update_leftovers(platform::executable_dir());
         if (check_updates()) update_.emplace(COD_BRO_RELEASES, COD_BRO_VERSION);
+        if (auto table = launcher::load_game_file_table())
+            game_table_ = std::make_shared<const launcher::GameFileTable>(std::move(*table));
         load_pictures();
     }
 
     // Developer (COD_BRO_LAUNCHER_PAGE): opens "options", "mods", "packs" or "tech" instead of the front page.
     void show_page(std::string_view page) {
         if (page == "options") page_ = Page::Options;
+        // COD_BRO_LAUNCHER_IMAGE=FILE: as if that disc image had been chosen (unattended checks of the page).
+        if (const char* image = std::getenv("COD_BRO_LAUNCHER_IMAGE"); image && *image) {
+            disc_image_ = image;
+            check_game_files(disc_image_);
+        }
         if (page == "tech") page_ = Page::TechSupport;
         if (page == "mods" || page == "packs") {
             page_ = Page::DataFiles;
@@ -157,6 +172,12 @@ public:
                 else
                     settings_.set("assets", *g_picked);
                 g_picked.reset();
+                check_game_files(asset_dir(settings_));  // a folder the player picked: checked right away
+            }
+            if (g_disc_image) {
+                disc_image_ = *g_disc_image;
+                check_game_files(disc_image_);
+                g_disc_image.reset();
             }
             if (g_pack_folder) {
                 pack_lookup_ = launcher::PackTask::lookup(kTextureRepository, *g_pack_folder, user_agent());
@@ -312,7 +333,7 @@ private:
         ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.70f, 0.15f, 0.12f, 1.0f));
         ImGui::SetCursorPos(ImVec2(x, y));
         ImGui::BeginGroup();
-        ImGui::BeginDisabled(!files || updating());
+        ImGui::BeginDisabled(!files || updating() || files_job_busy());
         campaign = front_button("Play");
         if (multiplayer_files) multiplayer = front_button("Multiplayer");
         ImGui::EndDisabled();
@@ -749,15 +770,37 @@ private:
         ImGui::TextDisabled("Version %s%s", COD_BRO_VERSION, status);
     }
 
+    // Starts checking a folder or an image against the known editions (game_files.txt).
+    void check_game_files(const fs::path& source) {
+        if (!game_table_ || files_job_busy()) return;
+        files_extract_ = false;
+        files_source_ = source;
+        files_job_ = launcher::GameFilesTask::check(source, game_table_);
+    }
+
+    bool files_job_busy() const {
+        return files_job_ && files_job_->result().status == launcher::GameFilesTask::Status::Working;
+    }
+
     void game_files() {
         ImGui::SeparatorText("Game files");
         const fs::path dir = asset_dir(settings_);
         const bool found = platform::has_game_files(dir);
+        const bool busy = files_job_busy();
         ImGui::TextWrapped("%s", dir.string().c_str());
         if (found)
             ImGui::TextColored(ImVec4(0.45f, 0.85f, 0.45f, 1), "Game files found.");
         else
-            ImGui::TextColored(ImVec4(1.0f, 0.6f, 0.3f, 1), "Copy your game dump into the assets folder.");
+            ImGui::TextColored(ImVec4(1.0f, 0.6f, 0.3f, 1),
+                               "Extract them from your disc image, or copy your game dump into this folder.");
+        ImGui::BeginDisabled(busy);
+        if (ImGui::Button("Extract from a disc image...")) {
+            static const SDL_DialogFileFilter kFilters[] = {{"Xbox disc images", "iso;xiso"}, {"All files", "*"}};
+            SDL_ShowOpenFileDialog(disc_image_picked, nullptr, window_, kFilters, 2, nullptr, false);
+        }
+        ImGui::SetItemTooltip("An image of your game disc (XISO or a full image): checked first, then extracted "
+                              "into the folder above.");
+        ImGui::SameLine();
         if (ImGui::Button("Open folder")) open_folder(dir);
         ImGui::SameLine();
         if (ImGui::Button("Choose another folder...")) {
@@ -768,6 +811,77 @@ private:
             ImGui::SameLine();
             if (ImGui::Button("Use the assets folder")) settings_.erase("assets");
         }
+        if (found && game_table_) {
+            ImGui::SameLine();
+            if (ImGui::Button("Check")) check_game_files(dir);
+            ImGui::SetItemTooltip("Compares every file with the known editions of the game.");
+        }
+        ImGui::EndDisabled();
+        if (!game_table_) ImGui::TextDisabled("game_files.txt is missing next to the launcher: no checks.");
+
+        if (!files_job_) return;
+        const launcher::GameFilesTask::Result job = files_job_->result();
+        if (job.status == launcher::GameFilesTask::Status::Working) {
+            const float share = job.progress.total ? static_cast<float>(job.progress.done) / job.progress.total : 0;
+            ImGui::ProgressBar(share, ImVec2(-ImGui::GetFontSize() * 6, 0),
+                               job.progress.message.empty() ? "Starting..." : job.progress.message.c_str());
+            ImGui::SameLine();
+            if (ImGui::Button("Cancel##files")) files_job_->cancel();
+            return;
+        }
+        if (job.status != launcher::GameFilesTask::Status::Done) {
+            ImGui::TextColored(ImVec4(1.0f, 0.4f, 0.4f, 1), "%s",
+                               job.status == launcher::GameFilesTask::Status::Cancelled ? "Cancelled."
+                                                                                       : job.error.c_str());
+            return;
+        }
+        if (files_extract_) {
+            ImGui::TextColored(ImVec4(0.45f, 0.85f, 0.45f, 1), "%s", job.progress.message.c_str());
+            return;
+        }
+        // A finished check: the verdict, and for a usable image the way on.
+        const launcher::GameFilesCheck& check = job.check;
+        const ImVec4 colour = !check.usable()   ? ImVec4(1.0f, 0.4f, 0.4f, 1)
+                              : check.edition   ? ImVec4(0.45f, 0.85f, 0.45f, 1)
+                                                : ImVec4(1.0f, 0.75f, 0.3f, 1);
+        ImGui::PushStyleColor(ImGuiCol_Text, colour);
+        ImGui::TextWrapped("%s", check.summary().c_str());
+        ImGui::PopStyleColor();
+        if (!check.usable() && ImGui::IsItemHovered()) {
+            std::string list;
+            for (const auto& p : check.missing) list += "missing: " + p + "\n";
+            for (const auto& p : check.damaged) list += "damaged: " + p + "\n";
+            if (list.size() > 2000) list = list.substr(0, 2000) + "...";
+            ImGui::SetTooltip("%s", list.c_str());
+        }
+        const bool image = files_source_ == disc_image_ && !disc_image_.empty();
+        if (!image || !check.usable()) return;
+        const char* label = check.edition ? "Extract" : "Extract anyway (untested edition)";
+        if (ImGui::Button(label)) {
+            if (found)
+                ImGui::OpenPopup("replace game files");
+            else
+                start_extract(check);
+        }
+        ImGui::SameLine();
+        ImGui::TextDisabled("into %s", dir.string().c_str());
+        if (ImGui::BeginPopupModal("replace game files", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
+            ImGui::Text("This folder already has game files. Replace them with the disc image's?");
+            ImGui::TextDisabled("Files of the same names are overwritten; nothing else in the folder is touched.");
+            if (ImGui::Button("Replace")) {
+                start_extract(check);
+                ImGui::CloseCurrentPopup();
+            }
+            ImGui::SameLine();
+            if (ImGui::Button("Keep them")) ImGui::CloseCurrentPopup();
+            ImGui::EndPopup();
+        }
+    }
+
+    void start_extract(const launcher::GameFilesCheck& check) {
+        files_extract_ = true;
+        files_job_ = launcher::GameFilesTask::extract(disc_image_, game_table_, check.edition ? check.edition->id : "",
+                                                      asset_dir(settings_));
     }
 
     bool check_updates() const { return ui::setting_value(settings_, "check-updates") == "true"; }
@@ -1008,6 +1122,10 @@ private:
     bool packs_opened_ = false;  // its first look-up done
     std::unique_ptr<launcher::PackTask> pack_lookup_, pack_job_;
     std::vector<launcher::InstalledPack> installed_packs_;
+    std::shared_ptr<const launcher::GameFileTable> game_table_;  // game_files.txt, when found
+    std::unique_ptr<launcher::GameFilesTask> files_job_;          // a check or an extraction
+    fs::path files_source_, disc_image_;
+    bool files_extract_ = false;
     std::string pack_job_id_, remove_pack_, pack_message_;
     Shown picture_, logo_;
     fs::path pictures_for_;        // the game files folder the pictures came from

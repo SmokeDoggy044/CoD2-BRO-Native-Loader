@@ -7,6 +7,7 @@
 #include <thread>
 #include <tuple>
 
+#include "file.h"
 #include "https.h"
 #include "log.h"
 #include "sha256.h"
@@ -34,18 +35,21 @@ std::string megabytes(uint64_t bytes) { return std::to_string((bytes + (1 << 19)
 bool fetch(const PackSource& source, const std::string& name, uint64_t offset, uint64_t length,
            const std::function<bool(const char*, size_t)>& sink, std::string& error) {
     if (source.web()) return platform::https_download(source.base_url + name, source.user_agent, offset, length, sink, error);
-    std::ifstream in(source.folder / name, std::ios::binary);
-    if (!in || !in.seekg(static_cast<std::streamoff>(offset))) {
+    std::error_code ec;
+    const auto in = platform::File::open(source.folder / name, platform::File::Access::Read, false, ec);
+    if (!in) {
         error = "cannot read " + (source.folder / name).string();
         return false;
     }
     std::vector<char> chunk(kChunk);
     while (length) {
-        const size_t n = static_cast<size_t>(std::min<uint64_t>(length, chunk.size()));
-        if (!in.read(chunk.data(), static_cast<std::streamsize>(n))) {
+        const uint32_t n = static_cast<uint32_t>(std::min<uint64_t>(length, chunk.size()));
+        uint32_t done = 0;
+        if (!in->read_at(offset, chunk.data(), n, done, ec) || done != n) {
             error = (source.folder / name).string() + " is shorter than the index says";
             return false;
         }
+        offset += n;
         if (!sink(chunk.data(), n)) {
             error = "cancelled";
             return false;
@@ -211,7 +215,7 @@ bool install_pack(const PackSource& source, const platform::TextureIndex& index,
     }
 
     std::ofstream out(dat, std::ios::binary | std::ios::app);
-    std::ifstream old_dat(target / "pack.dat", std::ios::binary);
+    auto old_dat = platform::File::open(target / "pack.dat", platform::File::Access::Read, false, ec);
     if (!out) {
         error = "cannot write " + dat.string();
         return false;
@@ -223,10 +227,10 @@ bool install_pack(const PackSource& source, const platform::TextureIndex& index,
         // Copy from the installed version.
         if (auto it = old_files.find({f.id, f.kind, f.sha256}); it != old_files.end() && old_dat) {
             std::string buffer(f.stored, '\0');
-            old_dat.clear();
-            if (old_dat.seekg(static_cast<std::streamoff>(it->second.first)) &&
-                old_dat.read(buffer.data(), static_cast<std::streamsize>(buffer.size())) &&
-                platform::sha256_hex(buffer) == f.sha256) {
+            uint32_t done = 0;
+            if (f.stored <= UINT32_MAX &&
+                old_dat->read_at(it->second.first, buffer.data(), static_cast<uint32_t>(buffer.size()), done, ec) &&
+                done == buffer.size() && platform::sha256_hex(buffer) == f.sha256) {
                 out.write(buffer.data(), static_cast<std::streamsize>(buffer.size()));
                 whole.update(buffer);
                 written += f.stored;
@@ -309,7 +313,7 @@ bool install_pack(const PackSource& source, const platform::TextureIndex& index,
         error = "cannot write " + dat.string() + " (disk full?)";
         return false;
     }
-    old_dat.close();
+    old_dat.reset();  // closed before its folder is renamed (Windows refuses with a file open)
 
     // pack.idx (offsets in pack.dat), mod.ini, then the finished folder takes the old one's place.
     platform::TextureIndex installed;
