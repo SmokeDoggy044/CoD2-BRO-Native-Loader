@@ -9,7 +9,7 @@ Classes (first that applies):
   thunk_c      a `jmp rel32` thunk whose target has a C row: needs only an alias row
   thunk        a `jmp rel32` thunk to a function without C
   c_no_row     a function with this name is defined in src/engine but has no functions.cpp row
-  live         Xbox Live / UIX / XVOICE / XONLINE code (dead: Live is not part of the own engine, user 2026-11-12),
+  live         Xbox Live / UIX / XVOICE / XONLINE code (dead: Live is not part of the own engine),
                by name/module, or every reference sits in a pointer table whose named members are all Live
   eh_dead      a C++ EH unwind action / catch funclet of a function that runs as our C (dead: our C has its own EH)
   eh_sdk       the same for an SDK library function (XGRPH ...) our platform layer replaces

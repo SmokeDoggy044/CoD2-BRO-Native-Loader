@@ -1,6 +1,6 @@
 #pragma once
 
-// Every setting of the game, described once (own engine 0.6a, docs/developers/own-engine-host.md "0.6 plan").
+// Every setting of the game, described once (own engine 0.6a, docs/developers/own-engine-host.md "0.6: one settings schema").
 //
 // A setting is a command-line option (--key) and, unless it is command-line only, a settings.ini line
 // (key = value). From this table come: the option parser's checks and error messages (src/runtime/loader/

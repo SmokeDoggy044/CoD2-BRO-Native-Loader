@@ -37,7 +37,7 @@ the original. Code: `src/runtime/loader/compare.h`, `src/runtime/loader/compare_
    Drift on a function that does float math can be accepted after reading it.
    Mismatches in values the title never sets (stale stack: uninitialized lanes, unwritten
    struct words - they depend on whatever ran before at that stack depth, so no C version
-   can reproduce them) are accepted too (user decision 2026-10-25): `tools/data/accepted.csv`
+   can reproduce them) are accepted too: `tools/data/accepted.csv`
    lists the function, a regex for its recorded issue and the reason. progress.py then
    counts it as `accepted` (rewritten; it no longer blocks its module's Replaced) while
    functions.csv's latest issue still matches the regex - a different kind of mismatch
@@ -69,7 +69,7 @@ functions run as on the Xbox (30 fps) and patched ones such as nglSetVBlankMode 
 tested. The presentation is the Xbox's as well: settings.ini is ignored and, unless
 given explicitly, 4:3 (no EEPROM widescreen flag, which changes the game's own code
 paths), the game's fonts (no sharper text), render scale 1, no anisotropic filtering,
-brightness 1 (user, 2026-10-18: test with nothing but what the test needs). Before
+brightness 1 (a test runs with nothing but what it needs). Before
 that date every run had the widescreen flag and sharper text on; the counts were
 re-checked with `--compare-all` in the corrected setup. Only what the game needs on a PC stays (privileged code, RDTSC, SDK replacements,
 the MP heap lock, `--level`). `--compare --pc-patches on` plays with them; then grep
@@ -93,7 +93,7 @@ that is loading (state 1) and has its image (the `*0` term only has to be readab
 used. Check that the call does work before counting it: FxSystemList_DestroyAll(ecx=0x009099a8)
 matched 39 times with its list count ([0x00909b8c]) 0 on every client frame of missions 1 and 4 -
 only the early return ran; the row was reset. Functions nothing calls or points to (no CALL/JMP,
-no pointer in data: XModel_FreeAnimStates) are dead code and not tested (user, 2026-10-25).
+no pointer in data: XModel_FreeAnimStates) are dead code and not tested.
 A `?W` guard that cannot be read yet (the objects it walks do not exist before the level has them) counts as
 "not now", not as a failed spec. `&N` is the address of stack word N in the test processes, so stack words can stand in for an object's fields or a
 short string: `nglMaterial_LoadTextureRef(&1-0x18,[0x902700]+0x54)` (a material whose name field +0x18 is word 1),
@@ -611,7 +611,7 @@ same address, and ASLR moves the libraries over it. `LEAF_REPLAY_STACK=1=0x...` 
 word: shortening a particle loop's `end` bisects to the first iteration that differs.
 `LEAF_CSV=tools/data/offline.csv` records the results (rows of functions not run are kept);
 tools/progress.py gives a function without a conclusive in-game test the state **offline** when
-it has 100+ inputs matched, none mismatched or drifted, and 90%+ coverage (user, 2026-10-24: it
+it has 100+ inputs matched, none mismatched or drifted, and 90%+ coverage (it
 counts towards the matched counter; an in-game test later moves it to matched/settled as usual).
 Checked with planted bugs in nglColorToVec4 (alpha ^ 1: 279 of 279 inputs) and
 nglVec4ToColor (alpha from blue: 75 of 285).

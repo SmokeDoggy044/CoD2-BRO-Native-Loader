@@ -1,6 +1,6 @@
 #pragma once
 
-// GfxDevice on Vulkan (own engine 0.5; docs/developers/own-engine-host.md, "0.5 plan"): render targets,
+// GfxDevice on Vulkan (own engine 0.5; docs/developers/own-engine-host.md, "0.5: Vulkan back end"): render targets,
 // textures, buffers, the title's shaders (SPIR-V, spirv_layout.h) and draws, with one pipeline layout of push
 // descriptors and pipelines keyed by the state Vulkan cannot set dynamically.
 

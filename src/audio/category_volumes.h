@@ -25,7 +25,7 @@ struct CategoryVolumes {
     float ambience = 100.0f;  // the levels' background beds: distant battle, wind, rain, rooms
     float dialogue = 100.0f;  // the game's VOICE group: orders, chatter, briefings
     float music = 100.0f;
-    // Enhanced sound only, 0 dB (none) by default - for the players to try (user 10-30): others'
+    // Enhanced sound only, 0 dB (none) by default - for the players to try: others'
     // gunshots this much louder (dB) within kNear, fading to the game's level at kFar. The game
     // mixes them at 0.04-0.23 of full (playtest 10-30: a firefight a few metres away sounded
     // quiet, also in original sound; the user liked +12).

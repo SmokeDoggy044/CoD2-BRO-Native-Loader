@@ -542,7 +542,7 @@ const SettingUi kUi[] = {
      "Distant sounds lose their highs the way air takes them (about 4 dB at 100 m), so far gunfire sounds farther "
      "away. How loud a sound is by its distance stays the game's own.",
      nullptr, nullptr, "audio=enhanced"},
-    // The close-range boost: three volumes, no switch of its own (0 dB = the game's level; user 11-16).
+    // The close-range boost: three volumes, no switch of its own (0 dB = the game's level).
     {"close-gunfire", nullptr, "Others' gunfire",
      "Gunfire and bullets louder near you: full within 15 m, fading to the game's own level at 30 m (your own "
      "gunfire always full). The game mixes them quietly; 0 dB = its level.",

@@ -11496,7 +11496,7 @@ address,name,section,module,state,tested,matched
 00313f20,UIDialog_SetText,.text,client,replaced,9,9
 003141c0,DialogMgr_DrawBackground,.text,client,replaced,11188,11188
 00314340,DialogMgr_DrawOverlay,.text,client,replaced,432,432
-00314510,FrontEndMenu_Draw,.text,client,matched,19,19
+00314510,FrontEndMenu_Draw,.text,client,replaced,19,19
 00314550,TitleMenu_Accept,.text,client,inconclusive,4,0
 003145c0,TitleMenu_Draw,.text,client,untested,0,0
 00314750,UIScreenMgr_ReadStickDirections,.text,client,replaced,20,20
@@ -11911,7 +11911,7 @@ address,name,section,module,state,tested,matched
 003310d0,ControllerConfigMenu_Construct,.text,client,replaced,4,4
 00331150,GameplayMenu_Construct,.text,client,replaced,4,4
 00331210,SinglePlayerMenu_Construct,.text,client,replaced,9,9
-00331260,MainMenu_Draw,.text,client,untested,0,0
+00331260,MainMenu_Draw,.text,client,replaced,0,0
 003312f0,MainMenu_Construct,.text,client,replaced,12,12
 00331340,FE_ApplyControlSettings,.text,client,replaced,8,8
 00331550,AdvancedOptionsMenu_OnButton,.text,client,replaced,0,0

@@ -1,10 +1,10 @@
 # Our own renderer
 
-Goal (user, 2026-10-28): the native loader gets a modern renderer that does not rely on
+Goal (2026-10-28): the native loader gets a modern renderer that does not rely on
 translating Xbox graphics code. The decompiled renderer C stops calling the Xbox graphics
 libraries (D3D8, D3DX, XGraphics: 348 accesses, [renderer-inventory.md](../research/renderer-inventory.md))
 and calls a small interface of our own; back ends: D3D9 first, then D3D11, Vulkan, D3D12.
-60 fps: the loader's frame rate through the renderer C's hooks (R5, user 2026-10-30); native frame
+60 fps: the loader's frame rate through the renderer C's hooks (R5); native frame
 pacing of our own engine later.
 
 ## Steps
@@ -146,7 +146,7 @@ state. Missions 4, 1, 6 and the front end: no draw reaches the Xbox path any mor
   only on the other path's frames under XB_DRAWS_ALTERNATE (stale key prompts in the A/B diffs).
   tests/texture_decode_test (YUV, swizzled layouts).
 
-**Enhanced graphics, 2026-10-30 (user: switchable improvements like enhanced sound; for review).**
+**Enhanced graphics, 2026-10-30 (switchable improvements like enhanced sound).**
 One master switch, Original (the picture as on the Xbox, at the PC's resolution) or Enhanced,
 and each improvement on its own switch; amounts default to neutral (0) so players choose them
 (the enhanced-sound rule). `--graphics original|enhanced` (settings.ini `graphics`; original

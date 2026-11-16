@@ -4719,29 +4719,29 @@ const Function kFunctions[] = {
     {"BroScr_ShermanTankAnim_2", 0x00179ca0, 0, code(&BroScr_ShermanTankAnim_2), 12, Result::None, Status::Compare},
     {"BroScr_ShermanTankAnim_3", 0x00179fa0, 0, code(&BroScr_ShermanTankAnim_3), 12, Result::None, Status::Compare},
     {"BroScr_AnimLoopSoloAtNode", 0x0017a2a0, 0, code(&BroScr_AnimLoopSoloAtNode), 28, Result::None, Status::Compare},
-    {"AeThreadFunctor5_ent_ent_hash_ent_hash_Invoke", 0x0017a370, 0, code(&AeThreadFunctor5_ent_ent_hash_ent_hash_Invoke), 0, Result::None, Status::Compare},  // kept original: script thread switch (see status.md 11-04)
-    {"AeThreadFunctor4_ent_f_f_b_Invoke", 0x0017a3a0, 0, code(&AeThreadFunctor4_ent_f_f_b_Invoke), 0, Result::None, Status::Compare},  // kept original: script thread switch (see status.md 11-04)
+    {"AeThreadFunctor5_ent_ent_hash_ent_hash_Invoke", 0x0017a370, 0, code(&AeThreadFunctor5_ent_ent_hash_ent_hash_Invoke), 0, Result::None, Status::Compare},  // kept original: script thread switch (see own-engine-host.md, script thread switch)
+    {"AeThreadFunctor4_ent_f_f_b_Invoke", 0x0017a3a0, 0, code(&AeThreadFunctor4_ent_f_f_b_Invoke), 0, Result::None, Status::Compare},  // kept original: script thread switch (see own-engine-host.md, script thread switch)
     {"AeThreadFunctor4_ent_ent_str_vec_Ctor", 0x0017a3c0, 0, code(&AeThreadFunctor4_ent_ent_str_vec_Ctor), 20, Result::Eax, Status::Replaced},
-    {"AeThreadFunctor4_ent_ent_str_vec_Invoke", 0x0017a440, 0, code(&AeThreadFunctor4_ent_ent_str_vec_Invoke), 0, Result::None, Status::Compare},  // kept original: script thread switch (see status.md 11-04)
+    {"AeThreadFunctor4_ent_ent_str_vec_Invoke", 0x0017a440, 0, code(&AeThreadFunctor4_ent_ent_str_vec_Invoke), 0, Result::None, Status::Compare},  // kept original: script thread switch (see own-engine-host.md, script thread switch)
     {"AeThreadFunctor5_ent_ent_i_str_b_Ctor", 0x0017a490, 0, code(&AeThreadFunctor5_ent_ent_i_str_b_Ctor), 24, Result::Eax, Status::Replaced},
-    {"AeThreadFunctor5_ent_ent_i_str_b_Invoke", 0x0017a510, 0, code(&AeThreadFunctor5_ent_ent_i_str_b_Invoke), 0, Result::None, Status::Compare},  // kept original: script thread switch (see status.md 11-04)
+    {"AeThreadFunctor5_ent_ent_i_str_b_Invoke", 0x0017a510, 0, code(&AeThreadFunctor5_ent_ent_i_str_b_Invoke), 0, Result::None, Status::Compare},  // kept original: script thread switch (see own-engine-host.md, script thread switch)
     {"AeThreadFunctor7_ent_hash_vec_hash_f_hash_f_Ctor", 0x0017a550, 0, code(&AeThreadFunctor7_ent_hash_vec_hash_f_hash_f_Ctor), 32, Result::Eax, Status::Replaced},
-    {"AeThreadFunctor7_ent_hash_vec_hash_f_hash_f_Invoke", 0x0017a5c0, 0, code(&AeThreadFunctor7_ent_hash_vec_hash_f_hash_f_Invoke), 0, Result::None, Status::Compare},  // kept original: script thread switch (see status.md 11-04)
-    {"AeThreadFunctor3_ent_hash_hash_Invoke", 0x0017a600, 0, code(&AeThreadFunctor3_ent_hash_hash_Invoke), 0, Result::None, Status::Compare},  // kept original: script thread switch (see status.md 11-04)
-    {"AeThreadFunctor9_ent_hash_i_i_f_f_f_f_hash_Invoke", 0x0017a620, 0, code(&AeThreadFunctor9_ent_hash_i_i_f_f_f_f_hash_Invoke), 0, Result::None, Status::Compare},  // kept original: script thread switch (see status.md 11-04)
+    {"AeThreadFunctor7_ent_hash_vec_hash_f_hash_f_Invoke", 0x0017a5c0, 0, code(&AeThreadFunctor7_ent_hash_vec_hash_f_hash_f_Invoke), 0, Result::None, Status::Compare},  // kept original: script thread switch (see own-engine-host.md, script thread switch)
+    {"AeThreadFunctor3_ent_hash_hash_Invoke", 0x0017a600, 0, code(&AeThreadFunctor3_ent_hash_hash_Invoke), 0, Result::None, Status::Compare},  // kept original: script thread switch (see own-engine-host.md, script thread switch)
+    {"AeThreadFunctor9_ent_hash_i_i_f_f_f_f_hash_Invoke", 0x0017a620, 0, code(&AeThreadFunctor9_ent_hash_i_i_f_f_f_f_hash_Invoke), 0, Result::None, Status::Compare},  // kept original: script thread switch (see own-engine-host.md, script thread switch)
     {"AeThreadFunctor3_ent_str_vec_Ctor", 0x0017a650, 0, code(&AeThreadFunctor3_ent_str_vec_Ctor), 16, Result::Eax, Status::Replaced},
-    {"AeThreadFunctor3_ent_str_vec_Invoke", 0x0017a6d0, 0, code(&AeThreadFunctor3_ent_str_vec_Invoke), 0, Result::None, Status::Compare},  // kept original: script thread switch (see status.md 11-04)
-    {"AeThreadFunctor5_ent_f_f_hash_hash_Invoke", 0x0017a720, 0, code(&AeThreadFunctor5_ent_f_f_hash_hash_Invoke), 0, Result::None, Status::Compare},  // kept original: script thread switch (see status.md 11-04)
+    {"AeThreadFunctor3_ent_str_vec_Invoke", 0x0017a6d0, 0, code(&AeThreadFunctor3_ent_str_vec_Invoke), 0, Result::None, Status::Compare},  // kept original: script thread switch (see own-engine-host.md, script thread switch)
+    {"AeThreadFunctor5_ent_f_f_hash_hash_Invoke", 0x0017a720, 0, code(&AeThreadFunctor5_ent_f_f_hash_hash_Invoke), 0, Result::None, Status::Compare},  // kept original: script thread switch (see own-engine-host.md, script thread switch)
     {"AeThreadFunctor5_ent_vec_str_vec_f_Ctor", 0x0017a740, 0, code(&AeThreadFunctor5_ent_vec_str_vec_f_Ctor), 24, Result::Eax, Status::Replaced},
-    {"AeThreadFunctor5_ent_vec_str_vec_f_Invoke", 0x0017a7e0, 0, code(&AeThreadFunctor5_ent_vec_str_vec_f_Invoke), 0, Result::None, Status::Compare},  // kept original: script thread switch (see status.md 11-04)
-    {"AeThreadFunctor7_ent_ent_f_i_i_i_f_Invoke", 0x0017a840, 0, code(&AeThreadFunctor7_ent_ent_f_i_i_i_f_Invoke), 0, Result::None, Status::Compare},  // kept original: script thread switch (see status.md 11-04)
+    {"AeThreadFunctor5_ent_vec_str_vec_f_Invoke", 0x0017a7e0, 0, code(&AeThreadFunctor5_ent_vec_str_vec_f_Invoke), 0, Result::None, Status::Compare},  // kept original: script thread switch (see own-engine-host.md, script thread switch)
+    {"AeThreadFunctor7_ent_ent_f_i_i_i_f_Invoke", 0x0017a840, 0, code(&AeThreadFunctor7_ent_ent_f_i_i_i_f_Invoke), 0, Result::None, Status::Compare},  // kept original: script thread switch (see own-engine-host.md, script thread switch)
     {"AeThreadFunctor5_ent_ent_RespawnerAttributes_i_str_Ctor", 0x0017a870, 0, code(&AeThreadFunctor5_ent_ent_RespawnerAttributes_i_str_Ctor), 24, Result::Eax, Status::Replaced},
-    {"AeThreadFunctor5_ent_ent_RespawnerAttributes_i_str_Invoke", 0x0017a900, 0, code(&AeThreadFunctor5_ent_ent_RespawnerAttributes_i_str_Invoke), 0, Result::None, Status::Compare},  // kept original: script thread switch (see status.md 11-04)
+    {"AeThreadFunctor5_ent_ent_RespawnerAttributes_i_str_Invoke", 0x0017a900, 0, code(&AeThreadFunctor5_ent_ent_RespawnerAttributes_i_str_Invoke), 0, Result::None, Status::Compare},  // kept original: script thread switch (see own-engine-host.md, script thread switch)
     {"AeThreadFunctor2_ent_RespawnerAttributes_Ctor", 0x0017a9a0, 0, code(&AeThreadFunctor2_ent_RespawnerAttributes_Ctor), 12, Result::Eax, Status::Replaced},
-    {"AeThreadFunctor2_ent_RespawnerAttributes_Invoke", 0x0017aa00, 0, code(&AeThreadFunctor2_ent_RespawnerAttributes_Invoke), 0, Result::None, Status::Compare},  // kept original: script thread switch (see status.md 11-04)
+    {"AeThreadFunctor2_ent_RespawnerAttributes_Invoke", 0x0017aa00, 0, code(&AeThreadFunctor2_ent_RespawnerAttributes_Invoke), 0, Result::None, Status::Compare},  // kept original: script thread switch (see own-engine-host.md, script thread switch)
     {"AeThreadFunctor4_ent_str_i_str_Ctor", 0x0017aa40, 0, code(&AeThreadFunctor4_ent_str_i_str_Ctor), 20, Result::Eax, Status::Replaced},
-    {"AeThreadFunctor4_ent_str_i_str_Invoke", 0x0017aac0, 0, code(&AeThreadFunctor4_ent_str_i_str_Invoke), 0, Result::None, Status::Compare},  // kept original: script thread switch (see status.md 11-04)
-    {"AeThreadFunctor3_ent_vec_b_Invoke", 0x0017ab40, 0, code(&AeThreadFunctor3_ent_vec_b_Invoke), 0, Result::None, Status::Compare},  // kept original: script thread switch (see status.md 11-04)
+    {"AeThreadFunctor4_ent_str_i_str_Invoke", 0x0017aac0, 0, code(&AeThreadFunctor4_ent_str_i_str_Invoke), 0, Result::None, Status::Compare},  // kept original: script thread switch (see own-engine-host.md, script thread switch)
+    {"AeThreadFunctor3_ent_vec_b_Invoke", 0x0017ab40, 0, code(&AeThreadFunctor3_ent_vec_b_Invoke), 0, Result::None, Status::Compare},  // kept original: script thread switch (see own-engine-host.md, script thread switch)
     {"DynArray_Alloc24_FillUndefined", 0x0017ab70, 0, code(&DynArray_Alloc24_FillUndefined), 8, Result::Eax, Status::Compare},
     {"DynArray_AllocInt_FillUndefined", 0x0017ac00, 0, code(&DynArray_AllocInt_FillUndefined), 4, Result::Eax, Status::Replaced},
     {"DynArray_AllocBool_FillUndefined", 0x0017ac40, 0, code(&DynArray_AllocBool_FillUndefined), 4, Result::Eax, Status::Replaced},
@@ -4775,7 +4775,7 @@ const Function kFunctions[] = {
     {"DynArray_ResizeBytes", 0x0017baa0, 0, code(&DynArray_ResizeBytes), 8, Result::None, Status::Compare},
     {"DynArray_AssignBytes", 0x0017bb40, 0, code(&DynArray_AssignBytes), 4, Result::None, Status::Replaced},
     {"std_UninitializedCopy4", 0x0017bbb0, 0, code(&std_UninitializedCopy4), 12, Result::Eax, Status::Replaced},
-    {"AeThreadFunctor6_vt008245b4_Invoke", 0x0017bbe0, 0, code(&AeThreadFunctor6_vt008245b4_Invoke), 0, Result::None, Status::Compare},  // kept original: script thread switch (see status.md 11-04)
+    {"AeThreadFunctor6_vt008245b4_Invoke", 0x0017bbe0, 0, code(&AeThreadFunctor6_vt008245b4_Invoke), 0, Result::None, Status::Compare},  // kept original: script thread switch (see own-engine-host.md, script thread switch)
     {"std_list_BuyNode16", 0x0017bc40, 0, code(&std_list_BuyNode16), 12, Result::Eax, Status::Replaced},
     {"std_list_BuyHead", 0x0017bc80, 0, code(&std_list_BuyHead), 0, Result::Eax, Status::Replaced},
     {"DynArray_Resize4", 0x0017bca0, 0, code(&DynArray_Resize4), 8, Result::None, Status::Replaced},
@@ -4788,7 +4788,7 @@ const Function kFunctions[] = {
     {"ScriptKeyTable_GetStruct1c", 0x0017c080, 0, code(&ScriptKeyTable_GetStruct1c), 4, Result::Eax, Status::Replaced},
     {"ScriptKeyTable_SetArrayBytes", 0x0017c100, 0, code(&ScriptKeyTable_SetArrayBytes), 8, Result::Eax, Status::Replaced},
     {"std_UninitializedFillN4", 0x0017c180, 0, code(&std_UninitializedFillN4), 12, Result::Eax, Status::Replaced},
-    {"AeThreadFunctor4_ent_ent_arrf_i_Invoke", 0x0017c1b0, 0, code(&AeThreadFunctor4_ent_ent_arrf_i_Invoke), 0, Result::None, Status::Compare},  // kept original: script thread switch (see status.md 11-04)
+    {"AeThreadFunctor4_ent_ent_arrf_i_Invoke", 0x0017c1b0, 0, code(&AeThreadFunctor4_ent_ent_arrf_i_Invoke), 0, Result::None, Status::Compare},  // kept original: script thread switch (see own-engine-host.md, script thread switch)
     {"ScriptKeyTable_SetArray_2", 0x0017c200, 0, code(&ScriptKeyTable_SetArray_2), 8, Result::Eax, Status::Replaced},
     {"ScriptKeyTable_GetOrAddArray_2", 0x0017c280, 0, code(&ScriptKeyTable_GetOrAddArray_2), 4, Result::Eax, Status::Replaced},
     {"ScriptKeyTable_GetArrayCopy_2", 0x0017c2e0, 0, code(&ScriptKeyTable_GetArrayCopy_2), 8, Result::Eax, Status::Replaced},
@@ -4812,8 +4812,8 @@ const Function kFunctions[] = {
     {"AeThreadFunctor4_ent_ent_ent_arrent_DeletingDtor", 0x0017c9a0, 0, code(&AeThreadFunctor4_ent_ent_ent_arrent_DeletingDtor), 4, Result::Eax, Status::Replaced},
     {"AeThreadFunctor4_ent_ent_ent_arrent_Dtor", 0x0017c9c0, 0, code(&AeThreadFunctor4_ent_ent_ent_arrent_Dtor), 0, Result::None, Status::Replaced},
     {"ScrField_he337f297_GetArrayCopy", 0x0017ca10, 0, code(ScrField_he337f297_GetArrayCopy), 4, Result::Eax, Status::Replaced},
-    {"AeThreadFunctor9_ent_ent_arrent_f_f_hash_hash_i_arr_Invoke", 0x0017ca40, 0, code(&AeThreadFunctor9_ent_ent_arrent_f_f_hash_hash_i_arr_Invoke), 0, Result::None, Status::Compare},  // kept original: script thread switch (see status.md 11-04)
-    {"AeThreadFunctor4_ent_ent_ent_arrent_Invoke", 0x0017caf0, 0, code(&AeThreadFunctor4_ent_ent_ent_arrent_Invoke), 0, Result::None, Status::Compare},  // kept original: script thread switch (see status.md 11-04)
+    {"AeThreadFunctor9_ent_ent_arrent_f_f_hash_hash_i_arr_Invoke", 0x0017ca40, 0, code(&AeThreadFunctor9_ent_ent_arrent_f_f_hash_hash_i_arr_Invoke), 0, Result::None, Status::Compare},  // kept original: script thread switch (see own-engine-host.md, script thread switch)
+    {"AeThreadFunctor4_ent_ent_ent_arrent_Invoke", 0x0017caf0, 0, code(&AeThreadFunctor4_ent_ent_ent_arrent_Invoke), 0, Result::None, Status::Compare},  // kept original: script thread switch (see own-engine-host.md, script thread switch)
     {"HashMap_Find", 0x0017cb40, 0, code(&HashMap_Find), 8, Result::Eax, Status::Replaced},
     {"std_vector_UfillN4", 0x0017cbe0, 0, code(&std_vector_UfillN4), 12, Result::Eax, Status::Replaced},
     {"Scr_StartThread_ent_ent_arrent_f_f_hash_hash_i_arr", 0x0017cc10, 0, code(&Scr_StartThread_ent_ent_arrent_f_f_hash_hash_i_arr_entry), 56, Result::Eax, Status::Compare},
@@ -6238,27 +6238,27 @@ const Function kFunctions[] = {
     {"Bro_anim_main_stop", 0x001e3c60, 0, code(&Bro_anim_main_stop), 4, Result::None, Status::Compare},
     {"BroScr_AnimScript_Reacquire", 0x001e3c80, 0, code(&BroScr_AnimScript_Reacquire), 4, Result::None, Status::Compare},
     {"Bro_anim_main_reacquire", 0x001e3da0, 0, code(&Bro_anim_main_reacquire), 4, Result::None, Status::Compare},
-    {"AeThreadFunctor4_ent_ent_b_hash_Invoke", 0x001e3dc0, 0, code(&AeThreadFunctor4_ent_ent_b_hash_Invoke), 0, Result::None, Status::Compare},  // kept original: script thread switch (see status.md 11-04)
+    {"AeThreadFunctor4_ent_ent_b_hash_Invoke", 0x001e3dc0, 0, code(&AeThreadFunctor4_ent_ent_b_hash_Invoke), 0, Result::None, Status::Compare},  // kept original: script thread switch (see own-engine-host.md, script thread switch)
     {"AeThreadFunctor5_ent_ent_str_ent_ent_Ctor", 0x001e3df0, 0, code(&AeThreadFunctor5_ent_ent_str_ent_ent_Ctor), 24, Result::Eax, Status::Replaced},
-    {"AeThreadFunctor5_ent_ent_str_ent_ent_Invoke", 0x001e3e70, 0, code(&AeThreadFunctor5_ent_ent_str_ent_ent_Invoke), 0, Result::None, Status::Compare},  // kept original: script thread switch (see status.md 11-04)
+    {"AeThreadFunctor5_ent_ent_str_ent_ent_Invoke", 0x001e3e70, 0, code(&AeThreadFunctor5_ent_ent_str_ent_ent_Invoke), 0, Result::None, Status::Compare},  // kept original: script thread switch (see own-engine-host.md, script thread switch)
     {"AeThreadFunctor4_ent_i_pathnode_str_Ctor", 0x001e3ec0, 0, code(&AeThreadFunctor4_ent_i_pathnode_str_Ctor), 20, Result::Eax, Status::Replaced},
-    {"AeThreadFunctor4_ent_i_pathnode_str_Invoke", 0x001e3f30, 0, code(&AeThreadFunctor4_ent_i_pathnode_str_Invoke), 0, Result::None, Status::Compare},  // kept original: script thread switch (see status.md 11-04)
-    {"AeThreadFunctor4_ent_ent_i_vec_Invoke", 0x001e3f70, 0, code(&AeThreadFunctor4_ent_ent_i_vec_Invoke), 0, Result::None, Status::Compare},  // kept original: script thread switch (see status.md 11-04)
+    {"AeThreadFunctor4_ent_i_pathnode_str_Invoke", 0x001e3f30, 0, code(&AeThreadFunctor4_ent_i_pathnode_str_Invoke), 0, Result::None, Status::Compare},  // kept original: script thread switch (see own-engine-host.md, script thread switch)
+    {"AeThreadFunctor4_ent_ent_i_vec_Invoke", 0x001e3f70, 0, code(&AeThreadFunctor4_ent_ent_i_vec_Invoke), 0, Result::None, Status::Compare},  // kept original: script thread switch (see own-engine-host.md, script thread switch)
     {"AeThreadFunctor6_ent_hash_i_str_i_ent_Ctor", 0x001e3fb0, 0, code(&AeThreadFunctor6_ent_hash_i_str_i_ent_Ctor), 28, Result::Eax, Status::Replaced},
-    {"AeThreadFunctor6_ent_hash_i_str_i_ent_Invoke", 0x001e4030, 0, code(&AeThreadFunctor6_ent_hash_i_str_i_ent_Invoke), 0, Result::None, Status::Compare},  // kept original: script thread switch (see status.md 11-04)
+    {"AeThreadFunctor6_ent_hash_i_str_i_ent_Invoke", 0x001e4030, 0, code(&AeThreadFunctor6_ent_hash_i_str_i_ent_Invoke), 0, Result::None, Status::Compare},  // kept original: script thread switch (see own-engine-host.md, script thread switch)
     {"AeThreadFunctor5_ent_hash_AnimDirections_AnimAngles_f_Ctor", 0x001e4080, 0, code(&AeThreadFunctor5_ent_hash_AnimDirections_AnimAngles_f_Ctor), 24, Result::Eax, Status::Replaced},
-    {"AeThreadFunctor5_ent_hash_AnimDirections_AnimAngles_f_Invoke", 0x001e40e0, 0, code(&AeThreadFunctor5_ent_hash_AnimDirections_AnimAngles_f_Invoke), 0, Result::None, Status::Compare},  // kept original: script thread switch (see status.md 11-04)
-    {"AeThreadFunctor4_ent_hash_i_f_Invoke", 0x001e4130, 0, code(&AeThreadFunctor4_ent_hash_i_f_Invoke), 0, Result::None, Status::Compare},  // kept original: script thread switch (see status.md 11-04)
+    {"AeThreadFunctor5_ent_hash_AnimDirections_AnimAngles_f_Invoke", 0x001e40e0, 0, code(&AeThreadFunctor5_ent_hash_AnimDirections_AnimAngles_f_Invoke), 0, Result::None, Status::Compare},  // kept original: script thread switch (see own-engine-host.md, script thread switch)
+    {"AeThreadFunctor4_ent_hash_i_f_Invoke", 0x001e4130, 0, code(&AeThreadFunctor4_ent_hash_i_f_Invoke), 0, Result::None, Status::Compare},  // kept original: script thread switch (see own-engine-host.md, script thread switch)
     {"AeThreadFunctor8_ent_anim_str_f_hash_str_f_b_Ctor", 0x001e4150, 0, code(&AeThreadFunctor8_ent_anim_str_f_hash_str_f_b_Ctor), 36, Result::Eax, Status::Replaced},
-    {"AeThreadFunctor8_ent_anim_str_f_hash_str_f_b_Invoke", 0x001e41f0, 0, code(&AeThreadFunctor8_ent_anim_str_f_hash_str_f_b_Invoke), 0, Result::None, Status::Compare},  // kept original: script thread switch (see status.md 11-04)
+    {"AeThreadFunctor8_ent_anim_str_f_hash_str_f_b_Invoke", 0x001e41f0, 0, code(&AeThreadFunctor8_ent_anim_str_f_hash_str_f_b_Invoke), 0, Result::None, Status::Compare},  // kept original: script thread switch (see own-engine-host.md, script thread switch)
     {"AeThreadFunctor4_ent_str_hash_hash_Ctor", 0x001e4280, 0, code(&AeThreadFunctor4_ent_str_hash_hash_Ctor), 20, Result::Eax, Status::Replaced},
-    {"AeThreadFunctor4_ent_str_hash_hash_Invoke", 0x001e42f0, 0, code(&AeThreadFunctor4_ent_str_hash_hash_Invoke), 0, Result::None, Status::Compare},  // kept original: script thread switch (see status.md 11-04)
+    {"AeThreadFunctor4_ent_str_hash_hash_Invoke", 0x001e42f0, 0, code(&AeThreadFunctor4_ent_str_hash_hash_Invoke), 0, Result::None, Status::Compare},  // kept original: script thread switch (see own-engine-host.md, script thread switch)
     {"AeThreadFunctor5_ent_vec_vec_vec_i_Ctor", 0x001e4330, 0, code(&AeThreadFunctor5_ent_vec_vec_vec_i_Ctor), 24, Result::Eax, Status::Replaced},
-    {"AeThreadFunctor5_ent_vec_vec_vec_i_Invoke", 0x001e43a0, 0, code(&AeThreadFunctor5_ent_vec_vec_vec_i_Invoke), 0, Result::None, Status::Compare},  // kept original: script thread switch (see status.md 11-04)
-    {"AeThreadFunctor7_ent_anim_anim_anim_anim_anim_anim_Invoke", 0x001e4400, 0, code(&AeThreadFunctor7_ent_anim_anim_anim_anim_anim_anim_Invoke), 0, Result::None, Status::Compare},  // kept original: script thread switch (see status.md 11-04)
+    {"AeThreadFunctor5_ent_vec_vec_vec_i_Invoke", 0x001e43a0, 0, code(&AeThreadFunctor5_ent_vec_vec_vec_i_Invoke), 0, Result::None, Status::Compare},  // kept original: script thread switch (see own-engine-host.md, script thread switch)
+    {"AeThreadFunctor7_ent_anim_anim_anim_anim_anim_anim_Invoke", 0x001e4400, 0, code(&AeThreadFunctor7_ent_anim_anim_anim_anim_anim_anim_Invoke), 0, Result::None, Status::Compare},  // kept original: script thread switch (see own-engine-host.md, script thread switch)
     {"AeThreadFunctor5_vt00825c50_Ctor", 0x001e4430, 0, code(&AeThreadFunctor5_vt00825c50_Ctor), 24, Result::Eax, Status::Replaced},
-    {"AeThreadFunctor5_vt00825c50_Invoke", 0x001e44b0, 0, code(&AeThreadFunctor5_vt00825c50_Invoke), 0, Result::None, Status::Compare},  // kept original: script thread switch (see status.md 11-04)
-    {"AeThreadFunctor6_ent_hash_f_i_f_f_Invoke", 0x001e44f0, 0, code(&AeThreadFunctor6_ent_hash_f_i_f_f_Invoke), 0, Result::None, Status::Compare},  // kept original: script thread switch (see status.md 11-04)
+    {"AeThreadFunctor5_vt00825c50_Invoke", 0x001e44b0, 0, code(&AeThreadFunctor5_vt00825c50_Invoke), 0, Result::None, Status::Compare},  // kept original: script thread switch (see own-engine-host.md, script thread switch)
+    {"AeThreadFunctor6_ent_hash_f_i_f_f_Invoke", 0x001e44f0, 0, code(&AeThreadFunctor6_ent_hash_f_i_f_f_Invoke), 0, Result::None, Status::Compare},  // kept original: script thread switch (see own-engine-host.md, script thread switch)
     {"DynArray_Alloc12_FillUndefined", 0x001e4520, 0, code(&DynArray_Alloc12_FillUndefined), 8, Result::Eax, Status::Compare},
     {"DynArray_Alloc24_FillUndefined_2", 0x001e4570, 0, code(&DynArray_Alloc24_FillUndefined_2), 8, Result::Eax, Status::Replaced},
     {"ScrPathNode_CopyType", 0x001e45f0, 0, code(&ScrPathNode_CopyType_entry), 4, Result::Eax, Status::Replaced},
@@ -6674,7 +6674,7 @@ const Function kFunctions[] = {
     {"Actor_Grenade_ClaimBestCover", 0x0021c810, 0, code(&Actor_Grenade_ClaimBestCover_entry), 4, Result::Eax, Status::Replaced},
     {"Actor_FindNearbyCoverNode", 0x0021c9d0, 0, code(&Actor_FindNearbyCoverNode_entry), 0, Result::Eax, Status::Replaced},
     {"Actor_OrientToEnemyOrMotion", 0x0021cb30, 0, code(&Actor_OrientToEnemyOrMotion_entry), 4, Result::None, Status::Replaced},
-    {"Actor_InitStateMachine", 0x0021cca0, 0, code(&Actor_InitStateMachine_entry), 0, Result::None, Status::Compare},  // kept original: script thread switch (see status.md 11-04)
+    {"Actor_InitStateMachine", 0x0021cca0, 0, code(&Actor_InitStateMachine_entry), 0, Result::None, Status::Compare},  // kept original: script thread switch (see own-engine-host.md, script thread switch)
     {"Actor_SpawnFromSpawner", 0x0021ceb0, 0, code(&Actor_SpawnFromSpawner_entry), 0, Result::Eax, Status::Compare},  // kept original: script thread switch (stack_guard 11-05: its C frame is live while the original Actor_InitStateMachine waits)
     {"Actor_Exposed_CheckNearbyCover", 0x0021d250, 0, code(&Actor_Exposed_CheckNearbyCover_entry), 0, Result::Eax, Status::Replaced},
     {"Actor_Exposed_Start", 0x0021d300, 0, code(&Actor_Exposed_Start_entry), 0, Result::Eax, Status::Replaced},
@@ -9543,16 +9543,16 @@ const Function kFunctions[] = {
     {"GScr_SetAIFlags", 0x00308af0, 0, code(&GScr_SetAIFlags), 16, Result::None, Status::Replaced},
     {"GScr_TurretCall272", 0x00308bb0, 0, code(&GScr_TurretCall272_entry), 8, Result::None, Status::Replaced},
     {"GScr_ActorFindBetterCover", 0x00308c50, 0, code(&GScr_ActorFindBetterCover_entry), 4, Result::Eax, Status::Replaced},
-    {"GScr_ForceSpawnNamed", 0x00308cc0, 0, code(&GScr_ForceSpawnNamed_entry), 12, Result::Eax, Status::Compare},  // kept original: script thread switch (see status.md 11-04)
-    {"GScr_DoSpawnNamed", 0x00308df0, 0, code(&GScr_DoSpawnNamed_entry), 12, Result::Eax, Status::Compare},  // kept original: script thread switch (see status.md 11-04)
+    {"GScr_ForceSpawnNamed", 0x00308cc0, 0, code(&GScr_ForceSpawnNamed_entry), 12, Result::Eax, Status::Compare},  // kept original: script thread switch (see own-engine-host.md, script thread switch)
+    {"GScr_DoSpawnNamed", 0x00308df0, 0, code(&GScr_DoSpawnNamed_entry), 12, Result::Eax, Status::Compare},  // kept original: script thread switch (see own-engine-host.md, script thread switch)
     {"GScr_ActorApplyAnimMove", 0x00308f20, 0, code(&GScr_ActorApplyAnimMove_entry), 4, Result::None, Status::Replaced},
-    {"GScr_ForceSpawn", 0x00308fb0, 0, code(&GScr_ForceSpawn_entry), 8, Result::Eax, Status::Compare},  // kept original: script thread switch (see status.md 11-04)
-    {"GScr_DoSpawn", 0x00308ff0, 0, code(&GScr_DoSpawn_entry), 8, Result::Eax, Status::Compare},  // kept original: script thread switch (see status.md 11-04)
+    {"GScr_ForceSpawn", 0x00308fb0, 0, code(&GScr_ForceSpawn_entry), 8, Result::Eax, Status::Compare},  // kept original: script thread switch (see own-engine-host.md, script thread switch)
+    {"GScr_DoSpawn", 0x00308ff0, 0, code(&GScr_DoSpawn_entry), 8, Result::Eax, Status::Compare},  // kept original: script thread switch (see own-engine-host.md, script thread switch)
     {"G_SetupActorScriptImports", 0x00309030, 0, code(&G_SetupActorScriptImports), 0, Result::None, Status::Replaced},
     {"G_SetupGameScriptImports", 0x003094a0, 0, code(&G_SetupGameScriptImports), 0, Result::None, Status::Replaced},
     {"G_SetupLevelScriptImports", 0x0030adb0, 0, code(&G_SetupLevelScriptImports), 0, Result::None, Status::Replaced},
     {"G_LoadLevelScriptModule", 0x0030b960, 0, code(&G_LoadLevelScriptModule_entry), 0, Result::None, Status::Replaced},
-    {"Scr_RunThreads", 0x0030b9e0, 0, code(&Scr_RunThreads_entry), 4, Result::None, Status::Compare},  // kept original: script thread switch (see status.md 11-04)
+    {"Scr_RunThreads", 0x0030b9e0, 0, code(&Scr_RunThreads_entry), 4, Result::None, Status::Compare},  // kept original: script thread switch (see own-engine-host.md, script thread switch)
     {"FE_BonusCEItemIndex", 0x0030bd30, 0, code(&FE_BonusCEItemIndex), 0, Result::Eax, Status::Compare},
     {"FE_BonusCEItemGroup", 0x0030be60, 0, code(&FE_BonusCEItemGroup_entry), 0, Result::Eax, Status::Replaced},
     {"FE_BonusCESetText", 0x0030bf90, 0, code(&FE_BonusCESetText_entry), 0, Result::None, Status::Compare},

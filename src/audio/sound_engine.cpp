@@ -243,7 +243,7 @@ void Engine::update(VoiceImpl& v) {
     Output::SourceParams params;
     params.gain = v.volume * v.headroom * distance_gain(v) * volumes.gain(v.category);
     // The close-range boost: whenever enhanced sound is on; its volumes alone decide (0 dB = the game's level; the
-    // old on/off switch close_boost is still read but no longer gates it - user 11-16).
+    // old on/off switch close_boost is still read but no longer gates it).
     if (config.enhanced && (v.category == Category::Gunfire || v.category == Category::OwnGunfire ||
                                             v.category == Category::Bullets)) {
         float distance = 0.0f;  // not placed: the player's own

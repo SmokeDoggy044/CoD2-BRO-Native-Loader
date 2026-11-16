@@ -26,5 +26,5 @@ with open(classes, "a", newline="") as f:
     csv.writer(f, lineterminator="\n").writerow([addr, name, "thread_switch", ev])
 with open(R + "tools/data/set_aside.csv", "a", newline="") as f:
     csv.writer(f, lineterminator="\n").writerow([addr, name, "thread switch",
-        ("level script body" if levels else "levelscript thread body") + ", reaches a script wait: C kept, not registered, tested once script threads are coroutines (user 11-05); " + ev])
+        ("level script body" if levels else "levelscript thread body") + ", reaches a script wait: C kept, not registered, tested once script threads are coroutines; " + ev])
 print(addr, name, path)

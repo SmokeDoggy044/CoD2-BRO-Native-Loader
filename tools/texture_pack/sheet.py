@@ -10,7 +10,7 @@ choices stay in the browser (localStorage) and "Export curation.csv" saves a fil
 typed as 'x0 y0 x1 y1;...' in original texels). Filter by folder, alpha kind or text; sort by size or change.
 
 Open it through --serve (http://127.0.0.1:PORT/, bound to this machine only): a Flatpak browser handed the
-file from a file manager sees only index.html, not img/, and shows empty pictures (user's Firefox, 11-14).
+file from a file manager sees only index.html, not img/, and shows empty pictures (e.g. a Flatpak Firefox).
 The page is for the user's own browser - it holds the game's textures, so it is never published, and the
 assistant does not open the pictures.
 """

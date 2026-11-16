@@ -4,7 +4,7 @@
 // renames functions that still have a default FUN_ name. Rows whose third column
 // is "data" name a global instead (only over a default DAT_/label name).
 // Script arguments: CSV path [create]. Without "create", rows at addresses without a
-// function are skipped (gap functions stay uncreated until the user wants the counter
+// function are skipped (gap functions stay uncreated until the counter is wanted
 // complete; their names wait in the CSV).
 //@category CodBro
 

@@ -32,8 +32,7 @@ sample it), texture modes as D3D picks them (PSTextureModes state,
 PS_GLOBALFLAGS_TEXMODE_ADJUST) and dependent reads (modes 15/16). The intro movies
 play (the video player writes into the back buffer).
 
-Not yet: cube and volume textures (no game file uses them, see
-[status.md](../research/status.md)), other texture modes (bump env, dot products),
+Not yet: cube and volume textures (no game file uses them), other texture modes (bump env, dot products),
 `RunPushBuffer`, fixed-function vertex (FVF) and texture stages (approximated as
 texture0 * diffuse), CPU reads of render targets, Clear with rectangles. Unverified:
 half-pixel offset, viewport-as-scissor, EXP/LOG precision.
@@ -120,7 +119,7 @@ s left s/2 surface pixels of scene showing (1 px at 16:9, 2 at 21:9), and the pa
 stops 2.5 pixels short (a TV's overscan hid both; also in 0.2.2). GfxD3D9 only (our renderer); the old
 D3D9Draw path (multiplayer) keeps the gaps.
 
-Checked 2026-11-13 (our exe): Omaha at 21:9 (user: bars, binoculars), mission 4 at 32:9 (user: HUD, pause
+Checked 2026-11-13 (our exe): Omaha at 21:9 (bars, binoculars), mission 4 at 32:9 (HUD, pause
 menu and Options, death screen pillarboxed 4:3 as a flat frame), mission 2 at 21:9 with --fov 100 (HUD at the edges,
 compass round, objectives at the left edge, pause menu); 16:9 objectives narrowed again.
 Not checked: scopes and binoculars (side bars drawn as quads would only cover the 16:9

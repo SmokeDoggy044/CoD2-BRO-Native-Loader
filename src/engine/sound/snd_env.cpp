@@ -341,7 +341,7 @@ Environment environment_of(const Probe& p, const audio::ReverbTuning& t) {
 
     Environment e;
     // Enclosed: -1000 mB as the I3DL2 room presets (was -300: small stone rooms rang, playtest 10-30),
-    // + up to 2 dB for enclosed hard places (stone, concrete, brick: user 10-30, -1000 a little dry
+    // + up to 2 dB for enclosed hard places (stone, concrete, brick: -1000 a little dry
     // there only): by enclosure and by how little the surfaces take in (mid absorption 0.03: all,
     // 0.15 and up: none).
     const float hard = std::clamp((0.15f - p.alpha.mid) / 0.12f, 0.0f, 1.0f);
@@ -725,7 +725,7 @@ float SndEnv_Occlusion(const float listener[3], const float source[3]) {
     std::array<float, 3> points[kOcclusionPoints];
     if (!scene() || !occlusion_points(listener, source, points)) return 0.0f;
     // In view - the line to the sound's centre or to the point towards the listener (a muzzle)
-    // clear: the direct sound is heard in full (user 10-30: what bounces off walls only adds).
+    // clear: the direct sound is heard in full (what bounces off walls only adds).
     const Line centre = trace_line(listener, points[0].data());
     if (centre.share <= 0.0f || blocked(listener, points[1].data()) <= 0.0f) return 0.0f;
     // Hidden: the share of the sphere's lines blocked (some may pass round an edge), at most as
@@ -775,7 +775,7 @@ constexpr TransmissionLoss kTransmission[32] = {
 };
 // A detour over or round an edge (diffraction) loses by its cost (0.2 grazing .. 1 none found), highs most.
 constexpr float kDetourBase[3] = {1, 2, 4}, kDetourSlope[3] = {6, 12, 20};
-constexpr float kTransmissionFloor = 18.0f;  // dB, the middle band: never quieter (user 11-15, realistic but trackable)
+constexpr float kTransmissionFloor = 18.0f;  // dB, the middle band: never quieter (realistic but trackable)
 
 void add_slab(uint8_t surface, float thickness, float db[3]) {
     const TransmissionLoss& m = kTransmission[surface & 31];

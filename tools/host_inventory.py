@@ -15,7 +15,7 @@ lists every dependency the host must take over:
              over direct calls (mslib/crt/unnamed/set-aside), plus the level slots that point at them
 
 "Stays original" after phase 0.2 = no C at all (mslib, crt, library, unnamed, named-only, set-aside, levels);
-untested / inconclusive / mismatched rows have C and run as C in the own host (user 2026-11-07).
+untested / inconclusive / mismatched rows have C and run as C in the own host.
 
 usage: tools/host_inventory.py [--out docs/formats/host_inventory]   (writes .md summary + .csv rows)
 Reads the XBE, the exported symbols, progress.csv and the engine sources (no Ghidra needed).

@@ -187,7 +187,7 @@ def main():
     summary(lambda r: r[3] if r[2] == ".text" else "levels")
     named = sum(1 for r in rows if r[4] not in ("unnamed", "library") and not r[1].startswith("FUN_"))
     done = sum(1 for r in rows if r[4] in REWRITTEN)
-    total = len(rows)  # library functions in .text stay counted (user decision 2026-10-18)
+    total = len(rows)  # library functions in .text stay counted
     print(f"\ncounter: named {named}/{total} · matched {done}/{total}")
     if args.readme:
         excluded = sum(1 for a in syms if next((s for s, lo, hi in secs if lo <= a < hi), None) in EXCLUDED)
@@ -195,7 +195,7 @@ def main():
 
 
 # README "By part of the game" rows: label -> progress.py modules
-PARTS = [  # one row per module (user, 2026-10-27: modules are pushed one at a time)
+PARTS = [  # one row per module (modules are pushed one at a time)
     ("Renderer (scenes, materials, shaders, models, effects)", {"renderer"}),
     ("Game logic (entities, AI, weapons, physics, level-script runtime)", {"game"}),
     ("Animation (animation trees, the animation codec)", {"xanim"}),

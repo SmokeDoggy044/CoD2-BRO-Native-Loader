@@ -44,7 +44,7 @@ need their class hierarchy mapped first (UIMenu_Init is the anchor).
    which does not exercise game code (runs before 2026-10-17 21:45 were like that).
 4. Sort the new names: `tools/progress.py` must show no named function in `unassigned` (`awk -F, '$4=="unassigned"
    && $5!="library" && $5!="unnamed"' tools/data/progress.csv`); add a prefix or exact-name rule to
-   `tools/data/modules.csv` for any that is (user rule 2026-10-23: no module counts as finished while a function is
+   `tools/data/modules.csv` for any that is (no module counts as finished while a function is
    unnamed or unsorted). Copy the symbol file to the loader repo too (`port/tools/data/`).
 5. Commit the CSV, the symbol file, modules.csv and this document's state line.
 
@@ -178,8 +178,8 @@ copy the repository version there first so it is not stale.
 
 ## Next
 
-Decision (user, 2026-10-17): naming continues before step 2 (decompile + compare),
-CoD-specific functions included, so later decompilation covers both kinds.
+Naming came before step 2 (decompile + compare), CoD-specific functions included, so the decompilation
+covers both kinds.
 
 - Game module (2026-10-17, from G_RunFrame): entity runners, ClientThink_real,
   ClientEndFrame, spawn/mover/trigger paths, the callback tables and the G_RunFrame
@@ -305,7 +305,7 @@ CoD-specific functions included, so later decompilation covers both kinds.
   helpers (0x002808b0, 0x00280ed0), the weapon tag/pose helpers using the DObj
   (0x0027f8e0, 0x0027f920, 0x0027fa50, 0x00284d00, 0x00288510), configstring float
   readers (0x0027abb0, 0x0027ad70).
-- Renderer (user decision 2026-10-18, see status.md; started 2026-10-18), then back to the client/UI.
+- Renderer (started 2026-10-18), then back to the client/UI.
   Three layers: (1) the Q3-shaped tr_* side at 0x00234a00-0x00247ad0 (RE_* exports, R_Init/R_Register
   with 48 r_* cvars, R_RenderView -> R_RotateForViewer/R_SetupFrustum/R_SetupProjection, the
   cell-and-portal world walk of tr_dpvs.cpp: R_AddWorldSurfaces -> R_VisitCell_r -> R_AddCellSurfaces/
@@ -721,7 +721,7 @@ CoD-specific functions included, so later decompilation covers both kinds.
   top ~200 string-ranked level functions (skiptos, mortar/artillery events, squad LOD model swaps, jeep
   crashes, bunker explosions, mons1 Event11_88Controller from its error string). Mostly low confidence.
   ~2,340 unnamed level functions are left, deliberately (see below).
-- Priority change (user, 2026-10-21): no more string-only sweeps of leaf functions - a leaf's name helps
+- Priority change (2026-10-21): no more string-only sweeps of leaf functions - a leaf's name helps
   no other decompile and its body gets read anyway when decompiled. Name hubs only (HubRank over the whole
   XBE: 93 unnamed functions with 10+ callers, 353 with 5+), then decompile modules, renderer first; level-
   script leaves get named when their level's script module is decompiled. First hub batch (29): heap

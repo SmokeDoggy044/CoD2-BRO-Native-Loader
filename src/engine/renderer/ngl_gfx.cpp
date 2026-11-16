@@ -672,7 +672,7 @@ uint32_t g_lighting_features = 0;  // RendererPcHooks::lighting_features of this
 // World units the receiver moves off its surface against the model's own coarse caster copy (acne): lab orbit m2
 // 11-15, speckle per pose 0 / 8 / 16 units: turn 135 0.22 / 0.08 / 0.07 (reference without model receivers 0.07).
 constexpr float kModelNormalOffset = 8.0f;
-// 2.3: normal maps at full strength; specular "on at low strength" (user 11-15): GGX x this.
+// 2.3: normal maps at full strength; specular on at low strength: GGX x this.
 constexpr float kModelNormalMapStrength = 1.0f;
 constexpr float kModelSpecularStrength = 0.35f;
 // 2.6: cavity from the height maps (own_model.glsl own_cavity: x 3 the height below its neighbourhood, >= 0.6).

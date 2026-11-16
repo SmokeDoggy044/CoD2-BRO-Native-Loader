@@ -115,7 +115,7 @@ UI = re.compile(r"[\\/](shell|hud)[\\/]|[\\/]textures[\\/]global[\\/]", re.I)
 
 
 def texture_class(asset_path):
-    """world = surfaces in the 3D scene (PBRify fits: user 11-14, all passed); ui = menus, HUD, button prompts
+    """world = surfaces in the 3D scene (PBRify fits: all passed); ui = menus, HUD, button prompts
     (flat art and lettering the texture model smears: a pack of its own with another workflow)."""
     return "ui" if UI.search(asset_path) else "world"
 
@@ -351,7 +351,7 @@ MAP_LABELS = ("normal", "roughness", "height")
 
 
 def map_rows(args):
-    """World-class textures in the pack (never UI/menu/HUD: user 11-14), optionally narrowed by --source."""
+    """World-class textures in the pack (never UI/menu/HUD), optionally narrowed by --source."""
     return [s for s in read_select(args.work) if not s["skip"] and s.get("class", "world") == "world" and
             (not args.source or re.search(args.source, s["source"]))]
 
@@ -493,7 +493,7 @@ def maps_encode(args, rows):
 
 
 def maps_pack(args):
-    """The 'surface maps' mod (phase 2.2, its own mod beside the texture pack - user 11-15): WORK/maps_mod/ with
+    """The 'surface maps' mod (phase 2.2, its own mod beside the texture pack): WORK/maps_mod/ with
     mod.ini (kind=surface-maps) and maps/<key>_normal.dds (BC5, as maps_dds; hard-linked) and maps/<key>_surface.dds
     (BC5: R = roughness, G = height - the two BC4 files' blocks interleaved, no re-encoding; the game has two texture
     slots for maps)."""

@@ -1,81 +1,81 @@
 address,name,kind,reason
-00011220,Live_GetCurrentUser,live,"Xbox Live glue (online module): the service is defunct, not decompiled (user 2026-10-27)"
-0001f0b0,nglVertexWriter_Init,debug,debug/dev only (user 2026-10-27)
-0001f120,nglMeshBuilder_AddPosSection,debug,debug/dev only (user 2026-10-27)
-0002ba90,LiveRecord_Construct,live,"Xbox Live glue (online module): the service is defunct, not decompiled (user 2026-10-27)"
-0002bb20,FUN_0002bb20,live,"Xbox Live glue (online module): the service is defunct, not decompiled (user 2026-10-27)"
-0002bce0,LiveMgr_DeletingDtor,live,"Xbox Live glue (online module): the service is defunct, not decompiled (user 2026-10-27)"
-0002bd30,InGameLiveOptionsMenu_DeletingDtor,live,"Xbox Live: the service is defunct, no sign-in (user 2026-10-27)"
-00045790,nglInitShaders,boot,boot/device setup: the native engine replaces it with its own back ends (user 2026-10-27)
-000468b0,cdDebug_AddToList,no data,no shipped data reaches it (user 2026-10-27)
-000469b0,cdDebug_Draw,no data,no shipped data reaches it (user 2026-10-27)
-0005ea10,nglDrawSingleQuadFrame,dead,"dead code: no call, no stored pointer, no immediate (user 2026-10-25)"
-000634d0,nglSaveScreenshot,host,host file/screenshot or D3D resource code (user 2026-10-27)
-00064300,nglResetDevice,boot,boot/device setup: the native engine replaces it with its own back ends (user 2026-10-27)
-000649e0,nglSelectVideoMode,boot,boot/device setup: the native engine replaces it with its own back ends (user 2026-10-27)
-00064bc0,nglInit,boot,boot/device setup: the native engine replaces it with its own back ends (user 2026-10-27)
-00068f70,nglBuildBoneMatrixPalette,dead,"dead code: no call, no stored pointer, no immediate (user 2026-10-25)"
-0006ae70,nglWriteTGA,host,host file/screenshot or D3D resource code (user 2026-10-27)
-0006afe0,nglSaveTextureTGA,host,host file/screenshot or D3D resource code (user 2026-10-27)
-0006cb80,nglDebugDrawSphereMesh,dead,"dead code: no call, no stored pointer, no immediate (user 2026-10-25)"
-0006cc50,nglDebugDrawBoxMesh,dead,"dead code: no call, no stored pointer, no immediate (user 2026-10-25)"
-0006cd30,nglDebugDrawPyramidMesh,dead,"dead code: no call, no stored pointer, no immediate (user 2026-10-25)"
-0006d240,nglDebugDrawAxes,dead,"dead code: no call, no stored pointer, no immediate (user 2026-10-25)"
-0006d390,nglDebugLineBatch_Draw,debug,debug/dev only (user 2026-10-27)
-0006e9c0,nglInitFrameBuffers,boot,boot/device setup: the native engine replaces it with its own back ends (user 2026-10-27)
-0006f080,nglCreateNormalCubeMap,host,host file/screenshot or D3D resource code (user 2026-10-27)
-00078500,nglInitMultisample,boot,boot/device setup: the native engine replaces it with its own back ends (user 2026-10-27)
-00079020,nglParseDDSPalette,dead,"dead code: no call, no stored pointer, no immediate (user 2026-10-25)"
-000795c0,nglDumpCamera,dead,"dead code: no call, no stored pointer, no immediate (user 2026-10-25)"
-00079950,nglDumpSceneMeshes,dead,"dead code: no call, no stored pointer, no immediate (user 2026-10-25)"
-0007a860,nglMeshFile_RelocateSection3,no data,no shipped data reaches it (user 2026-10-27)
-0007b180,nglLockPalette,host,host file/screenshot or D3D resource code (user 2026-10-27)
-0007b250,nglCreateDDSPalette,dead,"dead code: no call, no stored pointer, no immediate (user 2026-10-25)"
-0007b670,nglDebugShader_Draw,debug,debug/dev only (user 2026-10-27)
-0007b810,nglDumpPrintf,debug,debug/dev only (user 2026-10-27)
-0007bac0,Anim_InitManagers,boot,boot/device setup: the native engine replaces it with its own back ends (user 2026-10-27)
-000939f0,nglGetFreeMemory,debug,debug/dev only (user 2026-10-27)
-00093a50,nglReadFile,host,host file/screenshot or D3D resource code (user 2026-10-27)
-00093b90,nglFreeFileBuffer,host,host file/screenshot or D3D resource code (user 2026-10-27)
-000967c0,FxEffectStage_Release,dead,"dead code: no call, no stored pointer, no immediate (user 2026-10-25)"
-0009a5a0,FxRenderer_NewOp5b,no data,no shipped data reaches it (user 2026-10-27)
-0009ebf0,FxOp5b_AddToList,no data,no shipped data reaches it (user 2026-10-27)
-00220de0,Net_UnregisterSessionKeys,live,"Xbox Live glue (online module): the service is defunct, not decompiled (user 2026-10-27)"
-00220e60,Net_RegisterSessionKey,live,"Xbox Live glue (online module): the service is defunct, not decompiled (user 2026-10-27)"
-00220fd0,Live_IsXuidMuted,live,"Xbox Live glue (online module): the service is defunct, not decompiled (user 2026-10-27)"
-00221090,Live_RequestMutelist,live,"Xbox Live glue (online module): the service is defunct, not decompiled (user 2026-10-27)"
-00221450,Live_EmptyStub,live,"Xbox Live glue (online module): the service is defunct, not decompiled (user 2026-10-27)"
-00221db0,Live_StartPlayersFeature,live,"Xbox Live glue (online module): the service is defunct, not decompiled (user 2026-10-27)"
-00221e60,FUN_00221e60,live,"Xbox Live glue (online module): the service is defunct, not decompiled (user 2026-10-27)"
-00221eb0,FUN_00221eb0,live,"Xbox Live glue (online module): the service is defunct, not decompiled (user 2026-10-27)"
-00221f30,Live_StartLogonFeature,live,"Xbox Live glue (online module): the service is defunct, not decompiled (user 2026-10-27)"
-00221fc0,FUN_00221fc0,live,"Xbox Live glue (online module): the service is defunct, not decompiled (user 2026-10-27)"
-002220e0,LiveMgr_SetInput,live,"Xbox Live glue (online module): the service is defunct, not decompiled (user 2026-10-27)"
-002226e0,InGameLiveOptionsMenu_Draw,live,"Xbox Live: the service is defunct, no sign-in (user 2026-10-27)"
-00222750,XboxLiveMenu_Draw,live,"Xbox Live: the service is defunct, no sign-in (user 2026-10-27)"
-002228e0,Live_PollNotifications,live,"Xbox Live glue (online module): the service is defunct, not decompiled (user 2026-10-27)"
-002229d0,FUN_002229d0,live,"Xbox Live glue (online module): the service is defunct, not decompiled (user 2026-10-27)"
-00222c20,LiveMgr_SetVoiceEnabled,live,"Xbox Live glue (online module): the service is defunct, not decompiled (user 2026-10-27)"
-00222d20,FUN_00222d20,live,"Xbox Live glue (online module): the service is defunct, not decompiled (user 2026-10-27)"
-00222df0,LiveMgrBase_Construct,live,"Xbox Live glue (online module): the service is defunct, not decompiled (user 2026-10-27)"
-00223380,Live_LogOff,live,"Xbox Live glue (online module): the service is defunct, not decompiled (user 2026-10-27)"
-002235e0,Live_HandleExit,live,"Xbox Live glue (online module): the service is defunct, not decompiled (user 2026-10-27)"
-00223730,Live_Frame,live,"Xbox Live glue (online module): the service is defunct, not decompiled (user 2026-10-27)"
-00223e10,InGameLiveOptionsMenu_Dtor,live,"Xbox Live: the service is defunct, no sign-in (user 2026-10-27)"
-00224060,InGameLiveOptionsMenu_ShowConfirmDialog,live,"Xbox Live: the service is defunct, no sign-in (user 2026-10-27)"
-00224160,InGameLiveOptionsMenu_ShowDashboardDialog,live,"Xbox Live: the service is defunct, no sign-in (user 2026-10-27)"
-002248b0,LiveMgr_Dtor,live,"Xbox Live glue (online module): the service is defunct, not decompiled (user 2026-10-27)"
-00224920,LiveMgr_Construct,live,"Xbox Live glue (online module): the service is defunct, not decompiled (user 2026-10-27)"
-00224970,Live_Render,live,"Xbox Live glue (online module): the service is defunct, not decompiled (user 2026-10-27)"
-00224a50,Live_Init,live,"Xbox Live glue (online module): the service is defunct, not decompiled (user 2026-10-27)"
-00234ef0,R_DrawBackBufferOverlay,dead,"dead code: no call, no stored pointer, no immediate (user 2026-10-25)"
-00238750,R_EntityLodDistance,dead,"dead code: no call, no stored pointer, no immediate (user 2026-10-25)"
-0023e680,R_FindEffectByName,dead,"dead code: no call, no stored pointer, no immediate (user 2026-10-25)"
-0023fab0,R_ParseTextIcon,dead,"dead code: no call, no stored pointer, no immediate (user 2026-10-25)"
-00241860,RE_DrawTextWithIcons,dead,"dead code: no call, no stored pointer, no immediate (user 2026-10-25)"
-00241a30,RE_TextWidthWithIcons,dead,"dead code: no call, no stored pointer, no immediate (user 2026-10-25)"
-002be7c0,XModel_FreeAnimStates,dead,"dead code: no call, no stored pointer, no immediate (user 2026-10-25)"
-002ec280,FXCmd_Type2AtOrigin,dead,"dead code: no call, no stored pointer, no immediate (user 2026-10-25)"
+00011220,Live_GetCurrentUser,live,"Xbox Live glue (online module): the service is defunct, not decompiled"
+0001f0b0,nglVertexWriter_Init,debug,debug/dev only
+0001f120,nglMeshBuilder_AddPosSection,debug,debug/dev only
+0002ba90,LiveRecord_Construct,live,"Xbox Live glue (online module): the service is defunct, not decompiled"
+0002bb20,FUN_0002bb20,live,"Xbox Live glue (online module): the service is defunct, not decompiled"
+0002bce0,LiveMgr_DeletingDtor,live,"Xbox Live glue (online module): the service is defunct, not decompiled"
+0002bd30,InGameLiveOptionsMenu_DeletingDtor,live,"Xbox Live: the service is defunct, no sign-in"
+00045790,nglInitShaders,boot,boot/device setup: the native engine replaces it with its own back ends
+000468b0,cdDebug_AddToList,no data,no shipped data reaches it
+000469b0,cdDebug_Draw,no data,no shipped data reaches it
+0005ea10,nglDrawSingleQuadFrame,dead,"dead code: no call, no stored pointer, no immediate"
+000634d0,nglSaveScreenshot,host,host file/screenshot or D3D resource code
+00064300,nglResetDevice,boot,boot/device setup: the native engine replaces it with its own back ends
+000649e0,nglSelectVideoMode,boot,boot/device setup: the native engine replaces it with its own back ends
+00064bc0,nglInit,boot,boot/device setup: the native engine replaces it with its own back ends
+00068f70,nglBuildBoneMatrixPalette,dead,"dead code: no call, no stored pointer, no immediate"
+0006ae70,nglWriteTGA,host,host file/screenshot or D3D resource code
+0006afe0,nglSaveTextureTGA,host,host file/screenshot or D3D resource code
+0006cb80,nglDebugDrawSphereMesh,dead,"dead code: no call, no stored pointer, no immediate"
+0006cc50,nglDebugDrawBoxMesh,dead,"dead code: no call, no stored pointer, no immediate"
+0006cd30,nglDebugDrawPyramidMesh,dead,"dead code: no call, no stored pointer, no immediate"
+0006d240,nglDebugDrawAxes,dead,"dead code: no call, no stored pointer, no immediate"
+0006d390,nglDebugLineBatch_Draw,debug,debug/dev only
+0006e9c0,nglInitFrameBuffers,boot,boot/device setup: the native engine replaces it with its own back ends
+0006f080,nglCreateNormalCubeMap,host,host file/screenshot or D3D resource code
+00078500,nglInitMultisample,boot,boot/device setup: the native engine replaces it with its own back ends
+00079020,nglParseDDSPalette,dead,"dead code: no call, no stored pointer, no immediate"
+000795c0,nglDumpCamera,dead,"dead code: no call, no stored pointer, no immediate"
+00079950,nglDumpSceneMeshes,dead,"dead code: no call, no stored pointer, no immediate"
+0007a860,nglMeshFile_RelocateSection3,no data,no shipped data reaches it
+0007b180,nglLockPalette,host,host file/screenshot or D3D resource code
+0007b250,nglCreateDDSPalette,dead,"dead code: no call, no stored pointer, no immediate"
+0007b670,nglDebugShader_Draw,debug,debug/dev only
+0007b810,nglDumpPrintf,debug,debug/dev only
+0007bac0,Anim_InitManagers,boot,boot/device setup: the native engine replaces it with its own back ends
+000939f0,nglGetFreeMemory,debug,debug/dev only
+00093a50,nglReadFile,host,host file/screenshot or D3D resource code
+00093b90,nglFreeFileBuffer,host,host file/screenshot or D3D resource code
+000967c0,FxEffectStage_Release,dead,"dead code: no call, no stored pointer, no immediate"
+0009a5a0,FxRenderer_NewOp5b,no data,no shipped data reaches it
+0009ebf0,FxOp5b_AddToList,no data,no shipped data reaches it
+00220de0,Net_UnregisterSessionKeys,live,"Xbox Live glue (online module): the service is defunct, not decompiled"
+00220e60,Net_RegisterSessionKey,live,"Xbox Live glue (online module): the service is defunct, not decompiled"
+00220fd0,Live_IsXuidMuted,live,"Xbox Live glue (online module): the service is defunct, not decompiled"
+00221090,Live_RequestMutelist,live,"Xbox Live glue (online module): the service is defunct, not decompiled"
+00221450,Live_EmptyStub,live,"Xbox Live glue (online module): the service is defunct, not decompiled"
+00221db0,Live_StartPlayersFeature,live,"Xbox Live glue (online module): the service is defunct, not decompiled"
+00221e60,FUN_00221e60,live,"Xbox Live glue (online module): the service is defunct, not decompiled"
+00221eb0,FUN_00221eb0,live,"Xbox Live glue (online module): the service is defunct, not decompiled"
+00221f30,Live_StartLogonFeature,live,"Xbox Live glue (online module): the service is defunct, not decompiled"
+00221fc0,FUN_00221fc0,live,"Xbox Live glue (online module): the service is defunct, not decompiled"
+002220e0,LiveMgr_SetInput,live,"Xbox Live glue (online module): the service is defunct, not decompiled"
+002226e0,InGameLiveOptionsMenu_Draw,live,"Xbox Live: the service is defunct, no sign-in"
+00222750,XboxLiveMenu_Draw,live,"Xbox Live: the service is defunct, no sign-in"
+002228e0,Live_PollNotifications,live,"Xbox Live glue (online module): the service is defunct, not decompiled"
+002229d0,FUN_002229d0,live,"Xbox Live glue (online module): the service is defunct, not decompiled"
+00222c20,LiveMgr_SetVoiceEnabled,live,"Xbox Live glue (online module): the service is defunct, not decompiled"
+00222d20,FUN_00222d20,live,"Xbox Live glue (online module): the service is defunct, not decompiled"
+00222df0,LiveMgrBase_Construct,live,"Xbox Live glue (online module): the service is defunct, not decompiled"
+00223380,Live_LogOff,live,"Xbox Live glue (online module): the service is defunct, not decompiled"
+002235e0,Live_HandleExit,live,"Xbox Live glue (online module): the service is defunct, not decompiled"
+00223730,Live_Frame,live,"Xbox Live glue (online module): the service is defunct, not decompiled"
+00223e10,InGameLiveOptionsMenu_Dtor,live,"Xbox Live: the service is defunct, no sign-in"
+00224060,InGameLiveOptionsMenu_ShowConfirmDialog,live,"Xbox Live: the service is defunct, no sign-in"
+00224160,InGameLiveOptionsMenu_ShowDashboardDialog,live,"Xbox Live: the service is defunct, no sign-in"
+002248b0,LiveMgr_Dtor,live,"Xbox Live glue (online module): the service is defunct, not decompiled"
+00224920,LiveMgr_Construct,live,"Xbox Live glue (online module): the service is defunct, not decompiled"
+00224970,Live_Render,live,"Xbox Live glue (online module): the service is defunct, not decompiled"
+00224a50,Live_Init,live,"Xbox Live glue (online module): the service is defunct, not decompiled"
+00234ef0,R_DrawBackBufferOverlay,dead,"dead code: no call, no stored pointer, no immediate"
+00238750,R_EntityLodDistance,dead,"dead code: no call, no stored pointer, no immediate"
+0023e680,R_FindEffectByName,dead,"dead code: no call, no stored pointer, no immediate"
+0023fab0,R_ParseTextIcon,dead,"dead code: no call, no stored pointer, no immediate"
+00241860,RE_DrawTextWithIcons,dead,"dead code: no call, no stored pointer, no immediate"
+00241a30,RE_TextWidthWithIcons,dead,"dead code: no call, no stored pointer, no immediate"
+002be7c0,XModel_FreeAnimStates,dead,"dead code: no call, no stored pointer, no immediate"
+002ec280,FXCmd_Type2AtOrigin,dead,"dead code: no call, no stored pointer, no immediate"
 00379a50,AtExit_FxScriptStrings_970844,exit,atexit destructor: the title never exits (untestable by design)
 00379a80,AtExit_FxScriptStrings_9718a0,exit,atexit destructor: the title never exits (untestable by design)
 00379ab0,AtExit_FxScriptStrings_96e90c,exit,atexit destructor: the title never exits (untestable by design)
@@ -591,7 +591,7 @@ address,name,kind,reason
 00123660,BroScr_EmptyFunc_36,unhookable,"bare ret (1 byte), too short to hook; empty script body (levelscript)"
 00123d60,BroScr_EmptyFunc_37,unhookable,"bare ret (1 byte), too short to hook; empty script body (levelscript)"
 00125280,BroScr_EmptyFunc_38,unhookable,"bare ret (1 byte), too short to hook; empty script body (levelscript)"
-0013f820,FUN_0013f820,thread switch,"levelscript thread body, reaches a script wait: C kept, not registered, tested once script threads are coroutines (user 11-05); waitreach path FUN_0013f820 -> FUN_006609c0 -> Scr_WaitTill; C in bro_scr_level_threads.cpp reviewed against the disassembly, vc71match 31.5 (--facts --force-inline: ordered calls/constants same; - (C name BroScr_WaitHeavyHitOrDamage, proposed)), not registered (tested once script threads are coroutines)"
+0013f820,FUN_0013f820,thread switch,"levelscript thread body, reaches a script wait: C kept, not registered, tested once script threads are coroutines; waitreach path FUN_0013f820 -> FUN_006609c0 -> Scr_WaitTill; C in bro_scr_level_threads.cpp reviewed against the disassembly, vc71match 31.5 (--facts --force-inline: ordered calls/constants same; - (C name BroScr_WaitHeavyHitOrDamage, proposed)), not registered (tested once script threads are coroutines)"
 0012ff00,BroScr_GetEntSecondsSince_h05903940,unhookable,"call [pScr_GScr_GetTime] at +2, inside the first 5 bytes, cannot be hooked; has C (levelscript)"
 001a00c0,BroScr_SetPoseMovement,unhookable,"call [pScr_GScr_GetTime] at +4, inside the first 5 bytes, cannot be hooked; has C (levelscript)"
 0018df30,BroScr_SetDirectionalMoveAnims,unhookable,"call [pScr_GScr_EmptyStub220] at +4, inside the first 5 bytes, cannot be hooked; has C (levelscript)"

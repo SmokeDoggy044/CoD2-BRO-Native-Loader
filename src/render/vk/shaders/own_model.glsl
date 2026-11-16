@@ -401,7 +401,7 @@ vec4 own_model_v0(vec4 vertex_color) {
             if (OWN(28).y > 0.0 && (i == sun || OWN(12 + i).w != 0.0))
                 g_spec += own_specular(n, view, toward, light, roughness);  // includes N.L
         }
-        // "Low strength" (user 11-15): scaled, then softly capped at 0.3 per channel.
+        // Low strength: scaled, then softly capped at 0.3 per channel.
         g_spec *= OWN(28).y;
         g_spec = 0.3 * g_spec / (0.3 + g_spec);
         if (own_has_maps()) sum *= own_cavity(tex7, smp7, t0.xy / t0.w * texcoord_scale[0].xy);
