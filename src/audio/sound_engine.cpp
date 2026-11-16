@@ -972,6 +972,14 @@ void listener_position(float out[3]) {
     for (int i = 0; i < 3; ++i) out[i] = g.current_listener.position[i];
 }
 
+void listener_facing(float front[3], float top[3]) {
+    Guard lock(g.mutex, TestLock::State);
+    for (int i = 0; i < 3; ++i) {
+        front[i] = g.current_listener.front[i];
+        top[i] = g.current_listener.top[i];
+    }
+}
+
 Output* output() {
     Guard lock(g.mutex, TestLock::State);
     return g.output.get();

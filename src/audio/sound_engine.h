@@ -83,6 +83,8 @@ struct VoiceRow {
 std::vector<VoiceRow> voice_rows();
 // The listener's position (game coordinates) as last set by the game.
 void listener_position(float out[3]);
+// And its facing (game coordinates; the game's "top" is world down, see snd_env.cpp facing()).
+void listener_facing(float front[3], float top[3]);
 
 // The output, once the device is open (tests render through it).
 Output* output();

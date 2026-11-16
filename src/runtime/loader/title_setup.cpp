@@ -105,6 +105,17 @@ void write_sound_mark(const char* prefix) {
     audio::listener_position(l);
     std::string text;
     game::SndEnv_DescribeForMark(l, text);
+    // The listener's facing and, per voice, where it is heard (right = top x front, as the sound placement turns it).
+    float front[3], top[3];
+    audio::listener_facing(front, top);
+    const float right[3] = {top[1] * front[2] - top[2] * front[1], top[2] * front[0] - top[0] * front[2],
+                            top[0] * front[1] - top[1] * front[0]};
+    const float* camera = reinterpret_cast<const float*>(uintptr_t{0x00972bc0});
+    char head[256];
+    std::snprintf(head, sizeof(head), "listener front %.2f %.2f %.2f, top %.2f %.2f %.2f; camera forward %.2f %.2f %.2f\n",
+                  double(front[0]), double(front[1]), double(front[2]), double(top[0]), double(top[1]), double(top[2]),
+                  double(camera[0]), double(camera[1]), double(camera[2]));
+    text += head;
     std::vector<audio::VoiceRow> rows = audio::voice_rows();
     std::sort(rows.begin(), rows.end(), [](const auto& a, const auto& b) {
         return a.spatial != b.spatial ? a.spatial : a.distance < b.distance;
@@ -123,7 +134,15 @@ void write_sound_mark(const char* prefix) {
                       double(r.direct_gain), double(r.direct_gain_lf), double(r.direct_gain_hf), double(r.send_gain),
                       double(r.level), double(r.turn));
         text += line;
-        if (r.spatial) game::SndEnv_DescribeVoiceForMark(l, r.position, text);
+        if (r.spatial) {
+            const float d[3] = {r.position[0] - l[0], r.position[1] - l[1], r.position[2] - l[2]};
+            const float x = d[0] * right[0] + d[1] * right[1] + d[2] * right[2];
+            const float z = d[0] * front[0] + d[1] * front[1] + d[2] * front[2];
+            std::snprintf(line, sizeof(line), "    direction from the listener %+.0f deg (+ right, 180 behind)\n",
+                          double(std::atan2(x, z) * 57.29578f));
+            text += line;
+            game::SndEnv_DescribeVoiceForMark(l, r.position, text);
+        }
     }
     const std::string path = std::string(prefix) + "_sound.txt";
     if (std::FILE* f = std::fopen(path.c_str(), "w")) {
@@ -142,7 +161,14 @@ void audio_capture_frame() {
     const unsigned long long sample = out->rendered_frames();
     float l[3];
     audio::listener_position(l);
-    std::fprintf(g_capture.frames, "%u,%llu,%.1f,%.1f,%.1f\n", frame, sample, double(l[0]), double(l[1]), double(l[2]));
+    float front[3], top[3];
+    audio::listener_facing(front, top);
+    const float* camera = reinterpret_cast<const float*>(uintptr_t{0x00972bc0});  // cgame refdef axis[0] (forward)
+    const float* eye = reinterpret_cast<const float*>(uintptr_t{0x00972bb0});     // cgame refdef origin
+    std::fprintf(g_capture.frames, "%u,%llu,%.1f,%.1f,%.1f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.1f,%.1f,%.1f,%.3f,%.3f,%.3f\n", frame, sample,
+                 double(l[0]), double(l[1]), double(l[2]), double(front[0]), double(front[1]), double(front[2]),
+                 double(camera[0]), double(camera[1]), double(camera[2]), double(eye[0]), double(eye[1]),
+                 double(eye[2]), double(top[0]), double(top[1]), double(top[2]));
     if (frame % 6) return;
     static const char* const kCategories[] = {"effects", "dialogue", "music", "interface", "ambience", "gunfire", "bullets", "own_gunfire"};
     for (const audio::VoiceRow& r : audio::voice_rows())
@@ -361,7 +387,9 @@ void configure_title_services(const Options& options, const fs::path& assets, co
         g_capture.frames = std::fopen((base + ".frames.csv").c_str(), "w");
         g_capture.voices = std::fopen((base + ".voices.csv").c_str(), "w");
         if (g_capture.frames && g_capture.voices) {
-            std::fputs("frame,sample,listener_x,listener_y,listener_z\n", g_capture.frames);
+            std::fputs("frame,sample,listener_x,listener_y,listener_z,front_x,front_y,front_z,camera_x,camera_y,camera_z,eye_x,eye_y,"
+                       "eye_z,top_x,top_y,top_z\n",
+                       g_capture.frames);
             std::fputs("frame,sample,voice,category,spatial,x,y,z,distance,distance_gain,volume,occlusion,gain,direct,"
                        "direct_hf,send,level,direct_lf,turn\n", g_capture.voices);
             g_capture.inner = d3d_config.frame_presented;
