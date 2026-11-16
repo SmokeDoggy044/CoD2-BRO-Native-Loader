@@ -1,0 +1,22 @@
+# Mouse in the menus (4.1): pointer through the window conversion, click to open, value arrows, wheel, right click.
+screen 15 a
+a
+screen 1 a
+window 1207 640     # "Options" on the main menu at window 1707x960 (pillarboxed 4:3)
+state hover_options
+click
+screen 3
+item 0
+click
+screen 4
+shot gameplay_before
+item 0
+click 474 163       # Subtitles' right arrow
+state subtitles_clicked
+wheel -2            # two rows down
+wait 0.5
+state wheel_down
+rclick              # back without applying
+screen 3
+shot back_to_options
+quit

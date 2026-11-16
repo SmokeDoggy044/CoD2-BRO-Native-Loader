@@ -19,7 +19,7 @@ namespace {
 
 namespace fs = std::filesystem;
 
-enum class Op { Item, Wait, Frames, Screen, Idle, Tap, Hold, Mouse, Click, RightClick, Wheel, Shot, State, Quit };
+enum class Op { Window, Item, Wait, Frames, Screen, Idle, Tap, Hold, Mouse, Click, RightClick, Wheel, Shot, State, Quit };
 
 struct Step {
     Op op;
@@ -113,6 +113,10 @@ bool parse_step(const std::string& text, Step& step) {
         step.op = Op::Hold;
         return in >> button >> step.a && parse_pad(button, step.pad);
     }
+    if (word == "window") {
+        step.op = Op::Window;
+        return static_cast<bool>(in >> step.a >> step.b);
+    }
     if (word == "item") {
         step.op = Op::Item;
         return static_cast<bool>(in >> step.a);
@@ -178,6 +182,7 @@ bool pointer_source(ScriptedPointer& out) {
 void move_pointer(float x, float y) {
     std::lock_guard lock(g_walk.mutex);
     g_walk.pointer.x = x, g_walk.pointer.y = y;
+    g_walk.pointer.window = false;
     g_walk.pointer.moved = true;
     g_walk.pointer_set = true;
 }
@@ -227,6 +232,13 @@ bool run(const Step& s, uint32_t elapsed) {
         }
         return false;
     }
+    case Op::Window:
+        if (elapsed == 0) {
+            move_pointer(s.a, s.b);
+            std::lock_guard lock(g_walk.mutex);
+            g_walk.pointer.window = true;
+        }
+        return elapsed >= 4;
     case Op::Mouse:
         if (elapsed == 0) move_pointer(s.a, s.b);
         return elapsed >= 4;

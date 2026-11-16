@@ -1730,7 +1730,10 @@ void XB_CDECL menu_pointer(uint32_t manager) {
     if (g_scripted_pointer) {  // --menu-walk: the script's pointer instead
         ScriptedPointer scripted;
         if (g_scripted_pointer(scripted)) {
-            at.x = scripted.x, at.y = scripted.y, at.on_screen = 1;
+            if (scripted.window)
+                at.on_screen = render::window_to_screen(scripted.x, scripted.y, at.x, at.y);
+            else
+                at.x = scripted.x, at.y = scripted.y, at.on_screen = 1;
             pointer.moved = scripted.moved;
             pointer.left_clicks = scripted.left_clicks, pointer.right_clicks = scripted.right_clicks;
             pointer.wheel = scripted.wheel;
@@ -1784,6 +1787,18 @@ void XB_CDECL menu_pointer(uint32_t manager) {
         constexpr float kValueMiddle = 10.0f;
         tap_digital(x < value_x - kValueMiddle ? input::kDpadLeft : input::kDpadRight);
         return;
+    }
+    // Wheel notches: one step per tap, several notches in one poll are stepped one after another (a tap lasts a
+    // few polls; taps that overlap would merge into one press).
+    static int wheel_pending = 0;
+    static uint32_t wheel_frame = 0;
+    constexpr uint32_t kWheelFrames = 8;
+    wheel_pending += pointer.wheel;
+    pointer.wheel = 0;
+    if (wheel_pending && frame - wheel_frame >= kWheelFrames) {
+        pointer.wheel = wheel_pending > 0 ? 1 : -1;
+        wheel_pending -= pointer.wheel;
+        wheel_frame = frame;
     }
     const bool no_items = !menu || title<int16_t>(menu + 0x26) <= 0;
     const bool picker = menu && horizontal(menu);
@@ -1916,6 +1931,26 @@ std::string menu_state() {
             }
             out += '\n';
         }
+    }
+    // The other texts drawn now (values, titles, prompts), top to bottom.
+    std::vector<std::pair<ItemBox, std::string>> texts;
+    {
+        std::lock_guard lock(g_drawn_mutex);
+        for (const auto& [widget, at] : g_text_drawn) {
+            if (frame - at > 2) continue;
+            ItemBox box{-1, 0, 0, 0, 0};
+            if (title<uint32_t>(widget) == g_menu_pointer.text_widget_vtable && widget_box(widget, box))
+                texts.emplace_back(box, widget_text(widget));
+        }
+    }
+    std::sort(texts.begin(), texts.end(), [](const auto& a, const auto& b) {
+        return a.first.top != b.first.top ? a.first.top < b.first.top : a.first.left < b.first.left;
+    });
+    out += "texts:\n";
+    for (const auto& [box, text] : texts) {
+        std::snprintf(line, sizeof line, "  \"%s\" box %.0f,%.0f-%.0f,%.0f\n", text.c_str(), box.left, box.top,
+                      box.right, box.bottom);
+        out += line;
     }
     return out;
 }

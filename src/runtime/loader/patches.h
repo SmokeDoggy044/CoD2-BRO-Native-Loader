@@ -123,6 +123,7 @@ struct ScriptedPointer {
     float x = 0, y = 0;
     bool moved = false;
     int left_clicks = 0, right_clicks = 0, wheel = 0;
+    bool window = false;  // x, y are window pixels: converted like the real mouse (pillarbox, narrowed menus)
 };
 using ScriptedPointerSource = bool (*)(ScriptedPointer& pointer);
 void set_scripted_pointer(ScriptedPointerSource source);
