@@ -6,10 +6,10 @@
 
 [![License: GPL-2.0-or-later](https://img.shields.io/badge/license-GPL--2.0--or--later-blue)](LICENSE)
 ![Platforms: Linux | Windows](https://img.shields.io/badge/platforms-Linux%20%7C%20Windows-lightgrey)
-[![Playable release](https://img.shields.io/github/v/release/SmokeDoggy044/CoD2-BRO-Native-Loader?label=playable%20release)](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader/releases)
+[![Release](https://img.shields.io/github/v/release/SmokeDoggy044/CoD2-BRO-Native-Loader?label=release)](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader/releases)
 ![Made with AI](https://img.shields.io/badge/made%20with-AI-8A2BE2)
 
-[Play](#play) · [Features](#features) · [Status](#status) · [Build](#build-from-source) · [Documentation](docs/README.md) · [Made with AI](#made-with-ai)
+[Play](#play) · [Comparison](#original-and-custom-engine) · [Features](#features) · [Status](#status) · [Build](#build-from-source) · [Documentation](docs/README.md) · [Made with AI](#made-with-ai)
 
 </div>
 
@@ -26,52 +26,136 @@ own copy of the Xbox game.
 
 ## Play
 
-The whole single-player campaign is playable on PC today.
+The whole single-player campaign is playable on PC.
 
 1. Download the latest release for Linux or Windows from the
    [releases page](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader/releases).
-2. Unpack it and copy your game dump into its `assets/` folder.
-3. Start `cod_bro_launcher`, pick your options and play.
+2. Unpack it and start `cod_bro_launcher`.
+3. In **Options**, **General**, choose **Extract from a disc image...** and pick the image
+   of your game disc (or copy an already extracted dump into the `assets/` folder).
+4. Pick your options and play.
 
-The releases are built from the
-[CoD2-BRO-Native-Loader](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader)
-repository, which has the system requirements, controls and antivirus notes. This
-repository is where the engine is rewritten; its first release will replace that one.
+<p align="center"><img src="docs/images/launcher.png" alt="The launcher" width="700"></p>
+
+The launcher checks your game files before using them: it recognises the edition (the
+standard release or the Collector's Edition) and compares every file with it, so a
+damaged or incomplete copy is caught before you play, naming the files. It also tells
+you when a new release is out and installs it with one click, and its **Data Files**
+page installs the optional [texture packs](#texture-packs).
+
+| | Linux | Windows |
+|---|---|---|
+| System | x86 (64- or 32-bit), glibc 2.30 or newer | 64-bit Windows 10 or 11 |
+| Graphics | Vulkan 1.3 (Direct3D 9 through the bundled DXVK as a fallback) | Vulkan 1.3 (Direct3D 9 as a fallback) |
+
+## Original and custom engine
+
+The same moments of the campaign, on the left as the Xbox shows them (the engine's
+*Original* graphics), on the right with Enhanced Graphics and the texture packs.
+
+<!-- comparison:start -->
+<table>
+<tr><th width="50%">Original</th><th width="50%">Custom engine</th></tr>
+<tr><td colspan="2" align="center"><b>Prologue</b></td></tr>
+<tr><td><img src="docs/images/comparison/m0_2578_original.jpg" alt="Prologue, original"></td><td><img src="docs/images/comparison/m0_2578_engine.jpg" alt="Prologue, custom engine"></td></tr>
+<tr><td><img src="docs/images/comparison/m0_18402_original.jpg" alt="Prologue, original"></td><td><img src="docs/images/comparison/m0_18402_engine.jpg" alt="Prologue, custom engine"></td></tr>
+<tr><td colspan="2" align="center"><b>Oran</b></td></tr>
+<tr><td><img src="docs/images/comparison/m1_37032_original.jpg" alt="Oran, original"></td><td><img src="docs/images/comparison/m1_37032_engine.jpg" alt="Oran, custom engine"></td></tr>
+<tr><td colspan="2" align="center"><b>Tunisia</b></td></tr>
+<tr><td><img src="docs/images/comparison/m2_13228_original.jpg" alt="Tunisia, original"></td><td><img src="docs/images/comparison/m2_13228_engine.jpg" alt="Tunisia, custom engine"></td></tr>
+<tr><td colspan="2" align="center"><b>Kasserine Pass</b></td></tr>
+<tr><td><img src="docs/images/comparison/m3_44872_original.jpg" alt="Kasserine Pass, original"></td><td><img src="docs/images/comparison/m3_44872_engine.jpg" alt="Kasserine Pass, custom engine"></td></tr>
+<tr><td colspan="2" align="center"><b>Kasserine</b></td></tr>
+<tr><td><img src="docs/images/comparison/m4_3802_original.jpg" alt="Kasserine, original"></td><td><img src="docs/images/comparison/m4_3802_engine.jpg" alt="Kasserine, custom engine"></td></tr>
+<tr><td><img src="docs/images/comparison/m4_35829_original.jpg" alt="Kasserine, original"></td><td><img src="docs/images/comparison/m4_35829_engine.jpg" alt="Kasserine, custom engine"></td></tr>
+<tr><td colspan="2" align="center"><b>Liberator</b></td></tr>
+<tr><td><img src="docs/images/comparison/m5_27443_original.jpg" alt="Liberator, original"></td><td><img src="docs/images/comparison/m5_27443_engine.jpg" alt="Liberator, custom engine"></td></tr>
+<tr><td colspan="2" align="center"><b>Gela</b></td></tr>
+<tr><td><img src="docs/images/comparison/m6_22726_original.jpg" alt="Gela, original"></td><td><img src="docs/images/comparison/m6_22726_engine.jpg" alt="Gela, custom engine"></td></tr>
+<tr><td><img src="docs/images/comparison/m6_40427_original.jpg" alt="Gela, original"></td><td><img src="docs/images/comparison/m6_40427_engine.jpg" alt="Gela, custom engine"></td></tr>
+<tr><td colspan="2" align="center"><b>Piano Lupo</b></td></tr>
+<tr><td><img src="docs/images/comparison/m7_28773_original.jpg" alt="Piano Lupo, original"></td><td><img src="docs/images/comparison/m7_28773_engine.jpg" alt="Piano Lupo, custom engine"></td></tr>
+<tr><td><img src="docs/images/comparison/m7_51311_original.jpg" alt="Piano Lupo, original"></td><td><img src="docs/images/comparison/m7_51311_engine.jpg" alt="Piano Lupo, custom engine"></td></tr>
+<tr><td><img src="docs/images/comparison/m7_73850_original.jpg" alt="Piano Lupo, original"></td><td><img src="docs/images/comparison/m7_73850_engine.jpg" alt="Piano Lupo, custom engine"></td></tr>
+<tr><td colspan="2" align="center"><b>Omaha Beach</b></td></tr>
+<tr><td><img src="docs/images/comparison/m9_28439_original.jpg" alt="Omaha Beach, original"></td><td><img src="docs/images/comparison/m9_28439_engine.jpg" alt="Omaha Beach, custom engine"></td></tr>
+<tr><td><img src="docs/images/comparison/m9_50711_original.jpg" alt="Omaha Beach, original"></td><td><img src="docs/images/comparison/m9_50711_engine.jpg" alt="Omaha Beach, custom engine"></td></tr>
+<tr><td><img src="docs/images/comparison/m9_61847_original.jpg" alt="Omaha Beach, original"></td><td><img src="docs/images/comparison/m9_61847_engine.jpg" alt="Omaha Beach, custom engine"></td></tr>
+<tr><td><img src="docs/images/comparison/m9_72983_original.jpg" alt="Omaha Beach, original"></td><td><img src="docs/images/comparison/m9_72983_engine.jpg" alt="Omaha Beach, custom engine"></td></tr>
+<tr><td colspan="2" align="center"><b>Eilendorf</b></td></tr>
+<tr><td><img src="docs/images/comparison/m11_5409_original.jpg" alt="Eilendorf, original"></td><td><img src="docs/images/comparison/m11_5409_engine.jpg" alt="Eilendorf, custom engine"></td></tr>
+<tr><td><img src="docs/images/comparison/m11_43886_original.jpg" alt="Eilendorf, original"></td><td><img src="docs/images/comparison/m11_43886_engine.jpg" alt="Eilendorf, custom engine"></td></tr>
+<tr><td><img src="docs/images/comparison/m11_63124_original.jpg" alt="Eilendorf, original"></td><td><img src="docs/images/comparison/m11_63124_engine.jpg" alt="Eilendorf, custom engine"></td></tr>
+</table>
+<!-- comparison:end -->
+
+Every enhancement has its own switch, and *Original* turns them all off at once: the
+picture and sound are then the Xbox's.
 
 ## Features
 
-**Available now**
+**Playing on PC**
 
-- The whole single-player campaign.
-- 60 fps, higher render resolutions, widescreen, borderless fullscreen and a field of view setting.
-- Controllers, and keyboard and mouse with your own key bindings.
-- Optional enhanced graphics (anti-aliasing, anisotropic filtering, sharpening) and enhanced
-  sound (reverb, occlusion behind walls, more voices), each with its own switch. Switched
-  off, you get the picture and sound as on the Xbox.
+- The whole single-player campaign, in English, German, French, Spanish or Italian
+  (as your disc has them).
+- Smooth frame pacing at your display's refresh rate (60 Hz and up), any render
+  resolution, borderless fullscreen.
+- Proper widescreen: a wider view instead of a cropped one, the HUD at the screen's
+  edges, a field of view setting; the menus stay 4:3 with soft blurred sides.
+- Keyboard and mouse with your own key bindings, mouse control in every menu, and
+  key pictures in the button prompts. Controllers work as on the Xbox.
+- All settings in the game's own Options menus (Controls, Graphics, Sound) and in the
+  pause menu, and every option in the launcher too.
+- Sharper text: the game's fonts redrawn at your resolution.
 - Multiplayer over System Link on your local network.
 
-**Planned for the custom engine**
+**Enhanced Graphics** (Vulkan renderer)
 
-- A Vulkan renderer next to Direct3D 9.
-- A proper in-game settings menu, and a launcher that has every option.
-- Ambient occlusion, occlusion culling and dynamic lighting on top of the game's baked lighting.
-- More realistic sound occlusion: materials, partial cover, sound bending around corners.
+- Sun shadows from characters and vehicles, on top of the game's baked shadows.
+- Lighting per pixel, normal maps and shine on surfaces, and the levels' muzzle flashes
+  and explosions lighting the world per pixel.
+- Ambient occlusion in corners and creases.
+- Rounder characters, weapons and props (model smoothing).
+- Anti-aliasing, anisotropic filtering, sharper distant textures, sharpening and
+  vibrance.
 
-Every enhancement stays optional, so the original look and sound are always one switch away.
+**Enhanced Sound**
+
+- Sound through walls and doors depending on the material, quieter behind partial cover,
+  and bending through openings and round corners.
+- Reverb and echoes from the room you are in, measured from the level itself, and the
+  high tones of distant sounds fading in the air.
+- More voices at once, close gunfire and passing bullets that carry weight, and
+  cutscene sound in stereo.
+
+### Texture packs
+
+Optional, installed from the launcher's **Data Files** page:
+
+| Pack | What | Size |
+|---|---|---|
+| PBRify 4x textures | the levels, weapons, vehicles and characters upscaled 4x | 605 MB |
+| UI textures | menus, HUD and fonts upscaled | 36 MB |
+| Surface maps | normal, height and surface maps for Enhanced Graphics' lighting | 2.9 GB |
+
+The packs only work with your own copy of the game: every texture in them is locked with
+a key that only the matching original texture gives.
 
 ## Status
 
-The engine is nearly fully rewritten, and most of it already runs as our own code in
-development builds. Every rewritten function is checked against the original while the
-game runs, and only replaces it once both behave exactly the same. Next comes the custom
-engine itself: the rewritten code assembled into a game of its own, with the planned
-features built in. Its first release will replace the current one.
+The single-player engine is rewritten: renderer, sound, script engine, game logic,
+animation, collision, menus and the engine core run as our own code. Every rewritten
+function was checked against the original while the game ran, and replaced it only once
+both behaved exactly the same. Recorded play-throughs of the missions check every build
+(Linux and Windows) against each other. The mission scripts still run as the original code from your disc, and our
+engine gives them everything they expect from it. The multiplayer still runs its original
+code.
 
 ## How it works
 
 The Xbox has an ordinary x86 processor, much like a PC, so the original game code can run
-on a PC directly while its surroundings are replaced. That is how the playable release
-works, and it is what makes the rewrite testable inside the real game:
+on a PC directly while its surroundings are replaced. That is what made the rewrite
+testable inside the real game:
 
 1. **Name.** The game contains no names, only addresses. Its engine descends from
    Quake III Arena, whose source code is public, so many functions can be matched to
@@ -83,55 +167,56 @@ works, and it is what makes the rewrite testable inside the real game:
 4. **Replace.** Once every function of a part has passed, that part runs our code.
 
 The mission scripts were compiled to machine code by the game's own script compiler.
-They keep running as the original code from your disc, and our engine gives them
-everything they expect from it.
+They keep running as the original code from your disc, behind a narrow boundary to our
+engine ([the level boundary](docs/formats/level_boundary.md)).
 
-More in [How it works](docs/developers/how-it-works.md) and
-[The comparison harness](docs/developers/comparison-harness.md).
+More in [How it works](docs/developers/how-it-works.md),
+[The comparison harness](docs/developers/comparison-harness.md) and
+[The engine host](docs/developers/own-engine-host.md).
 
 ## Build from source
 
 Linux is needed for development: the in-game comparison only works there for now.
 
 ```sh
-git clone --recursive https://github.com/SmokeDoggy044/CoD2-BRO-Decomp.git
-cd CoD2-BRO-Decomp
+git clone --recursive https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader.git
+cd CoD2-BRO-Native-Loader
 
-# Fedora: 32-bit libraries and vkd3d's shader compiler
-sudo dnf install glibc-devel.i686 libstdc++-devel.i686 openal-soft-devel.i686 SDL3-devel.i686 vkd3d-compiler
+# Fedora: 32-bit libraries and the shader compilers
+sudo dnf install glibc-devel.i686 libstdc++-devel.i686 openal-soft-devel.i686 vkd3d-compiler glslang
 
-cmake --preset linux-loader -DCOD_BRO_GAME_FILES=/path/to/your/game/dump
-cmake --build --preset linux-loader
-ctest --preset linux-loader
-./build/linux-loader/bin/cod_bro_loader --level 1
+cmake --preset linux-loader-release -DCOD_BRO_GAME_FILES=/path/to/your/game/dump
+cmake --build --preset linux-loader-release
+ctest --preset linux-loader-release
+./build/linux-loader-release/bin/cod_bro_launcher
 ```
 
-Add `--compare` to run the rewritten functions side by side with the original. Windows
-builds, release packaging and all options are described in
-[Development](docs/developers/development.md).
+Windows builds (MinGW), release packaging, the recording and replay tools and all options
+are described in [Development](docs/developers/development.md).
 
 ## Project layout
 
 ```
 src/
   engine/      the rewritten game code, one folder per part of the game
-  runtime/     runs the original code on a PC: the program loader and the Xbox system layer
-  render/      graphics (Direct3D 9 through DXVK, our own graphics interface)
-  audio/       sound on OpenAL Soft
+  runtime/     our executable, and the system layer the original mission scripts run on
+  render/      graphics: Vulkan and Direct3D 9 back ends behind our graphics interface
+  audio/       sound on OpenAL Soft, including the sound propagation
   input/       controllers, keyboard and mouse
-  platform/    files, memory, threads, settings
+  platform/    files, memory, threads, settings, downloads
   launcher/    the launcher
   text/        sharper text and button prompts
   online/      System Link
 tests/         unit tests and the comparison tests
-tools/         analysis, decompiling and testing tools; tools/data holds the names and results
+tools/         analysis, decompiling, testing and texture pack tools
 docs/          documentation for developers, file formats and research notes
+third_party/   bundled sources (zstd's decoder, Xbox headers)
 ```
 
 ## Contributing
 
 Bug reports and questions are welcome in the
-[issues](https://github.com/SmokeDoggy044/CoD2-BRO-Decomp/issues); for problems while
+[issues](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader/issues); for problems while
 playing, attach `log.txt` from your user data folder (`~/.local/share/cod_bro` or
 `%APPDATA%\cod_bro`). To work on the code, start with [Development](docs/developers/development.md)
 and the [tools we use](docs/developers/tools.md).

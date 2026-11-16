@@ -185,7 +185,7 @@ def main():
     summary(lambda r: r[3] if r[2] == ".text" else "levels")
     named = sum(1 for r in rows if r[4] not in ("unnamed", "library") and not r[1].startswith("FUN_"))
     done = sum(1 for r in rows if r[4] in REWRITTEN)
-    total = len(rows)  # library functions in .text stay counted (user decision 2026-10-18)
+    total = len(rows)  # library functions in .text stay counted
     print(f"\ncounter: named {named}/{total} · matched {done}/{total}")
 
 

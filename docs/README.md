@@ -13,6 +13,11 @@
 - [Rendering](developers/rendering.md) and [our own renderer](developers/own-renderer.md):
   the graphics path, from the Xbox's Direct3D 8 to our graphics interface.
 - [Multiplayer](developers/multiplayer.md): System Link on a virtual network.
+- [The engine host](developers/own-engine-host.md): our own executable, frame pacing, the Vulkan renderer, the
+  lighting and sound-propagation features and the in-game menus, with how each was checked.
+- [Texture packs](developers/texture-packs.md): the pack format, the keys from the player's own textures and the
+  launcher's install.
+- [Game files and disc images](developers/game-files.md): the edition check and the disc image import.
 
 ## File formats and interfaces
 
@@ -26,6 +31,6 @@
 - [Naming](research/naming.md): how functions get their names, and what has been found.
 - [Renderer inventory](research/renderer-inventory.md): what the decompiled renderer
   asked of the Xbox graphics libraries.
-- [Status log](research/status.md): the project's working log, day by day.
+- [Component status](research/status.md): what each part does today and how it was checked.
 - Class lists per module (`research/*_classes.csv`): how each function was decompiled
   and tested.
