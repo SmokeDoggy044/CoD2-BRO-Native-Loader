@@ -532,7 +532,12 @@ def cmd_reference(args):
     for item in source.iterdir():
         if item.name.endswith("_test") or item.name in ("cod_bro", "cod_bro_launcher"):
             continue
-        (shutil.copytree if item.is_dir() else shutil.copy2)(item, target / item.name)
+        if item.is_symlink():  # the game data (assets -> the unpacked disc): linked, not copied (3 GB)
+            (target / item.name).symlink_to(item.readlink())
+        elif item.is_dir():
+            shutil.copytree(item, target / item.name, symlinks=True)
+        else:
+            shutil.copy2(item, target / item.name)
     # The absolute RPATH (the build folder) -> $ORIGIN, padded: the copy loads its own game library.
     old = str(source).encode() + b":"
     loader = target / DEFAULT_LOADER.name
