@@ -196,8 +196,8 @@ const SettingDef kSettings[] = {
      "enhanced: reverb by the place around the listener", "enhanced", "reverb"},
     {"occlusion", "on|off", T::Switch, G::Sound, kLiveIni, 0, 0, nullptr, "on",
      "enhanced: sounds behind walls muffled", "enhanced", "occlusion"},
-    {"close-boost", "on|off", T::Switch, G::Sound, kLiveIni, 0, 0, nullptr, "on",
-     "enhanced: the close-* volumes", "enhanced", "close_boost"},
+    {"close-boost", "on|off", T::Switch, G::Sound, kLiveIni | kHidden, 0, 0, nullptr, "on",
+     "older switch, no effect: the close-* volumes alone set the close-range boost", "enhanced", "close_boost"},
     {"transmission", "on|off", T::Switch, G::Sound, kLiveIni, 0, 0, nullptr, "on",
      "enhanced, with occlusion: sound through walls by material and thickness (off: one fixed muffle)", "enhanced",
      "transmission"},
@@ -542,13 +542,13 @@ const SettingUi kUi[] = {
      "Distant sounds lose their highs the way air takes them (about 4 dB at 100 m), so far gunfire sounds farther "
      "away. How loud a sound is by its distance stays the game's own.",
      nullptr, nullptr, "audio=enhanced"},
-    {"close-boost", nullptr, "Close-range boost",
+    // The close-range boost: three volumes, no switch of its own (0 dB = the game's level; user 11-16).
+    {"close-gunfire", nullptr, "Others' gunfire",
      "Gunfire and bullets louder near you: full within 15 m, fading to the game's own level at 30 m (your own "
      "gunfire always full). The game mixes them quietly; 0 dB = its level.",
-     nullptr, nullptr, "audio=enhanced"},
-    {"close-gunfire", nullptr, "Others' gunfire", nullptr, nullptr, "%+.1f dB", "close-boost"},
-    {"own-gunfire", nullptr, "Your gunfire", nullptr, nullptr, "%+.1f dB", "close-boost"},
-    {"close-bullets", nullptr, "Bullet impacts and flybys", nullptr, nullptr, "%+.1f dB", "close-boost"},
+     nullptr, "%+.1f dB", "audio=enhanced"},
+    {"own-gunfire", nullptr, "Your gunfire", nullptr, nullptr, "%+.1f dB", "audio=enhanced"},
+    {"close-bullets", nullptr, "Bullet impacts and flybys", nullptr, nullptr, "%+.1f dB", "audio=enhanced"},
     // Controls
     {"mouse-sensitivity", "Mouse and keyboard", "Mouse sensitivity", "Degrees the view turns per mouse count.",
      nullptr, "%.2f", nullptr, nullptr, true},

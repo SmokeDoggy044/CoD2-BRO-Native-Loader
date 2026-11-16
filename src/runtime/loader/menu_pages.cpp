@@ -86,7 +86,7 @@ const std::vector<PageDef>& pages() {
           setting("close-gunfire"), setting("own-gunfire"), setting("close-bullets", "Bullets Nearby")}},
         {"paths", "SOUND PATHS",
          {setting("occlusion"), setting("transmission"), setting("partial-cover"),
-          setting("openings", "Through Openings"), setting("air"), setting("close-boost")}},
+          setting("openings", "Through Openings"), setting("air")}},
         {"reverb", "REVERB",
          {setting("room-reverb"), setting("reverb-detail", "Room Detail"), setting("echoes"),
           setting("reverb-amount", "Amount"), setting("reverb-decay", "Decay"),
