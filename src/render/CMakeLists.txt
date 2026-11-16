@@ -102,7 +102,7 @@ add_custom_command(OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/title_shaders.cpp
                            "-DINPUTS=${title_shader_binaries}" -P ${PROJECT_SOURCE_DIR}/cmake/embed_shaders.cmake
                    DEPENDS ${title_shader_binaries} ${PROJECT_SOURCE_DIR}/cmake/embed_shaders.cmake
                    VERBATIM)
-target_link_libraries(render PUBLIC xbox_host platform imgui_dx9 texture_formats PRIVATE imgui_vulkan volk vma)
+target_link_libraries(render PUBLIC xbox_host platform imgui_dx9 texture_formats PRIVATE imgui_vulkan volk vma zstd_decompress)
 
 # D3D9 from DXVK (dxvk-native) on Linux. Fedora: dxvk-native-devel, plus its .i686
 # package for the loader. On Windows nothing is linked: the back end loads DXVK's

@@ -30,7 +30,8 @@ std::vector<ModInfo> scan_mods(const std::filesystem::path& mods_dir, std::strin
 // The setting's value for these mods in this order ("" when it says nothing: all on, in folder-name order).
 std::string format_mod_list(const std::vector<ModInfo>& mods);
 
-// .dds files in <mod>/textures (the launcher's count; the game counts while it indexes).
+// Textures of a mod: .dds files in <mod>/textures, or the files of an installed pack (pack.idx). The launcher's
+// count; the game counts while it indexes.
 size_t count_mod_textures(const std::filesystem::path& mod_dir);
 
 // mod-list's check: comma-separated folder names, each optionally with a leading '-'; rewritten to "a, b, -c".

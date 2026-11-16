@@ -733,7 +733,7 @@ public:
 
     // The PC's picture for title texture contents (BackendConfig::replace_texture): BGRA8 with a full chain of
     // box-filtered levels when the title's has mipmaps. Same id while it stays; rebuilt when its version moves.
-    TextureId replacement_texture(uint64_t content, bool mipmaps) override {
+    TextureId replacement_texture(uint64_t content, bool mipmaps, std::span<const uint8_t> original) override {
         if (!replace_texture_) return 0;
         const uint64_t key = replacement_key(content, mipmaps);
         const uint32_t version = replacement_version_ ? replacement_version_(content) : 0;
@@ -754,7 +754,7 @@ public:
             t.mipmaps = mipmaps;
         }
         Texture& t = textures_[r.id];
-        const std::shared_ptr<const TextureReplacement> picture = replace_texture_(content, scale_y_);
+        const std::shared_ptr<const TextureReplacement> picture = replace_texture_(content, scale_y_, original);
         if (!picture || !replacement_valid(*picture)) return 0;
         TextureImageDesc image;
         image.width = picture->width;

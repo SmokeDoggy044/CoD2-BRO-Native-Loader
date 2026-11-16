@@ -4,6 +4,8 @@
 #include <fstream>
 #include <system_error>
 
+#include "texture_index.h"
+
 namespace fs = std::filesystem;
 
 namespace platform {
@@ -90,6 +92,14 @@ std::string format_mod_list(const std::vector<ModInfo>& mods) {
 size_t count_mod_textures(const fs::path& mod_dir) {
     size_t n = 0;
     std::error_code ec;
+    // An installed release pack: its index's textures.
+    if (std::ifstream idx{mod_dir / "pack.idx", std::ios::binary}) {
+        const std::string text((std::istreambuf_iterator<char>(idx)), std::istreambuf_iterator<char>());
+        if (const auto index = parse_texture_index(text))
+            for (const auto& pack : index->packs)
+                for (const auto& f : pack.files) n += f.kind == 't';
+        return n;
+    }
     for (const auto& entry : fs::directory_iterator(mod_dir / "textures", ec))
         if (entry.path().extension() == ".dds") ++n;
     return n;

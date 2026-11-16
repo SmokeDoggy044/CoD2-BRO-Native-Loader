@@ -327,11 +327,12 @@ void configure_title_services(const Options& options, const fs::path& assets, co
                                     options.mod_list)
              .empty();
     if (sharp_text || key_prompts || packs)
-        d3d_config.backend.replace_texture = [sharp_text, key_prompts, packs](uint64_t content, float render_scale) {
+        d3d_config.backend.replace_texture = [sharp_text, key_prompts, packs](uint64_t content, float render_scale,
+                                                                            std::span<const uint8_t> original) {
             std::shared_ptr<const render::TextureReplacement> replacement;
             if (key_prompts) replacement = text::key_prompt_replacement(content, render_scale);
             if (!replacement && sharp_text) replacement = text::sharp_text_replacement(content, render_scale);
-            if (!replacement && packs) replacement = render::texture_pack::replacement(content);
+            if (!replacement && packs) replacement = render::texture_pack::replacement(content, original);
             return replacement;
         };
     if (key_prompts && packs)

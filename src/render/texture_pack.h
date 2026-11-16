@@ -1,6 +1,7 @@
 #pragma once
 
 // Texture packs (phase 1b, docs/developers/own-engine-host.md): mods in <data dir>/mods/<name>/ with a mod.ini and
+// either pack.idx + pack.dat (an installed release pack: encrypted, docs/developers/texture-packs.md) or
 // textures/<16 hex digits>.dds - the runtime content hash of the title texture it replaces (texture_hash.h),
 // DXT1 or DXT5 with its mip levels. Pictures load on a worker thread; until one is ready the title's own shows.
 // Mods sit outside the Enhanced switch; none in --compare runs.
@@ -8,6 +9,7 @@
 #include <cstdint>
 #include <filesystem>
 #include <memory>
+#include <span>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -30,8 +32,10 @@ std::vector<Mod> open(const std::filesystem::path& mods_dir, std::string_view mo
 void close();
 
 // The pack picture for title texture contents, or null (not covered, or not loaded yet: it is queued, and
-// version() moves when it is ready). The drawing thread; the loaded copy is dropped once handed out.
-std::shared_ptr<const TextureReplacement> replacement(uint64_t content);
+// version() moves when it is ready). The drawing thread; the loaded copy is dropped once handed out. `original` =
+// the title's texture memory (BackendConfig::replace_texture): installed packs (pack.idx + pack.dat) are encrypted
+// with a key from it, for this content's picture and its surface maps.
+std::shared_ptr<const TextureReplacement> replacement(uint64_t content, std::span<const uint8_t> original = {});
 
 // Moves each time a picture for `content` gets ready (0: none yet, or not covered): BackendConfig::replacement_version.
 uint32_t version(uint64_t content);
@@ -65,5 +69,6 @@ bool has_surface_maps(uint64_t content);
 
 // A DDS file (DXT1 / DXT5 / BC5, with or without mip levels) as a replacement; null if it is not one.
 std::shared_ptr<TextureReplacement> read_dds(const std::filesystem::path& file);
+std::shared_ptr<TextureReplacement> read_dds(const std::vector<uint8_t>& data);
 
 }  // namespace render::texture_pack

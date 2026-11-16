@@ -439,7 +439,7 @@ render::TextureId texture_for_content(DeviceObjects& o, uint32_t header, uint32_
     log_texture(content, format, layout, size, palette != nullptr);
     // Replacements are for swizzled pictures without a palette (fonts, button prompts).
     const render::TextureId replacement =
-        layout.linear || palette ? 0 : o.device->replacement_texture(content, layout.levels > 1);
+        layout.linear || palette ? 0 : o.device->replacement_texture(content, layout.levels > 1, {memory, size});
     if (t.shown && content == t.content && t.shown == (replacement ? replacement : t.own)) return t.shown;
     if (t.shown) t.changed_frame = g_frame;
     t.content = content;

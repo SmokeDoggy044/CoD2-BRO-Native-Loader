@@ -243,6 +243,8 @@ For the details:
 - [docs/research/renderer-inventory.md](docs/research/renderer-inventory.md): what the decompiled renderer
   still asks the Xbox graphics libraries to do (first step of our own renderer)
 - [docs/developers/own-renderer.md](docs/developers/own-renderer.md): our own renderer, step by step
+- [docs/developers/texture-packs.md](docs/developers/texture-packs.md): texture pack releases (format, keys from
+  the player's own textures, the launcher's install)
 - [docs/developers/rendering.md](docs/developers/rendering.md), [docs/developers/multiplayer.md](docs/developers/multiplayer.md)
   and [docs/developers/playtesting.md](docs/developers/playtesting.md): graphics, multiplayer and testing
   in the native loader

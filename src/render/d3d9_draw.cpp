@@ -660,7 +660,7 @@ D3D9Draw::CachedTexture* D3D9Draw::texture_for_stage(uint32_t stage) {
     return texture_for(data, format, size_field, bound.palette, stage);
 }
 
-IDirect3DTexture9* D3D9Draw::replacement_texture(uint64_t content, bool mipmaps) {
+IDirect3DTexture9* D3D9Draw::replacement_texture(uint64_t content, bool mipmaps, std::span<const uint8_t> original) {
     if (!replace_texture_) return nullptr;
     const uint32_t version = replacement_version_ ? replacement_version_(content) : 0;
     CachedTexture& entry = caches_->replacements[content << 1 | (mipmaps ? 1 : 0)];
@@ -668,7 +668,7 @@ IDirect3DTexture9* D3D9Draw::replacement_texture(uint64_t content, bool mipmaps)
     entry.replaced = true;  // asked (the texture stays null when there is no replacement)
     entry.replacement_version = version;
     release(entry.texture);
-    const std::shared_ptr<const TextureReplacement> replacement = replace_texture_(content, render_scale_y_);
+    const std::shared_ptr<const TextureReplacement> replacement = replace_texture_(content, render_scale_y_, original);
     if (!replacement || !upload_replacement(entry, *replacement, mipmaps)) entry.texture = nullptr;
     return entry.texture;
 }
@@ -746,7 +746,7 @@ D3D9Draw::CachedTexture* D3D9Draw::texture_for(uint32_t data, uint32_t format, u
     // A replacement has a size of its own, so the texture is made again whenever the
     // title's memory switches between a replaced picture and another.
     std::shared_ptr<const TextureReplacement> replacement;
-    if (replace_texture_ && !layout.linear && !palette) replacement = replace_texture_(content, render_scale_y_);
+    if (replace_texture_ && !layout.linear && !palette) replacement = replace_texture_(content, render_scale_y_, {memory, layout.total_size});
     if (entry.texture && (replacement || entry.replaced)) {
         entry.texture->Release();
         entry.texture = nullptr;

@@ -8,6 +8,7 @@
 #include <functional>
 #include <memory>
 #include <optional>
+#include <span>
 #include <string>
 #include <vector>
 
@@ -140,8 +141,11 @@ struct BackendConfig {
     float brightness = 1.0f;
     // Asked once per texture content the title shows (src/render/texture_hash.h; swizzled
     // and DXT formats only) with the render scale: a replacement, or null for the
-    // title's own. Called on the drawing thread.
-    std::function<std::shared_ptr<const TextureReplacement>(uint64_t content, float render_scale)> replace_texture;
+    // title's own. Called on the drawing thread. `original` = the title's texture memory the content hash is over
+    // (encrypted texture packs derive their keys from it; may be empty when the same content was offered before).
+    std::function<std::shared_ptr<const TextureReplacement>(uint64_t content, float render_scale,
+                                                            std::span<const uint8_t> original)>
+        replace_texture;
     // For replacements that change while the title shows the same texture: a number
     // that changes whenever replace_texture's answer for `content` may have (0 = never),
     // asked once per frame for each texture in use. Null: answers never change.

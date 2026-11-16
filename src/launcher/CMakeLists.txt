@@ -4,7 +4,7 @@
 # Dear ImGui: cmake/imgui.cmake.
 
 # The update check and the updater (no UI), also used by the tests.
-add_library(launcher_update STATIC update_check.cpp updater.cpp sha256.cpp)
+add_library(launcher_update STATIC update_check.cpp updater.cpp texture_packs.cpp)
 target_include_directories(launcher_update PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(launcher_update PUBLIC platform)
 target_compile_definitions(launcher_update PRIVATE COD_BRO_VERSION="${PROJECT_VERSION}")

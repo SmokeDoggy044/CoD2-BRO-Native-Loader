@@ -755,8 +755,8 @@ public:
 
     // --- Replacements ---
 
-    TextureId replacement_texture(uint64_t content, bool mipmaps) override {
-        if (!draw_.replacement_texture(content, mipmaps)) return 0;
+    TextureId replacement_texture(uint64_t content, bool mipmaps, std::span<const uint8_t> original) override {
+        if (!draw_.replacement_texture(content, mipmaps, original)) return 0;
         TextureId& id = replacements_[replacement_key(content, mipmaps)];
         if (!id) {
             id = next_id_++;

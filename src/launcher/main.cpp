@@ -36,6 +36,7 @@
 #include "settings.h"
 #include "settings_schema.h"
 #include "settings_widgets.h"
+#include "texture_packs.h"
 #include "ui_theme.h"
 #include "update_check.h"
 #include "updater.h"
@@ -88,6 +89,27 @@ void SDLCALL folder_picked(void*, const char* const* files, int) {
     g_picked = files[0];
 }
 
+// The Texture Packs tab's folder of downloaded release files (same thread rule).
+std::optional<std::string> g_pack_folder;
+
+void SDLCALL pack_folder_picked(void*, const char* const* files, int) {
+    if (!files || !files[0]) return;
+    std::lock_guard lock(g_picked_mutex);
+    g_pack_folder = files[0];
+}
+
+// The texture packs' release repository (docs/developers/texture-packs.md).
+constexpr const char* kTextureRepository = "SmokeDoggy044/cod_bro_tex";
+
+std::string megabytes(uint64_t bytes) {
+    char text[32];
+    if (bytes >= (1ull << 30))
+        std::snprintf(text, sizeof(text), "%.1f GB", static_cast<double>(bytes) / (1ull << 30));
+    else
+        std::snprintf(text, sizeof(text), "%.0f MB", static_cast<double>(bytes) / (1ull << 20));
+    return text;
+}
+
 using ui::help_marker;
 
 class Launcher {
@@ -100,13 +122,14 @@ public:
         load_pictures();
     }
 
-    // Developer (COD_BRO_LAUNCHER_PAGE): opens "options", "mods" or "tech" instead of the front page.
+    // Developer (COD_BRO_LAUNCHER_PAGE): opens "options", "mods", "packs" or "tech" instead of the front page.
     void show_page(std::string_view page) {
         if (page == "options") page_ = Page::Options;
         if (page == "tech") page_ = Page::TechSupport;
-        if (page == "mods") {
+        if (page == "mods" || page == "packs") {
             page_ = Page::DataFiles;
             scan_mods();
+            select_packs_ = page == "packs";
         }
     }
 
@@ -134,6 +157,10 @@ public:
                 else
                     settings_.set("assets", *g_picked);
                 g_picked.reset();
+            }
+            if (g_pack_folder) {
+                pack_lookup_ = launcher::PackTask::lookup(kTextureRepository, *g_pack_folder, user_agent());
+                g_pack_folder.reset();
             }
         }
         if (pictures_for_ != asset_dir(settings_)) load_pictures();  // the game files folder changed
@@ -368,11 +395,50 @@ private:
             settings_.set("mod-list", text);
     }
 
-    // Data Files: the mods folder's mods - on/off and load order (mod-list in settings.ini, platform/mod_list.h).
+    // Data Files: the mods (Mods tab) and the release texture packs (Texture Packs tab).
     void data_files() {
+        const float footer = ImGui::GetFrameHeightWithSpacing() + ImGui::GetStyle().ItemSpacing.y;
+        if (ImGui::BeginTabBar("data files")) {
+            if (ImGui::BeginTabItem("Mods")) {
+                ImGui::BeginChild("mods tab", ImVec2(0, -footer));
+                mods_tab();
+                ImGui::EndChild();
+                ImGui::EndTabItem();
+            }
+            if (ImGui::BeginTabItem("Texture Packs", nullptr, select_packs_ ? ImGuiTabItemFlags_SetSelected : 0)) {
+                select_packs_ = false;
+                ImGui::BeginChild("packs tab", ImVec2(0, -footer));
+                packs_tab();
+                ImGui::EndChild();
+                ImGui::EndTabItem();
+            }
+            ImGui::EndTabBar();
+        }
+        ImGui::Separator();
+        ImGui::BeginDisabled(pack_busy());
+        if (ImGui::Button("Back", ImVec2(ImGui::GetFontSize() * 7, 0))) {
+            save();
+            page_ = Page::Front;
+        }
+        ImGui::EndDisabled();
+        if (pack_busy()) ImGui::SetItemTooltip("A texture pack is being installed.");
+        ImGui::SameLine();
+        if (ImGui::Button("Open mods folder")) {
+            std::error_code ec;
+            fs::create_directories(mods_dir(), ec);
+            open_folder(mods_dir());
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("Refresh")) {
+            scan_mods();
+            installed_packs_ = launcher::installed_packs(mods_dir());
+        }
+    }
+
+    // The mods folder's mods - on/off and load order (mod-list in settings.ini, platform/mod_list.h).
+    void mods_tab() {
         ImGui::TextWrapped("Mods in %s. Where two mods replace the same texture, the one higher in the list wins.",
                            mods_dir().string().c_str());
-        ImGui::BeginChild("mods", ImVec2(0, -(ImGui::GetFrameHeightWithSpacing() + ImGui::GetStyle().ItemSpacing.y)));
         if (mods_.empty()) {
             ImGui::TextDisabled("No mods yet. A mod is a folder with a mod.ini (and textures/ for a texture pack).");
         } else if (ImGui::BeginTable("mod table", 6, ImGuiTableFlags_RowBg | ImGuiTableFlags_BordersInnerH)) {
@@ -421,20 +487,153 @@ private:
             }
             if (changed) store_mod_list();
         }
-        ImGui::EndChild();
-        ImGui::Separator();
-        if (ImGui::Button("Back", ImVec2(ImGui::GetFontSize() * 7, 0))) {
-            save();
-            page_ = Page::Front;
+    }
+
+    std::string user_agent() const { return "cod_bro_launcher/" COD_BRO_VERSION; }
+
+    bool pack_busy() const {
+        return pack_job_ && pack_job_->result().status == launcher::PackTask::Status::Working;
+    }
+
+    // Texture Packs: the newest release of the pack repository (or a folder of its downloaded files), each pack
+    // with Install / Update / Remove. Packs need the player's game files (their keys come from its textures).
+    void packs_tab() {
+        if (!packs_opened_) {
+            packs_opened_ = true;
+            installed_packs_ = launcher::installed_packs(mods_dir());
+            if (check_updates() || std::getenv("COD_BRO_TEXTURE_SOURCE"))
+                pack_lookup_ = launcher::PackTask::lookup(kTextureRepository, {}, user_agent());
         }
+        ImGui::TextWrapped(
+            "Optional texture packs: sharper textures (4x) for the levels and the menus, and surface maps for "
+            "Enhanced Graphics. They only work with your own game files, and apply the next time the game starts.");
+        const bool files = platform::has_game_files(asset_dir(settings_));
+        if (!files)
+            ImGui::TextColored(ImVec4(1.0f, 0.6f, 0.3f, 1),
+                               "Set up the game files first (Options, General): the packs need them.");
+        ImGui::Spacing();
+
+        // Where the packs come from.
+        std::optional<launcher::PackTask::Result> found;
+        if (pack_lookup_) found = pack_lookup_->result();
+        const bool looking = found && found->status == launcher::PackTask::Status::Working;
+        const platform::TextureIndex* index = found && found->index ? &*found->index : nullptr;
+        if (looking)
+            ImGui::TextDisabled("Looking for the packs...");
+        else if (index && found->source)
+            ImGui::Text("Release %s, %s", index->release.c_str(),
+                        found->source->web() ? "from the internet" : found->source->folder.string().c_str());
+        else if (found && !found->error.empty())
+            ImGui::TextColored(ImVec4(1.0f, 0.6f, 0.3f, 1), "%s", found->error.c_str());
+        else
+            ImGui::TextDisabled("Online checks are off (Tech Support): use a folder of downloaded pack files.");
+        ImGui::BeginDisabled(looking || pack_busy());
+        if (ImGui::Button("Check online")) pack_lookup_ = launcher::PackTask::lookup(kTextureRepository, {}, user_agent());
+        ImGui::SetItemTooltip("The newest release of github.com/%s", kTextureRepository);
         ImGui::SameLine();
-        if (ImGui::Button("Open mods folder")) {
-            std::error_code ec;
-            fs::create_directories(mods_dir(), ec);
-            open_folder(mods_dir());
+        if (ImGui::Button("Install from a folder...")) {
+            const std::string start = mods_dir().string();
+            SDL_ShowOpenFolderDialog(pack_folder_picked, nullptr, window_, start.c_str(), false);
         }
-        ImGui::SameLine();
-        if (ImGui::Button("Refresh")) scan_mods();
+        ImGui::SetItemTooltip("A folder with cod_bro_textures.index and its .data parts, downloaded from the "
+                              "pack repository's release page.");
+        ImGui::EndDisabled();
+        ImGui::Spacing();
+
+        // One row per pack: the release's, then installed ones it does not have.
+        struct Row {
+            std::string id, name;
+            const platform::TextureIndex::Pack* offered = nullptr;
+            const launcher::InstalledPack* installed = nullptr;
+        };
+        std::vector<Row> rows;
+        if (index)
+            for (const auto& pack : index->packs) rows.push_back({pack.id, pack.ini_value("name"), &pack, nullptr});
+        for (const auto& have : installed_packs_) {
+            auto it = std::find_if(rows.begin(), rows.end(), [&](const Row& r) { return r.id == have.id; });
+            if (it == rows.end()) rows.push_back({have.id, have.name, nullptr, &have});
+            else it->installed = &have;
+        }
+        if (rows.empty()) {
+            ImGui::TextDisabled("No packs installed.");
+        } else if (ImGui::BeginTable("packs", 4, ImGuiTableFlags_RowBg | ImGuiTableFlags_BordersInnerH)) {
+            ImGui::TableSetupColumn("Pack", ImGuiTableColumnFlags_WidthStretch);
+            ImGui::TableSetupColumn("Size", ImGuiTableColumnFlags_WidthFixed);
+            ImGui::TableSetupColumn("Installed", ImGuiTableColumnFlags_WidthFixed);
+            ImGui::TableSetupColumn("", ImGuiTableColumnFlags_WidthFixed);
+            ImGui::TableHeadersRow();
+            for (const Row& row : rows) {
+                ImGui::PushID(row.id.c_str());
+                ImGui::TableNextRow();
+                ImGui::TableNextColumn();
+                ImGui::TextUnformatted(row.name.empty() ? row.id.c_str() : row.name.c_str());
+                if (row.offered && ImGui::IsItemHovered() && !row.offered->ini_value("source").empty())
+                    ImGui::SetTooltip("%s", row.offered->ini_value("source").c_str());
+                ImGui::TableNextColumn();
+                const uint64_t bytes = row.offered ? row.offered->stored_bytes() : row.installed->bytes;
+                ImGui::TextUnformatted(megabytes(bytes).c_str());
+                ImGui::TableNextColumn();
+                ImGui::TextUnformatted(row.installed ? row.installed->release.c_str() : "-");
+                ImGui::TableNextColumn();
+                ImGui::BeginDisabled(pack_busy() || looking);
+                if (row.offered && found->source) {
+                    const bool current = row.installed && row.installed->release == index->release &&
+                                         row.installed->files == row.offered->files.size();
+                    if (!current) {
+                        ImGui::BeginDisabled(!files);
+                        if (ImGui::SmallButton(row.installed ? "Update" : "Install")) {
+                            pack_job_ = launcher::PackTask::install(*found->source, *index, row.id, mods_dir());
+                            pack_job_id_ = row.id;
+                        }
+                        ImGui::EndDisabled();
+                        if (row.installed) ImGui::SameLine();
+                    }
+                }
+                if (row.installed && ImGui::SmallButton("Remove")) {
+                    remove_pack_ = row.id;
+                    ImGui::OpenPopup("remove pack");
+                }
+                ImGui::EndDisabled();
+                if (ImGui::BeginPopupModal("remove pack", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
+                    ImGui::Text("Delete the %s pack from the mods folder?", remove_pack_.c_str());
+                    if (ImGui::Button("Delete")) {
+                        std::string error;
+                        if (!launcher::remove_pack(mods_dir(), remove_pack_, error)) pack_message_ = error;
+                        else pack_message_ = remove_pack_ + " removed.";
+                        installed_packs_ = launcher::installed_packs(mods_dir());
+                        scan_mods();
+                        ImGui::CloseCurrentPopup();
+                    }
+                    ImGui::SameLine();
+                    if (ImGui::Button("Keep it")) ImGui::CloseCurrentPopup();
+                    ImGui::EndPopup();
+                }
+                ImGui::PopID();
+            }
+            ImGui::EndTable();
+        }
+
+        // The running install.
+        if (pack_job_) {
+            const launcher::PackTask::Result job = pack_job_->result();
+            ImGui::Spacing();
+            if (job.status == launcher::PackTask::Status::Working) {
+                const float share = job.progress.total ? static_cast<float>(job.progress.done) / job.progress.total : 0;
+                ImGui::ProgressBar(share, ImVec2(-ImGui::GetFontSize() * 6, 0),
+                                   job.progress.message.empty() ? "Starting..." : job.progress.message.c_str());
+                ImGui::SameLine();
+                if (ImGui::Button("Cancel")) pack_job_->cancel();
+                ImGui::TextDisabled("A cancelled or interrupted install goes on where it stopped next time.");
+            } else {
+                if (job.status == launcher::PackTask::Status::Done) pack_message_ = job.progress.message;
+                else if (job.status == launcher::PackTask::Status::Cancelled) pack_message_ = "Cancelled.";
+                else pack_message_ = pack_job_id_ + ": " + job.error;
+                pack_job_.reset();
+                installed_packs_ = launcher::installed_packs(mods_dir());
+                scan_mods();
+            }
+        }
+        if (!pack_message_.empty()) ImGui::TextWrapped("%s", pack_message_.c_str());
     }
 
     // Tech Support: what a problem report needs, the version and updates.
@@ -805,6 +1004,11 @@ private:
     SDL_Renderer* renderer_;
     Page page_ = Page::Front;
     std::vector<ModRow> mods_;  // Data Files page
+    bool select_packs_ = false;  // open the Texture Packs tab
+    bool packs_opened_ = false;  // its first look-up done
+    std::unique_ptr<launcher::PackTask> pack_lookup_, pack_job_;
+    std::vector<launcher::InstalledPack> installed_packs_;
+    std::string pack_job_id_, remove_pack_, pack_message_;
     Shown picture_, logo_;
     fs::path pictures_for_;        // the game files folder the pictures came from
     platform::Settings settings_;  // what the tabs edit, saved on Play/Quit
@@ -856,6 +1060,8 @@ int main(int, char**) {
     // Developer: COD_BRO_LAUNCHER_SHOT=FILE saves the window as a BMP after a few frames and exits
     // (COD_BRO_LAUNCHER_PAGE=options|mods|tech picks the page) - for checking the look without a person.
     const char* shot = std::getenv("COD_BRO_LAUNCHER_SHOT");
+    const char* shot_frame_text = std::getenv("COD_BRO_LAUNCHER_SHOT_FRAME");  // default 5 (later: async pages)
+    const int shot_frame = shot_frame_text ? std::atoi(shot_frame_text) : 5;
     if (const char* page = std::getenv("COD_BRO_LAUNCHER_PAGE")) launcher.show_page(page);
     for (int frames = 0, running = 1; running; ++frames) {
         SDL_Event event;
@@ -876,7 +1082,7 @@ int main(int, char**) {
         SDL_SetRenderDrawColor(renderer, 20, 20, 20, 255);
         SDL_RenderClear(renderer);
         ImGui_ImplSDLRenderer3_RenderDrawData(ImGui::GetDrawData(), renderer);
-        if (shot && frames == 5) {
+        if (shot && frames == shot_frame) {
             if (SDL_Surface* surface = SDL_RenderReadPixels(renderer, nullptr)) {
                 SDL_SaveBMP(surface, shot);
                 SDL_DestroySurface(surface);

@@ -2,7 +2,10 @@
 
 #include "mod_list.h"
 
+#include <zstd.h>
+
 #include <algorithm>
+#include <array>
 #include <condition_variable>
 #include <cstdlib>
 #include <cstring>
@@ -13,7 +16,9 @@
 #include <unordered_map>
 #include <unordered_set>
 
+#include "chacha20.h"
 #include "log.h"
+#include "texture_index.h"
 
 namespace render::texture_pack {
 
@@ -26,7 +31,9 @@ namespace {
 enum class State : uint8_t { Known, Queued, Ready, Delivered, Failed };
 
 struct Entry {
-    fs::path file;
+    fs::path file;    // a loose DDS, or the pack.dat holding it (stored > 0)
+    uint64_t offset = 0, stored = 0, size = 0;  // packed: where in pack.dat, stored and unpacked sizes
+    char kind = 't';  // packed: t, n, s (the nonce)
     std::string mod;  // folder name
     State state = State::Known;
     uint32_t generation = 0;
@@ -45,6 +52,15 @@ bool g_enabled = true;
 uint32_t g_toggles = 0;                       // moves version() on every set_enabled change
 std::unordered_set<uint64_t> g_uncovered;     // asked for, not covered (capped)
 constexpr size_t kUncoveredLimit = 100000;
+
+// Packed files are encrypted with a key from the original texture (platform/texture_index.h): contents with
+// packed files, their keys once known, the title memory copied on the first ask (hashed on the loading thread),
+// and jobs waiting for a key.
+std::unordered_set<uint64_t> g_keyed;
+std::unordered_map<uint64_t, std::array<uint8_t, 32>> g_keys;
+std::unordered_map<uint64_t, std::vector<uint8_t>> g_originals;
+std::unordered_map<uint64_t, std::vector<uint8_t>> g_waiting;  // content -> job kinds
+constexpr uint8_t kKeyJob = 0xFF;
 
 uint32_t read_u32(const uint8_t* p) {
     uint32_t v;
@@ -65,7 +81,41 @@ bool parse_hex(const std::string& s, uint64_t& out) {
     return true;
 }
 
-// mod.ini: key=value lines (name, version, author; others ignored).
+// A packed file's DDS bytes: read from pack.dat, decrypted, decompressed; empty when it does not unpack (a damaged
+// pack, or a key from another texture: the zstd frame check fails).
+std::vector<uint8_t> unpack(const Entry& e, uint64_t content, const std::array<uint8_t, 32>& key) {
+    std::vector<uint8_t> stored(e.stored);
+    std::ifstream in(e.file, std::ios::binary);
+    if (!in.seekg(static_cast<std::streamoff>(e.offset)) ||
+        !in.read(reinterpret_cast<char*>(stored.data()), static_cast<std::streamsize>(stored.size())))
+        return {};
+    const auto nonce = platform::texture_nonce(content, e.kind);
+    platform::chacha20_xor(key.data(), nonce.data(), 0, stored.data(), stored.size());
+    std::vector<uint8_t> data(e.size);
+    const size_t n = ZSTD_decompress(data.data(), data.size(), stored.data(), stored.size());
+    if (ZSTD_isError(n) || n != data.size()) return {};
+    return data;
+}
+
+// The key for `content` (the caller holds `lock`; unlocked while hashing), or null: no original offered yet.
+const std::array<uint8_t, 32>* key_for(uint64_t content, std::unique_lock<std::mutex>& lock) {
+    if (auto k = g_keys.find(content); k != g_keys.end()) return &k->second;
+    auto o = g_originals.find(content);
+    if (o == g_originals.end()) return nullptr;
+    const std::vector<uint8_t> original = std::move(o->second);
+    g_originals.erase(o);
+    lock.unlock();
+    const auto key = platform::texture_key(original.data(), original.size());
+    lock.lock();
+    auto [k, added] = g_keys.try_emplace(content, key);
+    // Jobs that waited for this key go again.
+    if (auto w = g_waiting.find(content); w != g_waiting.end()) {
+        for (uint8_t kind : w->second) g_queue.emplace_back(content, kind);
+        g_waiting.erase(w);
+    }
+    return &k->second;
+}
+
 void work() {
     std::unique_lock lock(g_mutex);
     for (;;) {
@@ -73,14 +123,36 @@ void work() {
         if (g_stop) return;
         const auto [content, kind] = g_queue.front();
         g_queue.pop_front();
+        if (kind == kKeyJob) {
+            key_for(content, lock);
+            continue;
+        }
         auto& entries = kind ? g_maps[kind - 1] : g_entries;
         auto it = entries.find(content);
         if (it == entries.end()) continue;
-        const fs::path file = it->second.file;
-        lock.unlock();
-        std::shared_ptr<const TextureReplacement> picture = read_dds(file);
+        const Entry entry = it->second;
+        std::shared_ptr<TextureReplacement> picture;
+        if (entry.stored) {
+            const std::array<uint8_t, 32>* found = key_for(content, lock);
+            if (!found) {
+                g_waiting[content].push_back(kind);
+                continue;
+            }
+            const std::array<uint8_t, 32> key = *found;
+            lock.unlock();
+            const std::vector<uint8_t> data = unpack(entry, content, key);
+            picture = data.empty() ? nullptr : read_dds(data);
+            if (data.empty())
+                LOG_WARN("mods", "%s: %016llx (%c) does not unpack with this game's texture (damaged pack, or an "
+                         "edition the pack was not made from); left out",
+                         entry.mod.c_str(), static_cast<unsigned long long>(content), entry.kind);
+        } else {
+            lock.unlock();
+            picture = read_dds(entry.file);
+        }
         if (picture && (kind != 0) != (picture->compression == TextureReplacement::Compression::Bc5)) picture = nullptr;
-        if (!picture) LOG_WARN("mods", "%s: not a %s DDS; left out", file.string().c_str(), kind ? "BC5" : "DXT1/DXT5");
+        if (!picture && !entry.stored)
+            LOG_WARN("mods", "%s: not a %s DDS; left out", entry.file.string().c_str(), kind ? "BC5" : "DXT1/DXT5");
         lock.lock();
         it = entries.find(content);
         if (it == entries.end()) continue;
@@ -95,7 +167,10 @@ void work() {
 std::shared_ptr<TextureReplacement> read_dds(const fs::path& file) {
     std::ifstream in(file, std::ios::binary);
     if (!in) return nullptr;
-    std::vector<uint8_t> data((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+    return read_dds(std::vector<uint8_t>((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>()));
+}
+
+std::shared_ptr<TextureReplacement> read_dds(const std::vector<uint8_t>& data) {
     if (data.size() < 128 || std::memcmp(data.data(), "DDS ", 4) != 0) return nullptr;
     const uint32_t height = read_u32(&data[12]), width = read_u32(&data[16]);
     const uint32_t mip_count = std::max(1u, read_u32(&data[28]));
@@ -123,6 +198,50 @@ std::shared_ptr<TextureReplacement> read_dds(const fs::path& file) {
     return picture->levels.empty() ? nullptr : picture;
 }
 
+namespace {
+
+// An installed pack (pack.idx + pack.dat, platform/texture_index.h); the caller holds g_mutex. Returns the files
+// with surface maps; logs the pack.
+size_t open_packed(const fs::path& folder, Mod& mod) {
+    std::ifstream in(folder / "pack.idx", std::ios::binary);
+    const std::string text((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+    std::string error;
+    const auto index = platform::parse_texture_index(text, &error);
+    std::error_code ec;
+    const fs::path dat = folder / "pack.dat";
+    if (!index || index->parts.size() != 1 || index->packs.size() != 1) {
+        LOG_WARN("mods", "%s: pack.idx unreadable (%s); left out", mod.folder_name.c_str(),
+                 index ? "not one pack in one part" : error.c_str());
+        return 0;
+    }
+    if (fs::file_size(dat, ec) != index->parts[0].size) {
+        LOG_WARN("mods", "%s: pack.dat missing or not the size pack.idx gives (install it again); left out",
+                 mod.folder_name.c_str());
+        return 0;
+    }
+    size_t maps = 0;
+    for (const platform::TextureIndex::File& f : index->packs[0].files) {
+        auto& entries = f.kind == 't' ? g_entries : g_maps[f.kind == 'n' ? 0 : 1];
+        auto [it, added] = entries.try_emplace(f.id);
+        if (!added) continue;
+        it->second.file = dat;
+        it->second.offset = f.offset;
+        it->second.stored = f.stored;
+        it->second.size = f.size;
+        it->second.kind = f.kind;
+        it->second.mod = mod.folder_name;
+        g_keyed.insert(f.id);
+        if (f.kind == 't') ++mod.textures;
+        maps += f.kind == 'n';
+    }
+    LOG_INFO("mods", "%s %s%s%s: %zu textures, %zu with surface maps (packed, release %s)", mod.name.c_str(),
+             mod.version.c_str(), mod.author.empty() ? "" : " by ", mod.author.c_str(), mod.textures, maps,
+             index->release.c_str());
+    return maps;
+}
+
+}  // namespace
+
 std::vector<Mod> open(const fs::path& mods_dir, std::string_view mod_list) {
     close();
     std::vector<Mod> mods;
@@ -139,6 +258,12 @@ std::vector<Mod> open(const fs::path& mods_dir, std::string_view mod_list) {
             continue;
         }
         const fs::path folder = mods_dir / info.folder;
+        size_t maps = 0;
+        if (fs::exists(folder / "pack.idx", ec)) {
+            maps = open_packed(folder, mod);
+            mods.push_back(std::move(mod));
+            continue;
+        }
         for (const auto& entry : fs::directory_iterator(folder / "textures", ec)) {
             uint64_t content;
             if (entry.path().extension() != ".dds" || !parse_hex(entry.path().stem().string(), content)) continue;
@@ -148,7 +273,6 @@ std::vector<Mod> open(const fs::path& mods_dir, std::string_view mod_list) {
             it->second.mod = mod.folder_name;
             ++mod.textures;
         }
-        size_t maps = 0;
         for (const auto& entry : fs::directory_iterator(folder / "maps", ec)) {
             const std::string stem = entry.path().stem().string();
             uint64_t content;
@@ -190,14 +314,25 @@ void close() {
     for (auto& maps : g_maps) maps.clear();
     g_queue.clear();
     g_uncovered.clear();
+    g_keyed.clear();
+    g_keys.clear();
+    g_originals.clear();
+    g_waiting.clear();
 }
 
 namespace {
 std::shared_ptr<const TextureReplacement> deliver(Entry& e, uint64_t content, uint8_t kind);
 }  // namespace
 
-std::shared_ptr<const TextureReplacement> replacement(uint64_t content) {
+std::shared_ptr<const TextureReplacement> replacement(uint64_t content, std::span<const uint8_t> original) {
     std::lock_guard lock(g_mutex);
+    // Packed files of this content (its picture or its surface maps) need the key from these bytes: copied once,
+    // hashed on the loading thread.
+    if (!original.empty() && g_keyed.count(content) && !g_keys.count(content) && !g_originals.count(content)) {
+        g_originals.emplace(content, std::vector<uint8_t>(original.begin(), original.end()));
+        g_queue.emplace_back(content, kKeyJob);
+        g_wake.notify_one();
+    }
     auto it = g_entries.find(content);
     if (it == g_entries.end()) {
         if (g_uncovered.size() < kUncoveredLimit) g_uncovered.insert(content);

@@ -5,6 +5,9 @@ add_library(platform STATIC
     program.cpp
     settings.cpp
     settings_schema.cpp
+    sha256.cpp
+    chacha20.cpp
+    texture_index.cpp
 )
 if(WIN32)
     target_sources(platform PRIVATE file_win32.cpp https_win32.cpp udp_win32.cpp vmem_win32.cpp)

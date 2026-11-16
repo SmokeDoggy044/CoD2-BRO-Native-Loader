@@ -18,6 +18,14 @@ add_executable(update_check_test update_check_test.cpp)
 target_link_libraries(update_check_test PRIVATE launcher_update)
 add_test(NAME update_check_test COMMAND update_check_test)
 
+add_executable(texture_index_test texture_index_test.cpp)
+target_link_libraries(texture_index_test PRIVATE platform zstd_decompress)
+add_test(NAME texture_index_test COMMAND texture_index_test)
+
+add_executable(texture_packs_test texture_packs_test.cpp)
+target_link_libraries(texture_packs_test PRIVATE launcher_update)
+add_test(NAME texture_packs_test COMMAND texture_packs_test)
+
 # Keyboard and mouse bindings (src/input/bindings.h).
 add_executable(bindings_test bindings_test.cpp)
 target_link_libraries(bindings_test PRIVATE input_bindings SDL3::SDL3)
@@ -183,3 +191,7 @@ if(COD_BRO_BUILD_LOADER AND CMAKE_SYSTEM_NAME STREQUAL "Linux")
     add_test(NAME leaf_test COMMAND leaf_test)
     set_tests_properties(leaf_test PROPERTIES TIMEOUT 3600 SKIP_RETURN_CODE 77)
 endif()
+
+# Developer tool: the launcher's texture pack install without its window (not a test).
+add_executable(texture_pack_install texture_pack_install.cpp)
+target_link_libraries(texture_pack_install PRIVATE launcher_update)

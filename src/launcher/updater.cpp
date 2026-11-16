@@ -121,7 +121,7 @@ Updater::Updater(std::string repository, std::string tag, std::string version, s
         const std::optional<std::string> data = platform::https_get(base + archive, user_agent, 600);
         if (!data) return fail("The download failed.");
         report(Status::Working, "Checking the download...");
-        if (sha256_hex(*data) != *expected) return fail("The download is damaged (wrong checksum).");
+        if (platform::sha256_hex(*data) != *expected) return fail("The download is damaged (wrong checksum).");
 
         report(Status::Working, "Unpacking...");
         const fs::path work = install / kUpdateDir;

@@ -1,9 +1,11 @@
 #include "sha256.h"
 
+#include <algorithm>
 #include <array>
 #include <cstdint>
+#include <cstring>
 
-namespace launcher {
+namespace platform {
 
 namespace {
 
@@ -41,27 +43,53 @@ void compress(std::array<uint32_t, 8>& h, const unsigned char* block) {
 
 }  // namespace
 
-std::string sha256_hex(std::string_view data) {
-    std::array<uint32_t, 8> h = {0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a,
-                                 0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19};
-    const auto* bytes = reinterpret_cast<const unsigned char*>(data.data());
-    size_t whole = data.size() / 64 * 64;
-    for (size_t i = 0; i < whole; i += 64) compress(h, bytes + i);
+void Sha256::update(const void* data, size_t size) {
+    const auto* bytes = static_cast<const unsigned char*>(data);
+    total_ += size;
+    if (buffered_) {
+        const size_t take = std::min(size, 64 - buffered_);
+        std::memcpy(buffer_ + buffered_, bytes, take);
+        buffered_ += take, bytes += take, size -= take;
+        if (buffered_ < 64) return;
+        compress(h_, buffer_);
+        buffered_ = 0;
+    }
+    for (; size >= 64; bytes += 64, size -= 64) compress(h_, bytes);
+    std::memcpy(buffer_, bytes, size);
+    buffered_ = size;
+}
+
+std::array<uint8_t, 32> Sha256::finish() {
     // The rest, 0x80, zeros, then the length in bits (big-endian) in one or two blocks.
     unsigned char tail[128] = {};
-    const size_t rest = data.size() - whole;
-    for (size_t i = 0; i < rest; ++i) tail[i] = bytes[whole + i];
-    tail[rest] = 0x80;
-    const size_t tail_size = rest < 56 ? 64 : 128;
-    const uint64_t bits = static_cast<uint64_t>(data.size()) * 8;
+    std::memcpy(tail, buffer_, buffered_);
+    tail[buffered_] = 0x80;
+    const size_t tail_size = buffered_ < 56 ? 64 : 128;
+    const uint64_t bits = total_ * 8;
     for (int i = 0; i < 8; ++i) tail[tail_size - 1 - i] = static_cast<unsigned char>(bits >> (i * 8));
-    for (size_t i = 0; i < tail_size; i += 64) compress(h, tail + i);
+    for (size_t i = 0; i < tail_size; i += 64) compress(h_, tail + i);
+    std::array<uint8_t, 32> digest;
+    for (int i = 0; i < 32; ++i) digest[i] = static_cast<uint8_t>(h_[i / 4] >> (24 - i % 4 * 8));
+    return digest;
+}
 
+std::string Sha256::finish_hex() {
+    const auto digest = finish();
+    return to_hex(digest.data(), digest.size());
+}
+
+std::string to_hex(const uint8_t* data, size_t size) {
     static constexpr char kHex[] = "0123456789abcdef";
     std::string hex;
-    for (const uint32_t word : h)
-        for (int shift = 28; shift >= 0; shift -= 4) hex += kHex[word >> shift & 0xF];
+    hex.reserve(size * 2);
+    for (size_t i = 0; i < size; ++i) hex += kHex[data[i] >> 4], hex += kHex[data[i] & 0xF];
     return hex;
 }
 
-}  // namespace launcher
+std::string sha256_hex(std::string_view data) {
+    Sha256 h;
+    h.update(data);
+    return h.finish_hex();
+}
+
+}  // namespace platform

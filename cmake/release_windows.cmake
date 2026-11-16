@@ -56,6 +56,7 @@ set(bundled_licenses
     "${sdl3_dir}/LICENSE.txt|SDL3|SDL3 3.2.10 (built into cod_bro_loader_core.dll and cod_bro_launcher.exe)|https://github.com/libsdl-org/SDL"
     "${imgui_dir}/LICENSE.txt|Dear-ImGui|Dear ImGui v1.91.9 (built into cod_bro_launcher.exe)|https://github.com/ocornut/imgui"
     "${stb_dir}/LICENSE|stb|stb_truetype (built into cod_bro_loader_core.dll)|https://github.com/nothings/stb"
+    "${PROJECT_SOURCE_DIR}/third_party/zstd/LICENSE|zstd|zstd 1.5.7 decoder (built into cod_bro_loader_core.dll)|https://github.com/facebook/zstd"
     "${openal_dir}/COPYING|OpenAL-Soft|OpenAL Soft 1.24.2 (OpenAL32.dll, LGPL: can be replaced with any compatible build)|https://github.com/kcat/openal-soft"
     "${openal_dir}/BSD-3Clause|OpenAL-Soft-BSD-3-Clause|OpenAL Soft, BSD-3-Clause parts|"
     "${openal_dir}/LICENSE-pffft|OpenAL-Soft-pffft|OpenAL Soft, pffft|"

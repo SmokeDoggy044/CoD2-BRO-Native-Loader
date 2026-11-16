@@ -37,7 +37,7 @@ std::string read(const fs::path& path) {
 }
 
 void updater_tests() {
-    using launcher::sha256_hex;
+    using platform::sha256_hex;
     // FIPS 180-4 examples, and lengths around the padding boundary (55, 56, 64 bytes).
     CHECK(sha256_hex("") == "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855");
     CHECK(sha256_hex("abc") == "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad");
