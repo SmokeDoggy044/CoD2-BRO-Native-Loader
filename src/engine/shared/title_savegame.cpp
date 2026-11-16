@@ -761,6 +761,14 @@ int32_t XB_STDCALL WideCharToMultiByte(uint32_t code_page, uint32_t, const uint1
         SetLastError(0x7a);
         return 0;
     }
+    if (native_platform()) {
+        // The kernel's conversion (Latin-1: code points above 0xff become '?'); out_size >= count here, so it
+        // never overflows and the terminator always fits.
+        const uint32_t chars = static_cast<uint16_t>(n * 2 - 2) / 2u;
+        for (uint32_t i = 0; i < chars; ++i) out[i] = source[i] > 0xff ? '?' : static_cast<char>(source[i]);
+        out[chars] = 0;
+        return static_cast<int32_t>(count);
+    }
     CountedString ansi{0, static_cast<uint16_t>(out_size), addr(out)};
     CountedString unicode{static_cast<uint16_t>(n * 2 - 2), static_cast<uint16_t>(n * 2), addr(source)};
     const uint32_t status = kernel<uint32_t XB_STDCALL(CountedString*, CountedString*, uint32_t)>(

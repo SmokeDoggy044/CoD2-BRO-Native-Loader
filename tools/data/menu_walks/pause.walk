@@ -1,0 +1,18 @@
+# In a level (run with --level 4): the pause menu and its Options screen (tools/menu_walk.py --level 4).
+screen game:3
+wait 25
+a
+wait 4
+a
+wait 4
+start
+screen game:0
+shot pause
+item 1
+a
+screen game:1
+shot pause_options
+b
+screen game:0
+shot pause_back
+quit

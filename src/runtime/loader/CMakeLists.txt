@@ -15,6 +15,7 @@ set(loader_sources
     pc_menu.cpp
     viewer.cpp
     orbit.cpp
+    menu_walk.cpp
     profiler.cpp
     seh.cpp
     shader_dump.cpp

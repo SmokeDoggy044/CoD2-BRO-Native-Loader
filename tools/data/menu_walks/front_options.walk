@@ -1,0 +1,45 @@
+# Front end: main menu, Options and each of its pages, Single Player, Chapter Select (tools/menu_walk.py).
+screen 15 a        # profile list (taps A through the intro and title screen)
+shot profiles
+a
+screen 1 a         # main menu (A closes the sign-in dialog)
+shot main
+item 2
+a
+screen 3
+shot options
+item 0
+a
+screen 4
+shot gameplay
+b
+screen 3
+item 1
+a
+screen 5
+shot controller
+b
+screen 3
+item 2
+a
+screen 6
+shot graphics
+b
+screen 3
+item 3
+a
+screen 7
+shot sound
+b
+screen 3
+b
+screen 1
+item 0
+a
+screen 2
+shot single_player
+item 2
+a
+screen 17
+shot chapter_select
+quit

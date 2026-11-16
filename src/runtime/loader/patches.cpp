@@ -1687,6 +1687,8 @@ void tap_digital(uint16_t button) {
     input::tap(pad);
 }
 
+ScriptedPointerSource g_scripted_pointer = nullptr;
+
 bool press_start_screen(uint32_t vtable) {
     const auto& v = g_menu_pointer.press_start_vtables;
     return vtable && std::find(v.begin(), v.end(), vtable) != v.end();
@@ -1725,6 +1727,15 @@ void XB_CDECL menu_pointer(uint32_t manager) {
         uint32_t on_screen = 0;
     } at;
     at.on_screen = pointer.inside && render::window_to_screen(pointer.x, pointer.y, at.x, at.y);
+    if (g_scripted_pointer) {  // --menu-walk: the script's pointer instead
+        ScriptedPointer scripted;
+        if (g_scripted_pointer(scripted)) {
+            at.x = scripted.x, at.y = scripted.y, at.on_screen = 1;
+            pointer.moved = scripted.moved;
+            pointer.left_clicks = scripted.left_clicks, pointer.right_clicks = scripted.right_clicks;
+            pointer.wheel = scripted.wheel;
+        }
+    }
     xbox::replay::bytes('L', &at, sizeof(at));
     if (!at.on_screen) return;
     const float x = at.x, y = at.y;
@@ -1803,6 +1814,30 @@ uint8_t* put_hook_thunk(uint8_t* t, void (XB_CDECL* function)(uint32_t), uint32_
     return t + 5;
 }
 
+// The managers' pointer globals (campaign: front end, in-game, dialogs).
+uint32_t manager_at(int manager) {
+    if (g_menu_pointer.front_end != kCampaignMenuPointer.front_end) return 0;
+    static constexpr uint32_t kManagers[3] = {0x0095f8f8, 0x0095f8fc, 0x0095f900};
+    return manager >= 0 && manager < 3 ? title<uint32_t>(kManagers[manager]) : 0;
+}
+
+uint32_t active_menu(uint32_t manager) {
+    if (!manager) return 0;
+    const uint32_t screens = title<uint32_t>(manager + 4);
+    const int32_t active = title<int32_t>(manager + 0xc);
+    return screens && active >= 0 ? title<uint32_t>(screens + active * 4u) : 0;
+}
+
+// A UI text's string (+0x1c ScriptString: rep +6 the characters).
+std::string widget_text(uint32_t widget) {
+    const uint32_t rep = widget ? title<uint32_t>(widget + 0x1c) : 0;
+    if (!rep) return {};
+    const char* text = reinterpret_cast<const char*>(uintptr_t{rep + 6});
+    std::string out;
+    for (size_t i = 0; text[i] && i < 80; ++i) out += text[i] == '\n' ? '|' : text[i];
+    return out;
+}
+
 void install_menu_pointer() {
     const MenuPointerSites& sites = g_menu_pointer;
     if (client_c(sites.text_draw) && client_c(sites.screen_poll)) {  // both run as C: they call the hooks
@@ -1819,6 +1854,71 @@ void install_menu_pointer() {
 }
 
 }  // namespace
+
+void set_scripted_pointer(ScriptedPointerSource source) { g_scripted_pointer = source; }
+
+int32_t active_screen(int manager) {
+    const uint32_t m = manager_at(manager);
+    return m && active_menu(m) ? title<int32_t>(m + 0xc) : -1;
+}
+
+bool item_middle(int32_t index, float& x, float& y) {
+    for (int m = 2; m >= 0; --m) {
+        const uint32_t menu = active_menu(manager_at(m));
+        if (!menu) continue;
+        for (const ItemBox& box : shown_items(menu)) {
+            if (box.index != index) continue;
+            x = (box.left + box.right) / 2, y = (box.top + box.bottom) / 2;
+            return true;
+        }
+        return false;
+    }
+    return false;
+}
+
+bool active_screen_locked(int manager) {
+    const uint32_t menu = active_menu(manager_at(manager));
+    return menu && title<uint8_t>(menu + 0x30) != 0;
+}
+
+std::string menu_state() {
+    static constexpr const char* kNames[3] = {"front-end", "in-game", "dialogs"};
+    std::string out;
+    char line[256];
+    const uint32_t frame = engine_frame();
+    for (int m = 0; m < 3; ++m) {
+        const uint32_t manager = manager_at(m);
+        const uint32_t menu = active_menu(manager);
+        if (!menu) {
+            std::snprintf(line, sizeof line, "%s: %s\n", kNames[m], manager ? "no active screen" : "none");
+            out += line;
+            continue;
+        }
+        const int16_t count = title<int16_t>(menu + 0x26);
+        std::snprintf(line, sizeof line, "%s: screen %d vtable %08x selection %d items %d%s\n", kNames[m],
+                      title<int32_t>(manager + 0xc), title<uint32_t>(menu), title<int16_t>(menu + 0x22), count,
+                      title<uint8_t>(menu + 0x30) ? " locked" : "");
+        out += line;
+        const uint32_t items = title<uint32_t>(menu + 4);
+        for (int16_t i = 0; items && i < count; ++i) {
+            const uint32_t item = title<uint32_t>(items + i * 4u);
+            if (!item) continue;
+            const uint32_t widget = title<uint32_t>(item + 0x10);
+            ItemBox box{i, 0, 0, 0, 0};
+            const bool drawn = widget && title<uint32_t>(widget) == g_menu_pointer.text_widget_vtable &&
+                               drawn_lately(widget, frame) && widget_box(widget, box);
+            std::snprintf(line, sizeof line, "  %c%2d %-6s \"%s\"", i == title<int16_t>(menu + 0x22) ? '>' : ' ', i,
+                          title<uint8_t>(item + 0x16) ? "off" : drawn ? "shown" : "hidden", widget_text(widget).c_str());
+            out += line;
+            if (drawn) {
+                std::snprintf(line, sizeof line, " box %.0f,%.0f-%.0f,%.0f", box.left, box.top, box.right, box.bottom);
+                out += line;
+            }
+            out += '\n';
+        }
+    }
+    return out;
+}
 
 void set_field_of_view(float degrees) { g_fov_wanted = degrees; }
 float field_of_view() { return g_fov_wanted.load(); }

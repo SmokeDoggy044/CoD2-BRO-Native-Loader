@@ -117,6 +117,26 @@ float mouse_sensitivity();
 // the mission screens set), -1 in multiplayer. Any thread.
 int32_t campaign_level();
 
+// The menus driven by a script (--menu-walk, menu_walk.h): while a source is set, it replaces the mouse in the
+// menus - a pointer in the title's 640x480 screen and its clicks and wheel steps since the last call. Title thread.
+struct ScriptedPointer {
+    float x = 0, y = 0;
+    bool moved = false;
+    int left_clicks = 0, right_clicks = 0, wheel = 0;
+};
+using ScriptedPointerSource = bool (*)(ScriptedPointer& pointer);
+void set_scripted_pointer(ScriptedPointerSource source);
+// What the menus show now, as text (campaign): per screen manager (front end, in-game, dialogs) its active screen
+// (index, vtable, selection, locked) and each item (index, shown, text, box in 640x480). Title thread.
+std::string menu_state();
+// The active screen of the front end (0), in-game (1) or dialog (2) manager; -1 when none (or no manager).
+int32_t active_screen(int manager);
+// The middle of item `index`'s text on the topmost manager's active screen (dialogs, in-game, front end) in
+// 640x480; false when that item is not shown.
+bool item_middle(int32_t index, float& x, float& y);
+// That screen is locked (animating; input waits).
+bool active_screen_locked(int manager);
+
 class SymbolTable;
 class XbeImage;
 

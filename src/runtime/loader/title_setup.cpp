@@ -41,6 +41,7 @@
 #include "qcommon.h"
 #include "dev_mode.h"
 #include "viewer.h"
+#include "menu_walk.h"
 #include "orbit.h"
 #include "snd_env.h"
 #include "snd_scene.h"
@@ -382,6 +383,15 @@ void configure_title_services(const Options& options, const fs::path& assets, co
             }
         }
         if (!options.replay.shot_frames.empty()) d3d_config.frame_screenshot = &xbox::replay::screenshot_path;
+    }
+    if (!options.menu_walk.empty() && loader::load_menu_walk(options.menu_walk, options.menu_walk_dir)) {
+        static void (*inner)() = nullptr;
+        inner = d3d_config.frame_presented;
+        d3d_config.frame_presented = [] {
+            if (inner) inner();
+            loader::menu_walk_frame();
+        };
+        d3d_config.frame_screenshot = &loader::menu_walk_screenshot;
     }
     if (options.audio_capture) {
         const std::string base = options.audio_capture->string();

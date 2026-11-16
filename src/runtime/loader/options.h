@@ -106,6 +106,7 @@ struct Options {
     bool dev = false;  // --dev: developer overlay and keys
     std::vector<std::string> viewer_models;  // --viewer M1,M2: the object viewer (implies --dev)
     std::string debug_view;                  // --debug-view NAME
+    std::string menu_walk, menu_walk_dir;   // --menu-walk SCRIPT DIR (menu_walk.h)
     std::string orbit_file;                  // --orbit FILE: the lab's camera orbit (implies --dev)
     std::optional<std::string> profile;  // --profile, else XB_PROFILE
     // Set by a title reboot (see reboot_title), not by users.

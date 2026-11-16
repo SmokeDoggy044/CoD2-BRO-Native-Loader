@@ -12,6 +12,7 @@
 #include "stream.h"
 #include "title_crt.h"
 #include "title_data.h"
+#include "title_host.h"
 #include "tr_main.h"
 #include "ui_panel.h"
 #include "qcommon_core.h"
@@ -2364,7 +2365,8 @@ uint8_t XB_REGS3 XB_CDECL MemDlg_CheckFreeSpace(uint8_t check, uint32_t, uint8_t
 
 uint8_t XB_CDECL MemDlg_CheckFreeSpace2() {
     if (profiles_dir_exists() || has_free_space()) {
-        if (!title_global<uint8_t>(0x008dd1d0)) title_function<void XB_CDECL()>(0x00312870)();
+        // Live_CheckGameInvite (set aside: the service is gone); our own platform has no invites to check.
+        if (!title_global<uint8_t>(0x008dd1d0) && !native_platform()) title_function<void XB_CDECL()>(0x00312870)();
         return 1;
     }
     char text[0x200];

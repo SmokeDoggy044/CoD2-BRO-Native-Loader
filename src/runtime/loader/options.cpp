@@ -289,6 +289,13 @@ bool parse_custom(Options& options, const std::string& arg, int argc, char** arg
             return false;
         }
         options.screenshot_dir = fs::path(argv[++i]);
+    } else if (arg == "--menu-walk") {
+        if (i + 2 >= argc) {
+            std::fprintf(stderr, "--menu-walk needs a script (steps or @FILE) and a folder\n");
+            return false;
+        }
+        options.menu_walk = argv[++i];
+        options.menu_walk_dir = argv[++i];
     } else if (arg == "--replay-reference") {
         if (i + 2 >= argc) {
             std::fprintf(stderr, "--replay-reference needs a file and a folder\n");

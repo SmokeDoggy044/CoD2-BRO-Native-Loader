@@ -293,6 +293,9 @@ const SettingDef kSettings[] = {
      "object viewer (developer mode): F8 shows the next of these models (base names of the mission's .xbmesh "
      "files; @FILE: a list, e.g. tools/model_index.py UNPACKED --level N) in front of the camera and pauses the game, "
      "F9 turns it round"},
+    {"menu-walk", "SCRIPT DIR", T::Custom, G::Testing, kCli, 0, 0, nullptr, "",
+     "unattended menu walk (testing): steps or @FILE (src/runtime/loader/menu_walk.h) that wait for menu screens, "
+     "press pad buttons, move and click a scripted mouse and take pictures with the menu state into DIR"},
     {"screenshots", "N DIR", T::Custom, G::Testing, kCli, 0, 0, nullptr, "",
      "save every Nth frame as DIR/frame_<n>.bmp (debugging)"},
     {"profile", "auto[,S]", T::Text, G::Testing, kCli, 0, 0, nullptr, "",
