@@ -6,7 +6,8 @@
 WALK: a script in tools/data/menu_walks/ (name without .walk), a path, or inline steps (see
 src/runtime/loader/menu_walk.h); default front_options. Runs on a copy of the save folder (no mods), writes
 OUT/<shot>.bmp + .txt, OUT/walk.txt (every state), OUT/sheet.png (all pictures) and OUT/stdout.txt. Exit code: the
-loader's (0 = walked to the end, 4 = a wait timed out: OUT/timeout.txt has the state).
+loader's (0 = walked to the end, 4 = a wait timed out: OUT/timeout.txt has the state), 5 = the settings.ini it left
+fails --check-settings (OUT/settings_check.txt).
 """
 import argparse
 import os
@@ -59,6 +60,12 @@ def main():
             code = subprocess.run(cmd, stdout=log, stderr=subprocess.STDOUT, timeout=a.seconds, env=env).returncode
         except subprocess.TimeoutExpired:
             code = 124
+    # What the menus saved, read back as the launcher and the game read it.
+    check = subprocess.run([a.loader, "--check-settings"], env=env, capture_output=True, text=True)
+    (out / "settings_check.txt").write_text(check.stdout + check.stderr)
+    print("settings.ini:", (check.stdout.strip().splitlines() or ["?"])[-1])
+    if check.returncode and code == 0:
+        code = 5
     if not a.keep_data:
         shutil.rmtree(out / "data", ignore_errors=True)
     shots = sorted(out.glob("*.bmp"), key=lambda f: f.stat().st_mtime)

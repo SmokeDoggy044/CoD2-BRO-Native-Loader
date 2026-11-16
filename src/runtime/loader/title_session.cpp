@@ -19,6 +19,7 @@
 #include <utility>
 #include <vector>
 #include "title_crt.h"
+#include "settings_schema.h"
 #include "replay.h"
 #include "bindings.h"
 #include "compare.h"
@@ -179,7 +180,56 @@ void apply_game_options(Options& options, bool replaying, const std::string& rec
     }
 }
 
+namespace {
+
+// --check-settings: settings.ini read as the launcher and the game read it - every line a known setting whose value
+// passes the schema's check, the file unchanged by a load and save, and the game's option parser accepting it.
+int check_settings_file() {
+    const fs::path path = platform::settings_path();
+    const platform::Settings loaded = platform::load_settings();
+    int problems = 0, lines = 0;
+    std::istringstream in(loaded.format());
+    std::string line;
+    while (std::getline(in, line)) {
+        const size_t eq = line.find(" = ");
+        if (line.empty() || line[0] == '#' || eq == std::string::npos) continue;
+        ++lines;
+        const std::string key = line.substr(0, eq), value = line.substr(eq + 3);
+        const platform::SettingDef* def = platform::find_setting(key);
+        std::string error;
+        if (!def) {
+            std::printf("unknown setting: %s\n", line.c_str());
+            ++problems;
+        } else if (!platform::check_setting(*def, value, &error)) {
+            std::printf("bad value: %s (%s)\n", line.c_str(), error.c_str());
+            ++problems;
+        }
+    }
+    if (platform::Settings::parse(loaded.format()).format() != loaded.format()) {
+        std::printf("not stable through a load and save\n");
+        ++problems;
+    }
+    std::vector<std::string> args = loaded.as_args();
+    args.insert(args.begin(), "cod_bro");
+    std::vector<char*> argv;
+    for (std::string& arg : args) argv.push_back(arg.data());
+    if (!parse_args(static_cast<int>(argv.size()), argv.data())) {
+        std::printf("the game's option parser refuses it\n");
+        ++problems;
+    }
+    std::printf("%s: %d setting(s), %s\n", path.string().c_str(), lines, problems ? "PROBLEMS" : "all valid");
+    return problems ? 1 : 0;
+}
+
+}  // namespace
+
 int load_options(int argc, char** argv, std::optional<Options>& parsed_out) {
+    for (int i = 1; i < argc; ++i)
+        if (std::string_view(argv[i]) == "--check-settings") {
+            const int result = check_settings_file();
+            std::fflush(nullptr);
+            std::_Exit(result);
+        }
     // settings.ini first, so the command line overrides it. A reboot re-reads it.
     // Not with --compare: the comparison runs the game as on the Xbox, whatever the
     // player chose in the launcher.

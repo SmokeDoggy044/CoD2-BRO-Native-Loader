@@ -126,7 +126,7 @@ struct Presets {
 };
 const std::vector<Presets>& presets() {
     static const std::vector<Presets> kPresets = {
-        {"aspect", {"4:3", "16:9", "16:10", "21:9", "32:9"}, {}},
+        {"aspect", {"4:3", "16:9", "21:9", "32:9"}, {}},  // the game takes 4:3, 16:9 or wider
         {"fps", {"display", "30", "60", "120", "144", "240"}, {"Display", "30", "60", "120", "144", "240"}},
         {"render-scale", {"", "0.5", "0.75", "1", "1.5", "2", "3", "4"}, {"Auto", "50%", "75%", "100%", "150%", "200%", "300%", "400%"}},
         {"anisotropy", {"2", "4", "8", "16"}, {"2x", "4x", "8x", "16x"}},
@@ -613,8 +613,17 @@ int32_t page_input(int32_t index, int32_t action) {
                 !(def->type == SettingType::Choice && platform::setting_ui(row.def.key) &&
                   platform::setting_ui(row.def.key)->checkbox_value))
                 return game::kPcResultStay;  // accept toggles on/off rows only
-            const auto next = step_value(*def, platform::setting_ui(row.def.key), ui::setting_value(s.values, row.def.key), dir);
-            if (next) put(row.def.key, *next);
+            // The next value the schema accepts (a preset the game would refuse is skipped).
+            std::string value = ui::setting_value(s.values, row.def.key);
+            for (int tries = 0; tries < 16; ++tries) {
+                const auto next = step_value(*def, platform::setting_ui(row.def.key), value, dir);
+                if (!next || *next == value) break;
+                value = *next;
+                if (value.empty() || platform::check_setting(*def, value)) {
+                    put(row.def.key, value);
+                    break;
+                }
+            }
             return game::kPcResultStay;
         }
         case Row::GameVolume:

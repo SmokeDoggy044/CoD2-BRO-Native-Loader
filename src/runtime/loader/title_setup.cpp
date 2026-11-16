@@ -393,7 +393,11 @@ void configure_title_services(const Options& options, const fs::path& assets, co
         }
         if (!options.replay.shot_frames.empty()) d3d_config.frame_screenshot = &xbox::replay::screenshot_path;
     }
-    if (!options.menu_walk.empty() && loader::load_menu_walk(options.menu_walk, options.menu_walk_dir)) {
+    if (!options.menu_walk.empty() && !loader::load_menu_walk(options.menu_walk, options.menu_walk_dir)) {
+        std::fflush(nullptr);
+        std::_Exit(2);  // an unattended run without its script would only sit in the menus
+    }
+    if (!options.menu_walk.empty()) {
         static void (*inner)() = nullptr;
         inner = d3d_config.frame_presented;
         d3d_config.frame_presented = [] {

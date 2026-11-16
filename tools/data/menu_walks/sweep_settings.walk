@@ -1,0 +1,205 @@
+# Every settings row stepped right once on every page, then Apply (4.6: the saved settings.ini must pass
+# --check-settings; tools/menu_walk.py does that after the walk).
+screen 15 a
+a
+screen 1 a
+item 2
+a
+screen 3
+item 2
+a
+screen 6
+wait 0.5
+item 1
+a
+wait 0.5
+item 0
+right
+down
+right
+down
+right
+down
+right
+down
+right
+down
+b
+wait 0.5
+item 2
+a
+wait 0.5
+item 0
+right
+down
+right
+down
+right
+down
+right
+down
+b
+wait 0.5
+item 3
+a
+wait 0.5
+item 0
+right
+down
+right
+down
+right
+down
+right
+down
+right
+down
+right
+down
+right
+down
+b
+wait 0.5
+item 4
+a
+wait 0.5
+item 0
+right
+down
+right
+down
+right
+down
+right
+down
+right
+down
+right
+down
+b
+wait 0.5
+item 5
+a
+wait 0.5
+item 0
+right
+down
+right
+down
+right
+down
+right
+down
+right
+down
+b
+wait 0.5
+item 7
+a
+screen 3
+item 3
+a
+screen 6
+wait 0.5
+item 0
+right
+item 2
+a
+wait 0.5
+item 0
+right
+down
+right
+down
+right
+down
+right
+down
+right
+down
+right
+down
+right
+down
+b
+wait 0.5
+item 3
+a
+wait 0.5
+item 0
+right
+down
+right
+down
+right
+down
+right
+down
+right
+down
+right
+down
+b
+wait 0.5
+item 4
+a
+wait 0.5
+item 0
+right
+down
+right
+down
+right
+down
+right
+down
+right
+down
+right
+down
+right
+down
+b
+wait 0.5
+item 5
+a
+wait 0.5
+item 0
+right
+down
+right
+down
+right
+down
+right
+down
+b
+wait 0.5
+item 6
+a
+wait 0.5
+item 0
+right
+down
+right
+down
+b
+wait 0.5
+item 8
+a
+screen 3
+item 1
+a
+screen 6
+wait 0.5
+item 0
+right
+item 1
+right
+item 2
+right
+item 6
+a
+screen 3
+state end
+quit

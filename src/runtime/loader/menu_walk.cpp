@@ -279,12 +279,17 @@ bool load_menu_walk(const std::string& script, const std::string& dir) {
         text.assign(std::istreambuf_iterator<char>(in), std::istreambuf_iterator<char>());
     }
     std::vector<Step> steps;
-    std::string line;
-    for (char& c : text)
-        if (c == ';') c = '\n';
-    std::istringstream lines(text);
-    while (std::getline(lines, line)) {
+    // Comments first (they may hold ';'), then ';' separates steps on a line.
+    std::string steps_text, line;
+    std::istringstream file_lines(text);
+    while (std::getline(file_lines, line)) {
         if (const size_t hash = line.find('#'); hash != std::string::npos) line.resize(hash);
+        for (char& c : line)
+            if (c == ';') c = '\n';
+        steps_text += line + '\n';
+    }
+    std::istringstream lines(steps_text);
+    while (std::getline(lines, line)) {
         while (!line.empty() && (line.back() == ' ' || line.back() == '\r' || line.back() == '\t')) line.pop_back();
         while (!line.empty() && (line.front() == ' ' || line.front() == '\t')) line.erase(0, 1);
         if (line.empty()) continue;
