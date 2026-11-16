@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <atomic>
 #include <chrono>
+#include <cctype>
 #include <cmath>
 #include <cstdio>
 #include <cstring>
@@ -1614,6 +1615,34 @@ uint32_t param_or_default(uint32_t value_bits, uint32_t alias, uint32_t param, f
 }
 
 // S_StartAliasVoice / S_StartAliasVoice2: `queue_only` = the second (SndVoice_Queue first, no SndVoice_Play).
+// Stereo cutscene tracks (our addition, StereoScenes): the levels play a stereo mix as two aliases "<name>_L" and
+// "<name>_R" on two script origins. Each started voice is noted here (the half and the name's hash, or none) and
+// handed to the device once it plays (send_stereo_halves, SndHw_Update).
+struct StereoTag {
+    int32_t handle = -1;  // SndVoice_Create's (a voice record's +0xcc once it plays)
+    uint32_t key = 0;
+    int side = 0;
+    uint32_t age = 0;     // sound updates waited
+};
+std::vector<StereoTag> g_stereo_tags;
+
+void note_stereo_half(int32_t voice, uint32_t alias) {
+    StereoTag t;
+    t.handle = voice;
+    if (const char* name = Snd_GetAliasName(alias)) {
+        const size_t n = std::strlen(name);
+        const char c = n >= 3 && name[n - 2] == '_' ? name[n - 1] : 0;
+        if (c == 'L' || c == 'l' || c == 'R' || c == 'r') {
+            uint32_t h = 2166136261u;  // FNV-1a of the lower-case name without the suffix
+            for (size_t i = 0; i + 2 < n; ++i) h = (h ^ uint8_t(std::tolower(uint8_t(name[i])))) * 16777619u;
+            t.key = h;
+            t.side = (c == 'L' || c == 'l') ? -1 : 1;
+        }
+    }
+    if (g_stereo_tags.size() < 512) g_stereo_tags.push_back(t);
+}
+
+
 void start_alias_voice(bool queue_only, uint32_t eax, uint8_t* channel, uint32_t alias, uint32_t volume,
                        uint32_t pitch, uint32_t near_bits, uint32_t far_bits, const uint32_t* origin,
                        const uint32_t* velocity, uint32_t owner, uint32_t any_slot) {
@@ -1623,6 +1652,7 @@ void start_alias_voice(bool queue_only, uint32_t eax, uint8_t* channel, uint32_t
     const int32_t voice = SndVoice_Create(alias, any_slot & 0xff);
     emitter_word<int32_t>(channel, 0) = voice;
     if (voice == -1) return;
+    note_stereo_half(voice, alias);
     if (queue_only) SndVoice_Queue(voice);
     const char* group = SndBank_GetEntryGroupName(alias);
     if (uintptr_t(group) < 0x10000) group = reinterpret_cast<const char*>(uintptr_t{0x0083755c});
@@ -2487,6 +2517,32 @@ void update_sound_view(const float listener[3]) {
 
 }  // namespace
 
+namespace {
+
+void send_stereo_halves() {
+    if (g_stereo_tags.empty()) return;
+    const uint32_t count = std::min(title_global<uint32_t>(0x008bed00), 256u);
+    for (size_t t = 0; t < g_stereo_tags.size();) {
+        StereoTag& tag = g_stereo_tags[t];
+        bool sent = false;
+        for (uint32_t i = 0; i < count && !sent; ++i) {
+            uint8_t* const voice = &title_global<uint8_t>(0x00911548 + i * 0xe0);
+            if (voice[0xc0] != 4 || snd_at<int32_t>(voice, 0xcc) != tag.handle) continue;
+            uint8_t* const slot = &title_global<uint8_t>(0x0090a940 + i * 0x6c);
+            device().set_stereo_half(voice_id(slot, (voice[0xc3] & 2) ? 0x30 : 0), tag.key, tag.side);
+            sent = true;
+        }
+        if (sent || ++tag.age > 120) {  // sent, or never played (2 s)
+            tag = g_stereo_tags.back();
+            g_stereo_tags.pop_back();
+        } else {
+            ++t;
+        }
+    }
+}
+
+}  // namespace
+
 uint32_t XB_CDECL SndHw_Update() {
     // snd_speakerMode: a negative value is a request (1-3 speakers, 4 headphones).
     int32_t mode = title_global<int32_t>(0x008bd650);
@@ -2650,6 +2706,7 @@ uint32_t XB_CDECL SndHw_Update() {
         SndScene_Update();
         SndEnv_BeginRays();
     }
+    if (device().enhanced()) send_stereo_halves();
     const bool reverb = device().has(audio::Feature::Reverb), occlusion = device().has(audio::Feature::Occlusion);
     if (reverb || occlusion || device().has(audio::Feature::Echoes)) {
         const auto timer_start = std::chrono::steady_clock::now();
@@ -3520,6 +3577,7 @@ void XB_REGS1 XB_STDCALL Music_Play(uint8_t* fade, const char* name) {
 
 void Snd_RestartTitle() {
     for (auto& sound : g_ambience_sounds) sound = 0;
+    g_stereo_tags.clear();
     for (Occlusion& o : g_occlusion) o = Occlusion();
     g_original_slots = 0;
     g_enhanced_slots_added = false;

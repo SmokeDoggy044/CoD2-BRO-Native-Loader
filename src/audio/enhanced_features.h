@@ -26,6 +26,7 @@ enum class Feature : uint8_t {
     ReverbDetail,  // with reverb: a few hundred rays from around the listener, three bands (else 14 rays)
     Echoes,        // outdoors: slap-back echoes of gunfire off distant walls and cliffs
     Air,           // the air takes the highs of distant sounds (duller with distance, the falloff stays)
+    StereoScenes,  // cutscene tracks split into _L/_R aliases on two world spots: played as stereo at the listener
 };
 
 struct EnhancedFeatures {
@@ -40,6 +41,7 @@ struct EnhancedFeatures {
     bool reverb_detail = true;
     bool echoes = true;
     bool air = true;
+    bool stereo_scenes = true;
 
     bool operator==(const EnhancedFeatures&) const = default;
 
@@ -60,6 +62,7 @@ struct EnhancedFeatures {
         {"reverb_detail", &EnhancedFeatures::reverb_detail, Feature::ReverbDetail},
         {"echoes", &EnhancedFeatures::echoes, Feature::Echoes},
         {"air", &EnhancedFeatures::air, Feature::Air},
+        {"stereo_scenes", &EnhancedFeatures::stereo_scenes, Feature::StereoScenes},
     };
 
     bool has(Feature feature) const {

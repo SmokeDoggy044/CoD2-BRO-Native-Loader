@@ -215,6 +215,9 @@ const SettingDef kSettings[] = {
     {"air", "on|off", T::Switch, G::Sound, kLiveIni, 0, 0, nullptr, "on",
      "enhanced: distant sounds duller (the air takes the highs; loudness by distance stays the game's)", "enhanced",
      "air"},
+    {"stereo-scenes", "on|off", T::Switch, G::Sound, kLiveIni, 0, 0, nullptr, "on",
+     "enhanced: cutscene sound mixed in stereo (left/right halves) plays left and right of you, wherever you look",
+     "enhanced", "stereo_scenes"},
     {"reverb-amount", "DB", T::Float, G::Sound, kLiveIni, -12, 12, nullptr, "0",
      "enhanced reverb: level in dB (-12..12)", "reverb", "amount"},
     {"reverb-decay", "X", T::Float, G::Sound, kLiveIni, 0.25, 4, nullptr, "1",
@@ -524,6 +527,11 @@ const SettingUi kUi[] = {
      nullptr, nullptr, "audio=enhanced"},
     {"echoes", nullptr, "Echoes",
      "Outdoors, gunfire comes back faintly off distant buildings and cliffs.", nullptr, nullptr, "audio=enhanced"},
+    {"stereo-scenes", nullptr, "Stereo cutscenes",
+     "Cutscene dialogue and sound recorded in stereo stays left and right of you as it was mixed. Off: the game "
+     "places its two halves at two spots in the world, so the voices pan as you turn and fall behind a moving "
+     "boat or vehicle.",
+     nullptr, nullptr, "audio=enhanced"},
     {"air", nullptr, "Air absorption",
      "Distant sounds lose their highs the way air takes them (about 4 dB at 100 m), so far gunfire sounds farther "
      "away. How loud a sound is by its distance stays the game's own.",

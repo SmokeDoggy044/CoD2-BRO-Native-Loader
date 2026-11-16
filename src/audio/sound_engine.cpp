@@ -61,6 +61,10 @@ struct VoiceImpl {
     bool reverb_send = false;
     float occlusion = 0.0f;
     Transmission transmission;  // set_transmission's (all 1: none)
+    uint32_t stereo_key = 0;    // set_stereo_half's
+    int stereo_side = 0;
+    int64_t stereo_since = 0;   // steady clock, ms
+    bool stereo = false;        // paired with the other half: stereo at the listener
     Output::SourceParams last;  // as last handed to the output (voice_rows, log_voices)
     Category category = Category::Effects;
     Spatial current, pending;
@@ -116,6 +120,7 @@ public:
     void set_transmission(VoiceId voice, const Transmission& transmission) override;
     void set_echo(const Echo& echo) override;
     Echo echo;  // set_echo's
+    void set_stereo_half(VoiceId voice, uint32_t key, int side) override;
     bool feature_on(Feature feature) const { return config.enhanced && config.features.has(feature); }  // locked
     void apply_enhanced();  // locked: after config.enhanced or features changed
 
@@ -249,6 +254,19 @@ void Engine::update(VoiceImpl& v) {
         params.gain *= volumes.close_gain(v.category, distance);
     }
     params.pitch = v.rate && format.rate ? std::clamp(float(v.rate) / float(format.rate), 1.0f / 64, 16.0f) : 1.0f;
+    // Stereo cutscene tracks (two halves on two world spots): left and right of the listener, 30 degrees each way,
+    // as mixed - no distance, walls, reverb or air (it is a finished mix).
+    if (v.stereo && feature_on(Feature::StereoScenes)) {
+        params.gain = v.volume * v.headroom * volumes.gain(v.category);
+        params.placement = Output::Placement::Relative;
+        params.position[0] = 0.5f * float(v.stereo_side);
+        params.position[1] = 0.0f;
+        params.position[2] = -0.866f;
+        params.reverb_send = false;
+        v.last = params;
+        o->update(v.source, params);
+        return;
+    }
     if (is_spatial(v)) {
         params.placement =
             v.current.mode == SpatialMode::HeadRelative ? Output::Placement::Relative : Output::Placement::World;
@@ -736,6 +754,34 @@ void Engine::set_occlusion(VoiceId id, float amount) {
     });
 }
 
+void Engine::set_stereo_half(VoiceId id, uint32_t key, int side) {
+    Guard lock(mutex, TestLock::State);
+    VoiceImpl* v = find(id);
+    if (!v) return;
+    const int64_t now = std::chrono::duration_cast<std::chrono::milliseconds>(
+                            std::chrono::steady_clock::now().time_since_epoch())
+                            .count();
+    const bool was = v->stereo;
+    v->stereo_key = key;
+    v->stereo_side = side < 0 ? -1 : side > 0 ? 1 : 0;
+    v->stereo_since = now;
+    v->stereo = false;
+    if (!v->stereo_side) {  // a sound that is no half: as any other
+        if (was) update(*v);
+        return;
+    }
+    // Its other half, started at the same time and still playing: both become stereo.
+    for (VoiceImpl* other : voices) {
+        if (other == v || !other->refs || !other->voice.playing() || other->stereo_key != key ||
+            other->stereo_side != -v->stereo_side || std::llabs(other->stereo_since - now) > 250)
+            continue;
+        v->stereo = other->stereo = true;
+        update(*other);
+        break;
+    }
+    update(*v);
+}
+
 void Engine::set_echo(const Echo& e) {
     Guard lock(mutex, TestLock::State);
     // Only changes that can be heard reach OpenAL (an effect update there costs the caller up to milliseconds).
@@ -785,7 +831,7 @@ std::span<const xbox::KernelImpl> device_methods() {
         "SoundDevice::listener", "SoundDevice::commit", "SoundDevice::start_synched", "SoundDevice::set_headphones",
         "SoundDevice::do_work", "SoundDevice::set_category", "SoundDevice::set_environment",
         "SoundDevice::enhanced", "SoundDevice::set_occlusion", "SoundDevice::has", "SoundDevice::set_transmission",
-        "SoundDevice::set_echo",
+        "SoundDevice::set_echo", "SoundDevice::set_stereo_half",
     };
     static const std::vector<xbox::KernelImpl> methods = [] {
         void* const* vtable = *reinterpret_cast<void* const* const*>(&g);
@@ -948,6 +994,7 @@ std::vector<VoiceRow> voice_rows() {
         r.direct_gain = v->last.direct_gain;
         r.direct_gain_hf = v->last.direct_gain_hf;
         r.direct_gain_lf = v->last.direct_gain_lf;
+        if (v->stereo && g.feature_on(Feature::StereoScenes)) r.stereo = v->stereo_side;
         if (r.spatial && v->transmission.redirect && g.feature_on(Feature::Openings) && g.feature_on(Feature::Occlusion)) {
             float a[3], b[3];
             for (int k = 0; k < 3; ++k) {

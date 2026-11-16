@@ -191,6 +191,10 @@ public:
     virtual void set_transmission(VoiceId voice, const Transmission& transmission) = 0;
     // Enhanced, echoes on: the slap-back echo gunfire is sent to (3.5).
     virtual void set_echo(const Echo& echo) = 0;
+    // The voice plays one half (side -1 left, +1 right) of a track split into "<name>_L" / "<name>_R" aliases; `key`
+    // = the name's hash. When both halves start together they play as stereo at the listener (enhanced,
+    // StereoScenes).
+    virtual void set_stereo_half(VoiceId voice, uint32_t key, int side) = 0;
 
 protected:
     ~SoundDevice() = default;

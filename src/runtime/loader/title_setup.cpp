@@ -128,7 +128,8 @@ void write_sound_mark(const char* prefix) {
         std::snprintf(line, sizeof(line),
                       "voice %08x %s%s: at %.0f %.0f %.0f, distance %.0f, distance gain %.3f, volume %.3f, occlusion "
                       "%.2f, out gain %.4f, direct %.2f lf %.2f hf %.2f, send %.2f, level %.4f, heard %.0f deg turned\n",
-                      unsigned(r.id), kCategories[size_t(r.category)], r.spatial ? "" : " (not placed)",
+                      unsigned(r.id), kCategories[size_t(r.category)],
+                      r.stereo < 0 ? " (stereo left)" : r.stereo > 0 ? " (stereo right)" : r.spatial ? "" : " (not placed)",
                       double(r.position[0]), double(r.position[1]), double(r.position[2]), double(r.distance),
                       double(r.distance_gain), double(r.volume), double(r.occlusion), double(r.gain),
                       double(r.direct_gain), double(r.direct_gain_lf), double(r.direct_gain_hf), double(r.send_gain),
