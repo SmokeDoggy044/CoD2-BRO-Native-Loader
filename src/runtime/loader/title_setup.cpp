@@ -358,8 +358,8 @@ void configure_title_services(const Options& options, const fs::path& assets, co
     // The front-end menus' PC rows (src/engine/client/fe_pc.h); --compare and --pc-patches off: the original menus.
     if (options.pc_patches.value_or(!options.compare)) {
         loader::install_menu_settings();
-        loader::install_menu_pages(
-            options.mods_dir.value_or(options.data.value_or(platform::user_data_dir()) / "mods"));
+        loader::install_menu_pages(options.mods_dir.value_or(options.data.value_or(platform::user_data_dir()) / "mods"),
+                                   options.replay.mode == xbox::replay::Mode::Off);
     }
     d3d_config.backend.menu_font = (platform::executable_dir() / "fonts" / "Jost-500-Medium.ttf").string();
     d3d_config.backend.pipeline_cache_path =

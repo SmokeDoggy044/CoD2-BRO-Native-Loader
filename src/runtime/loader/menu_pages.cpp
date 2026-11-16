@@ -670,14 +670,16 @@ int32_t page_input(int32_t index, int32_t action) {
 
 }  // namespace
 
-void install_menu_pages(const fs::path& mods_dir) {
+void install_menu_pages(const fs::path& mods_dir, bool quit_row) {
     g_mods_dir = mods_dir;
     game::PcSettingsHooks& hooks = game::pc_settings_hooks();
     hooks.page_begin = &page_begin;
     hooks.page_view = &page_view;
     hooks.page_input = &page_input;
     hooks.page_active = [] { return g_session.active; };
-    hooks.quit_game = [] {
+    // Quit Game adds title allocations at boot (a sixth main-menu row): not while recording or replaying, so that
+    // recordings made before it and after it replay alike.
+    if (quit_row) hooks.quit_game = [] {
         LOG_INFO("loader", "Quit Game (main menu)");
         render::request_quit();
     };

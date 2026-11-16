@@ -15,7 +15,7 @@ namespace loader {
 platform::Settings live_values();
 void apply_live(const platform::Settings& before, const platform::Settings& after);
 // The settings pages of the game's own menus (menu_pages.cpp): installs the page hooks (fe_pc.h).
-void install_menu_pages(const std::filesystem::path& mods_dir);
+void install_menu_pages(const std::filesystem::path& mods_dir, bool quit_row);
 
 // Makes the menu's widgets (Dear ImGui) for this frame; false closes it.
 bool pc_menu();
