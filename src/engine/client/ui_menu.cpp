@@ -1884,8 +1884,10 @@ uint8_t* XB_THISCALL FrontEndMenu_DeletingDtor(uint8_t* mgr, uint32_t flags) {
 }
 
 void XB_THISCALL FrontEndMenu_Draw(uint8_t* mgr) {
-    if (uint8_t* const panel = title_global<uint8_t*>(0x0095f47c)) Panel_Draw(panel);
-    if (mgr[0xf4]) call(field<uint8_t*>(mgr, 0x1c), 0x3c);
+    // The Xbox Live corner (sign-in status, "Y Xbox Live"): console-only, not with our PC menus (fe_pc.h).
+    const bool live = !pc_pages();
+    if (uint8_t* const panel = title_global<uint8_t*>(0x0095f47c); panel && live) Panel_Draw(panel);
+    if (mgr[0xf4] && live) call(field<uint8_t*>(mgr, 0x1c), 0x3c);
     const int32_t active = field<int32_t>(mgr, 0xc);
     if (active >= 0) call(screen(mgr, active), 0x28);
 }
@@ -2842,7 +2844,7 @@ int32_t XB_CDECL StartupStorageMenu_Update(uint8_t* menu, uint32_t dt_bits) {
 // closes the dialog and, once the free space was checked (0x008dd1d0, MemDlg_CheckFreeSpace2), opens screen 0x14;
 // then UIScreenMgr_OnButtonDown.
 void XB_THISCALL FrontEndMenu_OnButtonDown(uint8_t* mgr, int32_t bit, int32_t pad) {
-    if (bit == 0x200 && field<int32_t>(title_global<uint8_t*>(0x0095f6fc), 4) != 1 &&
+    if (bit == 0x200 && !pc_pages() &&  // Y: Xbox Live (console-only; not with our PC menus) field<int32_t>(title_global<uint8_t*>(0x0095f6fc), 4) != 1 &&
         field<int32_t>(mgr, 0xc) != 0x14 &&
         (field<int32_t>(mgr, 0xc) != 0xf ||
          field<int32_t>(field<uint8_t*>(field<uint8_t*>(title_global<uint8_t*>(0x0095f8f8), 4), 0x3c), 0x48) == 1)) {

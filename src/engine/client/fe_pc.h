@@ -79,6 +79,7 @@ void pc_set_game_volume(int32_t volume);
 // Texts of our Options / pause rows.
 inline constexpr char kPcTextControls[] = "CONTROLS";
 inline constexpr char kPcTextSettings[] = "Settings";
+inline constexpr char kPcTextPressStart[] = "Press ENTER or START";
 PcSettingsHooks& pc_settings_hooks();
 // Whether the PC menus are on (the hooks are installed).
 bool pc_menus();

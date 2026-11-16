@@ -9738,7 +9738,7 @@ const Function kFunctions[] = {
     {"UIDialog_SetText", 0x00313f20, 0, code(&UIDialog_SetText_entry), 8, Result::None, Status::Replaced},
     {"DialogMgr_DrawBackground", 0x003141c0, 0, code(&DialogMgr_DrawBackground_entry), 0, Result::None, Status::Replaced},
     {"DialogMgr_DrawOverlay", 0x00314340, 0, code(&DialogMgr_DrawOverlay), 0, Result::None, Status::Replaced},
-    {"FrontEndMenu_Draw", 0x00314510, 0, code(&FrontEndMenu_Draw), 0, Result::None, Status::Compare},  // was FUN_00314510 (gap)
+    {"FrontEndMenu_Draw", 0x00314510, 0, code(&FrontEndMenu_Draw), 0, Result::None, Status::Replaced},  // was FUN_00314510 (gap); Replaced 11-16 (the Live corner hides with the PC menus)
     {"TitleMenu_Accept", 0x00314550, 0, code(&TitleMenu_Accept), 0, Result::None, Status::Compare},
     {"TitleMenu_Draw", 0x003145c0, 0, code(&TitleMenu_Draw), 0, Result::None, Status::Compare},  // was FUN_003145c0 (gap)
     {"UIScreenMgr_ReadStickDirections", 0x00314750, 0, code(&UIScreenMgr_ReadStickDirections), 0, Result::None, Status::Replaced},

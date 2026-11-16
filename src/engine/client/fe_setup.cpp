@@ -773,7 +773,9 @@ uint32_t XB_CDECL FE_SetupPanelAt(uint8_t* panel, const char* name, uint32_t ent
             regs.ecx = address_of(help);
             regs.esi = address_of(menu);
             regs.edi = address_of(panel);
-            return tail_call(entry, field<uint32_t>(field<uint8_t*>(help, 0), 0x6c), regs, 0x0082cbb0);
+            // With our PC menus the prompt names the key too (FEMENU_TITLE_PRESS_START_XBOX says START only).
+            return tail_call(entry, field<uint32_t>(field<uint8_t*>(help, 0), 0x6c), regs,
+                             pc_pages() ? address_of(kPcTextPressStart) : 0x0082cbb0);
         }
         if (i == 12) {  // the special edition main menu
             if (!same_name(name, 0x0082ce1c, 0x1e) || special != 1) continue;
