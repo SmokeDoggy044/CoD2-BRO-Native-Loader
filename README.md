@@ -48,6 +48,34 @@ page installs the optional [texture packs](#texture-packs).
 | System | x86 (64- or 32-bit), glibc 2.30 or newer | 64-bit Windows 10 or 11 |
 | Graphics | Vulkan 1.3 (Direct3D 9 through the bundled DXVK as a fallback) | Vulkan 1.3 (Direct3D 9 as a fallback) |
 
+## Antivirus warnings (Windows)
+
+Some antivirus programs flag the launcher and the game's starter programs (`cod_bro.exe`,
+`cod_bro_loader.exe`) as `Gen:Variant.Babar`; for 0.2.0, 8 of 71 engines on VirusTotal did
+so for the launcher and 7 of 71 for the loader. The Linux files show no detections. We
+believe these are false positives, and we would rather tell you why than have you find out
+by surprise:
+
+- **"Gen:Variant" is a generic match** on behaviour, not a known piece of malware.
+- **The launcher downloads and installs updates and texture packs.** *Update now* fetches
+  the new release from this repository, checks it against SHA256SUMS.txt, unpacks it with
+  Windows' own `tar` and replaces the program files in its folder: what malware
+  "downloaders" do too.
+- **The starter programs reserve memory at fixed addresses** and load the original game's
+  data and mission scripts from your copy into it, which some malware also does.
+- **The files are not code-signed.** A signing certificate costs money every year, and
+  this is a free hobby project.
+
+To check for yourself: all source code is in this repository and you can build it
+yourself ([Development](docs/developers/development.md)); the checksums are in
+SHA256SUMS.txt. The launcher is optional: `cod_bro.exe` runs the game on its own (with
+`settings.ini`), and you can update by downloading releases yourself.
+
+The project is developed on Linux, so Windows antivirus warnings like these can slip past
+us; please report them as an issue when you see one. Thanks to the reporter of
+[issue #15](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader/issues/15) and to
+Reddit user GroundbreakingMap719 for bringing this to our attention.
+
 ## Original and custom engine
 
 The same moments of the campaign, on the left as the Xbox shows them (the engine's
