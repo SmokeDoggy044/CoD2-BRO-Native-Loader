@@ -318,7 +318,13 @@ bool start_session(const Options& options, int argc, char** argv) {
         LOG_INFO("diag", "diagnostics in %s: a screenshot every %u s, F12 marks a problem",
                  options.diag_dir->string().c_str(), options.diag_seconds);
         // summary.txt when the process ends (not on a reboot: the session goes on).
-        std::atexit([] { loader::write_diag_summary(*g_diag_dir); });
+        // (platform::end_process ends every normal run and skips atexit handlers; atexit stays for any other exit.)
+        static const auto write_once = [] {
+            static bool written = false;
+            if (!std::exchange(written, true)) loader::write_diag_summary(*g_diag_dir);
+        };
+        platform::at_end_process([] { write_once(); });
+        std::atexit([] { write_once(); });
     } else {
         // Always a log, so that a player without a console can send it: one run per
         // file (a reboot continues it), in the user data folder.
