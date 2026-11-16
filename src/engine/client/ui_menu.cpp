@@ -1769,7 +1769,7 @@ uint8_t* XB_THISCALL MainMenu_DeletingDtor(uint8_t* menu, uint32_t flags) {
 }
 
 uint8_t* XB_REGS3 XB_CDECL MainMenu_Construct(uint8_t* owner, uint32_t, uint8_t* menu) {
-    init_screen_menu(menu, 5, owner);
+    init_screen_menu(menu, pc_quit_row() ? 6 : 5, owner);  // our Quit Game: a sixth row (fe_pc.h)
     field<uint32_t>(menu, 0x34) = 0;
     field<uint32_t>(menu, 0x38) = 0;
     field<uint32_t>(menu, 0x3c) = 0;
@@ -2660,6 +2660,9 @@ int32_t XB_CDECL MainMenu_HandleSelect(uint8_t* menu, uint32_t index) {
         if (!title_global<uint8_t>(0x0095e7f8)) return -1;
         field<uint32_t>(screen(0x48), 0x40) = 0;
         return 0x12;
+    case 5:  // our Quit Game (fe_pc.h; the menu has a sixth row only with our PC menus)
+        if (pc_quit_row()) pc_settings_hooks().quit_game();
+        return -1;
     default: return -1;
     }
 }
@@ -2811,6 +2814,11 @@ void XB_THISCALL MainMenu_Draw(uint8_t* menu) {
     if (!panel) return;
     if (title_global<uint8_t>(0x0095f46c) && !title_global<uint8_t>(0x0095f91e)) {
         Panel_Draw(panel);
+        // Our Quit Game in the bottom bar (fe_pc.h): the bar's white, dimmed unless selected (the menu's own colours
+        // are for the paper).
+        if (pc_quit_row() && field<int16_t>(menu, 0x26) >= 6)
+            if (uint8_t* const quit = field<uint8_t*>(menu_item(menu, 5), 0x10))
+                call(quit, 0x90, selection(menu) == 5 ? 0xffffffffu : 0x8cffffffu);
         UIMenu_Draw(menu);
         if (uint8_t* const text = field<uint8_t*>(menu, 0x34)) call(text, 0x3c);
     }

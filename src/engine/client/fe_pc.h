@@ -57,6 +57,7 @@ struct PcSettingsHooks {
     void (*page_view)(PcPageView* view) = nullptr;
     int32_t (*page_input)(int32_t row, int32_t input) = nullptr;
     bool (*page_active)() = nullptr;  // a session runs (the Controller screen returns to it)
+    void (*quit_game)() = nullptr;    // end the program (the main menu's Quit Game)
 };
 // The pages are on (the page hooks are installed).
 bool pc_pages();
@@ -80,6 +81,12 @@ void pc_set_game_volume(int32_t volume);
 inline constexpr char kPcTextControls[] = "CONTROLS";
 inline constexpr char kPcTextSettings[] = "Settings";
 inline constexpr char kPcTextPressStart[] = "Press ENTER or START";
+inline constexpr char kPcTextQuitGame[] = "Quit Game";
+// The main menu has a Quit Game row: a sixth row of our own (MainMenu_Construct makes room for it), below the last
+// of the original's (Bonus Materials, or the special edition's own fifth row).
+bool pc_quit_row();
+// Makes it (FE_SetupMainMenu): a text like row `last`'s, one row spacing below it.
+void pc_add_quit_row(uint8_t* menu, int32_t last);
 PcSettingsHooks& pc_settings_hooks();
 // Whether the PC menus are on (the hooks are installed).
 bool pc_menus();

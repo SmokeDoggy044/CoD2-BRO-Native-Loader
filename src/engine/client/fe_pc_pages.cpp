@@ -129,6 +129,7 @@ PcSettingsHooks& hooks() { return pc_settings_hooks(); }
 uint8_t* panel_of(uint8_t* menu) { return field<uint8_t*>(menu, 0x34); }
 
 uint8_t* row_item(int32_t row) { return g_shown.items[row]; }
+uint8_t* row_item_of(uint8_t* menu, int32_t row) { return field<uint8_t**>(menu, 4)[row]; }
 
 void copy_colour(uint8_t* item, uint8_t* text) {
     uint32_t colour;
@@ -138,12 +139,12 @@ void copy_colour(uint8_t* item, uint8_t* text) {
 
 // A new text like the panel text `source` (the base UI text class, as the panel's own: font, colour, alignment,
 // draw order), scaled.
-uint8_t* new_text(uint8_t* source, float scale) {
+uint8_t* new_text(uint8_t* source, float scale, int32_t layer = 2) {
     uint8_t* const text = setup::z_malloc(0x60);
     if (!text) return nullptr;
     const float size = field<float>(source, 0x38) * scale;
     UIText_Init(text, field<int32_t>(source, 0x18), " ", bits(field<float>(source, 0x2c)), bits(field<float>(source, 0x30)),
-                0, 2, bits(size), static_cast<uint8_t>(field<uint8_t>(source, 0x5c) & 0xf0), 0, field<uint32_t>(source, 0x50));
+                0, layer, bits(size), static_cast<uint8_t>(field<uint8_t>(source, 0x5c) & 0xf0), 0, field<uint32_t>(source, 0x50));
     field<uint32_t>(text, 0x08) = field<uint32_t>(source, 0x08);  // the panel's draw order
     return text;
 }
@@ -408,6 +409,29 @@ bool pc_pages() {
 }
 
 void pc_pages_request(int32_t root) { g_request = root; }
+
+bool pc_quit_row() { return pc_pages() && pc_settings_hooks().quit_game; }
+
+void pc_add_quit_row(uint8_t* menu, int32_t last) {
+    if (field<int16_t>(menu, 0x26) < 6) return;  // built without room for it
+    // The paper has no room below the last row (its checkboxes are part of the art), so Quit Game sits in the
+    // bottom bar's free right half, level with the button prompts (the help text +0x34), right-aligned.
+    uint8_t* const help = field<uint8_t*>(menu, 0x34);
+    uint8_t* const text = new_text(help ? help : field<uint8_t*>(row_item_of(menu, last), 0x10), 1.0f, 0);
+    if (!text) return;
+    set_visible(text, true);
+    set_text(text, kPcTextQuitGame);
+    field<uint8_t>(text, 0x5c) = static_cast<uint8_t>((field<uint8_t>(text, 0x5c) & ~0x30) | 0x20);  // right
+    set_position(text, 620.0f, help ? field<float>(help, 0x30) : 428.0f);
+    // The footer's white: colour scheme 11 = the text's own colour, dimmed unless selected.
+    UIMenu_SetItem(menu, 5, text, 1);  // its colour: MainMenu_Draw (white like the bar, dimmed unless selected)
+    // The original's hidden fifth row ("DISABLED", standard edition) is placed at (0, 0), where half of it shows
+    // in the corner: not drawn.
+    if (last == 3) {
+        if (uint8_t* const item = row_item_of(menu, 4))
+            if (uint8_t* const disabled = field<uint8_t*>(item, 0x10)) set_visible(disabled, false);
+    }
+}
 
 void pc_set_game_volume(int32_t volume) {
     title_global<int32_t>(0x008dce88) = volume < 0 ? 0 : volume > 50 ? 50 : volume;

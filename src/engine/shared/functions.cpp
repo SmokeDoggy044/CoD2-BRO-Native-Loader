@@ -10148,7 +10148,7 @@ const Function kFunctions[] = {
     {"ControllerConfigMenu_Construct", 0x003310d0, 0, code(&ControllerConfigMenu_Construct), 0, Result::Eax, Status::Replaced},
     {"GameplayMenu_Construct", 0x00331150, 0, code(&GameplayMenu_Construct), 0, Result::Eax, Status::Replaced},
     {"SinglePlayerMenu_Construct", 0x00331210, 0, code(&SinglePlayerMenu_Construct), 0, Result::Eax, Status::Replaced},
-    {"MainMenu_Draw", 0x00331260, 0, code(&MainMenu_Draw), 0, Result::None, Status::Compare},  // was FUN_00331260 (gap)
+    {"MainMenu_Draw", 0x00331260, 0, code(&MainMenu_Draw), 0, Result::None, Status::Replaced},  // was FUN_00331260 (gap); Replaced 11-16 (Quit Game colour)
     {"MainMenu_Construct", 0x003312f0, 0, code(&MainMenu_Construct), 0, Result::Eax, Status::Replaced},
     {"FE_ApplyControlSettings", 0x00331340, 0, code(&FE_ApplyControlSettings_entry), 0, Result::None, Status::Replaced},
     {"AdvancedOptionsMenu_OnButton", 0x00331550, 0, code(&AdvancedOptionsMenu_OnButton_entry), 4, Result::None, Status::Replaced},  // was FUN_00331550 (gap, unreached); tail call at the entry ESP: not compared

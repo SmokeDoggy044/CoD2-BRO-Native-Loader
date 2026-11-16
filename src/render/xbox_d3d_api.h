@@ -92,6 +92,8 @@ double display_refresh_rate();
 // Shows `lines` to the player over the game for `seconds` (first line as a heading),
 // replacing any notice shown before. Any thread.
 void show_notice(std::vector<std::string> lines, double seconds);
+// Ends the program at the next presented frame as closing the window does (the game's Quit Game). Any thread.
+void request_quit();
 
 // Maps a point in the window (pixels) to the title's 4:3 screen coordinates (its
 // 640x480 menus, wherever they are shown). False without a window or frame yet.

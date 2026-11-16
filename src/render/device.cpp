@@ -54,6 +54,7 @@ struct State {
     XbSurface* depth_stencil = nullptr;
     uint32_t fence = 0;
     uint32_t swap_count = 0;
+    std::atomic<bool> quit_requested{false};  // request_quit
     std::atomic<bool> back_buffer_written{false};  // the CPU locked it since the last Swap
     XbVBlankData* vblank_data = nullptr;
     std::atomic<uint32_t> vblank_count{0};
@@ -610,8 +611,8 @@ uint32_t present_frame() {
         if (!path.empty()) g.backend->save_back_buffer(path.c_str());
     }
     g.backend->present();
-    if (!g.backend->pump_events()) {
-        LOG_INFO("render", "window closed");
+    if (!g.backend->pump_events() || g.quit_requested.load()) {
+        LOG_INFO("render", "%s", g.quit_requested.load() ? "quit from the game's menu" : "window closed");
         g.backend->save_caches();
         std::exit(0);
     }
@@ -829,6 +830,8 @@ void pace_frame() {
     while (Clock::now() < next) std::this_thread::yield();
     g.frame_start = next;
 }
+
+void request_quit() { g.quit_requested = true; }
 
 void show_notice(std::vector<std::string> lines, double seconds) {
     std::lock_guard lock(g.notice_mutex);

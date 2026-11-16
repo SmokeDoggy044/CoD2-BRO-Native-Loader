@@ -28,6 +28,7 @@
 #include "settings_schema.h"
 #include "settings_widgets.h"
 #include "title_data.h"
+#include "xbox_d3d_api.h"
 
 namespace loader {
 
@@ -676,6 +677,10 @@ void install_menu_pages(const fs::path& mods_dir) {
     hooks.page_view = &page_view;
     hooks.page_input = &page_input;
     hooks.page_active = [] { return g_session.active; };
+    hooks.quit_game = [] {
+        LOG_INFO("loader", "Quit Game (main menu)");
+        render::request_quit();
+    };
 }
 
 }  // namespace loader

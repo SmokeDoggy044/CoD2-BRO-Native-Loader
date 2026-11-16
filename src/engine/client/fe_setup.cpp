@@ -321,6 +321,7 @@ void XB_CDECL FE_SetupMainMenu(uint8_t* menu, uint8_t* panel, uint32_t entry_esp
         title_sprintf(name, text_at(0x0082c42c), i + 1);
         hide_picture(field<uint8_t*>(menu, 0x38), name);
     }
+    if (pc_quit_row()) pc_add_quit_row(menu, special ? 4 : 3);  // a sixth row of our own (fe_pc.h)
 }
 
 SETUP_GAP_ENTRY(FE_SetupScreenMenu, "%esi")
