@@ -31,8 +31,8 @@ The whole single-player campaign is playable on PC.
 1. Download the latest release for Linux or Windows from the
    [releases page](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader/releases).
 2. Unpack it and start `cod_bro_launcher`.
-3. In **Options**, **General**, choose **Extract from a disc image...** and pick the image
-   of your game disc (or copy an already extracted dump into the `assets/` folder).
+3. In **Options**, **General**, choose **Extract from a disc dump...** and pick the dump
+   of your game disc (or copy already extracted game files into the `assets/` folder).
 4. Pick your options and play.
 
 <p align="center"><img src="docs/images/launcher.png" alt="The launcher" width="700"></p>

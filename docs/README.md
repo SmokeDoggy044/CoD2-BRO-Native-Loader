@@ -17,7 +17,7 @@
   lighting and sound-propagation features and the in-game menus, with how each was checked.
 - [Texture packs](developers/texture-packs.md): the pack format, the keys from the player's own textures and the
   launcher's install.
-- [Game files and disc images](developers/game-files.md): the edition check and the disc image import.
+- [Game files and disc dumps](developers/game-files.md): the edition check and the disc dump import.
 
 ## File formats and interfaces
 
