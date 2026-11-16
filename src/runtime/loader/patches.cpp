@@ -1696,6 +1696,7 @@ void tap_digital(uint16_t button) {
 }
 
 ScriptedPointerSource g_scripted_pointer = nullptr;
+bool g_pc_menu_notice = false;  // set_pc_menu_notice
 
 bool press_start_screen(uint32_t vtable) {
     const auto& v = g_menu_pointer.press_start_vtables;
@@ -1722,9 +1723,9 @@ void XB_CDECL menu_pointer(uint32_t manager) {
     input::set_menu_pointer();
     // Once a session, when the front end's menus first come up: where the PC menu is.
     static bool pc_menu_told = false;
-    if (!pc_menu_told && g_menu_pointer.front_end && manager == title<uint32_t>(g_menu_pointer.front_end)) {
+    if (!pc_menu_told && g_pc_menu_notice && g_menu_pointer.front_end && manager == title<uint32_t>(g_menu_pointer.front_end)) {
         pc_menu_told = true;
-        render::show_notice({"PC settings", "Press ` (the key below Esc) at any time: field of view and more."}, 6);
+        render::show_notice({"Developer settings", "Press ` (the key below Esc) at any time."}, 6);
     }
     input::PointerState pointer = input::take_pointer();
     // Record/replay: the pointer in the title's screen coordinates. Converting the window position depends on the
@@ -1879,6 +1880,7 @@ void install_menu_pointer() {
 }  // namespace
 
 void set_scripted_pointer(ScriptedPointerSource source) { g_scripted_pointer = source; }
+void set_pc_menu_notice(bool on) { g_pc_menu_notice = on; }
 
 int32_t active_screen(int manager) {
     const uint32_t m = manager_at(manager);

@@ -154,7 +154,8 @@ need untranslated features in magenta ([playtesting.md](playtesting.md)).
 
 ## Field of view and the PC menu
 
-The key below Escape (`` ` ``/`~`) opens the PC menu: Dear ImGui (render's own copy, Direct3D 9
+In developer mode (`--dev`; players use the game's own menus since phase 4.5: Options and the pause menu's
+Settings) the key below Escape (`` ` ``/`~`) opens the PC menu: Dear ImGui (render's own copy, Direct3D 9
 and SDL3 back ends) drawn over the presented frame while the title keeps running; the
 title's input is blocked meanwhile (`input::set_game_input_blocked`), and after it closes
 port 0 stays neutral until Escape/`` ` ``/Return/Space and the mouse buttons are let go.

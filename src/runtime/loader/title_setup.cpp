@@ -347,9 +347,14 @@ void configure_title_services(const Options& options, const fs::path& assets, co
         d3d_config.backend.pillarbox_flat_frames = true;  // the menus are 4:3 layouts
         d3d_config.backend.narrow_ui_draw = &loader::in_game_menu_draw;
     }
-    d3d_config.backend.pc_menu = &loader::pc_menu;
-    d3d_config.backend.pc_menu_shown = &loader::pc_menu_shown;
-    d3d_config.backend.pc_menu_event = &loader::pc_menu_event;
+    // The ` overlay (Dear ImGui) is a developer tool since phase 4.5: players set everything in the game's own
+    // menus (Options, the pause menu's Settings).
+    if (options.dev) {
+        d3d_config.backend.pc_menu = &loader::pc_menu;
+        d3d_config.backend.pc_menu_shown = &loader::pc_menu_shown;
+        d3d_config.backend.pc_menu_event = &loader::pc_menu_event;
+        loader::set_pc_menu_notice(true);
+    }
     // The front-end menus' PC rows (src/engine/client/fe_pc.h); --compare and --pc-patches off: the original menus.
     if (options.pc_patches.value_or(!options.compare)) {
         loader::install_menu_settings();

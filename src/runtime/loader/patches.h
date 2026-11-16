@@ -102,6 +102,9 @@ void set_kernel_links(const KernelLinks& links);
 // 16:9) are narrowed to their shape.
 render::UiNarrowing in_game_menu_draw();
 
+// Tell the player once (in the front end) where the ` overlay is (developer mode only).
+void set_pc_menu_notice(bool on);
+
 // The field of view (TitlePatchConfig::field_of_view), changed while playing (the PC
 // menu); applied at the title's next frame end. Any thread.
 void set_field_of_view(float degrees);
