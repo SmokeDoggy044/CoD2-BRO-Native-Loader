@@ -38,7 +38,7 @@ using vk::Image;
 struct PushConstants {
     float dst[4];  // clip space x0, y0, x1, y1
     float src[4];  // texture coordinates u0, v0, u1, v1
-    int32_t mode;  // blit.frag: 0 opaque, 1 gamma, 2 keeps alpha
+    int32_t mode;  // blit.frag: 0 opaque, 1 gamma, 2 keeps alpha, 3 / 4 blurred side fill (4 with gamma)
 };
 
 class VulkanBackend final : public Backend {
@@ -670,6 +670,14 @@ private:
         const double aspect = pillarboxed_ ? static_cast<double>(width_) / height_ : aspect_;
         const WindowRect area{0, 0, static_cast<int32_t>(extent_.width), static_cast<int32_t>(extent_.height)};
         const WindowRect dest = window_.place_picture(area, aspect);
+        if (pillarboxed_ && dest.width() < area.width()) {
+            // The sides: the same picture scaled to cover the width (its top and bottom cut, nothing stretched),
+            // blurred and dimmed.
+            const float cover_width = static_cast<float>(area.width());
+            const float cover_height = cover_width * static_cast<float>(height_) / static_cast<float>(width_);
+            draw_rect(*back, linear_, 0, (static_cast<float>(area.height()) - cover_height) / 2, cover_width,
+                      cover_height, 1.0f, 1.0f, gamma_identity_ ? 3 : 4);
+        }
         draw_rect(*back, linear_, static_cast<float>(dest.left), static_cast<float>(dest.top),
                   static_cast<float>(dest.width()), static_cast<float>(dest.height()), 1.0f, 1.0f,
                   gamma_identity_ ? 0 : 1);

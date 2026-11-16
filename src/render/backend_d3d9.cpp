@@ -73,6 +73,9 @@ public:
         release(gamma_state_);
         release(staging_);
         release(upload_);
+        release(fill_small_);
+        release(fill_tiny_);
+        release(fill_memory_);
         release(device_);
         release(d3d_);
     }
@@ -328,6 +331,7 @@ public:
             const RECT dest{placed.left, placed.top, placed.right, placed.bottom};
             if (placed.width() != area_width || placed.height() != area_height)
                 device_->ColorFill(swap_chain, &area, D3DCOLOR_XRGB(0, 0, 0));
+            if (pillarboxed_ && placed.width() < area_width) fill_sides(back_buffer, swap_chain, area);
             if (!draw_with_gamma(swap_chain, dest))
                 device_->StretchRect(back_buffer, nullptr, swap_chain, &dest, D3DTEXF_LINEAR);
             overlay_->draw(swap_chain, overlay, 4, 4);
@@ -339,6 +343,40 @@ public:
             swap_chain->Release();
         }
         device_->Present(&area, nullptr, nullptr, nullptr);
+    }
+
+    // The sides of a pillarboxed frame: the picture scaled to cover the width (top and bottom cut, nothing
+    // stretched), blurred (made 32x24 and scaled up) and dimmed, as the Vulkan back end's blit mode 3.
+    void fill_sides(IDirect3DSurface9* back_buffer, IDirect3DSurface9* swap_chain, const RECT& area) {
+        constexpr UINT kTinyWidth = 32, kTinyHeight = 24;
+        if (!fill_small_ && FAILED(device_->CreateRenderTarget(128, 96, D3DFMT_X8R8G8B8, D3DMULTISAMPLE_NONE, 0, FALSE,
+                                                               &fill_small_, nullptr)))
+            return;
+        if (!fill_tiny_ && FAILED(device_->CreateRenderTarget(kTinyWidth, kTinyHeight, D3DFMT_X8R8G8B8,
+                                                              D3DMULTISAMPLE_NONE, 0, FALSE, &fill_tiny_, nullptr)))
+            return;
+        if (!fill_memory_ && FAILED(device_->CreateOffscreenPlainSurface(kTinyWidth, kTinyHeight, D3DFMT_X8R8G8B8,
+                                                                         D3DPOOL_SYSTEMMEM, &fill_memory_, nullptr)))
+            return;
+        if (FAILED(device_->StretchRect(back_buffer, nullptr, fill_small_, nullptr, D3DTEXF_LINEAR)) ||
+            FAILED(device_->StretchRect(fill_small_, nullptr, fill_tiny_, nullptr, D3DTEXF_LINEAR)) ||
+            FAILED(device_->GetRenderTargetData(fill_tiny_, fill_memory_)))
+            return;
+        D3DLOCKED_RECT locked{};
+        if (FAILED(fill_memory_->LockRect(&locked, nullptr, 0))) return;
+        for (UINT y = 0; y < kTinyHeight; ++y) {
+            uint8_t* row = static_cast<uint8_t*>(locked.pBits) + y * locked.Pitch;
+            for (UINT x = 0; x < kTinyWidth * 4; ++x)
+                if ((x & 3) != 3) row[x] = static_cast<uint8_t>(row[x] * 2 / 5);  // 0.4
+        }
+        fill_memory_->UnlockRect();
+        if (FAILED(device_->UpdateSurface(fill_memory_, nullptr, fill_tiny_, nullptr))) return;
+        // Covering the width: the rows of the small picture that fall inside the window.
+        const double cover_height = static_cast<double>(area.right - area.left) * height_ / width_;
+        const double shown = std::min(1.0, (area.bottom - area.top) / cover_height);
+        const LONG cut = static_cast<LONG>(std::lround(kTinyHeight * (1.0 - shown) / 2));
+        const RECT source{0, cut, static_cast<LONG>(kTinyWidth), static_cast<LONG>(kTinyHeight) - cut};
+        device_->StretchRect(fill_tiny_, &source, swap_chain, &area, D3DTEXF_LINEAR);
     }
 
     void finish_picture() override {
@@ -504,6 +542,10 @@ private:
     IDirect3DDevice9* device_ = nullptr;
     IDirect3DSurface9* staging_ = nullptr;  // CPU-written back buffer upload
     IDirect3DSurface9* upload_ = nullptr;
+    // The widescreen front end's side fill (fill_sides): the picture made small (blur) and dimmed on the CPU.
+    IDirect3DSurface9* fill_small_ = nullptr;   // 128x96 render target
+    IDirect3DSurface9* fill_tiny_ = nullptr;    // 32x24 render target
+    IDirect3DSurface9* fill_memory_ = nullptr;  // 32x24 system memory copy
     std::unique_ptr<D3D9Draw> draw_;
     std::unique_ptr<D3D9GfxDevice> gfx_;  // on draw_'s targets
     std::unique_ptr<D3D9Post> post_;      // enhanced graphics' post passes

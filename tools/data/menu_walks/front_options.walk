@@ -16,8 +16,14 @@ b
 screen 3
 item 1
 a
+screen 6
+shot controls      # our Controls page (settings pages, 4.2)
+item 3
+a
 screen 5
-shot controller
+shot controller    # the game's Controller screen, back to our page
+b
+screen 6
 b
 screen 3
 item 2
@@ -28,7 +34,7 @@ b
 screen 3
 item 3
 a
-screen 7
+screen 6
 shot sound
 b
 screen 3
