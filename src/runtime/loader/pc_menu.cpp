@@ -32,6 +32,8 @@ constexpr int kGameFov = 70;  // cg_fov's default (cgame cvarTable)
 platform::Settings g_on_open;  // the live settings when the menu opened (what closing saves against)
 ui::KeyTable g_key_table;     // the Controls tab (events and drawing both on the presenting thread)
 
+}  // namespace
+
 // The settings the menu changes while playing (platform::kLive), as settings.ini text, from what runs now.
 platform::Settings live_values() {
     platform::Settings v;
@@ -47,9 +49,13 @@ platform::Settings live_values() {
     return v;
 }
 
+namespace {
+
 std::string combined(const platform::Settings& v, const char* name) {
     return platform::combined_setting(v, name).value_or("");
 }
+
+}  // namespace
 
 // Applies what differs between two live_values() forms.
 void apply_live(const platform::Settings& before, const platform::Settings& after) {
@@ -71,6 +77,8 @@ void apply_live(const platform::Settings& before, const platform::Settings& afte
     if (differs("mouse-sensitivity"))
         set_mouse_sensitivity(std::strtof(ui::setting_value(after, "mouse-sensitivity").c_str(), nullptr));
 }
+
+namespace {
 
 // The field of view: the game's own value until one is chosen, campaign only.
 bool fov_widget(const platform::SettingUi& ui, platform::Settings& values, bool& changed) {

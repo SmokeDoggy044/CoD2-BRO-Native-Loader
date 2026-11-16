@@ -80,6 +80,10 @@ std::atomic<bool> g_blocked{false};  // set_game_input_blocked
 // After the menu closes, port 0 stays neutral until the keys and buttons that closed it
 // are let go (Escape would pause the game, a click would fire).
 std::atomic<bool> g_wait_release{false};
+// Key capture (begin_key_capture): its state, the input taken, and whether the release wait covers every key.
+std::atomic<Capture> g_capture{Capture::None};
+std::atomic<uint16_t> g_capture_code{0};
+std::atomic<bool> g_wait_all_keys{false};
 constexpr int kStickDeadZone = 12000, kTriggerDeadZone = 8000;  // SDL axis units
 std::mutex g_tap_mutex;
 PadState g_tap;  // guarded by g_tap_mutex
@@ -115,7 +119,43 @@ void follow_menu_mode(SDL_Window* window) {
 }
 
 // Runs on the thread that pumps window events (the renderer's).
+// A key capture takes the event: true when it did.
+bool capture_event(const SDL_Event* event) {
+    if (g_capture.load() != Capture::Waiting) return false;
+    InputCode code = 0;
+    switch (event->type) {
+        case SDL_EVENT_KEY_DOWN:
+            if (event->key.repeat) return true;
+            if (event->key.scancode == SDL_SCANCODE_ESCAPE) {
+                g_wait_all_keys = true;
+                g_wait_release = true;
+                g_blocked = false;
+                g_capture = Capture::Cancelled;
+                return true;
+            }
+            code = static_cast<InputCode>(event->key.scancode);
+            break;
+        case SDL_EVENT_MOUSE_BUTTON_DOWN: code = static_cast<InputCode>(kMouseButton + event->button.button); break;
+        case SDL_EVENT_MOUSE_WHEEL:
+            if (event->wheel.y == 0.0f) return true;
+            code = event->wheel.y > 0.0f ? kWheelUp : kWheelDown;
+            break;
+        case SDL_EVENT_KEY_UP:
+        case SDL_EVENT_MOUSE_BUTTON_UP:
+        case SDL_EVENT_MOUSE_MOTION: return true;
+        default: return false;
+    }
+    if (!code || is_reserved(code)) return true;
+    g_capture_code = code;
+    g_wait_all_keys = true;
+    g_wait_release = true;
+    g_blocked = false;
+    g_capture = Capture::Done;
+    return true;
+}
+
 bool SDLCALL watch_event(void*, SDL_Event* event) {
+    if (capture_event(event)) return true;
     if (g_blocked.load()) return true;  // our menu has the mouse
     switch (event->type) {
         case SDL_EVENT_KEY_DOWN:
@@ -418,6 +458,35 @@ void take_mouse_motion(float& dx, float& dy) {
     dy = motion[1];
 }
 
+void begin_key_capture() {
+    g_capture_code = 0;
+    g_blocked = true;
+    g_capture = Capture::Waiting;
+}
+
+void cancel_key_capture() {
+    Capture waiting = Capture::Waiting;
+    if (g_capture.compare_exchange_strong(waiting, Capture::None)) {
+        g_blocked = false;
+        g_wait_release = true;
+    }
+}
+
+void finish_key_capture(uint16_t code) {
+    Capture waiting = Capture::Waiting;
+    g_capture_code = code;
+    if (g_capture.compare_exchange_strong(waiting, Capture::Done)) g_blocked = false;
+}
+
+Capture key_capture(uint16_t& code) {
+    const Capture state = g_capture.load();
+    if (state == Capture::Done || state == Capture::Cancelled) {
+        code = g_capture_code.load();
+        g_capture = Capture::None;
+    }
+    return state;
+}
+
 void set_game_input_blocked(bool blocked) {
     g_blocked = blocked;
     g_wait_release = !blocked;
@@ -449,6 +518,13 @@ bool read_port(uint32_t port, PadState& state) {
         if (keys[SDL_SCANCODE_ESCAPE] || keys[SDL_SCANCODE_GRAVE] || keys[SDL_SCANCODE_RETURN] ||
             keys[SDL_SCANCODE_SPACE] || SDL_GetMouseState(nullptr, nullptr))
             return true;
+        if (g_wait_all_keys.load()) {  // after a key capture: every key
+            int count = 0;
+            const bool* all = SDL_GetKeyboardState(&count);
+            for (int k = 0; k < count; ++k)
+                if (all[k]) return true;
+            g_wait_all_keys = false;
+        }
         g_wait_release = false;
     }
     if (g_ports[port]) read_gamepad(g_ports[port], state);

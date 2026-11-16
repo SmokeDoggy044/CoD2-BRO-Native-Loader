@@ -15,13 +15,70 @@
 
 namespace game {
 
+// Settings pages (phase 4.2, fe_pc_pages.cpp): the host keeps the pages (generated from the settings schema), what
+// each row shows and what input does; the game shows the current page in its own menus (the front end's Screen
+// menu, the in-game Options screen) and passes the player's input on.
+inline constexpr int32_t kPcPageMaxRows = 10;
+enum PcRowKind : uint8_t {
+    kPcRowValue,   // label left, value right between arrows (left / right change it)
+    kPcRowLink,    // a sub-page or another screen (accept opens it), centred
+    kPcRowAction,  // Reset to Defaults, Apply and Exit, Back (accept), centred
+};
+struct PcPageRow {
+    char label[44];
+    char value[36];
+    uint8_t kind;
+    uint8_t enabled;  // 0: dimmed, input ignored (its parent setting is off)
+};
+struct PcPageView {
+    char title[36];
+    int32_t rows;
+    PcPageRow row[kPcPageMaxRows];
+    int32_t selected;  // the row to select after a page change (-1: keep)
+};
+enum PcPageInput : int32_t { kPcInputLeft, kPcInputRight, kPcInputAccept, kPcInputBack };
+enum PcPageResult : int32_t {
+    kPcResultStay,        // same page (values may have changed)
+    kPcResultPage,        // another page: lay the rows out again
+    kPcResultClose,       // the session ended (saved or undone): back to the screen the pages came from
+    kPcResultController,  // open the game's own Controller screen (front end screen 5); the session stays
+};
+enum PcPageRoot : int32_t { kPcRootGraphics, kPcRootSound, kPcRootControls, kPcRootInGame };
+
 // The host's settings for the menus (set by the loader before the title runs; host code, called from title
 // threads: the loader's side restores its floating-point environment). All null: the original menus.
 struct PcSettingsHooks {
     bool (*graphics_enhanced)() = nullptr;           // Enhanced graphics is on
     void (*set_graphics_enhanced)(bool on) = nullptr;  // switch it now (the picture changes at once)
     void (*save_graphics)() = nullptr;               // store the current choice in settings.ini
+    // Pages: a session starts at a root page (live settings snapshot) and ends with Apply (saved) or Back on the
+    // root (live changes undone). page_view fills the current page; page_input handles `input` on `row`.
+    void (*page_begin)(int32_t root) = nullptr;
+    void (*page_view)(PcPageView* view) = nullptr;
+    int32_t (*page_input)(int32_t row, int32_t input) = nullptr;
+    bool (*page_active)() = nullptr;  // a session runs (the Controller screen returns to it)
 };
+// The pages are on (the page hooks are installed).
+bool pc_pages();
+
+// The page hosts: the front end's Screen menu (screen 6, the paper) and the in-game Options screen (in-game screen
+// 1). While a page is shown the host menu runs with our vtable, items and value texts (fe_pc_pages.cpp); its own
+// rows, labels and fields stay as they were and come back when the pages close.
+enum PcPageHost : int32_t { kPcHostFrontEnd, kPcHostInGame };
+// The root the host's next activation opens (OptionsMenu_Accept / PauseMenu_HandleSelect), taken by the host's
+// RestoreSelection: -1 none.
+void pc_pages_request(int32_t root);
+int32_t pc_pages_take_request();
+// Shows the pages on the host menu (a new session at `root`, or the running one when it comes back from the
+// Controller screen with root -1).
+void pc_pages_enter(uint8_t* menu, int32_t host, int32_t root);
+// The Controller screen's way back: screen 6 while a session runs, else `screen`.
+int32_t pc_page_return_screen(int32_t screen);
+// The game's own master volume (the Sound menu's, 0x008dce88: 0..50) set and applied as that menu does.
+void pc_set_game_volume(int32_t volume);
+// Texts of our Options / pause rows.
+inline constexpr char kPcTextControls[] = "CONTROLS";
+inline constexpr char kPcTextSettings[] = "Settings";
 PcSettingsHooks& pc_settings_hooks();
 // Whether the PC menus are on (the hooks are installed).
 bool pc_menus();

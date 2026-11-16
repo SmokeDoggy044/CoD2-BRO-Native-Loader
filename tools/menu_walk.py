@@ -26,6 +26,7 @@ def main():
     p.add_argument("--level", type=int)
     p.add_argument("--loader", default=str(ROOT / "build" / "linux-loader-release" / "bin" / "cod_bro_loader"))
     p.add_argument("--seconds", type=int, default=240)
+    p.add_argument("--keep-data", action="store_true", help="keep OUT/data/cod_bro (the user data copy: settings.ini, log.txt)")
     p.add_argument("extra", nargs="*")
     a = p.parse_args()
     out = Path(a.out).resolve()
@@ -38,8 +39,10 @@ def main():
     else:
         script = a.walk
     saves = Path(os.environ.get("XDG_DATA_HOME", Path.home() / ".local" / "share")) / "cod_bro"
-    data = out / "data"
-    data.mkdir()
+    # The copy is the whole user data folder of the run (XDG_DATA_HOME): settings.ini written by the menus and
+    # log.txt stay in OUT, the real folder is only read.
+    data = out / "data" / "cod_bro"
+    data.mkdir(parents=True)
     for name in ("E", "Z", "settings.ini", "cache"):  # not mods/ (large; walks run without packs)
         src = saves / name
         if src.is_dir():
@@ -51,11 +54,13 @@ def main():
         cmd += ["--level", str(a.level)]
     cmd += a.extra
     with open(out / "stdout.txt", "w") as log:
+        env = dict(os.environ, XDG_DATA_HOME=str(out / "data"))
         try:
-            code = subprocess.run(cmd, stdout=log, stderr=subprocess.STDOUT, timeout=a.seconds).returncode
+            code = subprocess.run(cmd, stdout=log, stderr=subprocess.STDOUT, timeout=a.seconds, env=env).returncode
         except subprocess.TimeoutExpired:
             code = 124
-    shutil.rmtree(data, ignore_errors=True)
+    if not a.keep_data:
+        shutil.rmtree(out / "data", ignore_errors=True)
     shots = sorted(out.glob("*.bmp"), key=lambda f: f.stat().st_mtime)
     if shots:
         subprocess.run(["magick", "montage", *map(str, shots), "-tile", "3x", "-geometry", "640x480+2+2",

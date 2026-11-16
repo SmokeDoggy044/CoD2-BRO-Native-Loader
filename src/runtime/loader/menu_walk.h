@@ -14,6 +14,7 @@
 //   a b x y black white lt rt start back up down left right ls rs   tap that pad button (then 12 frames)
 //   hold BUTTON S       hold it S seconds
 //   item N              the pointer onto item N of the topmost screen (hover selects it; waits until shown)
+//   capture CODE        a waiting key capture (rebinding) gets input CODE (SDL scancode; bindings.h codes)
 //   window X Y          the pointer to window pixel (X, Y), converted as the real mouse is
 //   mouse X Y           the pointer to (X, Y) in the 640x480 menu screen
 //   click [X Y]         left click (at X Y: moves there first);  rclick: right click

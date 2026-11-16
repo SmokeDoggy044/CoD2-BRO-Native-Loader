@@ -1575,6 +1575,13 @@ void XB_CDECL text_drawn(uint32_t widget) {
     g_text_drawn[widget] = frame;
 }
 
+// A UI text (the base class, or the multi-line UIText our settings pages copy: campaign 0x0082a450).
+bool is_text_widget(uint32_t widget) {
+    const uint32_t vtable = title<uint32_t>(widget);
+    return vtable == g_menu_pointer.text_widget_vtable ||
+           (g_menu_pointer.text_widget_vtable == kCampaignMenuPointer.text_widget_vtable && vtable == 0x0082a450);
+}
+
 bool drawn_lately(uint32_t widget, uint32_t frame) {
     std::lock_guard lock(g_drawn_mutex);
     const auto it = g_text_drawn.find(widget);
@@ -1591,8 +1598,9 @@ struct ItemBox {
 // no text.
 bool widget_box(uint32_t widget, ItemBox& box) {
     using FloatMethod = float(XB_FASTCALL*)(uint32_t);
-    const float width = reinterpret_cast<FloatMethod>(uintptr_t{title<uint32_t>(g_menu_pointer.text_widget_vtable + 0xd0)})(widget);
-    const float height = reinterpret_cast<FloatMethod>(uintptr_t{title<uint32_t>(g_menu_pointer.text_widget_vtable + 0xd4)})(widget);
+    const uint32_t vtable = title<uint32_t>(widget);  // the base's or the multi-line text's own size slots
+    const float width = reinterpret_cast<FloatMethod>(uintptr_t{title<uint32_t>(vtable + 0xd0)})(widget);
+    const float height = reinterpret_cast<FloatMethod>(uintptr_t{title<uint32_t>(vtable + 0xd4)})(widget);
     if (!(width > 0.0f && height > 0.0f)) return false;
     const uint8_t align = title<uint8_t>(widget + 0x5c);
     float left = title<float>(widget + 0x2c), top = title<float>(widget + 0x30);
@@ -1614,7 +1622,7 @@ std::vector<ItemBox> shown_items(uint32_t menu) {
         const uint32_t item = title<uint32_t>(items + i * 4u);
         if (!item || title<uint8_t>(item + 0x16)) continue;
         const uint32_t widget = title<uint32_t>(item + 0x10);
-        if (!widget || title<uint32_t>(widget) != g_menu_pointer.text_widget_vtable || !drawn_lately(widget, frame)) continue;
+        if (!widget || !is_text_widget(widget) || !drawn_lately(widget, frame)) continue;
         ItemBox box{i, 0, 0, 0, 0};
         if (widget_box(widget, box)) boxes.push_back(box);
     }
@@ -1643,7 +1651,7 @@ float value_middle(const std::vector<ItemBox>& items, const ItemBox& row) {
         float left = 1e9f, right = -1e9f;
         for (uint32_t widget : drawn) {
             ItemBox text{};
-            if (title<uint32_t>(widget) != g_menu_pointer.text_widget_vtable || !widget_box(widget, text)) continue;
+            if (!is_text_widget(widget) || !widget_box(widget, text)) continue;
             const float text_middle = (text.top + text.bottom) / 2;
             if (std::abs(text_middle - middle) > (item.bottom - item.top) / 2 || text.left < item.right) continue;
             left = std::min(left, text.left);
@@ -1920,7 +1928,7 @@ std::string menu_state() {
             if (!item) continue;
             const uint32_t widget = title<uint32_t>(item + 0x10);
             ItemBox box{i, 0, 0, 0, 0};
-            const bool drawn = widget && title<uint32_t>(widget) == g_menu_pointer.text_widget_vtable &&
+            const bool drawn = widget && is_text_widget(widget) &&
                                drawn_lately(widget, frame) && widget_box(widget, box);
             std::snprintf(line, sizeof line, "  %c%2d %-6s \"%s\"", i == title<int16_t>(menu + 0x22) ? '>' : ' ', i,
                           title<uint8_t>(item + 0x16) ? "off" : drawn ? "shown" : "hidden", widget_text(widget).c_str());
@@ -1929,7 +1937,43 @@ std::string menu_state() {
                 std::snprintf(line, sizeof line, " box %.0f,%.0f-%.0f,%.0f", box.left, box.top, box.right, box.bottom);
                 out += line;
             }
+            static const bool details = std::getenv("COD_BRO_MENU_PANELS") != nullptr;
+            if (details && widget) {
+                std::snprintf(line, sizeof line, " [text %08x vt %08x flags %08x align %02x at %.0f,%.0f scale %.2f colour %08x depth %08x]",
+                              widget, title<uint32_t>(widget), title<uint32_t>(widget + 0x10), title<uint8_t>(widget + 0x5c),
+                              title<float>(widget + 0x2c), title<float>(widget + 0x30), title<float>(widget + 0x38),
+                              title<uint32_t>(widget + 0x50), title<uint32_t>(widget + 0x08));
+                out += line;
+            }
             out += '\n';
+        }
+    }
+    // With COD_BRO_MENU_PANELS=1: the front-end / in-game screens' panels (+0x34): texts (name, string, shown) and
+    // pictures (name, centre).
+    static const bool panels = std::getenv("COD_BRO_MENU_PANELS") != nullptr;
+    for (int m = 0; panels && m < 2; ++m) {
+        const uint32_t menu = active_menu(manager_at(m));
+        const uint32_t panel = menu ? title<uint32_t>(menu + 0x34) : 0;
+        if (!panel || panel < 0x10000) continue;
+        const auto name_of = [](uint32_t rep) {
+            return rep ? std::string(reinterpret_cast<const char*>(uintptr_t{rep + 6})) : std::string();
+        };
+        std::snprintf(line, sizeof line, "%s panel %08x:\n", kNames[m], panel);
+        out += line;
+        for (uint32_t i = 0; i < title<uint32_t>(panel + 0x14); ++i) {
+            const uint32_t text = title<uint32_t>(title<uint32_t>(panel + 0xc) + i * 4);
+            std::snprintf(line, sizeof line, "  text %08x %-24s \"%s\" %s at %.0f,%.0f\n", text,
+                          name_of(title<uint32_t>(text + 0x54)).c_str(), widget_text(text).c_str(),
+                          title<uint8_t>(text + 0x10) & 4 ? "shown" : "hidden", title<float>(text + 0x2c),
+                          title<float>(text + 0x30));
+            out += line;
+        }
+        for (uint32_t i = 0; i < title<uint32_t>(panel + 8); ++i) {
+            const uint32_t picture = title<uint32_t>(title<uint32_t>(panel) + i * 4);
+            std::snprintf(line, sizeof line, "  picture %08x %-24s at %.0f,%.0f flags %08x\n", picture,
+                          name_of(title<uint32_t>(picture + 0x3c)).c_str(), title<float>(picture + 0x14),
+                          title<float>(picture + 0x18), title<uint32_t>(picture + 0x10));
+            out += line;
         }
     }
     // The other texts drawn now (values, titles, prompts), top to bottom.
@@ -1939,7 +1983,7 @@ std::string menu_state() {
         for (const auto& [widget, at] : g_text_drawn) {
             if (frame - at > 2) continue;
             ItemBox box{-1, 0, 0, 0, 0};
-            if (title<uint32_t>(widget) == g_menu_pointer.text_widget_vtable && widget_box(widget, box))
+            if (is_text_widget(widget) && widget_box(widget, box))
                 texts.emplace_back(box, widget_text(widget));
         }
     }

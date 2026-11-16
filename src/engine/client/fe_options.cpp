@@ -657,6 +657,7 @@ void XB_THISCALL AdvancedOptionsMenu_RestoreSelection(uint8_t* menu) {
     IN_PadConsumePressed(pad, 0xe);
     AdvancedOptionsMenu_LoadSettings(menu);
     advanced_label_colors(menu);
+    if (pc_pages() && pc_pages_take_request() == kPcRootInGame) pc_pages_enter(menu, kPcHostInGame, kPcRootInGame);
 }
 
 void XB_THISCALL AdvancedOptionsMenu_ResumeGame(uint8_t* menu, uint32_t) {
@@ -864,12 +865,23 @@ void XB_THISCALL OptionsMenu_Accept(uint8_t* menu, uint32_t index) {
     static constexpr uint32_t kPcScreens[4] = {4, 5, 6, 7};   // Gameplay, Controller, Graphics, Sound
     const bool pc = pc_menus();
     if (index >= (pc ? 4u : 3u)) return;
+    if (pc_pages() && index != 0) {  // Controls, Graphics, Sound: our pages on the Screen menu
+        static constexpr int32_t kRoots[4] = {-1, kPcRootControls, kPcRootGraphics, kPcRootSound};
+        pc_pages_request(kRoots[index]);
+        call(field<uint8_t*>(menu, 8), 0xc, 6);
+        return;
+    }
     call(field<uint8_t*>(menu, 8), 0xc, pc ? kPcScreens[index] : kScreens[index]);  // the owner's active screen
 }
 
 void XB_THISCALL ScreenMenu_RestoreSelection(uint8_t* menu) {
     UIMenu_RestoreSelection(menu);
     open_background_movie();
+    if (pc_pages()) {
+        const int32_t root = pc_pages_take_request();
+        pc_pages_enter(menu, kPcHostFrontEnd, root >= 0 ? root : kPcRootGraphics);
+        return;
+    }
     uint8_t* const value = field<uint8_t*>(menu, 0x3c);
     if (pc_menus()) {
         menu[0x50] = pc_settings_hooks().graphics_enhanced() ? 1 : 0;
@@ -1008,7 +1020,7 @@ UI_GLOBAL_TAIL_DECIDE_ARG(ControllerConfigMenu_OnBack_entry, ControllerConfigMen
 
 int32_t XB_CDECL ControllerConfigMenu_OnBack(uint8_t* menu, uint32_t) {
     CL_ExecControllerConfig(field<int32_t>(menu, 0xd4));
-    return 3;
+    return pc_page_return_screen(3);  // our Controls page when it opened this screen
 }
 
 // 0x003361c0 (+0x38): item 6 stores the settings (invert +0xcc, vibration +0xcd, sliders +0xb8 / +0xbc, preset
@@ -1035,7 +1047,7 @@ int32_t XB_CDECL ControllerConfigMenu_HandleSelect(uint8_t* menu, uint32_t index
         Cvar_SetValue(reinterpret_cast<const char*>(uintptr_t{0x0082e05c}),
                       static_cast<float>(field<int32_t>(menu, 0xbc)) * scale);  // cl_sensitivityY
         CL_ExecControllerConfig(field<int32_t>(menu, 0xc0));
-        return 3;
+        return pc_page_return_screen(3);
     }
     if (index != 5) return -1;
     uint8_t* const invert = field<uint8_t*>(menu, 0x3c);

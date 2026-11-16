@@ -1,0 +1,46 @@
+# In-game settings pages (4.2, run with --level 4): Settings in the pause menu, a live change, a key capture, Escape applies and resumes.
+screen game:3
+wait 25
+a
+wait 4
+a
+wait 4
+start
+screen game:0
+shot pause
+item 2
+click              # Settings
+wait 1
+shot settings
+item 0
+click              # Graphics
+wait 0.5
+shot ig_graphics
+item 3
+click              # Image Quality
+wait 0.5
+item 0
+right              # FXAA off, live
+state fxaa_off
+rclick
+wait 0.5
+rclick             # back to the in-game root
+wait 0.5
+item 2
+click              # Controls
+wait 0.5
+shot ig_controls
+item 3
+click              # Keyboard
+wait 0.5
+item 0
+a                  # capture Move forward
+wait 0.5
+state capturing
+rclick             # back while capturing: ignored
+capture 12         # I
+state captured
+start              # Escape = apply and resume
+wait 2
+state resumed
+quit

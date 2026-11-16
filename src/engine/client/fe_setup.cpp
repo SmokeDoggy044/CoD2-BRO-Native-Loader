@@ -407,6 +407,7 @@ void XB_CDECL FE_SetupOptionsMenu(uint8_t* menu, uint8_t* panel, uint32_t entry_
     add_items(top, regs, menu, 0x34, names, count);
     regs.ebx = names[count - 1];
     regs.edi = field<uint32_t>(menu, 0);
+    if (pc_pages()) item_texts[1] = address_of(kPcTextControls);  // our Controls page (the Controller screen inside)
     for (uint32_t i = 0; i < count; ++i) {
         const uint32_t args[1] = {item_texts[i]};
         method_at(top, regs, item(menu, i), 0x30, 1, args);
@@ -452,7 +453,7 @@ void XB_CDECL FE_SetupPauseMenu(uint8_t* menu, uint8_t* panel, uint32_t entry_es
         uint32_t index, text;
     } kItemTexts[5] = {{1, 0x0082c96c}, {2, 0x0082c954}, {0, 0x0082c940}, {3, 0x0082c92c}, {4, 0x0082c91c}};
     for (const auto& entry : kItemTexts) {
-        const uint32_t args[1] = {entry.text};
+        const uint32_t args[1] = {entry.index == 2 && pc_pages() ? address_of(kPcTextSettings) : entry.text};
         method_at(top, regs, item(menu, entry.index), 0x30, 1, args);
     }
     for (uint32_t i = 0; i < 5; ++i) call(item(menu, i), 0x5c, 0x3f333333);  // 0.7

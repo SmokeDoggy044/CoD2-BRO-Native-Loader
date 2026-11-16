@@ -83,6 +83,7 @@ set(game_code_sources
     client/fe_bonus.cpp
     client/fe_menus.cpp
     client/fe_options.cpp
+    client/fe_pc_pages.cpp
     client/fe_profile.cpp
     client/fe_setup.cpp
     client/fe_setup_bonus.cpp

@@ -1,0 +1,53 @@
+# Front-end settings pages (4.2): changes by mouse and pad, Apply saves (check OUT/data with --keep-data), the Controller round trip, Keyboard.
+screen 15 a
+a
+screen 1 a
+item 2
+click
+screen 3
+item 2
+click
+screen 6
+item 0
+click 488 152        # Enhanced Graphics' right arrow: off
+state enhanced_off
+click 488 152        # and on again
+state enhanced_on
+item 3
+click                # Image Quality
+wait 0.5
+state image
+item 0
+right                # FXAA off (dimmed while Enhanced is off? then nothing)
+state fxaa
+rclick               # back to Graphics
+wait 0.5
+item 1
+click                # Display
+wait 0.5
+item 2
+right                # aspect 16:9 -> 16:10 (after restart)
+state aspect
+b
+wait 0.5
+state graphics_back
+item 7
+click                # Apply and Exit
+screen 3
+state saved
+item 1
+click                # Controls
+screen 6
+shot controls
+item 3
+click                # Controller (the game's screen 5)
+screen 5
+shot controller
+b
+screen 6
+state back_from_controller
+item 4
+click                # Keyboard
+wait 0.5
+shot keyboard
+quit

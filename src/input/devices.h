@@ -111,6 +111,17 @@ bool in_menu();
 // The title keeps running.
 void set_game_input_blocked(bool blocked);
 
+// Key capture for rebinding in the game's own menus (own engine phase 4): the next key, mouse button or wheel step
+// is taken (it gives no pad buttons) and reported once by key_capture; Escape cancels. Reserved keys (bindings.h
+// is_reserved) are ignored meanwhile. While waiting every port reads as nothing pressed; afterwards port 0 stays
+// neutral until all keys and buttons are let go.
+enum class Capture : uint8_t { None, Waiting, Done, Cancelled };
+void begin_key_capture();
+void cancel_key_capture();
+// The state; Done (code = the input) and Cancelled are reported once, then None.
+Capture key_capture(uint16_t& code);
+// Ends a waiting capture with `code` as if it had been pressed (scripted menu walks).
+void finish_key_capture(uint16_t code);
 // Sets a port's rumble motors (0-65535; left is the low-frequency one).
 void set_rumble(uint32_t port, uint16_t left, uint16_t right);
 

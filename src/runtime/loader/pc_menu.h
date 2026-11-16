@@ -4,7 +4,18 @@
 // while playing. Opened and closed with the key below Escape (` ~); the title keeps
 // running, without the player's input, meanwhile.
 
+#include <filesystem>
+
+#include "settings.h"
+
 namespace loader {
+
+// The live settings (platform::kLive) as settings.ini text, from what runs now; and applying what differs between
+// two such forms (the game's thread or the presenting one).
+platform::Settings live_values();
+void apply_live(const platform::Settings& before, const platform::Settings& after);
+// The settings pages of the game's own menus (menu_pages.cpp): installs the page hooks (fe_pc.h).
+void install_menu_pages(const std::filesystem::path& mods_dir);
 
 // Makes the menu's widgets (Dear ImGui) for this frame; false closes it.
 bool pc_menu();

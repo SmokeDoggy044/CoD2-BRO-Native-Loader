@@ -1,4 +1,5 @@
 #include "fe_menus.h"
+#include "fe_pc.h"
 
 #include <cstring>
 
@@ -1046,7 +1047,12 @@ int32_t XB_CDECL PauseMenu_HandleSelect(uint8_t* menu, uint32_t index) {
         Cvar_Set2(text_at(0x0082ca00), mutable_text_at(kZero), 1);  // cl_paused
         return -1;
     case 1: return 1;
-    case 2: return 8;
+    case 2:
+        if (pc_pages()) {  // "Settings" instead of Xbox Live Options: our pages on the Options screen
+            pc_pages_request(kPcRootInGame);
+            return 1;
+        }
+        return 8;
     case 3:
         title_call(own_address(&PauseMenu_ShowRestartDialog_entry), regs);
         return -1;
