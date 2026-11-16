@@ -231,6 +231,15 @@ the original before it replaces it. The maintainer directs the work, decides wha
 built, playtests the builds, and reviews and publishes the results. Mistakes are the
 project's own: please report them as issues.
 
+## History
+
+Up to version 0.2.2 this repository held the native loader: the original game code ran
+on the PC with our replacements for the Xbox around it, while the engine was rewritten in
+[CoD2-BRO-Decomp](https://github.com/SmokeDoggy044/CoD2-BRO-Decomp). Version 1.0.0
+replaces it with the custom engine, and this repository's history with the engine's.
+Forks made before keep the loader's history; its releases stay on the
+[releases page](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader/releases).
+
 ## License
 
 Our code is licensed under the [GNU General Public License, version 2 or later](LICENSE).
