@@ -253,4 +253,20 @@ uint8_t XB_THISCALL AutosaveMenu_SaveWarningRetry(uint8_t* dialog);        // 0x
 uint8_t XB_THISCALL ProfileMenu_DeleteYes(uint8_t* dialog);                // 0x00334960: MEM_XBOX_DELETE_WARNING
 uint8_t XB_THISCALL ProfileMenu_LoadConfirmNo(uint8_t* dialog);            // 0x00338520: MEM_CANCEL_LOAD YES/NO
 
+
+uint8_t XB_THISCALL MemDlg_ReturnTrue(uint8_t* dialog);                    // 0x0030d040: 1
+uint8_t XB_THISCALL ProfileMenu_SaveSuccessOk(uint8_t* dialog);            // 0x0030d240
+uint8_t XB_THISCALL AutosaveMenu_SaveSuccessOk(uint8_t* dialog);           // 0x00312580: "reboot"
+uint8_t XB_THISCALL ProfileMenu_LoadRetry(uint8_t* dialog);                // 0x00312800
+uint8_t XB_THISCALL MemDlg_ContinueWithoutSavingYes(uint8_t* dialog);      // 0x0032d630
+uint8_t XB_THISCALL MemDlg_ConfirmContinueWithoutSaving(uint8_t* dialog);  // 0x00334410
+uint8_t XB_THISCALL ProfileMenu_SaveWarningYes(uint8_t* dialog);           // 0x00334c70
+uint8_t XB_THISCALL AutosaveMenu_DeleteSuccessOk(uint8_t* dialog);         // 0x00338300
+uint8_t XB_THISCALL MemDlg_ShowNotEnoughBlocks(uint8_t* dialog);           // 0x00338330
+uint8_t XB_THISCALL MemDlg_Retry(uint8_t* dialog);                         // 0x00338470
+uint8_t XB_THISCALL AutosaveMenu_FormatSuccessOk(uint8_t* dialog);         // 0x003380d0
+uint32_t XB_CDECL ProfileMenu_FormatSuccessTimer();                        // 0x003388c0: the dialog's close timer (+0x48)
+uint8_t XB_THISCALL ProfileMenu_DeleteSuccessOk(uint8_t* dialog);          // 0x00339f20
+uint8_t XB_THISCALL ProfileMenu_DeleteFailedOk(uint8_t* dialog);           // 0x0033a090
+
 }  // namespace game

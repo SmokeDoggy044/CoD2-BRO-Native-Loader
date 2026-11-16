@@ -2,6 +2,8 @@
 
 #include "cl.h"
 #include "fe.h"
+#include "fe_pc.h"
+#include "title_host.h"
 #include "ngl.h"
 #include "qcommon.h"
 #include "title_data.h"
@@ -1559,6 +1561,40 @@ void XB_THISCALL CreateProfileMenu_Update(uint8_t* menu, float dt) {
     UIMenu_Update(menu, dt);
     SCR_LoadingPump();
     title_call(own_address(&CreateProfileMenu_UpdateHighlight_entry), esi_regs(menu));
+    // PC: the name typed on the keyboard, one input per frame through the keys' own handler (HandleSelect: its sound
+    // and checks). Recorded ('T') so that a recording replays the same name.
+    const PcSettingsHooks& pc = pc_settings_hooks();
+    if (!pc.text_entry || !pc.take_typed) return;
+    pc.text_entry();
+    uint32_t code = 0;
+    pc.take_typed(&code);
+    if (title_host().replay_value) code = title_host().replay_value('T', code);
+    if (!code) return;
+    const int32_t length = field<int32_t>(menu, 0x1ac);
+    int32_t key = -1;
+    uint8_t capitals = menu[0x1a8];
+    if (code == 8) {
+        if (length > 0) key = 36;  // backspace
+    } else if (code == 13) {
+        if (length > 0) key = 39;  // done
+    } else if (code == ' ') {
+        if (length > 0) key = 38;
+    } else if (code >= '0' && code <= '9') {
+        key = static_cast<int32_t>(code - '0');
+    } else if ((code >= 'a' && code <= 'z') || (code >= 'A' && code <= 'Z')) {
+        const bool upper = code <= 'Z';
+        key = 10 + static_cast<int32_t>(code - (upper ? 'A' : 'a'));
+        capitals = upper ? 1 : 0;
+    }
+    if (key < 0) return;
+    // The letter's case for this one key, then the keyboard's own state back (its labels follow +0x1a8).
+    const uint8_t shown = menu[0x1a8];
+    menu[0x1a8] = capitals;
+    TitleRegs regs{};
+    regs.ecx = address_of(menu);
+    const uint32_t args[1] = {static_cast<uint32_t>(key)};
+    title_call(0x00338c40, regs, 1, args);  // CreateProfileMenu_HandleSelect (thiscall)
+    menu[0x1a8] = shown;
 }
 
 // 0x00337fd0 (+0x38): with no dialog up: +0x37 = 1, page 2, the slot (+0x4c), AutosaveMenu_SelectSlot (EAX = slot,
@@ -1809,6 +1845,147 @@ uint8_t XB_THISCALL ProfileMenu_LoadConfirmNo(uint8_t*) {
     add_button_inline(0x0082c8a8, 0x00013300);        // MEM_DIALOG_NO: ProfileMenu_LoadConfirmYes
     select_no();
     layout_buttons();
+    return 0;
+}
+
+
+// --- More dialog button handlers: saving, the save warning, loading retries, deleting, formatting, a full memory
+// unit (the dialog close timer +0x48 for the format success). ---
+
+namespace {
+uint8_t* profile_screen() { return front_end_screen(0x3c); }
+uint8_t* autosave_screen() { return in_game_screen(0x1c); }
+// FE_ProfileSelect (0x00338710; the screen on the stack, its +0x50 in EAX).
+uint32_t profile_select() {
+    uint8_t* const screen = profile_screen();
+    const uint32_t args[1] = {address_of(screen)};
+    return title_call(0x00338710, eax_regs(field<uint32_t>(screen, 0x50)), 1, args);
+}
+// Dialog_LayoutButtons and the dialog with two buttons (labels and handlers) after UI_ShowDialog(name).
+void two_button_dialog(uint32_t name, uint32_t label1, uint32_t handler1, uint32_t label2, uint32_t handler2) {
+    show_dialog(name);
+    add_button_inline(label1, handler1);
+    add_button_inline(label2, handler2);
+    layout_buttons();
+}
+// The storage-checking menu: the front end's screen +0x40, or the in-game autosave screen.
+uint8_t* storage_menu() {
+    return title_global<uint8_t*>(0x0095f8f8) ? front_end_screen(0x40) : autosave_screen();
+}
+}  // namespace
+
+uint8_t XB_THISCALL MemDlg_ReturnTrue(uint8_t*) { return 1; }
+
+uint8_t XB_THISCALL ProfileMenu_SaveSuccessOk(uint8_t*) {
+    const int32_t mode = field<int32_t>(profile_screen(), 0x4c);
+    title_global<uint8_t>(0x0095f91a) = 0;
+    if (mode == 3) front_end_switch(1);
+    else front_end_switch(field<int32_t>(profile_screen(), 0x5c) != 0 ? 1 : 2);
+    return 1;
+}
+
+uint8_t XB_THISCALL AutosaveMenu_SaveSuccessOk(uint8_t*) {
+    title_global<uint8_t>(0x0095ee08) = field<int32_t>(autosave_screen(), 0x48) == 4;
+    Cmd_ExecuteRegisteredCommand(title_text(0x0082c894));  // "reboot"
+    return 1;
+}
+
+uint8_t XB_THISCALL ProfileMenu_LoadRetry(uint8_t*) {
+    title_call(own_address(&FE_SaveSlotsUpdateText_entry), esi_regs(profile_screen()));
+    field<int32_t>(profile_screen(), 0x48) = 0;
+    call(profile_screen(), 0x40);
+    return 0;
+}
+
+uint8_t XB_THISCALL MemDlg_ContinueWithoutSavingYes(uint8_t*) {
+    title_global<uint8_t*>(0x0095f480)[0x11e4] = 1;
+    DialogMgr_CloseDialog(dialog_mgr());
+    front_end_switch(0);
+    return 1;
+}
+
+uint8_t XB_THISCALL MemDlg_ConfirmContinueWithoutSaving(uint8_t*) {
+    two_button_dialog(0x0082ad5c, 0x0082b0f4, 0x0032d630, 0x0082ad48, 0x00338330);
+    return 1;
+}
+
+uint8_t XB_THISCALL ProfileMenu_SaveWarningYes(uint8_t*) {
+    profile_screen()[0x54] = 0;
+    title_call(0x00334b70, esi_regs(profile_screen()));  // ProfileMenu_ShowSaveWarning (ESI)
+    return 0;
+}
+
+uint8_t XB_THISCALL AutosaveMenu_DeleteSuccessOk(uint8_t*) {
+    field<int32_t>(autosave_screen(), 0x44) = 0;
+    title_call(0x00333ee0, esi_regs(autosave_screen()));  // AutosaveMenu_CheckStorage (ESI)
+    return 0;
+}
+
+// Not enough free blocks: the blocks a save needs (the clusters of 0x400 bytes plus the directory entries) into
+// the storage menu's +0x38, MemDlg_FormatNotEnoughBlocks' text, CONTINUE WITHOUT SAVING / the other choice.
+uint8_t XB_THISCALL MemDlg_ShowNotEnoughBlocks(uint8_t*) {
+    const uint32_t clusters = title_function<uint32_t XB_CDECL(uint32_t)>(0x000d1e10)(0x400);  // Save_ClustersForSize
+    uint32_t bytes = clusters << 2;
+    bytes += title_function<uint32_t XB_CDECL()>(0x000d1ec0)() * 2;  // Save_GetClusterSize
+    const uint32_t cluster = title_function<uint32_t XB_CDECL()>(0x000d1ec0)();
+    bytes += cluster * 4 + cluster;
+    const int32_t value = static_cast<int32_t>(bytes);
+    const uint32_t blocks = title_function<uint32_t XB_CDECL(uint32_t, uint32_t)>(0x000d1610)(
+        bytes, value < 0 ? 0xffffffffu : 0);  // BytesToBlocks (cdq)
+    field<uint32_t>(storage_menu(), 0x38) = blocks;
+    char text[0x200];
+    title_function<void XB_STDCALL(uint32_t, char*)>(0x0032d130)(title_global<uint32_t>(0x0095f480), text);  // MemDlg_FormatNotEnoughBlocks
+    const uint32_t args[5] = {address_of(dialog_mgr()), 0, 0, kEmptyString, 1};
+    title_call(own_address(&UI_ShowDialog_entry), eax_regs(address_of(reinterpret_cast<uint8_t*>(text))), 5, args);
+    add_button_inline(0x0082b0f4, 0x00334410);  // MEM_CONTINUE_WO_SAVING
+    add_button_inline(0x0082b0d8, 0x0030d040);
+    layout_buttons();
+    return 1;
+}
+
+uint8_t XB_THISCALL MemDlg_Retry(uint8_t*) {
+    storage_menu()[0x41] = 0;
+    show_dialog(0x0082ad30);
+    layout_buttons();
+    const uint32_t args[1] = {address_of(storage_menu())};
+    title_call(0x003346e0, TitleRegs{}, 1, args);  // FE_CheckStartupStorage
+    storage_menu()[0x3c] = 0;
+    return 0;
+}
+
+uint8_t XB_THISCALL AutosaveMenu_FormatSuccessOk(uint8_t*) {
+    field<int32_t>(autosave_screen(), 0x48) = 0;
+    TitleRegs regs{};
+    regs.eax = field<uint32_t>(autosave_screen(), 0x4c);
+    regs.ecx = address_of(autosave_screen());
+    title_call(0x00337f00, regs);  // AutosaveMenu_SelectSlot (EAX slot, ECX menu)
+    return 0;
+}
+
+uint32_t XB_CDECL ProfileMenu_FormatSuccessTimer() {
+    field<int32_t>(profile_screen(), 0x4c) = 0;
+    return profile_select();
+}
+
+uint8_t XB_THISCALL ProfileMenu_DeleteSuccessOk(uint8_t*) {
+    uint8_t* const screen = profile_screen();
+    const int32_t mode = field<int32_t>(screen, 0x4c);
+    if (!screen[0x34] && (mode == 0 || mode == 3)) {
+        field<int32_t>(screen, 0x4c) = 0;
+        profile_select();
+        return 0;
+    }
+    DialogMgr_CloseDialog(dialog_mgr());
+    title_call(own_address(&FE_SaveSlotsUpdateText_entry), esi_regs(profile_screen()));
+    field<int32_t>(profile_screen(), 0x48) = 0;
+    call(profile_screen(), 0x40);
+    return 0;
+}
+
+uint8_t XB_THISCALL ProfileMenu_DeleteFailedOk(uint8_t*) {
+    DialogMgr_CloseDialog(dialog_mgr());
+    field<int32_t>(profile_screen(), 0x48) = 0;
+    title_call(own_address(&ProfileMenu_CheckStorage_entry), esi_regs(profile_screen()));
     return 0;
 }
 

@@ -122,6 +122,16 @@ void cancel_key_capture();
 Capture key_capture(uint16_t& code);
 // Ends a waiting capture with `code` as if it had been pressed (scripted menu walks).
 void finish_key_capture(uint16_t code);
+// A movie plays (call every frame while it does; it ends 0.25 s after the last call): any key (not modifiers or
+// function keys) or mouse button taps A on port 0, so the movie's own skip check sees it - and a recording keeps it.
+void set_movie_playing();
+// A text field takes the keyboard (the profile name; call every frame, ends 0.25 s after the last call): typed
+// letters, digits and spaces, Backspace (8) and Enter (13) are queued for take_typed instead of giving pad buttons
+// (WASD, Return, Backspace and the action keys give none meanwhile; arrows, Escape and the mouse still steer).
+void set_text_entry();
+// The next queued typed input (a character, 8 or 13); false when none.
+bool take_typed(uint32_t& code);
+
 // Sets a port's rumble motors (0-65535; left is the low-frequency one).
 void set_rumble(uint32_t port, uint16_t left, uint16_t right);
 

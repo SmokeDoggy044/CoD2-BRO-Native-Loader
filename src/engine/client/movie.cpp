@@ -1,6 +1,7 @@
 #include "movie.h"
 
 #include "cl.h"
+#include "fe_pc.h"
 #include "movie_vid.h"
 #include "ngl.h"
 #include "qcommon.h"
@@ -392,6 +393,8 @@ uint8_t XB_FASTCALL Movie_Load(const char* name) {
 }
 
 uint8_t XB_CDECL Movie_CheckSkipInput() {
+    // PC: any key or click skips too (the input layer taps A while told a movie plays).
+    if (const auto playing = pc_settings_hooks().movie_playing) playing();
     using PadCreate = uint8_t* XB_CDECL();
     own_function<void XB_THISCALL(uint8_t*)>(&IN_PadUpdate)(own_function<PadCreate>(&IN_PadCreate)());  // IN_PadUpdate
     if (title_global<float>(0x0095f460) > title_global<float>(0x0095f45c)) return 0;

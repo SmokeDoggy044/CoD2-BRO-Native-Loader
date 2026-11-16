@@ -58,6 +58,11 @@ struct PcSettingsHooks {
     int32_t (*page_input)(int32_t row, int32_t input) = nullptr;
     bool (*page_active)() = nullptr;  // a session runs (the Controller screen returns to it)
     void (*quit_game)() = nullptr;    // end the program (the main menu's Quit Game)
+    // Keyboard on the console screens: a movie plays (any key skips it, as a pad button), the profile name takes
+    // typed text; called every frame while so. take_typed: the next typed character, 8 (backspace) or 13 (enter).
+    void (*movie_playing)() = nullptr;
+    void (*text_entry)() = nullptr;
+    bool (*take_typed)(uint32_t* code) = nullptr;
 };
 // The pages are on (the page hooks are installed).
 bool pc_pages();

@@ -12,6 +12,7 @@
 #include <cstdlib>
 #include <iterator>
 #include <utility>
+#include <deque>
 #include <mutex>
 
 #include "float_env.h"
@@ -154,6 +155,43 @@ bool capture_event(const SDL_Event* event) {
     return true;
 }
 
+// set_movie_playing / set_text_entry: until when (now_ms) they hold; the typed queue.
+std::atomic<int64_t> g_movie_until_ms{0}, g_text_until_ms{0};
+std::mutex g_typed_mutex;
+std::deque<uint32_t> g_typed;
+
+bool text_entry_active() { return now_ms() < g_text_until_ms.load(); }
+
+// A key that types in a text field: its character (Shift / Caps Lock for capitals), 8 or 13; 0 for any other.
+uint32_t typed_code(const SDL_KeyboardEvent& key) {
+    const SDL_Keycode k = key.key;
+    if (k == SDLK_BACKSPACE) return 8;
+    if (k == SDLK_RETURN || k == SDLK_KP_ENTER) return 13;
+    if (k == SDLK_SPACE) return ' ';
+    if (k >= SDLK_0 && k <= SDLK_9) return static_cast<uint32_t>(k);
+    if (k >= SDLK_KP_1 && k <= SDLK_KP_9) return '1' + static_cast<uint32_t>(k - SDLK_KP_1);
+    if (k == SDLK_KP_0) return '0';
+    if (k >= SDLK_A && k <= SDLK_Z) {
+        const bool upper = ((key.mod & SDL_KMOD_SHIFT) != 0) != ((key.mod & SDL_KMOD_CAPS) != 0);
+        return static_cast<uint32_t>(k - SDLK_A) + (upper ? 'A' : 'a');
+    }
+    return 0;
+}
+
+// Keys that skip a movie: not modifiers, function keys (the developer keys, F10 frees the mouse) or Print Screen.
+bool skip_key(const SDL_KeyboardEvent& key) {
+    const SDL_Scancode c = key.scancode;
+    if (c >= SDL_SCANCODE_F1 && c <= SDL_SCANCODE_F12) return false;
+    if (c >= SDL_SCANCODE_LCTRL && c <= SDL_SCANCODE_RGUI) return false;
+    return c != SDL_SCANCODE_PRINTSCREEN && c != SDL_SCANCODE_CAPSLOCK && c != SDL_SCANCODE_GRAVE;
+}
+
+void movie_skip_tap() {
+    PadState a;
+    a.analog_buttons[kA] = 255;
+    tap(a);
+}
+
 bool SDLCALL watch_event(void*, SDL_Event* event) {
     if (capture_event(event)) return true;
     if (g_blocked.load()) return true;  // our menu has the mouse
@@ -195,6 +233,7 @@ bool SDLCALL watch_event(void*, SDL_Event* event) {
                       SDL_GetWindowFlags(SDL_GetWindowFromID(event->button.windowID)) & SDL_WINDOW_INPUT_FOCUS
                           ? "focused"
                           : "not focused");
+            if (now_ms() < g_movie_until_ms.load()) movie_skip_tap();
             if (menu_mode()) {
                 follow_menu_mode(SDL_GetWindowFromID(event->button.windowID));
                 std::lock_guard lock(g_mouse_mutex);
@@ -223,6 +262,14 @@ bool SDLCALL watch_event(void*, SDL_Event* event) {
             g_recapture = false;
             break;
         case SDL_EVENT_KEY_DOWN:
+            if (text_entry_active()) {
+                if (const uint32_t code = typed_code(event->key); code && (!event->key.repeat || code == 8)) {
+                    std::lock_guard lock(g_typed_mutex);
+                    if (g_typed.size() < 64) g_typed.push_back(code);
+                }
+            } else if (!event->key.repeat && now_ms() < g_movie_until_ms.load() && skip_key(event->key)) {
+                movie_skip_tap();
+            }
             if (event->key.scancode == SDL_SCANCODE_F10 && !event->key.repeat)
                 if (SDL_Window* window = SDL_GetWindowFromID(event->key.windowID)) {
                     const bool capture = !SDL_GetWindowRelativeMouseMode(window);
@@ -316,7 +363,8 @@ void read_keyboard_mouse(PadState& state) {
     const Bindings& bound = input.bound;
     // Action keys in the default layout; with native actions only in menus (in play the title reads them as key
     // events of their own, held_actions).
-    const bool pad_actions = menus || !g_native_actions.load();
+    const bool typing = text_entry_active();  // the keys type instead (set_text_entry)
+    const bool pad_actions = !typing && (menus || !g_native_actions.load());
     const auto held = [&](Action action) { return pad_actions && input.held(action); };
     const auto stick = [&](Action minus, Action plus) { return (held(plus) - held(minus)) * 32767; };
     add_axis(state.thumb_lx, stick(Action::MoveLeft, Action::MoveRight));
@@ -334,8 +382,10 @@ void read_keyboard_mouse(PadState& state) {
     };
     for (auto [pressed, bit] : menu_digital)
         if (pressed) state.buttons |= bit;
-    state.analog_buttons[kA] = std::max(state.analog_buttons[kA], analog(menu_key(SDL_SCANCODE_RETURN)));
-    state.analog_buttons[kB] = std::max(state.analog_buttons[kB], analog(menu_key(SDL_SCANCODE_BACKSPACE)));
+    if (!typing) {
+        state.analog_buttons[kA] = std::max(state.analog_buttons[kA], analog(menu_key(SDL_SCANCODE_RETURN)));
+        state.analog_buttons[kB] = std::max(state.analog_buttons[kB], analog(menu_key(SDL_SCANCODE_BACKSPACE)));
+    }
 
     PadState actions;
     const std::pair<Action, uint16_t> digital[] = {
@@ -438,6 +488,19 @@ PointerState take_pointer() {
     PointerState pointer = take_live_pointer();
     xbox::replay::bytes('M', &pointer, sizeof(pointer));
     return pointer;
+}
+
+void set_movie_playing() { g_movie_until_ms = now_ms() + 250; }
+
+void set_text_entry() { g_text_until_ms = now_ms() + 250; }
+
+bool take_typed(uint32_t& code) {
+    std::lock_guard lock(g_typed_mutex);
+    if (!text_entry_active()) g_typed.clear();  // keys typed before the field came up do not count
+    if (g_typed.empty()) return false;
+    code = g_typed.front();
+    g_typed.pop_front();
+    return true;
 }
 
 void tap(const PadState& buttons) {

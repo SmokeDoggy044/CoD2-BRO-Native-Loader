@@ -677,6 +677,9 @@ void install_menu_pages(const fs::path& mods_dir, bool quit_row) {
     hooks.page_view = &page_view;
     hooks.page_input = &page_input;
     hooks.page_active = [] { return g_session.active; };
+    hooks.movie_playing = [] { input::set_movie_playing(); };
+    hooks.text_entry = [] { input::set_text_entry(); };
+    hooks.take_typed = [](uint32_t* code) { return input::take_typed(*code); };
     // Quit Game adds title allocations at boot (a sixth main-menu row): not while recording or replaying, so that
     // recordings made before it and after it replay alike.
     if (quit_row) hooks.quit_game = [] {

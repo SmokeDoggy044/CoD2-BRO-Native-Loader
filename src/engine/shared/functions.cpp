@@ -10098,6 +10098,20 @@ const Function kFunctions[] = {
     {"Cmd_StringUsage_f", 0x002a8880, 0, code(&Cmd_StringUsage_f), 0, Result::None, Status::Compare},  // command registered by address (gap)
     {"Cmd_Frontend_f", 0x002af760, 0, code(&Cmd_Frontend_f), 0, Result::None, Status::Compare},  // command registered by address (gap)
     {"_printf", 0x001efc4d, 0, code(&title_printf), 4, Result::Eax, Status::Compare},
+    {"MemDlg_ReturnTrue", 0x0030d040, 0, code(&MemDlg_ReturnTrue), 0, Result::Al, Status::Compare},  // dialog button handler (gap)
+    {"ProfileMenu_SaveSuccessOk", 0x0030d240, 0, code(&ProfileMenu_SaveSuccessOk), 0, Result::Al, Status::Compare},  // dialog button handler (gap)
+    {"AutosaveMenu_SaveSuccessOk", 0x00312580, 0, code(&AutosaveMenu_SaveSuccessOk), 0, Result::Al, Status::Compare},  // dialog button handler (gap)
+    {"ProfileMenu_LoadRetry", 0x00312800, 0, code(&ProfileMenu_LoadRetry), 0, Result::Al, Status::Compare},  // dialog button handler (gap)
+    {"MemDlg_ContinueWithoutSavingYes", 0x0032d630, 0, code(&MemDlg_ContinueWithoutSavingYes), 0, Result::Al, Status::Compare},  // dialog button handler (gap)
+    {"MemDlg_ConfirmContinueWithoutSaving", 0x00334410, 0, code(&MemDlg_ConfirmContinueWithoutSaving), 0, Result::Al, Status::Compare},  // dialog button handler (gap)
+    {"ProfileMenu_SaveWarningYes", 0x00334c70, 0, code(&ProfileMenu_SaveWarningYes), 0, Result::Al, Status::Compare},  // dialog button handler (gap)
+    {"AutosaveMenu_DeleteSuccessOk", 0x00338300, 0, code(&AutosaveMenu_DeleteSuccessOk), 0, Result::Al, Status::Compare},  // dialog button handler (gap)
+    {"MemDlg_ShowNotEnoughBlocks", 0x00338330, 0, code(&MemDlg_ShowNotEnoughBlocks), 0, Result::Al, Status::Compare},  // dialog button handler (gap)
+    {"MemDlg_Retry", 0x00338470, 0, code(&MemDlg_Retry), 0, Result::Al, Status::Compare},  // dialog button handler (gap)
+    {"AutosaveMenu_FormatSuccessOk", 0x003380d0, 0, code(&AutosaveMenu_FormatSuccessOk), 0, Result::Al, Status::Compare},  // dialog button handler (gap)
+    {"ProfileMenu_FormatSuccessTimer", 0x003388c0, 0, code(&ProfileMenu_FormatSuccessTimer), 0, Result::Eax, Status::Compare},  // dialog button handler (gap)
+    {"ProfileMenu_DeleteSuccessOk", 0x00339f20, 0, code(&ProfileMenu_DeleteSuccessOk), 0, Result::Al, Status::Compare},  // dialog button handler (gap)
+    {"ProfileMenu_DeleteFailedOk", 0x0033a090, 0, code(&ProfileMenu_DeleteFailedOk), 0, Result::Al, Status::Compare},  // dialog button handler (gap)
     {"UIDialog_HandleSelect", 0x00329fa0, 0, code(&UIDialog_HandleSelect), 4, Result::None, Status::Compare},  // was FUN_00329fa0 (gap)
     {"FE_SetupMemcardMenu", 0x00329fe0, 0, code(&FE_SetupMemcardMenu_entry), 0, Result::None, Status::Replaced},
     {"FE_SetupLoginStatus", 0x0032a660, 0, code(&FE_SetupLoginStatus_entry), 4, Result::None, Status::Replaced},
