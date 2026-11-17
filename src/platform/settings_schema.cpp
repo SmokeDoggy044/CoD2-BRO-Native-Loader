@@ -254,6 +254,9 @@ const SettingDef kSettings[] = {
     {"key-aim-toggle", "KEYS", T::Text, G::Controls, kLive | kHidden, 0, 0, nullptr, "", "", "keys", "aim-toggle"},
     {"aim-assist", "on|off", T::Switch, G::Controls, 0, 0, 0, nullptr, "on",
      "the view following an enemy under the crosshair (default on)"},
+    {"sprint", "on|off", T::Switch, G::Controls, 0, 0, 0, nullptr, "off",
+     "sprint while the Sprint key (Shift; L3 on a controller) is held: the game's own sprint (speed, stamina, "
+     "weapon pose), which its campaign leaves unbound (default off = as on the Xbox; campaign only)"},
     {"mounted-gun-fix", "on|off", T::Switch, G::Controls, 0, 0, 0, nullptr, "on",
      "stops the slow down-left drift of the view on mounted guns and vehicles without input (default on; off = as "
      "on the Xbox)"},
@@ -558,6 +561,10 @@ const SettingUi kUi[] = {
     {"aim-assist", nullptr, "Aim assist",
      "The view follows an enemy under the crosshair, as on the Xbox. Applies to the controller and the mouse alike, "
      "in the campaign and in multiplayer."},
+    {"sprint", nullptr, "Sprint",
+     "Hold the Sprint key (Shift, or L3 on a controller) while moving to sprint. The campaign has the game's own "
+     "sprint (faster running, stamina, the weapon lowered, no firing) but never lets you use it; this turns it on. "
+     "Off: as on the Xbox. Campaign only."},
     {"button-prompts", "On screen", "Button prompts",
      "The buttons the game shows in its hints and menus: keys and mouse buttons, or the Xbox controller's. They "
      "follow the controller style chosen in the game's options.",

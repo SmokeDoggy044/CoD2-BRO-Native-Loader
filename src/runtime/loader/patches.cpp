@@ -2602,6 +2602,9 @@ void install_title_patches(const TitleInfo& title, const TitlePatchConfig& confi
         if (client_c(0x00318840)) game::client_pc_hooks().bar_fill_fix = true;
         // CL_FinishMove's view angle packing rounds instead of truncating: no mounted-gun drift.
         if (config.mounted_gun_fix && client_c(0x002abb30)) game::client_pc_hooks().round_view_angles = true;
+        // Sprint: the game's own, unbound in its campaign (the +sprint handlers do nothing).
+        if (config.sprint && campaign && client_c(0x002abec0) && client_c(0x002abeb0))
+            game::client_pc_hooks().sprint = true;
         // Native keyboard and mouse (0.6c): IN_Frame, CL_KeyEvent and Key_ClearStates as C.
         if (client_c(0x002bdf10) && client_c(0x002cd0c0) && client_c(0x002d57c0)) {
             game::client_pc_hooks().native_actions = &native_actions;

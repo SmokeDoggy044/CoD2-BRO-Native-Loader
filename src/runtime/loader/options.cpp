@@ -201,6 +201,8 @@ bool apply_setting(Options& o, Combined& combined, const platform::SettingDef& d
         o.aim_assist = on;
     } else if (key == "mounted-gun-fix") {
         o.mounted_gun_fix = on;
+    } else if (key == "sprint") {
+        o.sprint = on;
     } else if (key == "net-port") {
         o.net_port = static_cast<uint16_t>(u());
     } else if (key == "level") {

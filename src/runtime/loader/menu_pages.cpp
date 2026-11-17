@@ -97,7 +97,7 @@ const std::vector<PageDef>& pages() {
          {setting("resampler"), setting("more-voices"), setting("stereo-scenes"), setting("reverb-clutter")}},
         {"output", "OUTPUT", {setting("speakers"), setting("silent")}},
         {"controls", "CONTROLS",
-         {setting("mouse-sensitivity"), setting("aim-assist"), setting("button-prompts"),
+         {setting("mouse-sensitivity"), setting("aim-assist"), setting("sprint"), setting("button-prompts"),
           {Row::Controller, nullptr, "Controller"}, link("keys1", "Keyboard")}},
         {"keys1", "KEYBOARD",
          {key_row("move-forward"), key_row("move-back"), key_row("move-left"), key_row("move-right"),

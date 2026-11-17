@@ -163,6 +163,7 @@ void apply_game_options(Options& options, bool replaying, const std::string& rec
     };
     static constexpr GameOption kGameOptions[] = {
         {"mounted_gun_fix", "--mounted-gun-fix", &Options::mounted_gun_fix, false},
+        {"sprint", "--sprint", &Options::sprint, false},
     };
     for (const GameOption& option : kGameOptions) {
         const std::string key = std::string("#game ") + option.name + "=";
@@ -296,6 +297,7 @@ int load_options(int argc, char** argv, std::optional<Options>& parsed_out) {
         unless_given("--audio", parsed->audio_enhanced, false);
         unless_given("--graphics", parsed->graphics_enhanced, false);
         parsed->mounted_gun_fix = false;
+        parsed->sprint = false;
     }
     apply_game_options(*parsed, replaying, recorded_command_line);
     parsed_out = std::move(parsed);

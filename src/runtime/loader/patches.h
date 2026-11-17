@@ -80,6 +80,10 @@ struct TitlePatchConfig {
     // drawn - the D3D9 back end never showed it (D3D9 has no constant-alpha blend factor), and its blur carries
     // a dark band at the left and top edges. Needs pc_features and R_DrawFogPass as C.
     bool glow = false;
+    // Sprint: the client's +sprint / -sprint hold the command's sprint button (kbutton 3, cmd bit 8), which the
+    // campaign's handlers leave alone; pmove's own sprint (PM_UpdateSprintFlag) does the rest. Needs pc_features and
+    // IN_SprintDown / IN_SprintUp as C.
+    bool sprint = false;
 };
 
 // Redirects the title's functions that cannot run on a PC (privileged instructions,

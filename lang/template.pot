@@ -289,6 +289,9 @@ msgstr ""
 msgid "Aim assist"
 msgstr ""
 
+msgid "Sprint"
+msgstr ""
+
 msgid "Button prompts"
 msgstr ""
 
@@ -335,9 +338,6 @@ msgid "Reload"
 msgstr ""
 
 msgid "Use"
-msgstr ""
-
-msgid "Sprint"
 msgstr ""
 
 msgid "Melee"

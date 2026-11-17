@@ -2252,9 +2252,15 @@ void XB_REGS1 XB_CDECL IN_StopAllRumble(uint8_t* rumble) {
 
 void XB_CDECL CL_Disconnect_f() {}
 
-void XB_CDECL IN_SprintUp() {}
+// The campaign's are empty. With our Sprint setting they hold the command's sprint button (kbutton 3, cmd bit 8),
+// as the other buttons' handlers do theirs.
+void XB_CDECL IN_SprintUp() {
+    if (client_pc_hooks().sprint) IN_KeyUp(kbutton(0x00934068));
+}
 
-void XB_CDECL IN_SprintDown() {}
+void XB_CDECL IN_SprintDown() {
+    if (client_pc_hooks().sprint) IN_KeyDown(kbutton(0x00934068));
+}
 
 // The pad's keys as they map to key events: buttons 0-3 = 0x9c, 0x9b, 0x9d, 0x9a; 14 = escape, 15 = tab; the
 // rest 0xcf + button.
