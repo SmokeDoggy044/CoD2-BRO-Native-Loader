@@ -262,9 +262,12 @@ std::string GameFilesCheck::summary() const {
         if (missing.empty() && damaged.empty())
             return text + "all " + std::to_string(files) + " files check out (" + megabytes(bytes) + ").";
     } else {
-        text = "Not an edition this launcher knows (another region or print?): ";
-        if (missing.empty() && damaged.empty())
-            return text + "every file of the standard release is there, but it is untested.";
+        text = "Not an edition this launcher knows (another region or language?), untested: ";
+        if (missing.empty()) return text + "every file of the standard release is there.";
+        return text + std::to_string(missing.size()) + (missing.size() == 1 ? " file" : " files") +
+               " of the standard release are not on it (" +
+               missing.front() + (missing.size() > 1 ? ", ..." : "") +
+               "), as on discs in other languages. It can still be extracted and played.";
     }
     if (!missing.empty()) text += std::to_string(missing.size()) + " missing";
     if (!damaged.empty()) text += std::string(missing.empty() ? "" : ", ") + std::to_string(damaged.size()) + " damaged";

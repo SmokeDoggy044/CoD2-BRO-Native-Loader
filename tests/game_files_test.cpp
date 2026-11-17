@@ -88,10 +88,14 @@ void make_image(const fs::path& path, uint64_t base, const std::map<std::string,
     put(32, volume);
     const auto& xbe = files.at("default.xbe");
     const auto& a = files.at("media/a.dat");
-    const auto& b = files.at("media/b.dat");
+    // The second media file: b.dat, or another name (a disc in another language).
+    std::string b_name = "b.dat";
+    for (const auto& entry : files)
+        if (entry.first.rfind("media/", 0) == 0 && entry.first != "media/a.dat") b_name = entry.first.substr(6);
+    const auto& b = files.at("media/" + b_name);
     put(33, dir_table({{"default.xbe", 40, static_cast<uint32_t>(xbe.size()), false}, {"media", 34, kSector, true}}));
     put(34, dir_table({{"a.dat", 41, static_cast<uint32_t>(a.size()), false},
-                       {"b.dat", 42, static_cast<uint32_t>(b.size()), false}}));
+                       {b_name, 42, static_cast<uint32_t>(b.size()), false}}));
     put(40, xbe);
     put(41, a);
     put(42, b);
@@ -166,6 +170,15 @@ void tests() {
     launcher::GameFilesCheck unknown;
     CHECK(launcher::check_game_files(root / "other.iso", *table, unknown, quiet, cancel, error));
     CHECK(!unknown.edition && unknown.usable());
+    // Another language's disc: an unknown edition without some of the standard release's files stays usable.
+    auto other_language = other;
+    other_language.erase("media/b.dat");
+    other_language["media/c.dat"] = "sea";
+    make_image(root / "other_language.iso", 0, other_language);
+    launcher::GameFilesCheck language;
+    CHECK(launcher::check_game_files(root / "other_language.iso", *table, language, quiet, cancel, error));
+    CHECK(!language.edition && language.usable() && language.missing.size() == 1 &&
+          language.summary().find("other languages") != std::string::npos);
     // A folder missing a file.
     fs::remove(target / "media" / "b.dat");
     launcher::GameFilesCheck missing;

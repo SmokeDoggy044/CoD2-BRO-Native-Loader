@@ -47,6 +47,12 @@ bool log_set_file(const char* path, long max_bytes) {
     return true;
 }
 
+void log_close_file() {
+    std::lock_guard<std::mutex> lock(g_mutex);
+    if (g_file) std::fclose(g_file);
+    g_file = nullptr;
+}
+
 void log_set_observer(LogObserver observer) { g_observer = observer; }
 
 bool log_enabled(LogLevel level) { return level >= g_level.load(std::memory_order_relaxed); }

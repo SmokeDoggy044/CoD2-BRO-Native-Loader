@@ -14,6 +14,8 @@ void log_set_level(LogLevel level);
 // max_bytes, stops writing to the file (stderr goes on) once it reaches that size, so
 // one message repeated every frame can't fill a player's disk.
 bool log_set_file(const char* path, long max_bytes = 0);
+// Stops writing to the file (stderr goes on): before another process takes it over.
+void log_close_file();
 // Time origin of log timestamps and other "seconds since start" values. A relaunched
 // process (the title rebooting into another XBE) sets it to the first one's.
 std::chrono::steady_clock::time_point session_start();
