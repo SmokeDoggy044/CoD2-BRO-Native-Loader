@@ -652,25 +652,43 @@ bool Context::upload_level(Image& image, uint32_t level, uint32_t layer, const v
     if (!image || level >= image.levels || layer >= image.layers) return false;
     const uint32_t width = std::max(1u, image.width >> level), height = std::max(1u, image.height >> level);
     const uint32_t depth = std::max(1u, image.depth >> level);
-    const VkDeviceSize bytes = static_cast<VkDeviceSize>(row_bytes) * rows * depth;
-    const Staged staged = stage(bytes, 16);
-    if (!staged.memory) {
-        LOG_ERROR("render", "Vulkan: a texture level of %llu bytes does not fit the upload space",
-                  static_cast<unsigned long long>(bytes));
-        return false;
-    }
-    auto* out = static_cast<uint8_t*>(staged.memory);
+    const VkDeviceSize slice_bytes = static_cast<VkDeviceSize>(row_bytes) * rows;
     const auto* in = static_cast<const uint8_t*>(data);
-    for (uint32_t z = 0; z < depth; ++z)
-        for (uint32_t y = 0; y < rows; ++y)
-            std::memcpy(out + (static_cast<size_t>(z) * rows + y) * row_bytes,
-                        in + static_cast<size_t>(z) * slice_pitch + static_cast<size_t>(y) * pitch, row_bytes);
+    // A level larger than the upload space (a 6x redrawn font atlas: 3072x1536 BGRA = 18 MB) goes in bands:
+    // whole slices of a volume, or rows of a 2D level (block rows for compressed formats: `rows` may be height/4).
+    const uint32_t texels_per_row = rows ? std::max(1u, (height + rows - 1) / rows) : 1;
+    const uint32_t band_slices =
+        depth > 1 ? static_cast<uint32_t>(std::max<VkDeviceSize>(1, kStagingBytes / std::max<VkDeviceSize>(slice_bytes, 1)))
+                  : 1;
+    const uint32_t band_rows = depth > 1 ? rows
+                                         : static_cast<uint32_t>(std::min<VkDeviceSize>(
+                                               rows, std::max<VkDeviceSize>(1, kStagingBytes / std::max(row_bytes, 1u))));
     transition(image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
-    VkBufferImageCopy copy{};
-    copy.bufferOffset = staged.offset;
-    copy.imageSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, level, layer, 1};
-    copy.imageExtent = {width, height, depth};
-    vkCmdCopyBufferToImage(cmd(), staged.buffer, image.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &copy);
+    for (uint32_t z0 = 0; z0 < depth; z0 += band_slices)
+        for (uint32_t y0 = 0; y0 < rows; y0 += band_rows) {
+            const uint32_t slices = std::min(band_slices, depth - z0), count = std::min(band_rows, rows - y0);
+            const VkDeviceSize bytes = static_cast<VkDeviceSize>(row_bytes) * count * slices;
+            const Staged staged = stage(bytes, 16);
+            if (!staged.memory) {
+                LOG_ERROR("render", "Vulkan: a texture band of %llu bytes does not fit the upload space",
+                          static_cast<unsigned long long>(bytes));
+                transition(image, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+                return false;
+            }
+            auto* out = static_cast<uint8_t*>(staged.memory);
+            for (uint32_t z = 0; z < slices; ++z)
+                for (uint32_t y = 0; y < count; ++y)
+                    std::memcpy(out + (static_cast<size_t>(z) * count + y) * row_bytes,
+                                in + static_cast<size_t>(z0 + z) * slice_pitch + static_cast<size_t>(y0 + y) * pitch,
+                                row_bytes);
+            VkBufferImageCopy copy{};
+            copy.bufferOffset = staged.offset;
+            copy.imageSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, level, layer, 1};
+            const uint32_t top = y0 * texels_per_row;
+            copy.imageOffset = {0, static_cast<int32_t>(top), static_cast<int32_t>(z0)};
+            copy.imageExtent = {width, std::min(count * texels_per_row, height - top), slices};
+            vkCmdCopyBufferToImage(cmd(), staged.buffer, image.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &copy);
+        }
     transition(image, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
     return true;
 }
