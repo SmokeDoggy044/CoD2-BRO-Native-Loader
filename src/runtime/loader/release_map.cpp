@@ -472,6 +472,60 @@ uint32_t ReleaseMap::guess(uint32_t address) const {
     return section && section->delta ? address + static_cast<uint32_t>(*section->delta) : address;
 }
 
+bool ReleaseMap::keeps_places(std::span<const uint32_t> replaced, std::string& why,
+                              std::vector<uint32_t>& changed) const {
+    char text[160];
+    if (!built_) return true;
+    for (const Section& section : sections_) {
+        const ImageSection& s = section.supported;
+        if (!section.delta || *section.delta != 0 || section.size != s.size) {
+            std::snprintf(text, sizeof(text), "section %s is not at %08x with %08x bytes", s.name.c_str(), s.address,
+                          s.size);
+            why = text;
+            return false;
+        }
+    }
+    for (size_t i = 0; i < functions_.size(); ++i) {
+        const Function& f = functions_[i];
+        if (f.match != Match::Whole) changed.push_back(f.signature.address);
+        if (f.match != Match::None) {
+            if (f.delta != 0) {
+                std::snprintf(text, sizeof(text), "function %08x moved by %s", f.signature.address,
+                              hex_delta(f.delta).c_str());
+                why = text;
+                return false;
+            }
+            continue;
+        }
+        // Not found: in place only if the functions around it are.
+        const bool before = i == 0 || (functions_[i - 1].match != Match::None && functions_[i - 1].delta == 0);
+        const bool after =
+            i + 1 == functions_.size() || (functions_[i + 1].match != Match::None && functions_[i + 1].delta == 0);
+        if (!before || !after) {
+            std::snprintf(text, sizeof(text), "function %08x changed and its neighbours moved or changed too",
+                          f.signature.address);
+            why = text;
+            return false;
+        }
+    }
+    for (const uint32_t address : replaced) {
+        const Function* f = function_at(address);
+        if (f && f->signature.address == address && (f->match != Match::Whole || f->delta != 0)) {
+            std::snprintf(text, sizeof(text), "function %08x, which our engine replaces, differs", address);
+            why = text;
+            return false;
+        }
+    }
+    for (const Data& d : data_) {
+        if (d.known && d.delta != 0) {
+            std::snprintf(text, sizeof(text), "variable %08x moved by %s", d.target, hex_delta(d.delta).c_str());
+            why = text;
+            return false;
+        }
+    }
+    return true;
+}
+
 void ReleaseMap::log_summary(const SymbolTable* names) const {
     if (!built_) return;
     LOG_INFO("release", "%zu of %zu functions found unchanged, %zu changed after their start, %zu not found",

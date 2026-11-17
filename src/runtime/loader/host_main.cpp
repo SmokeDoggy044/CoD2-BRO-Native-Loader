@@ -3,8 +3,11 @@
 // kernel: the title's kernel table holds fatal stubs, and our C's platform layer (TitleHost) gets memory, threads,
 // files and time from here. Level switches restart the title in this process.
 //
-// What cod_bro_loader does and this does not: the Xbox kernel set-up (file system, settings, tick thread), other
-// releases' address maps, the compare harness, --text-trap/--text-clear, and exec reboots.
+// Other releases run here too (the French/Spanish/Italian disc): our C uses this release's addresses, which the
+// release map checks against theirs and logs where they differ.
+//
+// What cod_bro_loader does and this does not: the Xbox kernel set-up (file system, settings, tick thread), moving
+// addresses to another release's places, the compare harness, --text-trap/--text-clear, and exec reboots.
 
 #include <cstdio>
 #include <cstdlib>
@@ -29,6 +32,7 @@
 #include "os.h"
 #include "patches.h"
 #include "profiler.h"
+#include "release_map.h"
 #include "replay.h"
 #include "scr_fiber.h"
 #include "script.h"
@@ -63,27 +67,50 @@ int host_main(int argc, char** argv) {
     static loader::XbeImage image;
     const fs::path xbe = *assets / "default.xbe";
     const loader::TitleInfo* title = loader::find_title(xbe.filename().string());
-    // Another release's campaign (the French/Spanish/Italian disc's differs in one level's code): our C is built on
-    // this release's addresses, so cod_bro_loader runs it, as up to 0.2.2 - with this run's arguments and log.
-    if (const auto fingerprint = loader::file_code_fingerprint(xbe);
-        title && fingerprint && *fingerprint != title->code_fingerprint) {
-        LOG_WARN("host", "%s is another release (code fingerprint %016llx, ours %016llx): cod_bro_loader runs it",
-                 xbe.string().c_str(), static_cast<unsigned long long>(*fingerprint),
-                 static_cast<unsigned long long>(title->code_fingerprint));
-        const fs::path loader_program = platform::sibling_executable("cod_bro_loader");
-        const std::vector<std::string> args(loader::session_args().begin() + 1, loader::session_args().end());
-        platform::log_close_file();
-        if (fs::exists(loader_program) && platform::start_program(loader_program, args)) platform::end_process(0);
-        return loader::startup_failed("default.xbe is from another release of the game, and cod_bro_loader (which "
-                                      "runs it) is not next to cod_bro");
-    }
     if (!title || !image.load(xbe)) return loader::startup_failed("cannot load " + xbe.string());
+    // Another release (the French/Spanish/Italian disc's campaign differs in one level's code and in .rdata's
+    // contents): our engine runs it too - its C takes only data and level code from the dump. The release map logs
+    // whether every place our C depends on is the same there (ReleaseMap::keeps_places), so a player's log names
+    // what to fix if one is not.
     if (image.code_fingerprint() != title->code_fingerprint) {
-        LOG_ERROR("host", "%s is another release (code fingerprint %016llx) than the one our engine is built on "
-                  "(%016llx); cod_bro_loader runs it", xbe.string().c_str(),
-                  static_cast<unsigned long long>(image.code_fingerprint()),
-                  static_cast<unsigned long long>(title->code_fingerprint));
-        return loader::startup_failed("default.xbe is from another release of the game; start cod_bro_loader");
+        LOG_WARN("host", "%s is another release (time stamp %08x, code fingerprint %016llx; ours %016llx)",
+                 xbe.string().c_str(), image.header().time_date,
+                 static_cast<unsigned long long>(image.code_fingerprint()),
+                 static_cast<unsigned long long>(title->code_fingerprint));
+        image.log_sections();
+        loader::ReleaseSignatures signatures;
+        if (!signatures.load(loader::data_file(title->signature_file))) {
+            LOG_WARN("host", "cannot read %s: this release's places are not checked",
+                     loader::data_file(title->signature_file).string().c_str());
+        } else {
+            loader::ImageBytes bytes;
+            bytes.base = image.base();
+            bytes.bytes = {reinterpret_cast<const uint8_t*>(uintptr_t{image.base()}), image.size()};
+            for (const loader::XbeSectionHeader* section : image.sections())
+                bytes.sections.push_back({image.section_name(*section), section->virtual_addr, section->virtual_size});
+            loader::ReleaseMap map;
+            map.build(signatures, bytes);
+            std::vector<uint32_t> replaced;
+            for (const game::Function& function : game::functions())
+                if (function.campaign) replaced.push_back(function.campaign);
+            std::vector<uint32_t> changed;
+            std::string why;
+            const bool same = map.keeps_places(replaced, why, changed);
+            std::string list;
+            for (size_t i = 0; i < changed.size() && i < 24; ++i) {
+                char text[12];
+                std::snprintf(text, sizeof(text), "%s%08x", i ? " " : "", changed[i]);
+                list += text;
+            }
+            if (same)
+                LOG_INFO("host", "every place our engine depends on is the same in this release (%zu functions of "
+                         "level code differ and run as this release's: %s%s)", changed.size(), list.c_str(),
+                         changed.size() > 24 ? " ..." : "");
+            else
+                LOG_WARN("host", "this release differs where our engine depends on it (%s; %zu functions differ: "
+                         "%s%s); if the game misbehaves, please report it with this log", why.c_str(), changed.size(),
+                         list.c_str(), changed.size() > 24 ? " ..." : "");
+        }
     }
     if (!loader::clear_code_sections(image, {loader::data_file("code_section_data.txt"),
                                              loader::data_file("level_eh_code.txt")}))
