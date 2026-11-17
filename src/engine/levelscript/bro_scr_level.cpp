@@ -158,7 +158,7 @@ uint32_t* XB_CDECL BroScr_GetEntSecondsSince_h05903940(uint32_t* out, uint32_t e
 
 uint32_t* XB_CDECL BroScr_GetVehicleSecondsSince_h05903940(uint32_t* out, ScriptString name) {
     const uint32_t vehicle = find_vehicle(&name);
-    title_function<void XB_CDECL(uint32_t*, uint32_t)>(0x0012ff00)(out, vehicle);  // BroScr_GetEntSecondsSince_h05903940
+    BroScr_GetEntSecondsSince_h05903940(out, vehicle);
     ScriptString_Release(&name);
     return out;
 }

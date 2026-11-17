@@ -20,7 +20,7 @@ namespace {
 
 namespace fs = std::filesystem;
 
-enum class Op { Capture, Window, Item, Wait, Frames, Screen, Idle, Tap, Hold, Mouse, Click, RightClick, Wheel, Shot, State, Quit };
+enum class Op { Type, Capture, Window, Item, Wait, Frames, Screen, Idle, Tap, Hold, Mouse, Click, RightClick, Wheel, Shot, State, Quit };
 
 struct Step {
     Op op;
@@ -113,6 +113,15 @@ bool parse_step(const std::string& text, Step& step) {
         std::string button;
         step.op = Op::Hold;
         return in >> button >> step.a && parse_pad(button, step.pad);
+    }
+    if (word == "type") {
+        step.op = Op::Type;
+        std::string text;
+        std::getline(in >> std::ws, text);
+        if (text == "enter") text = "\r";
+        if (text == "backspace") text = "\b";
+        step.name = text;
+        return !text.empty();
     }
     if (word == "capture") {
         step.op = Op::Capture;
@@ -235,6 +244,11 @@ bool run(const Step& s, uint32_t elapsed) {
             finish(4, ("timeout: " + s.text).c_str());
         }
         return false;
+    }
+    case Op::Type: {
+        const uint32_t index = elapsed / 6;
+        if (elapsed % 6 == 0 && index < s.name.size()) input::queue_typed(static_cast<uint8_t>(s.name[index]));
+        return elapsed >= 6 * s.name.size() + kTapFrames;
     }
     case Op::Capture:
         if (elapsed == 0) input::finish_key_capture(static_cast<uint16_t>(s.a));

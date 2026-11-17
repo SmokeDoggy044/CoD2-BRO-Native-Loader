@@ -7,6 +7,8 @@ namespace game {
 
 void XB_CDECL BroScr_Stub_Ret() {}
 
+PLATFORM_ASM_ENTRY(BroScr_DeleteEnt_entry, "jmp *0x00922540")
+
 uint32_t XB_CDECL BroScr_Stub_ReleaseArg1(ScriptString string) {
     return scr_release(&string);  // the argument slot itself, as the original's lea ecx,[esp+4]
 }

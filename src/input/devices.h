@@ -131,6 +131,8 @@ void set_movie_playing();
 void set_text_entry();
 // The next queued typed input (a character, 8 or 13); false when none.
 bool take_typed(uint32_t& code);
+// Queues typed input as a key press would (menu walks): ignored unless a text field takes the keyboard.
+void queue_typed(uint32_t code);
 
 // Sets a port's rumble motors (0-65535; left is the low-frequency one).
 void set_rumble(uint32_t port, uint16_t left, uint16_t right);

@@ -256,6 +256,9 @@ ScriptString* XB_THISCALL ScrCall_ScrEnt_GetModel(const uint32_t* self, ScriptSt
 ScriptString* XB_THISCALL ScrCall_ScrEnt_GetTarget(const uint32_t* self, ScriptString* out);  // 0x00119e50, through 0x00922b48
 ScriptString* XB_THISCALL ScrCall_ScrEnt_GetTargetname(const uint32_t* self, ScriptString* out);  // 0x00119ef0, through 0x00922b50
 ScriptString* XB_THISCALL ScrCall_ScrEnt_GetGroupname(const uint32_t* self, ScriptString* out);  // 0x0011a030, through 0x00922c18
+// 0x00119fa0, through 0x00922b90 (ScrEnt_GetHealth): *out = the entity's health; returns out. Called from level code
+// (KASSRINE); its indirect CALL starts at byte 3, so only as Replaced.
+int32_t* XB_THISCALL ScrCall_ScrEnt_GetHealth(const uint32_t* self, int32_t* out);
 ScriptString* XB_THISCALL ScrCall_ScrEnt_GetScriptNoteworthy(const uint32_t* self, ScriptString* out);  // 0x0011a0d0, through 0x00922c28
 ScriptString* XB_THISCALL ScrCall_ScrEnt_GetAnimname(const uint32_t* self, ScriptString* out);  // 0x0011a170, through 0x00922c40
 ScriptString* XB_THISCALL ScrCall_ScrSentient_GetTeam(const uint32_t* self, ScriptString* out);  // 0x0011b2d0, through 0x00922dc8

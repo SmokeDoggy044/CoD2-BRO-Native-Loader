@@ -997,10 +997,17 @@ uint8_t* XB_CDECL BroScr_AnimMoveUntilEndNote(uint8_t* out, uint32_t ent, uint32
         uint32_t origin_buffer[3];
         const uint32_t* o = slot<uint32_t* XB_CDECL(uint32_t*, uint32_t)>(0x00922b20)(origin_buffer, ent);  // ScrEnt_GetOrigin
         const ScrVec3 origin = {{o[0], o[1], o[2]}};
-        title_function<void XB_CDECL(uint32_t, uint32_t, ScrVec3, ScrVec3)>(0x001c2aa0)(ent, 4, origin, angles);  // FUN_001c2aa0
+        BroScr_RecordAnimPose(ent, 4, origin.v[0], origin.v[1], origin.v[2], angles.v[0], angles.v[1], angles.v[2]);
     }
     scr_release(&note);
     return out;
+}
+
+void XB_CDECL BroScr_RecordAnimPose(uint32_t ent, uint32_t a2, uint32_t a3, uint32_t a4, uint32_t a5, uint32_t a6,
+                                    uint32_t a7, uint32_t a8) {
+    const uint32_t f = title_global<uint32_t>(0x00922eac);  // g_scrUndefinedFloat
+    const AnimCommand command = {{a2, 0, 0, title_global<uint32_t>(0x00922eb4), f, f, f, a3, a4, a5, a6, a7, a8}};
+    DynArray_Push52(reinterpret_cast<DynArray*>(ScriptKeyTable_FindOrAdd(ent_script_object(ent), 0x1791f035)), command.w);
 }
 
 void XB_CDECL BroScr_RecordAnimCommand(uint32_t ent, uint32_t a2, uint32_t a3, uint32_t a4, uint32_t a5, uint32_t a6,

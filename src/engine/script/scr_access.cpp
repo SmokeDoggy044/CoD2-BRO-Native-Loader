@@ -702,6 +702,11 @@ ScriptString* XB_THISCALL ScrCall_ScrEnt_GetModel(const uint32_t* self, ScriptSt
 ScriptString* XB_THISCALL ScrCall_ScrEnt_GetTarget(const uint32_t* self, ScriptString* out) { return call_get_string<0x00922b48>(self, out); }
 ScriptString* XB_THISCALL ScrCall_ScrEnt_GetTargetname(const uint32_t* self, ScriptString* out) { return call_get_string<0x00922b50>(self, out); }
 ScriptString* XB_THISCALL ScrCall_ScrEnt_GetGroupname(const uint32_t* self, ScriptString* out) { return call_get_string<0x00922c18>(self, out); }
+int32_t* XB_THISCALL ScrCall_ScrEnt_GetHealth(const uint32_t* self, int32_t* out) {
+    using Get = int32_t XB_CDECL(uint32_t);
+    *out = title_global<Get*>(0x00922b90)(*self);
+    return out;
+}
 ScriptString* XB_THISCALL ScrCall_ScrEnt_GetScriptNoteworthy(const uint32_t* self, ScriptString* out) { return call_get_string<0x00922c28>(self, out); }
 ScriptString* XB_THISCALL ScrCall_ScrEnt_GetAnimname(const uint32_t* self, ScriptString* out) { return call_get_string<0x00922c40>(self, out); }
 ScriptString* XB_THISCALL ScrCall_ScrSentient_GetTeam(const uint32_t* self, ScriptString* out) { return call_get_string<0x00922dc8>(self, out); }

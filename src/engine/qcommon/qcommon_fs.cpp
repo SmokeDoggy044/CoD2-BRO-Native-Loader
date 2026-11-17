@@ -3948,7 +3948,9 @@ void* XB_CDECL Loc_ResetStringFileState(uint8_t* state, uint32_t keep_lists) {
 }
 
 uint8_t XB_CDECL Save_HasEnoughFreeSpace() {
-    uint32_t free_bytes[2] = {0, 0};
+    // Save_GetFreeSpace fills 7 words (free bytes, total bytes, free / total blocks, 1): a 2-word buffer let it
+    // overwrite the saved registers and return address (creating a profile crashed on Windows, issue #20).
+    uint32_t free_bytes[7] = {};
     const int32_t status = own_function<int32_t XB_CDECL(uint32_t*)>(&Save_GetFreeSpace)(free_bytes);  // Save_GetFreeSpace
     const int32_t clusters = own_function<int32_t XB_CDECL(int32_t)>(&Save_ClustersForSize)(0x400);  // Save_ClustersForSize
     const auto cluster_size = own_function<int32_t XB_CDECL()>(&Save_GetClusterSize);               // Save_GetClusterSize
@@ -6633,7 +6635,7 @@ int32_t XB_CDECL Save_GetBlocksNeeded() {
     int32_t needed = clusters * 4 + cluster_size() * 2;
     const int32_t size = cluster_size();
     needed = needed + size * 4 + size;
-    uint32_t free_bytes[2] = {0, 0};
+    uint32_t free_bytes[7] = {};  // all 7 words Save_GetFreeSpace fills (see Save_HasEnoughFreeSpace)
     own_function<int32_t XB_CDECL(uint32_t*)>(&Save_GetFreeSpace)(free_bytes);  // Save_GetFreeSpace
     const int32_t bytes = needed - static_cast<int32_t>(free_bytes[0]);
     const int32_t blocks = static_cast<int32_t>(

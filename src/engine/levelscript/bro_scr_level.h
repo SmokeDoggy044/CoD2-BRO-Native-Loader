@@ -30,7 +30,7 @@ void XB_CDECL BroScr_SetVehicleTargetsByTargetname(ScriptString vehicle_name, Sc
 void XB_CDECL BroScr_SetVehicleUsableByName(ScriptString name, uint32_t unusable);
 // 0x00136a20 (dead): the vehicle's can_shoot_low byte = the low byte of `value`.
 void XB_CDECL BroScr_SetVehicleCanShootLowByName(ScriptString name, uint32_t value);
-// 0x0012ff00 (unhookable: GScr_GetTime is called inside the first 5 bytes; not registered):
+// 0x0012ff00 (GScr_GetTime is called inside the first 5 bytes: Replaced only, no comparison):
 // *out = (GScr_GetTime() - the entity's int field 0x05903940) * 0.001 as a float, seconds since
 // that time stamp; returns out.
 uint32_t* XB_CDECL BroScr_GetEntSecondsSince_h05903940(uint32_t* out, uint32_t ent);

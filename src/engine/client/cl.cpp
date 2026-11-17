@@ -2097,6 +2097,8 @@ int32_t XB_CDECL IN_JoyApplyThreshold(int32_t value) {
     return static_cast<int32_t>(static_cast<uint32_t>(static_cast<int32_t>(scaled)) * static_cast<uint32_t>(sign));
 }
 
+void XB_CDECL IN_SetRumblePad(uint32_t handle) { title_global<uint32_t>(0x00926d4c) = handle; }
+
 void XB_CDECL IN_PadCheckDeviceChanges() {
     uint32_t insertions, removals;
     title_function<uint32_t XB_STDCALL(uint32_t, uint32_t*, uint32_t*)>(0x007ac272)(kGamepadType, &insertions,
@@ -2117,7 +2119,7 @@ void XB_CDECL IN_PadCheckDeviceChanges() {
         pad_read_initial(port);
         field<uint16_t>(block, 0x12) = field<uint16_t>(pad_state(port), 4);
         set_analog_down(block, pad_state(port) + 6);
-        if (port == 0) title_function<void XB_CDECL(uint32_t)>(0x001fa100)(pad_handle(0));
+        if (port == 0) IN_SetRumblePad(pad_handle(0));
     }
 }
 
