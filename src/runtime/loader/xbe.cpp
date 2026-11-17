@@ -32,7 +32,49 @@ void fnv1a(uint64_t& hash, const void* bytes, size_t size) {
     for (size_t i = 0; i < size; ++i) hash = (hash ^ static_cast<const uint8_t*>(bytes)[i]) * 0x100000001b3ull;
 }
 
+// One section's part of the code fingerprint (XbeImage::code_fingerprint).
+void fingerprint_section(uint64_t& hash, const std::string& name, const XbeSectionHeader& section) {
+    fnv1a(hash, name.c_str(), name.size() + 1);
+    fnv1a(hash, &section.virtual_addr, 4);
+    fnv1a(hash, &section.virtual_size, 4);
+    if (!is_data_section(name)) fnv1a(hash, section.digest, sizeof(section.digest));
+}
+
+constexpr uint64_t kFingerprintSeed = 0xcbf29ce484222325ull;
+
 }  // namespace
+
+std::optional<uint64_t> file_code_fingerprint(const std::filesystem::path& path) {
+    std::ifstream in(path, std::ios::binary);
+    XbeImageHeader header;
+    if (!in.read(reinterpret_cast<char*>(&header), sizeof(header)) || std::memcmp(&header, "XBEH", 4) != 0 ||
+        header.size_of_headers < sizeof(header) || header.size_of_headers > (16u << 20))
+        return std::nullopt;
+    // The section headers and their names are in the headers, which the file holds from offset 0.
+    std::vector<char> headers(header.size_of_headers);
+    in.seekg(0);
+    if (!in.read(headers.data(), static_cast<std::streamsize>(headers.size()))) return std::nullopt;
+    const auto offset = [&](uint32_t address, size_t size) -> std::optional<size_t> {
+        if (address < header.base_address) return std::nullopt;
+        const size_t at = address - header.base_address;
+        if (at > headers.size() || size > headers.size() - at) return std::nullopt;
+        return at;
+    };
+    const auto first = offset(header.section_headers_addr, size_t{header.num_sections} * sizeof(XbeSectionHeader));
+    if (!first) return std::nullopt;
+    uint64_t hash = kFingerprintSeed;
+    for (uint32_t i = 0; i < header.num_sections; ++i) {
+        XbeSectionHeader section;
+        std::memcpy(&section, headers.data() + *first + i * sizeof(section), sizeof(section));
+        std::string name = "?";  // as XbeImage::section_name
+        if (const auto at = offset(section.name_addr, 1)) {
+            const char* text = headers.data() + *at;
+            name.assign(text, strnlen(text, std::min<size_t>(16, headers.size() - *at)));
+        }
+        fingerprint_section(hash, name, section);
+    }
+    return hash;
+}
 
 bool XbeImage::load(const std::filesystem::path& path) {
     std::ifstream in(path, std::ios::binary);
@@ -122,14 +164,8 @@ XbeSectionHeader* XbeImage::find_section(uint32_t address) const {
 }
 
 uint64_t XbeImage::code_fingerprint() const {
-    uint64_t hash = 0xcbf29ce484222325ull;
-    for (const XbeSectionHeader* section : sections()) {
-        const std::string name = section_name(*section);
-        fnv1a(hash, name.c_str(), name.size() + 1);
-        fnv1a(hash, &section->virtual_addr, 4);
-        fnv1a(hash, &section->virtual_size, 4);
-        if (!is_data_section(name)) fnv1a(hash, section->digest, sizeof(section->digest));
-    }
+    uint64_t hash = kFingerprintSeed;
+    for (const XbeSectionHeader* section : sections()) fingerprint_section(hash, section_name(*section), *section);
     return hash;
 }
 

@@ -551,6 +551,9 @@ static ValueLookup* value_lookup() { return title_global<ValueLookup*>(0x00922e7
 
 static ValueFunction* value_function(uint32_t address) { return title_function<ValueFunction>(address); }
 
+uint32_t XB_CDECL ScriptValue_DefaultCopy(uint32_t) { return 0; }
+uint32_t XB_CDECL ScriptValue_DefaultRelease(uint32_t value) { return value; }  // bare ret: EAX untouched
+
 // The release function for `key`, asked for through `slot` (a word of the caller's frame).
 static ValueFunction* release_for(uint32_t key, uint32_t* slot) {
     if (ValueLookup* lookup = value_lookup()) {
@@ -558,7 +561,7 @@ static ValueFunction* release_for(uint32_t key, uint32_t* slot) {
         lookup(key, nullptr, nullptr, nullptr, slot);
         if (*slot) return value_function(*slot);
     }
-    return value_function(0x0011db00);  // ScriptValue_DefaultRelease
+    return &ScriptValue_DefaultRelease;  // 0x0011db00
 }
 
 static ValueFunction* copy_for(uint32_t key, uint32_t* slot) {
@@ -567,7 +570,7 @@ static ValueFunction* copy_for(uint32_t key, uint32_t* slot) {
         lookup(key, nullptr, slot, nullptr, nullptr);
         if (*slot) return value_function(*slot);
     }
-    return value_function(0x0011daf0);  // ScriptValue_DefaultCopy
+    return &ScriptValue_DefaultCopy;  // 0x0011daf0
 }
 
 // The source pointer's argument slot doubles as the lookup's out slot.

@@ -848,7 +848,7 @@ private:
         ImGui::PushStyleColor(ImGuiCol_Text, colour);
         ImGui::TextWrapped("%s", check.summary().c_str());
         ImGui::PopStyleColor();
-        if (!check.usable() && ImGui::IsItemHovered()) {
+        if ((!check.missing.empty() || !check.damaged.empty()) && ImGui::IsItemHovered()) {
             std::string list;
             for (const auto& p : check.missing) list += "missing: " + p + "\n";
             for (const auto& p : check.damaged) list += "damaged: " + p + "\n";

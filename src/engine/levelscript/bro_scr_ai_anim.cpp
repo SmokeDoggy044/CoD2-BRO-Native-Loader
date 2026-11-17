@@ -1,5 +1,6 @@
 #include "bro_scr_ai_anim.h"
 
+#include "bro_scr_ai_anim_threads.h"
 #include "bro_scr_ai_common.h"
 #include "bro_scr_ai_look.h"
 #include "bro_scr_ai_weapons.h"
@@ -694,7 +695,6 @@ void XB_CDECL BroScr_ReattachAlliesGuns() {
 uint8_t* XB_CDECL BroScr_AnimMoveUntilObstacle(uint8_t* out, uint32_t actor, uint32_t seconds_bits) {
     const int32_t frames = static_cast<int32_t>(as_float(seconds_bits) * title_global<float>(0x0083eb5c));  // x 20
     using EntVec = uint32_t* XB_CDECL(uint32_t*, uint32_t);
-    using Track = void XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
     for (int32_t i = 0; i < frames; ++i) {
         slot<void XB_CDECL(uint32_t)>(0x00922760)(actor);  // GScr_ActorAdvanceAnimTime
         slot<void XB_CDECL(uint32_t)>(0x0092275c)(actor);  // GScr_ActorApplyAnimMove
@@ -703,7 +703,7 @@ uint8_t* XB_CDECL BroScr_AnimMoveUntilObstacle(uint8_t* out, uint32_t actor, uin
         const uint32_t angles[3] = {a[0], a[1], a[2]};
         uint32_t origin_buffer[3];
         const uint32_t* const o = slot<EntVec>(0x00922b20)(origin_buffer, actor);  // ScrEnt_GetOrigin
-        title_function<Track>(0x001c2aa0)(actor, 4, o[0], o[1], o[2], angles[0], angles[1], angles[2]);  // FUN_001c2aa0
+        BroScr_RecordAnimPose(actor, 4, o[0], o[1], o[2], angles[0], angles[1], angles[2]);
         ScriptString kind;
         ScriptString_FromRep(&kind, nullptr);
         slot<void XB_CDECL(uint32_t, ScriptString*)>(0x00922764)(actor, &kind);  // GScr_ActorGetObstacleKind_39c

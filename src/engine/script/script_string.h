@@ -11,6 +11,12 @@
 
 namespace game {
 
+// 0x0011daf0 (xor eax,eax; ret) / 0x0011db00 (ret): the value-type lookup's defaults for a type without its own copy /
+// release (the key tables call them; registered as Replaced, too short for the compare hook). The release returns its
+// argument only because ValueFunction returns a word: the original leaves EAX alone and no caller reads it.
+uint32_t XB_CDECL ScriptValue_DefaultCopy(uint32_t value);
+uint32_t XB_CDECL ScriptValue_DefaultRelease(uint32_t value);
+
 // Shared, reference-counted text.
 struct ScriptStringRep {
     uint16_t unknown0;  // ScriptStringRep_Init's first argument (capacity?)

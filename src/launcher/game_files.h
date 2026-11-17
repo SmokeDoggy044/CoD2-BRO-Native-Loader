@@ -65,8 +65,9 @@ struct GameFilesCheck {
     size_t files = 0;
     uint64_t bytes = 0;
     bool has_xbe = false;
-    // Known edition with every file intact, or an unknown one with every path of the standard release.
-    bool usable() const { return has_xbe && missing.empty() && damaged.empty(); }
+    // Known edition with every file intact, or any unknown one: discs in other languages lack some of the standard
+    // release's files (textures/en/...) and have their own, so its missing list is only shown, not held against it.
+    bool usable() const { return has_xbe && damaged.empty() && (missing.empty() || !edition); }
     std::string summary() const;  // one line for the page
 };
 

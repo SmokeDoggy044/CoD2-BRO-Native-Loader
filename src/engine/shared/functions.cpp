@@ -1342,6 +1342,49 @@ const Function kFunctions[] = {
     {"UIX_CVoiceMailPseudoFeature_Ctor", 0x000dc527, 0, code(&UIX_CVoiceMailPseudoFeature_Ctor), 0, Result::Eax, Status::Compare},  // gap (called from 0x00379103)
     {"Scr_StartThreadFunctor1", 0x0011a910, 0, code(&Scr_StartThreadFunctor1_entry), 24, Result::Eax, Status::Replaced},  // script thread start (switches threads: not compared)
     {"Scr_BeginThreadFunctor1", 0x0011b4d0, 0, code(&Scr_BeginThreadFunctor1_entry), 24, Result::Eax, Status::Replaced},  // script thread start (switches threads: not compared)
+    {"Scr_BeginThreadEndOnFunctor1", 0x0011a960, 0, code(&Scr_BeginThreadEndOnFunctor1_entry), 28, Result::Eax, Status::Replaced},  // script thread start, called from level code (tail jump: not compared)
+    {"ScrCall_ScrEnt_GetHealth", 0x00119fa0, 0, code(&ScrCall_ScrEnt_GetHealth), 4, Result::Eax, Status::Replaced},  // called from level code (indirect CALL at byte 3: not compared)
+    {"BroScr_DeleteEnt", 0x00122cf0, 0, code(&BroScr_DeleteEnt_entry), 0, Result::None, Status::Replaced},  // jmp [GScr_Delete], pushed by level code (6 bytes: not compared)
+    {"BroScr_GetEntSecondsSince_h05903940", 0x0012ff00, 0, code(&BroScr_GetEntSecondsSince_h05903940), 8, Result::Eax, Status::Replaced},  // (indirect CALL at byte 2: not compared)
+    {"ScriptValue_DefaultCopy", 0x0011daf0, 0, code(&ScriptValue_DefaultCopy), 4, Result::Eax, Status::Replaced},  // 3 bytes: not compared
+    {"ScriptValue_DefaultRelease", 0x0011db00, 0, code(&ScriptValue_DefaultRelease), 4, Result::None, Status::Replaced},  // bare ret: not compared
+    {"ScrField_SetNone", 0x002f4d70, 0, code(&BroScr_Stub_Ret), 0, Result::None, Status::Replaced},  // bare ret (too short for the compare hook)
+    {"BroScr_EmptyFunc_6", 0x00120000, 0, code(&BroScr_Stub_Ret), 0, Result::None, Status::Replaced},  // bare ret (too short for the compare hook)
+    {"BroScr_EmptyFunc_7", 0x00120010, 0, code(&BroScr_Stub_Ret), 0, Result::None, Status::Replaced},  // bare ret (too short for the compare hook)
+    {"BroScr_EmptyFunc_8", 0x00120020, 0, code(&BroScr_Stub_Ret), 0, Result::None, Status::Replaced},  // bare ret (too short for the compare hook)
+    {"BroScr_EmptyFunc_9", 0x00120340, 0, code(&BroScr_Stub_Ret), 0, Result::None, Status::Replaced},  // bare ret (too short for the compare hook)
+    {"BroScr_EmptyFunc_10", 0x00120430, 0, code(&BroScr_Stub_Ret), 0, Result::None, Status::Replaced},  // bare ret (too short for the compare hook)
+    {"BroScr_EmptyFunc_11", 0x00120440, 0, code(&BroScr_Stub_Ret), 0, Result::None, Status::Replaced},  // bare ret (too short for the compare hook)
+    {"BroScr_EmptyFunc_12", 0x00120450, 0, code(&BroScr_Stub_Ret), 0, Result::None, Status::Replaced},  // bare ret (too short for the compare hook)
+    {"BroScr_EmptyFunc_13", 0x00120470, 0, code(&BroScr_Stub_Ret), 0, Result::None, Status::Replaced},  // bare ret (too short for the compare hook)
+    {"BroScr_EmptyFunc_14", 0x00120490, 0, code(&BroScr_Stub_Ret), 0, Result::None, Status::Replaced},  // bare ret (too short for the compare hook)
+    {"BroScr_EmptyFunc_15", 0x00120830, 0, code(&BroScr_Stub_Ret), 0, Result::None, Status::Replaced},  // bare ret (too short for the compare hook)
+    {"BroScr_EmptyFunc_16", 0x00120840, 0, code(&BroScr_Stub_Ret), 0, Result::None, Status::Replaced},  // bare ret (too short for the compare hook)
+    {"BroScr_EmptyFunc_17", 0x00120850, 0, code(&BroScr_Stub_Ret), 0, Result::None, Status::Replaced},  // bare ret (too short for the compare hook)
+    {"BroScr_EmptyFunc", 0x00120e40, 0, code(&BroScr_Stub_Ret), 0, Result::None, Status::Replaced},  // bare ret (too short for the compare hook)
+    {"BroScr_EmptyFunc_18", 0x00120e50, 0, code(&BroScr_Stub_Ret), 0, Result::None, Status::Replaced},  // bare ret (too short for the compare hook)
+    {"BroScr_EmptyFunc_2", 0x00120e60, 0, code(&BroScr_Stub_Ret), 0, Result::None, Status::Replaced},  // bare ret (too short for the compare hook)
+    {"BroScr_EmptyFunc_19", 0x00121310, 0, code(&BroScr_Stub_Ret), 0, Result::None, Status::Replaced},  // bare ret (too short for the compare hook)
+    {"BroScr_EmptyFunc_20", 0x00121520, 0, code(&BroScr_Stub_Ret), 0, Result::None, Status::Replaced},  // bare ret (too short for the compare hook)
+    {"BroScr_EmptyFunc_21", 0x00121530, 0, code(&BroScr_Stub_Ret), 0, Result::None, Status::Replaced},  // bare ret (too short for the compare hook)
+    {"BroScr_EmptyFunc_22", 0x001217a0, 0, code(&BroScr_Stub_Ret), 0, Result::None, Status::Replaced},  // bare ret (too short for the compare hook)
+    {"BroScr_EmptyFunc_4", 0x00121940, 0, code(&BroScr_Stub_Ret), 0, Result::None, Status::Replaced},  // bare ret (too short for the compare hook)
+    {"BroScr_EmptyFunc_5", 0x00121950, 0, code(&BroScr_Stub_Ret), 0, Result::None, Status::Replaced},  // bare ret (too short for the compare hook)
+    {"BroScr_EmptyFunc_23", 0x001219f0, 0, code(&BroScr_Stub_Ret), 0, Result::None, Status::Replaced},  // bare ret (too short for the compare hook)
+    {"BroScr_EmptyFunc_24", 0x00121c60, 0, code(&BroScr_Stub_Ret), 0, Result::None, Status::Replaced},  // bare ret (too short for the compare hook)
+    {"BroScr_EmptyFunc_25", 0x00121c70, 0, code(&BroScr_Stub_Ret), 0, Result::None, Status::Replaced},  // bare ret (too short for the compare hook)
+    {"BroScr_EmptyFunc_26", 0x00121c80, 0, code(&BroScr_Stub_Ret), 0, Result::None, Status::Replaced},  // bare ret (too short for the compare hook)
+    {"BroScr_EmptyFunc_27", 0x00121c90, 0, code(&BroScr_Stub_Ret), 0, Result::None, Status::Replaced},  // bare ret (too short for the compare hook)
+    {"BroScr_EmptyFunc_28", 0x00121ca0, 0, code(&BroScr_Stub_Ret), 0, Result::None, Status::Replaced},  // bare ret (too short for the compare hook)
+    {"BroScr_EmptyFunc_29", 0x00121cb0, 0, code(&BroScr_Stub_Ret), 0, Result::None, Status::Replaced},  // bare ret (too short for the compare hook)
+    {"BroScr_EmptyFunc_30", 0x00121ec0, 0, code(&BroScr_Stub_Ret), 0, Result::None, Status::Replaced},  // bare ret (too short for the compare hook)
+    {"BroScr_EmptyFunc_31", 0x00122230, 0, code(&BroScr_Stub_Ret), 0, Result::None, Status::Replaced},  // bare ret (too short for the compare hook)
+    {"BroScr_EmptyFunc_32", 0x00122430, 0, code(&BroScr_Stub_Ret), 0, Result::None, Status::Replaced},  // bare ret (too short for the compare hook)
+    {"BroScr_EmptyFunc_33", 0x00122ac0, 0, code(&BroScr_Stub_Ret), 0, Result::None, Status::Replaced},  // bare ret (too short for the compare hook)
+    {"BroScr_EmptyFunc_34", 0x00122d00, 0, code(&BroScr_Stub_Ret), 0, Result::None, Status::Replaced},  // bare ret (too short for the compare hook)
+    {"BroScr_EmptyFunc_35", 0x00122db0, 0, code(&BroScr_Stub_Ret), 0, Result::None, Status::Replaced},  // bare ret (too short for the compare hook)
+    {"BroScr_EmptyFunc_37", 0x00123d60, 0, code(&BroScr_Stub_Ret), 0, Result::None, Status::Replaced},  // bare ret (too short for the compare hook)
+    {"BroScr_EmptyFunc_38", 0x00125280, 0, code(&BroScr_Stub_Ret), 0, Result::None, Status::Replaced},  // bare ret (too short for the compare hook)
     {"Scr_WaitTillScriptString", 0x0011b830, 0, code(&Scr_WaitTillScriptString), 8, Result::None, Status::Replaced},  // script thread switch (scr_fiber.cpp)
     {"LevelParams_InitDefaults", 0x0011d040, 0, code(&LevelParams_InitDefaults), 0, Result::Eax, Status::Compare},  // was FUN_0011d040
     {"ScrTwoMaps_Ctor", 0x0011d2d0, 0, code(&ScrTwoMaps_Ctor), 0, Result::Eax, Status::Compare},  // was FUN_0011d2d0
@@ -1874,6 +1917,7 @@ const Function kFunctions[] = {
     {"Pack_RelocateChain", 0x00055ab0, 0, code(&Pack_RelocateChain_entry), 0, Result::None, Status::Replaced},
     {"Pack_RelocateTable", 0x00055b00, 0, code(&Pack_RelocateTable), 4, Result::Eax, Status::Replaced},
     {"Pack_DecodeRelocWord", 0x00055b40, 0, code(&Pack_DecodeRelocWord), 16, Result::None, Status::Replaced},
+    {"IN_SetRumblePad", 0x001fa100, 0, code(&IN_SetRumblePad), 4, Result::None, Status::Replaced},  // our C called it by address (INT3 in our engine)
     {"IN_PadCheckDeviceChanges", 0x00055bc0, 0, code(&IN_PadCheckDeviceChanges), 0, Result::None, Status::Replaced},
     {"IN_PadInit", 0x00055d10, 0, code(&IN_PadInit), 0, Result::Eax, Status::Compare},
     {"IN_PadCreate", 0x00055e40, 0, code(&IN_PadCreate), 0, Result::Eax, Status::Replaced},
@@ -6066,6 +6110,7 @@ const Function kFunctions[] = {
     {"ScrField_h1791f035_Clear_2", 0x001c2a70, 0, code(ScrField_h1791f035_Clear_2), 4, Result::None, Status::Replaced},
     {"BroScr_AnimMoveUntilObstacle", 0x001c2b40, 0, code(&BroScr_AnimMoveUntilObstacle), 12, Result::Eax, Status::Compare},
     {"BroScr_AnimMoveUntilEndNote", 0x001c2d10, 0, code(&BroScr_AnimMoveUntilEndNote), 12, Result::Eax, Status::Compare},
+    {"BroScr_RecordAnimPose", 0x001c2aa0, 0, code(&BroScr_RecordAnimPose), 32, Result::None, Status::Replaced},  // our C called it by address (INT3 in our engine)
     {"BroScr_RecordAnimCommand", 0x001c2eb0, 0, code(&BroScr_RecordAnimCommand), 32, Result::None, Status::Compare},
     {"BroScr_ReplayAnimCommands", 0x001c2f70, 0, code(&BroScr_ReplayAnimCommands), 4, Result::None, Status::Compare},
     {"BroScr_ShouldGoProne_2", 0x001c30e0, 0, code(&BroScr_ShouldGoProne_2), 24, Result::Eax, Status::Replaced},

@@ -24,6 +24,7 @@
 #include "kernel_memory.h"
 #include "kernel_stubs.h"
 #include "log.h"
+#include "program.h"
 #include "options.h"
 #include "os.h"
 #include "patches.h"
@@ -62,6 +63,20 @@ int host_main(int argc, char** argv) {
     static loader::XbeImage image;
     const fs::path xbe = *assets / "default.xbe";
     const loader::TitleInfo* title = loader::find_title(xbe.filename().string());
+    // Another release's campaign (the French/Spanish/Italian disc's differs in one level's code): our C is built on
+    // this release's addresses, so cod_bro_loader runs it, as up to 0.2.2 - with this run's arguments and log.
+    if (const auto fingerprint = loader::file_code_fingerprint(xbe);
+        title && fingerprint && *fingerprint != title->code_fingerprint) {
+        LOG_WARN("host", "%s is another release (code fingerprint %016llx, ours %016llx): cod_bro_loader runs it",
+                 xbe.string().c_str(), static_cast<unsigned long long>(*fingerprint),
+                 static_cast<unsigned long long>(title->code_fingerprint));
+        const fs::path loader_program = platform::sibling_executable("cod_bro_loader");
+        const std::vector<std::string> args(loader::session_args().begin() + 1, loader::session_args().end());
+        platform::log_close_file();
+        if (fs::exists(loader_program) && platform::start_program(loader_program, args)) platform::end_process(0);
+        return loader::startup_failed("default.xbe is from another release of the game, and cod_bro_loader (which "
+                                      "runs it) is not next to cod_bro");
+    }
     if (!title || !image.load(xbe)) return loader::startup_failed("cannot load " + xbe.string());
     if (image.code_fingerprint() != title->code_fingerprint) {
         LOG_ERROR("host", "%s is another release (code fingerprint %016llx) than the one our engine is built on "

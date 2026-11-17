@@ -3,6 +3,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <filesystem>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -73,6 +74,10 @@ struct XbeTlsDirectory {
     uint32_t size_of_zero_fill;
     uint32_t characteristics;
 };
+
+// XbeImage::code_fingerprint of the XBE file at `path`, read from its headers without mapping it; nullopt when the
+// file cannot be read or is not an XBE.
+std::optional<uint64_t> file_code_fingerprint(const std::filesystem::path& path);
 
 class XbeImage {
 public:

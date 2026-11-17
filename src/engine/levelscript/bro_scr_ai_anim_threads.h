@@ -119,8 +119,12 @@ uint8_t* XB_CDECL BroScr_TryTurretGunnerPain(uint8_t* out, uint32_t ent, uint32_
 // 0x001c2d10 (FUN_001c2d10; proposed BroScr_AnimMoveUntilEndNote): each frame a begun
 // BroScr_ForwardNotifyString(ent, notify) thread, the anim time advanced, `notify`, a note
 // (0x71445fee) waited: "end" gives true; unless the anim time ended, the anim move is applied and
-// a blocked move (byte +0x3b1) gives false, else FUN_001c2aa0(ent, 4, origin, angles).
+// a blocked move (byte +0x3b1) gives false, else BroScr_RecordAnimPose(ent, 4, origin, angles).
 uint8_t* XB_CDECL BroScr_AnimMoveUntilEndNote(uint8_t* out, uint32_t ent, uint32_t notify);
+// 0x001c2aa0: appends {a2, 0, 0, the undefined int (0x00922eb4), three undefined floats (0x00922eac), a3..a8} to the
+// anim command array key 0x1791f035, without applying it (the anim-move loops record origin and angles with a2 = 4).
+void XB_CDECL BroScr_RecordAnimPose(uint32_t ent, uint32_t a2, uint32_t a3, uint32_t a4, uint32_t a5, uint32_t a6,
+                                    uint32_t a7, uint32_t a8);
 // 0x001c2eb0: appends {a2, a4, a5, a3, a6, a7, a8, six undefined lanes} to the anim command array
 // key 0x1791f035 and applies it (BroScr_ApplyAnimCommand).
 void XB_CDECL BroScr_RecordAnimCommand(uint32_t ent, uint32_t a2, uint32_t a3, uint32_t a4, uint32_t a5, uint32_t a6,

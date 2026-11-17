@@ -494,6 +494,12 @@ void set_movie_playing() { g_movie_until_ms = now_ms() + 250; }
 
 void set_text_entry() { g_text_until_ms = now_ms() + 250; }
 
+void queue_typed(uint32_t code) {
+    if (!text_entry_active()) return;
+    std::lock_guard lock(g_typed_mutex);
+    if (g_typed.size() < 64) g_typed.push_back(code);
+}
+
 bool take_typed(uint32_t& code) {
     std::lock_guard lock(g_typed_mutex);
     if (!text_entry_active()) g_typed.clear();  // keys typed before the field came up do not count

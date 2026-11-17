@@ -14,6 +14,8 @@
 //   a b x y black white lt rt start back up down left right ls rs   tap that pad button (then 12 frames)
 //   hold BUTTON S       hold it S seconds
 //   item N              the pointer onto item N of the topmost screen (hover selects it; waits until shown)
+//   type TEXT           types TEXT into a text field that takes the keyboard (the profile name), one character every
+//                       6 frames; the words enter and backspace stand for those keys
 //   capture CODE        a waiting key capture (rebinding) gets input CODE (SDL scancode; bindings.h codes)
 //   window X Y          the pointer to window pixel (X, Y), converted as the real mouse is
 //   mouse X Y           the pointer to (X, Y) in the 640x480 menu screen

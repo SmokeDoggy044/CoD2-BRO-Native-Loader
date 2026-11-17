@@ -136,7 +136,14 @@ def main():
     out = [f"# host_unreached.py: {len(refs)} functions without C reachable from data or level code"]
     for a in sorted(refs):
         r = refs[a]
-        out.append(f"{a:08x} {section_of(a)} {names.get(a, '?')} refs={len(r)} first={r[0][0]:08x}({r[0][1]},{r[0][2]})")
+        # Code references (call/jmp/push/mov in level code) first: a data word that happens to look like an
+        # address must not hide a real call.
+        code = [x for x in r if x[2] != "word"]
+        first = (code or r)[0]
+        kinds = ",".join(sorted({x[2] for x in r}))
+        level = sum(1 for x in r if x[1] not in (".rdata", ".data", ".data1", "XON_RD", ".XTLID", "$$XTIMAGE", "$$XSIMAGE"))
+        out.append(f"{a:08x} {section_of(a)} {names.get(a, '?')} refs={len(r)} code={len(code)} level={level} kinds={kinds} "
+                   f"first={first[0]:08x}({first[1]},{first[2]})")
     text = "\n".join(out) + "\n"
     if args.out:
         Path(args.out).write_text(text)

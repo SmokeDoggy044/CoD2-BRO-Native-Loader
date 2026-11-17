@@ -31,6 +31,9 @@ uint32_t* XB_CDECL BroScr_GetPlayer(uint32_t* out);
 // argument is released.
 uint32_t* XB_CDECL BroScr_GetDefaultString(uint32_t* out, uint32_t a2, ScriptString string);
 
+// 0x00122cf0: jmp [0x00922540] (GScr_Delete), a tail jump with the caller's arguments (6 bytes: Replaced only).
+extern "C" void BroScr_DeleteEnt_entry(void);
+
 // 0x001819b0: GScr_Delete(entity) on the second argument.
 void XB_CDECL BroScr_DeleteEntArg2(uint32_t a1, uint32_t entity);
 

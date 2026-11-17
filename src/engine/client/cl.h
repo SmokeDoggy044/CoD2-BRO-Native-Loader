@@ -440,6 +440,8 @@ extern "C" void IN_PadConsumeAllPressed_entry(void);
 extern "C" PLATFORM_HIDDEN int32_t XB_CDECL IN_JoyApplyThreshold(int32_t value);
 extern "C" void IN_JoyApplyThreshold_entry(void);
 // 0x00055bc0: XGetDeviceChanges: closes removed pads, opens inserted ones (port 0: 0x001fa100(handle)).
+// 0x001fa100: the pad handle rumble goes to (0x00926d4c), set when a pad is inserted on port 0.
+void XB_CDECL IN_SetRumblePad(uint32_t handle);
 void XB_CDECL IN_PadCheckDeviceChanges();
 // 0x00055d10: XInitDevices, clears every port's state and opens the attached pads. Returns `pads`.
 uint8_t* XB_THISCALL IN_PadInit(uint8_t* pads);

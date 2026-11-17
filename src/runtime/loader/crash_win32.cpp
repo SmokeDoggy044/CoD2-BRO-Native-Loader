@@ -11,7 +11,9 @@
 #include <windows.h>
 
 #include <cstdint>
+#include <cstdio>
 #include <cstdlib>
+#include <string>
 
 #include "log.h"
 #include "xbe.h"
@@ -37,6 +39,24 @@ const char* exception_name(DWORD code) {
     }
 }
 
+// A title address as describe_address gives it; anything else as module+offset (empty when in no module).
+std::string module_address(uint32_t address) {
+    if (g_image && g_image->contains(address)) return describe_address(address);
+    HMODULE module = nullptr;
+    if (!GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+                            reinterpret_cast<LPCSTR>(uintptr_t{address}), &module))
+        return {};
+    char path[MAX_PATH] = {};
+    GetModuleFileNameA(module, path, MAX_PATH);
+    const char* name = path;
+    for (const char* p = path; *p; ++p)
+        if (*p == '\\' || *p == '/') name = p + 1;
+    char text[MAX_PATH + 32];
+    std::snprintf(text, sizeof(text), "%s+%lx", name,
+                  static_cast<unsigned long>(address - reinterpret_cast<uintptr_t>(module)));
+    return text;
+}
+
 [[noreturn]] void report(const EXCEPTION_POINTERS& pointers) {
     const EXCEPTION_RECORD& record = *pointers.ExceptionRecord;
     const CONTEXT& c = *pointers.ContextRecord;
@@ -51,13 +71,31 @@ const char* exception_name(DWORD code) {
               c.Esi, c.Edi);
     LOG_ERROR("crash", "esp=%08lx ebp=%08lx eflags=%08lx", c.Esp, c.Ebp, c.EFlags);
     log_backtrace(c.Eip, c.Ebp);
+    // A jump to a bad address leaves no frame chain to follow: the words at the stack pointer (the return address of
+    // the call that jumped there is usually the first one) show where it came from.
+    if (!g_image || !g_image->contains(c.Eip)) {
+        MEMORY_BASIC_INFORMATION info{};
+        if (VirtualQuery(reinterpret_cast<const void*>(uintptr_t{c.Esp}), &info, sizeof(info)) &&
+            info.State == MEM_COMMIT) {
+            const uintptr_t end = reinterpret_cast<uintptr_t>(info.BaseAddress) + info.RegionSize;
+            for (uint32_t i = 0; i < 24 && c.Esp + i * 4 + 4 <= end; ++i) {
+                const uint32_t word = *reinterpret_cast<const uint32_t*>(uintptr_t{c.Esp + i * 4});
+                LOG_ERROR("crash", "  [esp+%02x] %08x %s", i * 4, word, module_address(word).c_str());
+            }
+        }
+    }
     run_fatal_exit_hook(true);
     platform::terminate_now(3);
 }
 
 LONG CALLBACK title_fault_handler(EXCEPTION_POINTERS* pointers) {
-    if (exception_name(pointers->ExceptionRecord->ExceptionCode) && g_image &&
-        g_image->contains(pointers->ContextRecord->Eip))
+    const EXCEPTION_RECORD& record = *pointers->ExceptionRecord;
+    const uint32_t eip = pointers->ContextRecord->Eip;
+    // Also a jump to no code at all (a null or tiny pointer called, a smashed return address): on a title stack
+    // the SEH chain cannot be walked (the stack is not the thread's own), so the process would end silently.
+    const bool bad_jump = record.ExceptionCode == EXCEPTION_ACCESS_VIOLATION &&
+                          (eip < 0x10000 || (record.NumberParameters >= 2 && record.ExceptionInformation[0] == 8));
+    if (exception_name(record.ExceptionCode) && g_image && (g_image->contains(eip) || bad_jump))
         report(*pointers);
     return EXCEPTION_CONTINUE_SEARCH;
 }

@@ -5785,7 +5785,7 @@ int32_t XB_CDECL Save_OpenFile(const char* name, uint32_t access) {
 
 uint32_t XB_CDECL Save_GetFreeSpace(uint32_t* out) {
     // GetDiskFreeSpaceExA of the device: out = {free bytes, total bytes, free blocks, total blocks
-    // (16 KB, at most 50001), 1}.
+    // (16 KB, at most 50001), 1} - 7 words; callers must pass room for all of them.
     if (title_global<uint32_t>(kSaveOpState)) {
         Save_SetLastResult(0xffffffefu);
         return Save_GetLastResult();
