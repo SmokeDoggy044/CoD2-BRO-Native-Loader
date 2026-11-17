@@ -257,6 +257,8 @@ const SettingDef kSettings[] = {
     {"sprint", "on|off", T::Switch, G::Controls, 0, 0, 0, nullptr, "off",
      "sprint while the Sprint key (Shift; L3 on a controller) is held: the game's own sprint (speed, stamina, "
      "weapon pose), which its campaign leaves unbound (default off = as on the Xbox; campaign only)"},
+    {"sprint-duration", "1.5|3|5|8|unlimited", T::Choice, G::Controls, 0, 0, 0, "1.5|3|5|8|unlimited", "1.5",
+     "seconds a full stamina bar lasts while sprinting (default 1.5, the game's; unlimited: it never runs out)"},
     {"mounted-gun-fix", "on|off", T::Switch, G::Controls, 0, 0, 0, nullptr, "on",
      "stops the slow down-left drift of the view on mounted guns and vehicles without input (default on; off = as "
      "on the Xbox)"},
@@ -565,6 +567,10 @@ const SettingUi kUi[] = {
      "Hold the Sprint key (Shift, or L3 on a controller) while moving to sprint. The campaign has the game's own "
      "sprint (faster running, stamina, the weapon lowered, no firing) but never lets you use it; this turns it on. "
      "Off: as on the Xbox. Campaign only."},
+    {"sprint-duration", nullptr, "Sprint duration",
+     "How long a full stamina bar lasts while sprinting. 1.5 seconds is the game's own; refilling (about 4 seconds "
+     "from empty) stays as it is.",
+     "1.5 s|3 s|5 s|8 s|Unlimited", nullptr, "sprint"},
     {"button-prompts", "On screen", "Button prompts",
      "The buttons the game shows in its hints and menus: keys and mouse buttons, or the Xbox controller's. They "
      "follow the controller style chosen in the game's options.",

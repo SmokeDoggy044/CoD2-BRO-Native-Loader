@@ -2562,6 +2562,13 @@ std::pair<uint32_t, uint32_t> scene_force_thunk() {
 
 void set_kernel_links(const KernelLinks& links) { g_kernel_links = links; }
 
+float sprint_seconds(const std::string& value) {
+    if (value == "unlimited") return 0.0f;
+    char* end = nullptr;
+    const float seconds = std::strtof(value.c_str(), &end);
+    return end && !*end && seconds > 0.0f ? seconds : 1.5f;
+}
+
 void install_title_patches(const TitleInfo& title, const TitlePatchConfig& config) {
     const TitleData& data = title_data(title);
     g_online_pointer = title_address(data.online_pointer, "(Xbox Live state)");
@@ -2605,6 +2612,9 @@ void install_title_patches(const TitleInfo& title, const TitlePatchConfig& confi
         // Sprint: the game's own, unbound in its campaign (the +sprint handlers do nothing).
         if (config.sprint && campaign && client_c(0x002abec0) && client_c(0x002abeb0))
             game::client_pc_hooks().sprint = true;
+        // Its stamina: 1.5 s is the game's (drain 2/3 per second); 0 = never runs out.
+        if (config.sprint && campaign && config.sprint_seconds != 1.5f)
+            game::pmove_pc_hooks().sprint_drain_scale = config.sprint_seconds > 0.0f ? 1.5f / config.sprint_seconds : 0.0f;
         // Native keyboard and mouse (0.6c): IN_Frame, CL_KeyEvent and Key_ClearStates as C.
         if (client_c(0x002bdf10) && client_c(0x002cd0c0) && client_c(0x002d57c0)) {
             game::client_pc_hooks().native_actions = &native_actions;

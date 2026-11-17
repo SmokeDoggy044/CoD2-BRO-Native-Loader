@@ -382,3 +382,12 @@ msgstr "Pulsa una tecla"
 
 msgid "none"
 msgstr "ninguna"
+
+msgid "Sprint duration"
+msgstr "Duración del sprint"
+
+msgid "1.5 s"
+msgstr "1,5 s"
+
+msgid "Unlimited"
+msgstr "Ilimitada"

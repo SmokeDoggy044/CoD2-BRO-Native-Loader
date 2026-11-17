@@ -382,3 +382,12 @@ msgstr "Appuyez sur une touche"
 
 msgid "none"
 msgstr "aucune"
+
+msgid "Sprint duration"
+msgstr "Durée du sprint"
+
+msgid "1.5 s"
+msgstr "1,5 s"
+
+msgid "Unlimited"
+msgstr "Illimitée"

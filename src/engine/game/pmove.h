@@ -144,6 +144,13 @@ void XB_REGS3 XB_CDECL PM_Accelerate(uint32_t, uint32_t, const float* wishdir, f
 void XB_CDECL PM_Friction();
 // 0x002c2b40: sprint stamina drain/refill.
 void XB_CDECL PM_UpdateStaminaMeter();
+// Our settings for pmove (set by the loader; defaults = the original).
+struct PmovePcHooks {
+    // Sprinting drains stamina (1.0) by 2/3 per second (1.5 s); this scales the drain (0: never runs out). Refill,
+    // the start threshold and the out-of-breath event stay the game's.
+    float sprint_drain_scale = 1.0f;
+};
+PmovePcHooks& pmove_pc_hooks();
 // 0x002e2e40 (yaw in XMM0, player state in EAX; one cdecl word): BG_CheckProneFeet for a prone turn.
 extern "C" PLATFORM_HIDDEN uint32_t XB_CDECL PM_CheckProneYaw_body(uint8_t* ps, float yaw, uint32_t arg);
 extern "C" void PM_CheckProneYaw_entry(void);

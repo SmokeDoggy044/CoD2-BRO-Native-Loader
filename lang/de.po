@@ -382,3 +382,12 @@ msgstr "Taste drücken"
 
 msgid "none"
 msgstr "keine"
+
+msgid "Sprint duration"
+msgstr "Sprintdauer"
+
+msgid "1.5 s"
+msgstr "1,5 s"
+
+msgid "Unlimited"
+msgstr "Unbegrenzt"

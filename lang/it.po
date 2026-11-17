@@ -382,3 +382,12 @@ msgstr "Premi un tasto"
 
 msgid "none"
 msgstr "nessuno"
+
+msgid "Sprint duration"
+msgstr "Durata dello scatto"
+
+msgid "1.5 s"
+msgstr "1,5 s"
+
+msgid "Unlimited"
+msgstr "Illimitata"

@@ -203,6 +203,8 @@ bool apply_setting(Options& o, Combined& combined, const platform::SettingDef& d
         o.mounted_gun_fix = on;
     } else if (key == "sprint") {
         o.sprint = on;
+    } else if (key == "sprint-duration") {
+        o.sprint_duration = v;
     } else if (key == "net-port") {
         o.net_port = static_cast<uint16_t>(u());
     } else if (key == "level") {

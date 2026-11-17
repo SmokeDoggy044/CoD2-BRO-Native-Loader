@@ -1417,6 +1417,11 @@ void XB_CDECL PM_Friction() {
     at<float>(ps, 0x18) = newspeed * at<float>(ps, 0x18);
 }
 
+PmovePcHooks& pmove_pc_hooks() {
+    static PmovePcHooks hooks;
+    return hooks;
+}
+
 void XB_CDECL PM_UpdateStaminaMeter() {
     // Sprinting (pm_flags 0x10000; not pm_type 2, not 0x0092e79c) drains stamina (+0x45c) by msec/1000 * 2/3 and
     // stamps +0x460; below 0.5 event 0x8c and the out-of-breath flag 0x20000; at least 0. Not sprinting nor
@@ -1429,8 +1434,9 @@ void XB_CDECL PM_UpdateStaminaMeter() {
         if (title_global<uint32_t>(0x0092e79c)) return;
         at<uint32_t>(ps, 0x460) = at<uint32_t>(pm, 4);
         ps = pm_ps_ref(pm);
-        const float drain = static_cast<float>(title_global<int32_t>(0x0095ffa8)) * title_global<float>(0x0083eb4c) *
-                            title_global<float>(0x0082e908);
+        float drain = static_cast<float>(title_global<int32_t>(0x0095ffa8)) * title_global<float>(0x0083eb4c) *
+                      title_global<float>(0x0082e908);
+        if (pmove_pc_hooks().sprint_drain_scale != 1.0f) drain = drain * pmove_pc_hooks().sprint_drain_scale;
         at<float>(ps, 0x45c) = at<float>(ps, 0x45c) - drain;
         ps = pm_ps_ref(pm);
         if (title_global<float>(0x0083eb24) > at<float>(ps, 0x45c)) {  // 0.5

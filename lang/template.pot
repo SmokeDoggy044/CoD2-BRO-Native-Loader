@@ -292,6 +292,24 @@ msgstr ""
 msgid "Sprint"
 msgstr ""
 
+msgid "Sprint duration"
+msgstr ""
+
+msgid "1.5 s"
+msgstr ""
+
+msgid "3 s"
+msgstr ""
+
+msgid "5 s"
+msgstr ""
+
+msgid "8 s"
+msgstr ""
+
+msgid "Unlimited"
+msgstr ""
+
 msgid "Button prompts"
 msgstr ""
 
