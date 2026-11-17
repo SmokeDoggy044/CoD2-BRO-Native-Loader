@@ -28,6 +28,7 @@
 #include "settings_schema.h"
 #include "settings_widgets.h"
 #include "title_data.h"
+#include "ui_text.h"
 #include "xbox_d3d_api.h"
 
 namespace loader {
@@ -282,6 +283,21 @@ std::string title_case(const std::string& text) {
     return out;
 }
 
+// A row's label in the game's language (lang/*.po, keyed by the label as written here); English in title case.
+std::string shown_label(int language, const std::string& english) {
+    if (english.empty()) return english;
+    const char* shown = platform::ui_text(language, english.c_str());
+    return shown != english.c_str() ? std::string(shown) : title_case(english);
+}
+
+// A value in the game's language; " *" (after a restart) stays at the end.
+std::string shown_value(int language, const std::string& english) {
+    if (english.empty()) return english;
+    const bool restart = english.ends_with(" *");
+    const std::string base = restart ? english.substr(0, english.size() - 2) : english;
+    return std::string(platform::ui_text(language, base.c_str())) + (restart ? " *" : "");
+}
+
 bool is_on_text(const std::string& v) { return v == "on" || v == "true" || v == "1" || v == "enhanced"; }
 
 std::string value_text(const SettingDef& def, const platform::SettingUi* ui, const std::string& value) {
@@ -516,7 +532,9 @@ void page_begin(int32_t root) {
 void page_view(game::PcPageView* view) {
     platform::HostFloatEnv env;
     Session& s = g_session;
+    const int language = view->language;  // the game's (an input), before the view is cleared
     *view = {};
+    view->language = language;
     if (!s.active) return;
     // A key capture finished: bind it.
     if (s.capture_row >= 0) {
@@ -535,7 +553,7 @@ void page_view(game::PcPageView* view) {
         }
     }
     const PageDef& page = top_page();
-    std::snprintf(view->title, sizeof view->title, "%s", page.title);
+    std::snprintf(view->title, sizeof view->title, "%s", platform::ui_text(language, page.title));
     const std::vector<ShownRow> rows = page_rows(page);
     const input::Bindings bindings = session_bindings();
     const std::string mod_list = ui::setting_value(s.values, "mod-list");
@@ -581,8 +599,8 @@ void page_view(game::PcPageView* view) {
             case Row::Controller: out.kind = game::kPcRowLink; break;
             default: out.kind = game::kPcRowAction; break;
         }
-        std::snprintf(out.label, sizeof out.label, "%s", title_case(label).c_str());
-        std::snprintf(out.value, sizeof out.value, "%s", value.c_str());
+        std::snprintf(out.label, sizeof out.label, "%s", shown_label(language, label).c_str());
+        std::snprintf(out.value, sizeof out.value, "%s", shown_value(language, value).c_str());
     }
     view->selected = std::exchange(s.select, -1);
 }
@@ -680,12 +698,103 @@ void install_menu_pages(const fs::path& mods_dir, bool quit_row) {
     hooks.movie_playing = [] { input::set_movie_playing(); };
     hooks.text_entry = [] { input::set_text_entry(); };
     hooks.take_typed = [](uint32_t* code) { return input::take_typed(*code); };
+    hooks.text = [](int32_t language, const char* english) {
+        platform::HostFloatEnv env;
+        return platform::ui_text(language, english);
+    };
     // Quit Game adds title allocations at boot (a sixth main-menu row): not while recording or replaying, so that
     // recordings made before it and after it replay alike.
     if (quit_row) hooks.quit_game = [] {
         LOG_INFO("loader", "Quit Game (main menu)");
         render::request_quit();
     };
+}
+
+}  // namespace loader
+
+namespace loader {
+
+bool write_lang_template(const fs::path& path) {
+    std::vector<std::string> texts;
+    auto add = [&](const std::string& text) {
+        // Numbers ("50%", "16x", "5.1") read the same in every language.
+        if (text.find_first_not_of("0123456789.%x") == std::string::npos) return;
+        if (std::find(texts.begin(), texts.end(), text) == texts.end()) texts.push_back(text);
+    };
+    auto add_list = [&](const std::string& list) {  // "A|B|C"
+        size_t at = 0;
+        while (true) {
+            const size_t bar = list.find('|', at);
+            add(list.substr(at, bar - at));
+            if (bar == std::string::npos) break;
+            at = bar + 1;
+        }
+    };
+    for (const char* text : {game::kPcTextGraphics, game::kPcTextControls, game::kPcTextSettings,
+                             game::kPcTextEnhancedGraphics, game::kPcTextQuitGame, game::kPcTextPressStart})
+        add(text);
+    for (const PageDef& page : pages()) {
+        add(page.title);
+        for (const RowDef& row : page.rows) {
+            if (row.label) add(row.label);
+            if (row.kind == Row::Key) add(input::action_label(action_of(row.key)));
+            if (row.kind != Row::Setting) continue;
+            const SettingDef* def = platform::find_setting(row.key);
+            const platform::SettingUi* ui = platform::setting_ui(row.key);
+            if (!row.label && ui) add(ui->label);
+            if (!def) continue;
+            if (const Presets* p = find_presets(def->key)) {
+                for (const char* label : p->labels) add(label);
+                add("Auto");
+                continue;
+            }
+            if (def->type == SettingType::Switch || def->type == SettingType::Flag || (ui && ui->checkbox_value)) {
+                add("on");
+                add("off");
+            } else if (def->type == SettingType::Choice) {
+                if (const char* labels = short_choices(def->key)) {
+                    add_list(labels);
+                } else if (ui && ui->choice_labels) {
+                    add_list(ui->choice_labels);
+                } else {
+                    std::string choices = def->choices;
+                    size_t at = 0;
+                    while (true) {
+                        const size_t bar = choices.find('|', at);
+                        std::string shown = choices.substr(at, bar - at);
+                        if (!shown.empty())
+                            shown[0] = static_cast<char>(std::toupper(static_cast<unsigned char>(shown[0])));
+                        add(shown);
+                        if (bar == std::string::npos) break;
+                        at = bar + 1;
+                    }
+                }
+            }
+        }
+    }
+    for (const char* text : {"Master Volume", "Reset to Defaults", "Apply and Exit", "Back", "Press a key", "none",
+                             "on", "off"})
+        add(text);
+    FILE* out = std::fopen(path.string().c_str(), "wb");
+    if (!out) {
+        std::fprintf(stderr, "cannot write %s\n", path.string().c_str());
+        return false;
+    }
+    std::fprintf(out,
+                 "# Our own texts in the game's menus (the PC settings pages and our menu rows), in English.\n"
+                 "# Written by cod_bro --lang-template lang/template.pot; translations: lang/README.md.\n"
+                 "msgid \"\"\nmsgstr \"\"\n\"Content-Type: text/plain; charset=UTF-8\\n\"\n");
+    for (const std::string& text : texts) {
+        std::string escaped;
+        for (char c : text) {
+            if (c == '"' || c == '\\') escaped += '\\';
+            escaped += c;
+        }
+        std::fprintf(out, "\nmsgid \"%s\"\nmsgstr \"\"\n", escaped.c_str());
+    }
+    const bool ok = std::fclose(out) == 0;
+    std::printf("%zu texts written to %s\n", texts.size(), path.string().c_str());
+    return ok;
 }
 
 }  // namespace loader

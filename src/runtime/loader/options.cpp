@@ -219,6 +219,7 @@ bool apply_setting(Options& o, Combined& combined, const platform::SettingDef& d
             o.log_level = platform::LogLevel::Trace;
             o.trace_kernel = true;
         }
+    } else if (key == "lang-template") {  // handled before parsing (title_session.cpp)
     } else if (key == "check-settings") {  // handled before parsing (title_session.cpp)
     } else if (key == "dev") {
         o.dev = on;

@@ -48,6 +48,7 @@
 #include "qcommon_fs.h"
 #include "text_trap.h"
 #include "static_init.h"
+#include "pc_menu.h"
 #include "title_start.h"
 #include "log.h"
 #include "os.h"
@@ -228,6 +229,8 @@ int load_options(int argc, char** argv, std::optional<Options>& parsed_out) {
         if (std::string_view(argv[i]) == "--check-settings") {
             const int result = check_settings_file();
             platform::end_process(result);
+        } else if (std::string_view(argv[i]) == "--lang-template") {
+            platform::end_process(i + 1 < argc && write_lang_template(argv[i + 1]) ? 0 : 1);
         }
     // settings.ini first, so the command line overrides it. A reboot re-reads it.
     // Not with --compare: the comparison runs the game as on the Xbox, whatever the

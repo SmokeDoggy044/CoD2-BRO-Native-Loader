@@ -296,6 +296,9 @@ const SettingDef kSettings[] = {
     {"check-settings", "", T::Flag, G::Testing, kCli, 0, 0, nullptr, "false",
      "check settings.ini as the launcher and the game read it (every line known and valid, stable through a load "
      "and save) and end: exit code 0 = all valid"},
+    {"lang-template", "FILE", T::Path, G::Testing, kCli, 0, 0, nullptr, "",
+     "write every text of our own that the game's menus show (the settings pages, our menu rows) to FILE as a "
+     "gettext template (lang/template.pot, for translations) and end"},
     {"menu-walk", "SCRIPT DIR", T::Custom, G::Testing, kCli, 0, 0, nullptr, "",
      "unattended menu walk (testing): steps or @FILE (src/runtime/loader/menu_walk.h) that wait for menu screens, "
      "press pad buttons, move and click a scripted mouse and take pictures with the menu state into DIR"},

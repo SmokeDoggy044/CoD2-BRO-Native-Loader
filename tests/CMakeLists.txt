@@ -2,6 +2,11 @@
 # `ctest --test-dir <build dir>`.
 #
 # Portable tests (any build).
+add_executable(ui_text_test ui_text_test.cpp)
+target_link_libraries(ui_text_test PRIVATE platform)
+target_compile_definitions(ui_text_test PRIVATE COD_BRO_LANG_DIR="${PROJECT_SOURCE_DIR}/lang")
+add_test(NAME ui_text_test COMMAND ui_text_test)
+
 add_executable(settings_test settings_test.cpp)
 target_link_libraries(settings_test PRIVATE platform settings_ui)
 add_test(NAME settings_test COMMAND settings_test)

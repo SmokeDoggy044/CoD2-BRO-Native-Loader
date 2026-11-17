@@ -53,6 +53,9 @@ void set_text(uint8_t* text, const char* string) { method<TextMethod>(text, 0x6c
 void set_position(uint8_t* text, float x, float y) { method<FloatPairMethod>(text, 0x7c)(text, x, y); }
 float text_width(uint8_t* text) { return method<WidthMethod>(text, 0xd0)(text); }
 
+// The game's language (g_languageIndex: 0 English, 1 German, 2 French, 3 Spanish, 4 Italian).
+int32_t game_language() { return title_global<int32_t>(0x0095f5dc); }
+
 const char* element_name(uint8_t* element, uint32_t name_offset) {
     const uint32_t rep = field<uint32_t>(element, name_offset);
     return rep ? reinterpret_cast<const char*>(uintptr_t{rep + 6}) : "";
@@ -209,6 +212,7 @@ void place_arrows() {
 void refresh() {
     Shown& s = g_shown;
     PcPageView view;
+    view.language = game_language();
     hooks().page_view(&view);
     const bool rows_changed = view.rows != s.view.rows || !s.laid_out;
     bool changed = rows_changed || std::strcmp(view.title, s.view.title) != 0;
@@ -310,6 +314,7 @@ void XB_THISCALL page_start(uint8_t* menu, uint32_t pad) {
     // Apply and Exit is the root's last row.
     while (true) {
         PcPageView view;
+        view.language = game_language();
         hooks().page_view(&view);
         const int32_t result = hooks().page_input(view.rows - 1, kPcInputAccept);
         if (result == kPcResultClose) break;
@@ -408,6 +413,11 @@ bool pc_pages() {
     return pc_menus() && h.page_begin && h.page_view && h.page_input && h.page_active;
 }
 
+const char* pc_text(const char* english) {
+    const PcSettingsHooks& h = pc_settings_hooks();
+    return h.text ? h.text(game_language(), english) : english;
+}
+
 void pc_pages_request(int32_t root) { g_request = root; }
 
 bool pc_quit_row() { return pc_pages() && pc_settings_hooks().quit_game; }
@@ -420,7 +430,7 @@ void pc_add_quit_row(uint8_t* menu, int32_t last) {
     uint8_t* const text = new_text(help ? help : field<uint8_t*>(row_item_of(menu, last), 0x10), 1.0f, 0);
     if (!text) return;
     set_visible(text, true);
-    set_text(text, kPcTextQuitGame);
+    set_text(text, pc_text(kPcTextQuitGame));
     field<uint8_t>(text, 0x5c) = static_cast<uint8_t>((field<uint8_t>(text, 0x5c) & ~0x30) | 0x20);  // right
     set_position(text, 620.0f, help ? field<float>(help, 0x30) : 428.0f);
     // The footer's white: colour scheme 11 = the text's own colour, dimmed unless selected.

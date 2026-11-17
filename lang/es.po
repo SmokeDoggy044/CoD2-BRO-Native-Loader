@@ -1,0 +1,384 @@
+# Spanish translation of our own texts in the game's menus (lang/README.md).
+# First version drafted by an AI (Claude); corrections from native speakers are welcome.
+msgid ""
+msgstr ""
+"Content-Type: text/plain; charset=UTF-8\n"
+"Language: es\n"
+
+msgid "GRAPHICS"
+msgstr "GRÁFICOS"
+
+msgid "CONTROLS"
+msgstr "CONTROLES"
+
+msgid "Settings"
+msgstr "Ajustes"
+
+msgid "Enhanced Graphics"
+msgstr "Gráficos mejorados"
+
+msgid "Quit Game"
+msgstr "Salir del juego"
+
+msgid "Press ENTER or START"
+msgstr "Pulsa ENTER o START"
+
+msgid "on"
+msgstr "sí"
+
+msgid "off"
+msgstr "no"
+
+msgid "Display"
+msgstr "Pantalla"
+
+msgid "Screen"
+msgstr "Imagen"
+
+msgid "Image Quality"
+msgstr "Calidad de imagen"
+
+msgid "Lighting"
+msgstr "Iluminación"
+
+msgid "Detail"
+msgstr "Detalle"
+
+msgid "DISPLAY"
+msgstr "PANTALLA"
+
+msgid "Fullscreen"
+msgstr "Pantalla completa"
+
+msgid "Window size"
+msgstr "Tamaño de ventana"
+
+msgid "Aspect ratio"
+msgstr "Relación de aspecto"
+
+msgid "Auto"
+msgstr "Auto"
+
+msgid "Render scale"
+msgstr "Escala de renderizado"
+
+msgid "Frame rate"
+msgstr "Fotogramas por segundo"
+
+msgid "SCREEN"
+msgstr "IMAGEN"
+
+msgid "Brightness"
+msgstr "Brillo"
+
+msgid "Field of view"
+msgstr "Campo de visión"
+
+msgid "Sharper text"
+msgstr "Texto más nítido"
+
+msgid "Language"
+msgstr "Idioma"
+
+msgid "English"
+msgstr "Inglés"
+
+msgid "German"
+msgstr "Alemán"
+
+msgid "French"
+msgstr "Francés"
+
+msgid "Spanish"
+msgstr "Español"
+
+msgid "Italian"
+msgstr "Italiano"
+
+msgid "IMAGE QUALITY"
+msgstr "CALIDAD DE IMAGEN"
+
+msgid "Anti-aliasing"
+msgstr "Antialiasing"
+
+msgid "Anisotropic filtering"
+msgstr "Filtrado anisotrópico"
+
+msgid "Filtering level"
+msgstr "Nivel de filtrado"
+
+msgid "Sharpening"
+msgstr "Enfoque"
+
+msgid "Sharpness"
+msgstr "Nitidez"
+
+msgid "Colour vibrance"
+msgstr "Intensidad del color"
+
+msgid "Vibrance"
+msgstr "Intensidad"
+
+msgid "LIGHTING"
+msgstr "ILUMINACIÓN"
+
+msgid "Original shadows"
+msgstr "Sombras originales"
+
+msgid "Sun shadows"
+msgstr "Sombras del sol"
+
+msgid "Per-pixel lighting"
+msgstr "Iluminación por píxel"
+
+msgid "Normal maps"
+msgstr "Mapas de normales"
+
+msgid "Shine"
+msgstr "Brillo especular"
+
+msgid "Lit surface detail"
+msgstr "Detalle de superficies"
+
+msgid "DETAIL"
+msgstr "DETALLE"
+
+msgid "Ambient occlusion"
+msgstr "Oclusión ambiental"
+
+msgid "Cavity shading"
+msgstr "Sombreado de cavidades"
+
+msgid "Texture detail"
+msgstr "Detalle de texturas"
+
+msgid "Detail bias"
+msgstr "Sesgo de detalle"
+
+msgid "Smooth models"
+msgstr "Modelos suavizados"
+
+msgid "Texture Packs"
+msgstr "Packs de texturas"
+
+msgid "TEXTURE PACKS"
+msgstr "PACKS DE TEXTURAS"
+
+msgid "SOUND"
+msgstr "SONIDO"
+
+msgid "Master Volume"
+msgstr "Volumen general"
+
+msgid "Enhanced Sound"
+msgstr "Sonido mejorado"
+
+msgid "Volumes"
+msgstr "Volúmenes"
+
+msgid "Sound Paths"
+msgstr "Propagación del sonido"
+
+msgid "Reverb"
+msgstr "Reverberación"
+
+msgid "Quality"
+msgstr "Calidad"
+
+msgid "Output"
+msgstr "Salida"
+
+msgid "VOLUMES"
+msgstr "VOLÚMENES"
+
+msgid "Effects"
+msgstr "Efectos"
+
+msgid "Ambience"
+msgstr "Ambiente"
+
+msgid "Dialogue"
+msgstr "Diálogos"
+
+msgid "Music"
+msgstr "Música"
+
+msgid "Others' gunfire"
+msgstr "Disparos ajenos"
+
+msgid "Your gunfire"
+msgstr "Tus disparos"
+
+msgid "Bullets Nearby"
+msgstr "Balas cercanas"
+
+msgid "SOUND PATHS"
+msgstr "PROPAGACIÓN DEL SONIDO"
+
+msgid "Occlusion"
+msgstr "Oclusión"
+
+msgid "Transmission"
+msgstr "Transmisión"
+
+msgid "Partial cover"
+msgstr "Cobertura parcial"
+
+msgid "Through Openings"
+msgstr "A través de aberturas"
+
+msgid "Air absorption"
+msgstr "Absorción del aire"
+
+msgid "REVERB"
+msgstr "REVERBERACIÓN"
+
+msgid "Room Detail"
+msgstr "Detalle de la sala"
+
+msgid "Echoes"
+msgstr "Ecos"
+
+msgid "Amount"
+msgstr "Cantidad"
+
+msgid "Decay"
+msgstr "Caída"
+
+msgid "Reflections"
+msgstr "Reflexiones"
+
+msgid "QUALITY"
+msgstr "CALIDAD"
+
+msgid "Finer resampling"
+msgstr "Remuestreo más fino"
+
+msgid "More voices"
+msgstr "Más voces"
+
+msgid "Stereo cutscenes"
+msgstr "Escenas en estéreo"
+
+msgid "Room clutter"
+msgstr "Objetos en la sala"
+
+msgid "OUTPUT"
+msgstr "SALIDA"
+
+msgid "Speakers"
+msgstr "Altavoces"
+
+msgid "Automatic"
+msgstr "Automático"
+
+msgid "Stereo"
+msgstr "Estéreo"
+
+msgid "Headphones"
+msgstr "Auriculares"
+
+msgid "Quad"
+msgstr "Cuadrafónico"
+
+msgid "Mute sound"
+msgstr "Silenciar sonido"
+
+msgid "Mouse sensitivity"
+msgstr "Sensibilidad del ratón"
+
+msgid "Aim assist"
+msgstr "Ayuda al apuntar"
+
+msgid "Button prompts"
+msgstr "Iconos de botones"
+
+msgid "Keyboard"
+msgstr "Teclado"
+
+msgid "Controller"
+msgstr "Mando"
+
+msgid "KEYBOARD"
+msgstr "TECLADO"
+
+msgid "Move forward"
+msgstr "Avanzar"
+
+msgid "Move back"
+msgstr "Retroceder"
+
+msgid "Move left"
+msgstr "Izquierda"
+
+msgid "Move right"
+msgstr "Derecha"
+
+msgid "Jump"
+msgstr "Saltar"
+
+msgid "Crouch / prone"
+msgstr "Agacharse / tumbarse"
+
+msgid "More Keys"
+msgstr "Más teclas"
+
+msgid "Fire"
+msgstr "Disparar"
+
+msgid "Aim down sights"
+msgstr "Apuntar con la mira"
+
+msgid "Aim down sights (toggle)"
+msgstr "Apuntar (alternar)"
+
+msgid "Reload"
+msgstr "Recargar"
+
+msgid "Use"
+msgstr "Usar"
+
+msgid "Sprint"
+msgstr "Esprintar"
+
+msgid "Melee"
+msgstr "Cuerpo a cuerpo"
+
+msgid "Throw grenade"
+msgstr "Lanzar granada"
+
+msgid "Next weapon"
+msgstr "Siguiente arma"
+
+msgid "Lean left"
+msgstr "Asomarse a la izquierda"
+
+msgid "Lean right"
+msgstr "Asomarse a la derecha"
+
+msgid "SETTINGS"
+msgstr "AJUSTES"
+
+msgid "Graphics"
+msgstr "Gráficos"
+
+msgid "Sound"
+msgstr "Sonido"
+
+msgid "Controls"
+msgstr "Controles"
+
+msgid "Reset to Defaults"
+msgstr "Restablecer valores"
+
+msgid "Apply and Exit"
+msgstr "Aplicar y salir"
+
+msgid "Back"
+msgstr "Volver"
+
+msgid "Press a key"
+msgstr "Pulsa una tecla"
+
+msgid "none"
+msgstr "ninguna"

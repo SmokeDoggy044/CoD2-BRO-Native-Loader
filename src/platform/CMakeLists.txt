@@ -8,6 +8,7 @@ add_library(platform STATIC
     sha256.cpp
     chacha20.cpp
     texture_index.cpp
+    ui_text.cpp
 )
 if(WIN32)
     target_sources(platform PRIVATE file_win32.cpp https_win32.cpp udp_win32.cpp vmem_win32.cpp)
@@ -21,3 +22,5 @@ set_source_files_properties(file_posix.cpp PROPERTIES COMPILE_DEFINITIONS _FILE_
 # Threads (and dlopen): separate libraries before glibc 2.34, as in the sniper release.
 find_package(Threads REQUIRED)
 target_link_libraries(platform PUBLIC cod_bro_options Threads::Threads ${CMAKE_DL_LIBS})
+# Our own texts' translations (ui_text.h): the source tree's lang/ when the program has none beside it.
+set_source_files_properties(ui_text.cpp PROPERTIES COMPILE_DEFINITIONS COD_BRO_LANG_DIR="${PROJECT_SOURCE_DIR}/lang")
