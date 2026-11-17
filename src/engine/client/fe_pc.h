@@ -35,6 +35,7 @@ struct PcPageView {
     int32_t rows;
     PcPageRow row[kPcPageMaxRows];
     int32_t selected;  // the row to select after a page change (-1: keep)
+    int32_t language = 0;  // in: the game's language (g_languageIndex), for our texts (ui_text.h)
 };
 enum PcPageInput : int32_t { kPcInputLeft, kPcInputRight, kPcInputAccept, kPcInputBack };
 enum PcPageResult : int32_t {
@@ -63,6 +64,9 @@ struct PcSettingsHooks {
     void (*movie_playing)() = nullptr;
     void (*text_entry)() = nullptr;
     bool (*take_typed)(uint32_t* code) = nullptr;
+    // Our own texts (kPcText* below) in the game's language (src/platform/ui_text.h): a text the game's text
+    // functions take, valid for the program's life; null hook: English.
+    const char* (*text)(int32_t language, const char* english) = nullptr;
 };
 // The pages are on (the page hooks are installed).
 bool pc_pages();
@@ -82,6 +86,8 @@ void pc_pages_enter(uint8_t* menu, int32_t host, int32_t root);
 int32_t pc_page_return_screen(int32_t screen);
 // The game's own master volume (the Sound menu's, 0x008dce88: 0..50) set and applied as that menu does.
 void pc_set_game_volume(int32_t volume);
+// Our text `english` (a kPcText*) in the game's language (PcSettingsHooks::text).
+const char* pc_text(const char* english);
 // Texts of our Options / pause rows.
 inline constexpr char kPcTextControls[] = "CONTROLS";
 inline constexpr char kPcTextSettings[] = "Settings";

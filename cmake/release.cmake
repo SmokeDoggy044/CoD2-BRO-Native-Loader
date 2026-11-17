@@ -49,6 +49,8 @@ install(FILES ${PROJECT_SOURCE_DIR}/src/launcher/game_files.txt DESTINATION .)
 install(DIRECTORY ${PROJECT_SOURCE_DIR}/LICENSES/ DESTINATION LICENSES)
 # Fonts for sharper text (SIL OFL; their licenses and sources in src/text/fonts/).
 install(DIRECTORY ${PROJECT_SOURCE_DIR}/src/text/fonts/ DESTINATION fonts)
+# Our own texts in other languages (src/platform/ui_text.h).
+install(DIRECTORY ${PROJECT_SOURCE_DIR}/lang/ DESTINATION lang FILES_MATCHING PATTERN "*.po" PATTERN "*.pot" PATTERN "*.md")
 
 # Oldest glibc that runs the release: the newest GLIBC_ symbol version the shipped
 # binaries use, found after install (see release_glibc.cmake). The README gets it

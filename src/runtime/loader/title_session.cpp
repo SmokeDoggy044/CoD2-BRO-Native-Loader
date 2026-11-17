@@ -48,6 +48,7 @@
 #include "qcommon_fs.h"
 #include "text_trap.h"
 #include "static_init.h"
+#include "pc_menu.h"
 #include "title_start.h"
 #include "log.h"
 #include "os.h"
@@ -162,6 +163,7 @@ void apply_game_options(Options& options, bool replaying, const std::string& rec
     };
     static constexpr GameOption kGameOptions[] = {
         {"mounted_gun_fix", "--mounted-gun-fix", &Options::mounted_gun_fix, false},
+        {"sprint", "--sprint", &Options::sprint, false},
     };
     for (const GameOption& option : kGameOptions) {
         const std::string key = std::string("#game ") + option.name + "=";
@@ -177,6 +179,32 @@ void apply_game_options(Options& options, bool replaying, const std::string& rec
             options.*option.field = value;
         }
         options.replay.command_line += key + (options.*option.field ? "1" : "0") + "\n";
+    }
+    // Text-valued game options (a recording without the line: the original value).
+    struct TextOption {
+        const char* name;
+        const char* flag;
+        std::string Options::* field;
+        const char* original;
+    };
+    static const TextOption kTextOptions[] = {
+        {"sprint_duration", "--sprint-duration", &Options::sprint_duration, "1.5"},
+    };
+    for (const TextOption& option : kTextOptions) {
+        const std::string key = std::string("#game ") + option.name + "=";
+        if (replaying && !options.given.count(option.flag)) {
+            std::string value = option.original;
+            const size_t at = recorded_command_line.find(key);
+            if (at != std::string::npos) {
+                const size_t end = recorded_command_line.find('\n', at);
+                value = recorded_command_line.substr(at + key.size(),
+                                                     end == std::string::npos ? std::string::npos
+                                                                              : end - at - key.size());
+            }
+            if (options.*option.field != value) LOG_INFO("replay", "%s %s as recorded", option.name, value.c_str());
+            options.*option.field = value;
+        }
+        options.replay.command_line += key + options.*option.field + "\n";
     }
 }
 
@@ -228,6 +256,8 @@ int load_options(int argc, char** argv, std::optional<Options>& parsed_out) {
         if (std::string_view(argv[i]) == "--check-settings") {
             const int result = check_settings_file();
             platform::end_process(result);
+        } else if (std::string_view(argv[i]) == "--lang-template") {
+            platform::end_process(i + 1 < argc && write_lang_template(argv[i + 1]) ? 0 : 1);
         }
     // settings.ini first, so the command line overrides it. A reboot re-reads it.
     // Not with --compare: the comparison runs the game as on the Xbox, whatever the
@@ -293,6 +323,8 @@ int load_options(int argc, char** argv, std::optional<Options>& parsed_out) {
         unless_given("--audio", parsed->audio_enhanced, false);
         unless_given("--graphics", parsed->graphics_enhanced, false);
         parsed->mounted_gun_fix = false;
+        parsed->sprint = false;
+        parsed->sprint_duration = "1.5";
     }
     apply_game_options(*parsed, replaying, recorded_command_line);
     parsed_out = std::move(parsed);

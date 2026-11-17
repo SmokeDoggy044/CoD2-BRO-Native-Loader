@@ -16,6 +16,9 @@ platform::Settings live_values();
 void apply_live(const platform::Settings& before, const platform::Settings& after);
 // The settings pages of the game's own menus (menu_pages.cpp): installs the page hooks (fe_pc.h).
 void install_menu_pages(const std::filesystem::path& mods_dir, bool quit_row);
+// Writes every text of our own the game's menus show (page titles, row labels, values, our menu rows; English, as
+// lang/*.po key them) to `path` as a gettext template. False when it cannot be written.
+bool write_lang_template(const std::filesystem::path& path);
 
 // Makes the menu's widgets (Dear ImGui) for this frame; false closes it.
 bool pc_menu();

@@ -339,7 +339,7 @@ void XB_CDECL FE_SetupScreenMenu(uint8_t* menu, uint8_t* panel, uint32_t entry_e
     // With the PC menus (fe_pc.h) row 0 is ENHANCED GRAPHICS, the menu GRAPHICS.
     const bool pc = pc_menus();
     uint32_t item_texts[3] = {0x0082bda4, 0x0082c2b0, 0x0082c294};  // FEMENU_COP_SCREEN_SIZE / _RESET_TO_DEFAULTS / _SAVE_AND_EXIT
-    if (pc) item_texts[0] = address_of(kPcTextEnhancedGraphics);
+    if (pc) item_texts[0] = address_of(pc_text(kPcTextEnhancedGraphics));
     for (uint32_t i = 0; i < 3; ++i) {
         const uint32_t args[1] = {item_texts[i]};
         method_at(top, regs, item(menu, i), 0x30, 1, args);
@@ -354,7 +354,7 @@ void XB_CDECL FE_SetupScreenMenu(uint8_t* menu, uint8_t* panel, uint32_t entry_e
     uint32_t local = 0;
     const uint32_t colour = *method<ColourMethod>(item(menu, 0), 0x84)(item(menu, 0), &local);
     call(field<uint8_t*>(menu, 0x3c), 0x90, colour);
-    set_title(top, regs, menu, 0x34, 0x0082bd84, pc ? address_of(kPcTextGraphics) : 0x0082bd70);  // "ScreenMenu", "FEMENU_OP_SCREEN"
+    set_title(top, regs, menu, 0x34, 0x0082bd84, pc ? address_of(pc_text(kPcTextGraphics)) : 0x0082bd70);  // "ScreenMenu", "FEMENU_OP_SCREEN"
     field<uint8_t*>(menu, 0x44) = find_picture(menu, 0x0082bd64);  // "arrowleft01"
     field<uint8_t*>(menu, 0x48) = find_picture(menu, 0x0082bd54);  // "arrowright01"
     field<uint32_t>(menu, 0x4c) = *method<ColourMethod>(field<uint8_t*>(menu, 0x44), 0xac)(field<uint8_t*>(menu, 0x44), &local);
@@ -401,14 +401,14 @@ void XB_CDECL FE_SetupOptionsMenu(uint8_t* menu, uint8_t* panel, uint32_t entry_
         names[3] = names[2];
         names[2] = address_of(kScreen);
         item_texts[3] = item_texts[2];
-        item_texts[2] = address_of(kPcTextGraphics);
+        item_texts[2] = address_of(pc_text(kPcTextGraphics));
     }
     TitleRegs regs{};
     regs.esi = address_of(menu);
     add_items(top, regs, menu, 0x34, names, count);
     regs.ebx = names[count - 1];
     regs.edi = field<uint32_t>(menu, 0);
-    if (pc_pages()) item_texts[1] = address_of(kPcTextControls);  // our Controls page (the Controller screen inside)
+    if (pc_pages()) item_texts[1] = address_of(pc_text(kPcTextControls));  // our Controls page (the Controller screen inside)
     for (uint32_t i = 0; i < count; ++i) {
         const uint32_t args[1] = {item_texts[i]};
         method_at(top, regs, item(menu, i), 0x30, 1, args);
@@ -454,7 +454,7 @@ void XB_CDECL FE_SetupPauseMenu(uint8_t* menu, uint8_t* panel, uint32_t entry_es
         uint32_t index, text;
     } kItemTexts[5] = {{1, 0x0082c96c}, {2, 0x0082c954}, {0, 0x0082c940}, {3, 0x0082c92c}, {4, 0x0082c91c}};
     for (const auto& entry : kItemTexts) {
-        const uint32_t args[1] = {entry.index == 2 && pc_pages() ? address_of(kPcTextSettings) : entry.text};
+        const uint32_t args[1] = {entry.index == 2 && pc_pages() ? address_of(pc_text(kPcTextSettings)) : entry.text};
         method_at(top, regs, item(menu, entry.index), 0x30, 1, args);
     }
     for (uint32_t i = 0; i < 5; ++i) call(item(menu, i), 0x5c, 0x3f333333);  // 0.7
@@ -776,7 +776,7 @@ uint32_t XB_CDECL FE_SetupPanelAt(uint8_t* panel, const char* name, uint32_t ent
             regs.edi = address_of(panel);
             // With our PC menus the prompt names the key too (FEMENU_TITLE_PRESS_START_XBOX says START only).
             return tail_call(entry, field<uint32_t>(field<uint8_t*>(help, 0), 0x6c), regs,
-                             pc_pages() ? address_of(kPcTextPressStart) : 0x0082cbb0);
+                             pc_pages() ? address_of(pc_text(kPcTextPressStart)) : 0x0082cbb0);
         }
         if (i == 12) {  // the special edition main menu
             if (!same_name(name, 0x0082ce1c, 0x1e) || special != 1) continue;

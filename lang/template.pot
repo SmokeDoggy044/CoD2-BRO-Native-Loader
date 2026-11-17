@@ -1,0 +1,401 @@
+# Our own texts in the game's menus (the PC settings pages and our menu rows), in English.
+# Written by cod_bro --lang-template lang/template.pot; translations: lang/README.md.
+msgid ""
+msgstr ""
+"Content-Type: text/plain; charset=UTF-8\n"
+
+msgid "GRAPHICS"
+msgstr ""
+
+msgid "CONTROLS"
+msgstr ""
+
+msgid "Settings"
+msgstr ""
+
+msgid "Enhanced Graphics"
+msgstr ""
+
+msgid "Quit Game"
+msgstr ""
+
+msgid "Press ENTER or START"
+msgstr ""
+
+msgid "on"
+msgstr ""
+
+msgid "off"
+msgstr ""
+
+msgid "Display"
+msgstr ""
+
+msgid "Screen"
+msgstr ""
+
+msgid "Image Quality"
+msgstr ""
+
+msgid "Lighting"
+msgstr ""
+
+msgid "Detail"
+msgstr ""
+
+msgid "DISPLAY"
+msgstr ""
+
+msgid "Fullscreen"
+msgstr ""
+
+msgid "Window size"
+msgstr ""
+
+msgid "Aspect ratio"
+msgstr ""
+
+msgid "Auto"
+msgstr ""
+
+msgid "Render scale"
+msgstr ""
+
+msgid "Frame rate"
+msgstr ""
+
+msgid "SCREEN"
+msgstr ""
+
+msgid "Brightness"
+msgstr ""
+
+msgid "Field of view"
+msgstr ""
+
+msgid "Sharper text"
+msgstr ""
+
+msgid "Language"
+msgstr ""
+
+msgid "English"
+msgstr ""
+
+msgid "German"
+msgstr ""
+
+msgid "French"
+msgstr ""
+
+msgid "Spanish"
+msgstr ""
+
+msgid "Italian"
+msgstr ""
+
+msgid "IMAGE QUALITY"
+msgstr ""
+
+msgid "Anti-aliasing"
+msgstr ""
+
+msgid "Anisotropic filtering"
+msgstr ""
+
+msgid "Filtering level"
+msgstr ""
+
+msgid "Sharpening"
+msgstr ""
+
+msgid "Sharpness"
+msgstr ""
+
+msgid "Colour vibrance"
+msgstr ""
+
+msgid "Vibrance"
+msgstr ""
+
+msgid "LIGHTING"
+msgstr ""
+
+msgid "Original shadows"
+msgstr ""
+
+msgid "Sun shadows"
+msgstr ""
+
+msgid "Per-pixel lighting"
+msgstr ""
+
+msgid "Normal maps"
+msgstr ""
+
+msgid "Shine"
+msgstr ""
+
+msgid "Lit surface detail"
+msgstr ""
+
+msgid "DETAIL"
+msgstr ""
+
+msgid "Ambient occlusion"
+msgstr ""
+
+msgid "Cavity shading"
+msgstr ""
+
+msgid "Texture detail"
+msgstr ""
+
+msgid "Detail bias"
+msgstr ""
+
+msgid "Smooth models"
+msgstr ""
+
+msgid "Texture Packs"
+msgstr ""
+
+msgid "TEXTURE PACKS"
+msgstr ""
+
+msgid "SOUND"
+msgstr ""
+
+msgid "Master Volume"
+msgstr ""
+
+msgid "Enhanced Sound"
+msgstr ""
+
+msgid "Volumes"
+msgstr ""
+
+msgid "Sound Paths"
+msgstr ""
+
+msgid "Reverb"
+msgstr ""
+
+msgid "Quality"
+msgstr ""
+
+msgid "Output"
+msgstr ""
+
+msgid "VOLUMES"
+msgstr ""
+
+msgid "Effects"
+msgstr ""
+
+msgid "Ambience"
+msgstr ""
+
+msgid "Dialogue"
+msgstr ""
+
+msgid "Music"
+msgstr ""
+
+msgid "Others' gunfire"
+msgstr ""
+
+msgid "Your gunfire"
+msgstr ""
+
+msgid "Bullets Nearby"
+msgstr ""
+
+msgid "SOUND PATHS"
+msgstr ""
+
+msgid "Occlusion"
+msgstr ""
+
+msgid "Transmission"
+msgstr ""
+
+msgid "Partial cover"
+msgstr ""
+
+msgid "Through Openings"
+msgstr ""
+
+msgid "Air absorption"
+msgstr ""
+
+msgid "REVERB"
+msgstr ""
+
+msgid "Room Detail"
+msgstr ""
+
+msgid "Echoes"
+msgstr ""
+
+msgid "Amount"
+msgstr ""
+
+msgid "Decay"
+msgstr ""
+
+msgid "Reflections"
+msgstr ""
+
+msgid "QUALITY"
+msgstr ""
+
+msgid "Finer resampling"
+msgstr ""
+
+msgid "More voices"
+msgstr ""
+
+msgid "Stereo cutscenes"
+msgstr ""
+
+msgid "Room clutter"
+msgstr ""
+
+msgid "OUTPUT"
+msgstr ""
+
+msgid "Speakers"
+msgstr ""
+
+msgid "Automatic"
+msgstr ""
+
+msgid "Stereo"
+msgstr ""
+
+msgid "Headphones"
+msgstr ""
+
+msgid "Quad"
+msgstr ""
+
+msgid "Mute sound"
+msgstr ""
+
+msgid "Mouse sensitivity"
+msgstr ""
+
+msgid "Aim assist"
+msgstr ""
+
+msgid "Sprint"
+msgstr ""
+
+msgid "Sprint duration"
+msgstr ""
+
+msgid "1.5 s"
+msgstr ""
+
+msgid "3 s"
+msgstr ""
+
+msgid "5 s"
+msgstr ""
+
+msgid "8 s"
+msgstr ""
+
+msgid "Unlimited"
+msgstr ""
+
+msgid "Button prompts"
+msgstr ""
+
+msgid "Keyboard"
+msgstr ""
+
+msgid "Controller"
+msgstr ""
+
+msgid "KEYBOARD"
+msgstr ""
+
+msgid "Move forward"
+msgstr ""
+
+msgid "Move back"
+msgstr ""
+
+msgid "Move left"
+msgstr ""
+
+msgid "Move right"
+msgstr ""
+
+msgid "Jump"
+msgstr ""
+
+msgid "Crouch / prone"
+msgstr ""
+
+msgid "More Keys"
+msgstr ""
+
+msgid "Fire"
+msgstr ""
+
+msgid "Aim down sights"
+msgstr ""
+
+msgid "Aim down sights (toggle)"
+msgstr ""
+
+msgid "Reload"
+msgstr ""
+
+msgid "Use"
+msgstr ""
+
+msgid "Melee"
+msgstr ""
+
+msgid "Throw grenade"
+msgstr ""
+
+msgid "Next weapon"
+msgstr ""
+
+msgid "Lean left"
+msgstr ""
+
+msgid "Lean right"
+msgstr ""
+
+msgid "SETTINGS"
+msgstr ""
+
+msgid "Graphics"
+msgstr ""
+
+msgid "Sound"
+msgstr ""
+
+msgid "Controls"
+msgstr ""
+
+msgid "Reset to Defaults"
+msgstr ""
+
+msgid "Apply and Exit"
+msgstr ""
+
+msgid "Back"
+msgstr ""
+
+msgid "Press a key"
+msgstr ""
+
+msgid "none"
+msgstr ""

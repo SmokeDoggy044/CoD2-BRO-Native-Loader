@@ -63,6 +63,9 @@ struct ClientPcHooks {
     // toward zero, which lifts a negative angle by one unit per command - on a mounted gun or vehicle the view is
     // rebuilt from the packed angles every frame and drifts down-left without input (the original's behaviour).
     bool round_view_angles = false;
+    // Set: +sprint / -sprint hold kbutton 3 (0x00934068: cmd bit 8, PM_UpdateSprintFlag's sprint button); the
+    // campaign's handlers are empty, so its sprint (speed 1.6x, stamina, weapon pose) is never used.
+    bool sprint = false;
 };
 ClientPcHooks& client_pc_hooks();
 // Native keyboard and mouse (ClientPcHooks::native_actions): the actions' key numbers start at JOY17 (the pad uses

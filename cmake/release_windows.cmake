@@ -31,6 +31,8 @@ file(STRINGS "${dxvk_dir}/VERSION" dxvk_version)
 install(FILES "${dxvk_dir}/d3d9.dll" DESTINATION dxvk)
 # Fonts for sharper text (SIL OFL; their licenses and sources in src/text/fonts/).
 install(DIRECTORY ${PROJECT_SOURCE_DIR}/src/text/fonts/ DESTINATION fonts)
+# Our own texts in other languages (src/platform/ui_text.h).
+install(DIRECTORY ${PROJECT_SOURCE_DIR}/lang/ DESTINATION lang FILES_MATCHING PATTERN "*.po" PATTERN "*.pot" PATTERN "*.md")
 
 set(COD_BRO_README_SYSTEM "Windows")
 set(COD_BRO_README_REQUIREMENTS "- 64-bit Windows 10 or 11 (the game needs memory above 2 GB, which a 32-bit
