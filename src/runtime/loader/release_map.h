@@ -102,6 +102,15 @@ public:
     // offset here) and the functions that changed, named from `names` if given.
     void log_summary(const SymbolTable* names) const;
 
+    // Whether this build keeps every place our own engine depends on, so that it can run it as it runs ours (the
+    // French/Spanish/Italian disc's campaign differs in one level's code and in .rdata's contents): every section
+    // at the same address with the same size; every function found starts where it does in ours (changed bodies
+    // are fine: level code runs from the player's dump, and our C calling one by address gets this release's);
+    // a function not found at all lies between neighbours found in place; each of `replaced` (the functions our C
+    // replaces) is unchanged; every variable code refers to is where it is in ours. False with the first reason
+    // in `why`; `changed` gets the functions whose code differs (logs).
+    bool keeps_places(std::span<const uint32_t> replaced, std::string& why, std::vector<uint32_t>& changed) const;
+
 private:
     enum class Match : uint8_t { None, Entry, Whole };
     struct Function {
