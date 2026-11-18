@@ -16,6 +16,8 @@ namespace launcher {
 std::optional<std::array<int, 3>> parse_version(const std::string& text);
 // The first "tag_name" in a GitHub releases list (newest first).
 std::optional<std::string> newest_tag(const std::string& releases_json);
+// The first release's notes ("body", Markdown), unescaped; empty when it has none.
+std::string newest_notes(const std::string& releases_json);
 
 class UpdateCheck {
 public:
@@ -25,6 +27,7 @@ public:
         std::string version;  // the newest release's ("0.1.6"), when Available or UpToDate
         std::string tag;      // its tag ("v0.1.6")
         std::string url;      // its release page
+        std::string notes;    // its release notes (Markdown), for the launcher's What's new
     };
 
     // Starts the check on a thread of its own (left running if the launcher closes first).

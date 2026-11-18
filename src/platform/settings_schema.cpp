@@ -281,6 +281,8 @@ const SettingDef kSettings[] = {
     // kLauncher: never passed to the game as an option (the game reads it from settings.ini itself).
     {"show-notice", "", T::Flag, G::Controls, kCommandLine | kHidden, 0, 0, nullptr, "",
      "show the one-time notice at the first menu even when it was seen, also in scripted runs (testing)"},
+    {"notes-seen", "VERSION", T::Text, G::Controls, kLauncher | kHidden, 0, 0, nullptr, "",
+     "the version whose release notes the launcher opened by itself once (internal)"},
     {"notice-seen", "ID", T::Text, G::Controls, kLauncher | kHidden, 0, 0, nullptr, "",
      "the last one-time notice the game showed (internal: the 1.0.6 controller notice shows until it says "
      "\"controller-1.0.6\")"},
