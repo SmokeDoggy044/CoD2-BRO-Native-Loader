@@ -45,6 +45,11 @@ zlib 1.1.4 (Copyright (C) 1995-2002 Jean-loup Gailly and Mark Adler, zlib licens
 (Copyright (C) 1998 Gilles Vollant, the zlib license), using the upstream sources as a guide; each
 file keeps its upstream notice. The zlib license allows use in GPL software.
 
+`third_party/sdl_gamepad_art/`: SDL 3.4.18's testcontroller pictures (a gamepad from the front and the back, the
+face buttons in three styles, a button highlight) as C arrays, unchanged; SDL's test-directory license (Copyright (C)
+1997-2026 Sam Lantinga; use, alter and redistribute freely), quoted in that folder's `README.md`. The launcher's
+controller mapper draws them.
+
 `src/text/fonts/`: unmodified fonts under the SIL Open Font License 1.1 (EB Garamond, Jost,
 Liberation Serif, Anton); sources and license texts in `src/text/fonts/README.md` and
 `src/text/fonts/licenses/`. They are shipped as separate files next to the programs, which

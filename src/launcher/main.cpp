@@ -3,6 +3,7 @@
 // runs without it (it reads the same file); it starts the launcher by itself when it
 // finds no game files.
 
+#include <memory>
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_main.h>  // WinMain on Windows
 
@@ -40,6 +41,7 @@
 #include "texture_packs.h"
 #include "ui_theme.h"
 #include "update_check.h"
+#include "pad_mapper.h"
 #include "updater.h"
 
 namespace fs = std::filesystem;
@@ -125,6 +127,8 @@ public:
     Launcher(SDL_Window* window, SDL_Renderer* renderer)
         : window_(window), renderer_(renderer), settings_(platform::load_settings()) {
         if (auto keys = platform::combined_setting(settings_, "keys")) input::parse_bindings(*keys, bindings_);
+        input::parse_pad_bindings(platform::combined_setting(settings_, "pad").value_or(""), pad_bindings_);
+        pad_mapper_ = std::make_unique<launcher::PadMapper>(renderer);
         launcher::remove_update_leftovers(platform::executable_dir());
         if (check_updates()) update_.emplace(COD_BRO_RELEASES, COD_BRO_VERSION);
         if (auto table = launcher::load_game_file_table())
@@ -135,6 +139,10 @@ public:
     // Developer (COD_BRO_LAUNCHER_PAGE): opens "options", "mods", "packs" or "tech" instead of the front page.
     void show_page(std::string_view page) {
         if (page == "options") page_ = Page::Options;
+        if (page == "controls" || page == "controller") {
+            page_ = Page::Options;
+            select_tab_ = page == "controls" ? "Controls" : "Controller";
+        }
         // COD_BRO_LAUNCHER_IMAGE=FILE: as if that disc dump had been chosen (unattended checks of the page).
         if (const char* image = std::getenv("COD_BRO_LAUNCHER_IMAGE"); image && *image) {
             disc_image_ = image;
@@ -156,6 +164,7 @@ public:
     // While a key cell waits for its key (controls()): takes key presses, mouse buttons
     // and the wheel before the UI sees them. True if it took `event`.
     bool capture_event(const SDL_Event& event) {
+        if (pad_mapper_ && pad_mapper_->event(event)) return true;
         bool changed = false;
         const bool taken = ui::key_table_event(key_table_, bindings_, &event, changed);
         if (changed) store_bindings();
@@ -164,6 +173,7 @@ public:
 
     // One frame of the UI. Returns false once the launcher should close.
     bool frame() {
+        if (pad_mapper_) pad_mapper_->new_frame();
         {
             std::lock_guard lock(g_picked_mutex);
             if (g_picked) {
@@ -683,6 +693,7 @@ private:
             tab("Graphics", [&] { graphics(); });
             tab("Sound", [&] { sound(); });
             tab("Controls", [&] { controls(); });
+            tab("Controller", [&] { controller(); });
             tab("Multiplayer", [&] { system_link(); });
             ImGui::EndTabBar();
         }
@@ -692,7 +703,9 @@ private:
     // A tab: the tab bar stays put, the tab's settings scroll above the buttons.
     template <typename Body>
     void tab(const char* name, Body body) {
-        if (!ImGui::BeginTabItem(name)) return;
+        const bool select = select_tab_ == name;
+        if (select) select_tab_.clear();
+        if (!ImGui::BeginTabItem(name, nullptr, select ? ImGuiTabItemFlags_SetSelected : 0)) return;
         ImGui::BeginChild(name, ImVec2(0, -footer_));
         ImGui::Spacing();
         // Controls get the left 60%, labels the rest.
@@ -1016,6 +1029,12 @@ private:
         keys();
     }
 
+    // The gamepad's bindings on SDL's picture of a controller (pad_mapper.h).
+    void controller() {
+        if (pad_mapper_ && pad_mapper_->draw(pad_bindings_, ui::setting_value(settings_, "pad-glyphs")))
+            platform::set_combined_setting(settings_, "pad", input::format_pad_bindings(pad_bindings_));
+    }
+
     // The keyboard and mouse bindings (src/input/bindings.h), the PC menu's table.
     void keys() {
         ImGui::SeparatorText("Keys");
@@ -1140,6 +1159,9 @@ private:
     bool restarted_ = false;
     bool profile_ = false;  // Measure performance: --profile auto, not saved
     ui::KeyTable key_table_;
+    input::Bindings pad_bindings_ = input::default_pad_bindings();
+    std::string select_tab_;  // COD_BRO_LAUNCHER_PAGE=controls: that tab once
+    std::unique_ptr<launcher::PadMapper> pad_mapper_;
 };
 
 }  // namespace
