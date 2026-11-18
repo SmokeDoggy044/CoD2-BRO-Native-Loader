@@ -109,7 +109,7 @@ const std::vector<PageDef>& pages() {
         {"controller", "CONTROLLER",
          {{Row::PadPreset, nullptr, "Layout"}, control_row("0", "Invert Aim"), control_row("1", "Vibration"),
           control_row("2", "Look Speed"), control_row("3", "Look Speed Vertical"), setting("trigger-threshold"),
-          link("pad1", "Buttons")}},
+          setting("pad-glyphs"), link("pad1", "Buttons")}},
         {"pad1", "BUTTONS",
          {pad_row("fire"), pad_row("aim"), pad_row("aim-toggle"), pad_row("grenade"), pad_row("melee"),
           pad_row("jump"), link("pad2", "More Buttons")}},

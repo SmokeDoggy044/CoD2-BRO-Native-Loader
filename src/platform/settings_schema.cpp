@@ -278,6 +278,9 @@ const SettingDef kSettings[] = {
     {"pad-use-reload", "BUTTONS", T::Text, G::Controls, kLive | kHidden, 0, 0, nullptr, "", "", "pad", "use-reload"},
     {"pad-raise-stance", "BUTTONS", T::Text, G::Controls, kLive | kHidden, 0, 0, nullptr, "", "", "pad", "raise-stance"},
     {"pad-previous-weapon", "BUTTONS", T::Text, G::Controls, kLive | kHidden, 0, 0, nullptr, "", "", "pad", "previous-weapon"},
+    {"notice-seen", "ID", T::Text, G::Controls, kHidden, 0, 0, nullptr, "",
+     "the last one-time notice the game showed (internal: the 1.0.6 controller notice shows until it says "
+     "\"controller-1.0.6\")"},
     {"pad-glyphs", "auto|xbox|playstation|nintendo", T::Choice, G::Controls, kLiveIni, 0, 0,
      "auto|xbox|playstation|nintendo", "auto",
      "the gamepad buttons the prompts show: the connected pad's style (auto, default), or Xbox, PlayStation or "

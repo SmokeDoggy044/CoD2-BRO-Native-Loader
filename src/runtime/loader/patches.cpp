@@ -3,6 +3,7 @@
 // table says codmp_xboxf.xbe (multiplayer).
 
 #include "patches.h"
+#include "pc_menu.h"
 
 #include <algorithm>
 #include <array>
@@ -521,6 +522,7 @@ text::KeyLabels pad_prompt_labels() {
 
 void update_button_prompts() {
     using text::PromptIcon;
+    if (g_pad_prompts && game::client_pc_hooks().native_actions) notice_poll();  // our own engine only
     const bool keyboard = g_button_prompts == TitlePatchConfig::ButtonPrompts::Keyboard ||
                           (g_button_prompts == TitlePatchConfig::ButtonPrompts::Auto &&
                            input::last_device() == input::Device::Keyboard);

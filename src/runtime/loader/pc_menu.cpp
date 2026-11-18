@@ -3,6 +3,7 @@
 
 #include "pc_menu.h"
 
+#include <atomic>
 #include <cmath>
 #include <cstdlib>
 #include <initializer_list>
@@ -14,6 +15,7 @@
 #include "devices.h"
 #include "enhanced_graphics.h"
 #include "fe_pc.h"
+#include "game_window.h"
 #include "float_env.h"
 #include "imgui.h"
 #include "log.h"
@@ -140,7 +142,71 @@ void live_tab(std::initializer_list<platform::SettingGroup> groups) {
 
 }  // namespace
 
+namespace {
+
+// The one-time notice (1.0.6): the controller works directly and starts with the Modern layout. Shown once, in
+// the PC menu's window, at the first menu the game shows; OK (or closing the menu) records it in settings.ini.
+constexpr const char* kNoticeId = "controller-1.0.6";
+enum class Notice { Unknown, Pending, Showing, Done };
+std::atomic<Notice> g_notice{Notice::Unknown};
+std::atomic<bool> g_notice_allowed{true};  // set_notice_allowed
+
+void notice_done() {
+    g_notice = Notice::Done;
+    platform::Settings file = platform::load_settings();
+    file.set("notice-seen", kNoticeId);
+    if (!platform::save_settings(file))
+        LOG_WARN("loader", "cannot save the settings to %s", platform::settings_path().string().c_str());
+    LOG_INFO("loader", "notice %s shown", kNoticeId);
+}
+
+bool draw_notice() {
+    const ImGuiViewport* viewport = ImGui::GetMainViewport();
+    ImGui::SetNextWindowPos(viewport->GetCenter(), ImGuiCond_Always, ImVec2(0.5f, 0.5f));
+    ImGui::SetNextWindowBgAlpha(0.92f);
+    bool open = true;
+    ImGui::Begin("What's new", &open,
+                 ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoSavedSettings |
+                     ImGuiWindowFlags_NoMove);
+    ImGui::PushTextWrapPos(ImGui::GetFontSize() * 32.0f);
+    ImGui::SeparatorText("New controller support");
+    ImGui::TextWrapped(
+        "Your controller now talks to the game directly instead of pretending to be the original Xbox pad, and it "
+        "starts with a modern layout:");
+    ImGui::BulletText("RT fire, LT aim, RB grenade");
+    ImGui::BulletText("A jump, B crouch, X use / reload, Y next weapon");
+    ImGui::BulletText("L3 sprint, R3 melee, D-pad left / right lean");
+    ImGui::TextWrapped(
+        "The game's original layouts, every single button, invert, vibration and look speed are under Options > "
+        "Controls > Controller (and in the launcher). The on-screen prompts show your controller's own buttons.");
+    ImGui::PopTextWrapPos();
+    ImGui::Separator();
+    if (ImGui::IsWindowAppearing()) ImGui::SetKeyboardFocusHere();
+    if (ImGui::Button("OK", ImVec2(ImGui::GetFontSize() * 6.0f, 0))) open = false;
+    ImGui::End();
+    if (!open) notice_done();
+    return open;
+}
+
+}  // namespace
+
+void set_notice_allowed(bool allowed) { g_notice_allowed = allowed; }
+
+void notice_poll() {
+    if (!g_notice_allowed.load()) return;
+    Notice state = g_notice.load();
+    if (state == Notice::Unknown) {
+        const auto seen = platform::load_settings().get("notice-seen");
+        state = seen && *seen == kNoticeId ? Notice::Done : Notice::Pending;
+        g_notice = state;
+    }
+    if (state != Notice::Pending || !input::in_menu()) return;
+    g_notice = Notice::Showing;
+    render::request_pc_menu();
+}
+
 bool pc_menu() {
+    if (g_notice.load() == Notice::Showing) return draw_notice();
     const ImGuiViewport* viewport = ImGui::GetMainViewport();
     ImGui::SetNextWindowPos(viewport->GetCenter(), ImGuiCond_Always, ImVec2(0.5f, 0.5f));
     ImGui::SetNextWindowBgAlpha(0.85f);
@@ -191,6 +257,7 @@ bool pc_menu_event(const void* sdl_event) {
 
 void pc_menu_shown(bool open) {
     input::set_game_input_blocked(open);
+    if (!open && g_notice.load() == Notice::Showing) notice_done();  // closed with ` or Escape
     g_key_table = {};
     if (open) {
         g_on_open = live_values();

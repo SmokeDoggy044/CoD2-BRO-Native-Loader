@@ -1,5 +1,6 @@
 // The back ends' shared window, events, prompt, picture placement, gamma and overlay text. See game_window.h.
 
+#include <atomic>
 #include "game_window.h"
 
 #include <algorithm>
@@ -92,8 +93,15 @@ double GameWindow::refresh_rate() const {
     return mode->refresh_rate;
 }
 
+namespace {
+std::atomic<bool> g_pc_menu_requested{false};
+}  // namespace
+
+void request_pc_menu() { g_pc_menu_requested = true; }
+
 bool GameWindow::pump_events() {
     if (closed_) return false;
+    if (pc_menu_ && g_pc_menu_requested.exchange(false)) set_menu_open(true);
     SDL_Event event;
     while (SDL_PollEvent(&event)) {
         if (event.type == SDL_EVENT_QUIT || event.type == SDL_EVENT_WINDOW_CLOSE_REQUESTED) return false;

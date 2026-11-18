@@ -144,6 +144,8 @@ int host_main(int argc, char** argv) {
     input::set_pad_bindings(options.pad_bindings);
     input::set_trigger_threshold(options.trigger_threshold);
     input::set_pad_family_override(options.pad_glyphs);
+    loader::set_notice_allowed(options.press_script.empty() && options.menu_walk.empty() && !options.screenshot_dir &&
+                               options.replay.mode == xbox::replay::Mode::Off && !options.compare);
     loader::set_live_pad_glyphs(!options.pad_glyphs                                      ? "auto"
                                 : *options.pad_glyphs == input::PadFamily::PlayStation ? "playstation"
                                 : *options.pad_glyphs == input::PadFamily::Nintendo    ? "nintendo"

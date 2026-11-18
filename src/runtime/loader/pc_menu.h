@@ -16,6 +16,11 @@ platform::Settings live_values();
 // The pad-glyphs setting at start-up (live_values reports it; input keeps only the override).
 void set_live_pad_glyphs(const std::string& value);
 void apply_live(const platform::Settings& before, const platform::Settings& after);
+// The one-time notice (1.0.6 controller): call on the title's input polls; opens the PC menu once with it at the
+// first menu the game shows, unless settings.ini says it was seen.
+void notice_poll();
+// Off for unattended runs (scripted presses, menu walks, replays, screenshots): the notice would hold their input.
+void set_notice_allowed(bool allowed);
 // The settings pages of the game's own menus (menu_pages.cpp): installs the page hooks (fe_pc.h).
 void install_menu_pages(const std::filesystem::path& mods_dir, bool quit_row);
 // Writes every text of our own the game's menus show (page titles, row labels, values, our menu rows; English, as

@@ -25,6 +25,9 @@ struct WindowRect {
     int32_t height() const { return bottom - top; }
 };
 
+// Opens the PC menu (pc_menu) on the window's next event pump, as ` would: for a one-time notice (any thread).
+void request_pc_menu();
+
 class GameWindow {
 public:
     GameWindow() = default;

@@ -60,6 +60,24 @@ void update_virtual_pad() {
                                scripted_pad_input(kPadRightTrigger) ? 32767 : -32768);
 }
 
+// Port 0's gamepad family (pad_family), kept by refresh_ports: pad_family is asked while g_mutex is held (the
+// prompts are worked out inside read_port), so it must not take the lock itself.
+std::atomic<int> g_port0_family{static_cast<int>(PadFamily::Xbox)};
+
+PadFamily family_of(SDL_Gamepad* pad) {
+    if (!pad) return PadFamily::Xbox;
+    switch (SDL_GetGamepadType(pad)) {
+        case SDL_GAMEPAD_TYPE_PS3:
+        case SDL_GAMEPAD_TYPE_PS4:
+        case SDL_GAMEPAD_TYPE_PS5: return PadFamily::PlayStation;
+        case SDL_GAMEPAD_TYPE_NINTENDO_SWITCH_PRO:
+        case SDL_GAMEPAD_TYPE_NINTENDO_SWITCH_JOYCON_LEFT:
+        case SDL_GAMEPAD_TYPE_NINTENDO_SWITCH_JOYCON_RIGHT:
+        case SDL_GAMEPAD_TYPE_NINTENDO_SWITCH_JOYCON_PAIR: return PadFamily::Nintendo;
+        default: return PadFamily::Xbox;
+    }
+}
+
 // Opens new gamepads into free ports and closes unplugged ones. Needs g_mutex.
 void refresh_ports() {
     for (auto& pad : g_ports) {
@@ -87,6 +105,7 @@ void refresh_ports() {
         LOG_INFO("input", "gamepad on port %d: %s", static_cast<int>(slot - g_ports), name ? name : "?");
     }
     SDL_free(ids);
+    g_port0_family = static_cast<int>(family_of(g_ports[0]));
 }
 
 uint8_t analog(bool pressed) { return pressed ? 0xFF : 0; }
@@ -661,18 +680,7 @@ void set_pad_family_override(std::optional<PadFamily> family) {
 
 PadFamily pad_family() {
     if (const int forced = g_pad_family_override.load(); forced >= 0) return static_cast<PadFamily>(forced);
-    std::lock_guard lock(g_mutex);
-    if (!g_ports[0]) return PadFamily::Xbox;
-    switch (SDL_GetGamepadType(g_ports[0])) {
-        case SDL_GAMEPAD_TYPE_PS3:
-        case SDL_GAMEPAD_TYPE_PS4:
-        case SDL_GAMEPAD_TYPE_PS5: return PadFamily::PlayStation;
-        case SDL_GAMEPAD_TYPE_NINTENDO_SWITCH_PRO:
-        case SDL_GAMEPAD_TYPE_NINTENDO_SWITCH_JOYCON_LEFT:
-        case SDL_GAMEPAD_TYPE_NINTENDO_SWITCH_JOYCON_RIGHT:
-        case SDL_GAMEPAD_TYPE_NINTENDO_SWITCH_JOYCON_PAIR: return PadFamily::Nintendo;
-        default: return PadFamily::Xbox;
-    }
+    return static_cast<PadFamily>(g_port0_family.load());  // no lock: callers may hold g_mutex (read_port)
 }
 
 void cancel_key_capture() {
