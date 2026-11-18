@@ -66,6 +66,12 @@ struct ClientPcHooks {
     // Set: +sprint / -sprint hold kbutton 3 (0x00934068: cmd bit 8, PM_UpdateSprintFlag's sprint button); the
     // campaign's handlers are empty, so its sprint (speed 1.6x, stamina, weapon pose) is never used.
     bool sprint = false;
+    // Cleared (the Cutscene Bars setting off): no cutscene letterbox - CG_CalcVrect keeps the full view height under
+    // cg_letterbox, and CG_DrawHudElemMaterial skips the scripts' bars (full-width elements up to 70 high). Drawing
+    // only: the game's state (letterbox_enabled, the hud elements, the hidden HUD) stays as in the game.
+    bool letterbox_bars = true;
+    // Set (More Bodies): the corpse limit is the game's maximum, 16, instead of ai_corpseCount (10).
+    bool more_bodies = false;
 };
 ClientPcHooks& client_pc_hooks();
 // Native keyboard and mouse (ClientPcHooks::native_actions): the actions' key numbers start at JOY17 (the pad uses

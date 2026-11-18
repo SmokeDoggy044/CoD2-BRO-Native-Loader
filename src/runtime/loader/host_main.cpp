@@ -145,7 +145,8 @@ int host_main(int argc, char** argv) {
                                            options.button_prompts, options.pc_patches.value_or(true),
                                            options.exec_text, options.forced_calls, options.mounted_gun_fix, options.glow,
                                            options.sprint,
-                                           loader::sprint_seconds(options.sprint_duration)});
+                                           loader::sprint_seconds(options.sprint_duration), options.letterbox,
+                                           options.more_bodies});
     if (!loader::prepare_fs_access(image)) return loader::startup_failed("cannot prepare the game's code");
     loader::configure_title_services(options, *assets, *title, aspect, [] {
         loader::run_fatal_exit_hook(false);

@@ -77,6 +77,9 @@ msgstr "Champ de vision"
 msgid "Sharper text"
 msgstr "Texte plus net"
 
+msgid "Cutscene bars"
+msgstr "Bandes cinématiques"
+
 msgid "Language"
 msgstr "Langue"
 
@@ -157,6 +160,9 @@ msgstr "Biais de détail"
 
 msgid "Smooth models"
 msgstr "Modèles lissés"
+
+msgid "More bodies"
+msgstr "Plus de corps"
 
 msgid "Texture Packs"
 msgstr "Packs de textures"

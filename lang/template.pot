@@ -76,6 +76,9 @@ msgstr ""
 msgid "Sharper text"
 msgstr ""
 
+msgid "Cutscene bars"
+msgstr ""
+
 msgid "Language"
 msgstr ""
 
@@ -155,6 +158,9 @@ msgid "Detail bias"
 msgstr ""
 
 msgid "Smooth models"
+msgstr ""
+
+msgid "More bodies"
 msgstr ""
 
 msgid "Texture Packs"

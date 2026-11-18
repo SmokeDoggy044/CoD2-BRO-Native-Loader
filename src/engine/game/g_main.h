@@ -80,6 +80,8 @@ uint32_t XB_CDECL G_FindHintStringIndex(int32_t* out, const char* text);
 void XB_CDECL G_FreeAnimTrees();
 // 0x0024fe60: frees the actor corpses past the corpse limit (0x00950c5c, 1..16).
 void XB_CDECL G_TrimCorpseQueue();
+// The corpse limit before clamping: ai_corpseCount's integer (0x00950c5c), or 16 with the More Bodies setting.
+int32_t G_CorpseLimitSetting();
 // 0x0024b620 (no references): when the game owns the string table (0x0095f5a0 == 1), frees it
 // (0x0095f59c) unless `keep` and clears the owner.
 void XB_CDECL G_FreeStringTable(uint32_t keep);

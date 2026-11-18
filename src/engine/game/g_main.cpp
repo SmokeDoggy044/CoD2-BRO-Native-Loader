@@ -667,10 +667,14 @@ void XB_CDECL G_FreeAnimTrees() {
     }
 }
 
+int32_t G_CorpseLimitSetting() {
+    return client_pc_hooks().more_bodies ? 0x10 : title_global<int32_t>(0x00950c5c);  // ai_corpseCount
+}
+
 void XB_CDECL G_TrimCorpseQueue() {
     // The corpse limit (0x00950c5c, clamped to 1..16) shrank below the count (0x00985418):
     // the corpses past it (g_actorCorpses, 0x1c each, handle first) are freed.
-    int32_t limit = title_global<int32_t>(0x00950c5c);
+    int32_t limit = G_CorpseLimitSetting();
     if (limit < 1)
         limit = 1;
     else if (limit > 0x10)

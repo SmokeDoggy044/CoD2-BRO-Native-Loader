@@ -67,7 +67,7 @@ const std::vector<PageDef>& pages() {
         {"display", "DISPLAY",
          {setting("fullscreen"), setting("scale"), setting("aspect"), setting("render-scale"), setting("fps")}},
         {"screen", "SCREEN",
-         {setting("brightness"), setting("fov"), setting("sharp-text"), setting("language")}},
+         {setting("brightness"), setting("fov"), setting("sharp-text"), setting("letterbox"), setting("language")}},
         {"image", "IMAGE QUALITY",
          {setting("fxaa", "Anti-aliasing"), setting("anisotropic"), setting("anisotropy"), setting("sharpen"),
           setting("sharpness"), setting("vibrance"), setting("vibrance-amount")}},
@@ -76,7 +76,7 @@ const std::vector<PageDef>& pages() {
           setting("specular"), setting("world-dlights")}},
         {"detail", "DETAIL",
          {setting("ambient-occlusion"), setting("cavity"), setting("texture-detail"), setting("lod-bias"),
-          setting("smooth-models"), link("mods", "Texture Packs")}},
+          setting("smooth-models"), setting("more-bodies"), link("mods", "Texture Packs")}},
         {"mods", "TEXTURE PACKS", {}},  // one row per installed pack (mod_rows)
         {"sound", "SOUND",
          {{Row::GameVolume, nullptr, "Master Volume"}, setting("audio", "Enhanced Sound"), link("volumes", "Volumes"),

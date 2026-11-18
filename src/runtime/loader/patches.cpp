@@ -2615,6 +2615,15 @@ void install_title_patches(const TitleInfo& title, const TitlePatchConfig& confi
         // Its stamina: 1.5 s is the game's (drain 2/3 per second); 0 = never runs out.
         if (config.sprint && campaign && config.sprint_seconds != 1.5f)
             game::pmove_pc_hooks().sprint_drain_scale = config.sprint_seconds > 0.0f ? 1.5f / config.sprint_seconds : 0.0f;
+        // Cutscene bars off / more bodies: our C's letterbox huds and corpse limit.
+        if (!config.letterbox && campaign && client_c(0x0027c3f0) && client_c(0x0027f040)) {
+            game::client_pc_hooks().letterbox_bars = false;
+            LOG_INFO("patches", "cutscene bars off");
+        }
+        if (config.more_bodies && campaign && client_c(0x00273790) && client_c(0x0024fe60)) {
+            game::client_pc_hooks().more_bodies = true;
+            LOG_INFO("patches", "more bodies: up to 16");
+        }
         // Native keyboard and mouse (0.6c): IN_Frame, CL_KeyEvent and Key_ClearStates as C.
         if (client_c(0x002bdf10) && client_c(0x002cd0c0) && client_c(0x002d57c0)) {
             game::client_pc_hooks().native_actions = &native_actions;

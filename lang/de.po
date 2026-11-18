@@ -77,6 +77,9 @@ msgstr "Sichtfeld"
 msgid "Sharper text"
 msgstr "Schärferer Text"
 
+msgid "Cutscene bars"
+msgstr "Zwischensequenz-Balken"
+
 msgid "Language"
 msgstr "Sprache"
 
@@ -157,6 +160,9 @@ msgstr "Detailverschiebung"
 
 msgid "Smooth models"
 msgstr "Geglättete Modelle"
+
+msgid "More bodies"
+msgstr "Mehr Leichen"
 
 msgid "Texture Packs"
 msgstr "Texturpakete"

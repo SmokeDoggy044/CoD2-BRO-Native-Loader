@@ -81,6 +81,8 @@ struct Options {
     bool aim_assist = true;
     bool mounted_gun_fix = true;  // --mounted-gun-fix (loader::TitlePatchConfig::mounted_gun_fix)
     bool sprint = false;          // --sprint (loader::TitlePatchConfig::sprint)
+    bool letterbox = true;        // --letterbox (loader::TitlePatchConfig::letterbox)
+    bool more_bodies = false;     // --more-bodies (loader::TitlePatchConfig::more_bodies)
     std::string sprint_duration = "1.5";  // --sprint-duration: seconds, or "unlimited"
     bool glow = false;            // --glow (loader::TitlePatchConfig::glow)
     int32_t frame_rate = 0;  // --fps: 0 = the display's rate (loader::TitlePatchConfig::frame_rate)
