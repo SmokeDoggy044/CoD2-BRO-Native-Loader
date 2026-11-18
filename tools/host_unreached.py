@@ -8,7 +8,11 @@ the moment a mission reaches it. Replays only find the ones their missions reach
 that point at a function start in a cleared code section (a Ghidra function, or a 16-byte aligned address after
 INT3/ret padding = a gap function) with no row in src/engine/shared/functions.cpp.
 
-usage: tools/host_unreached.py [XBE] [--out FILE] [--all]
+With --source it lists code addresses written as literals in OUR C instead (src/**/*.cpp|h, comments skipped):
+handlers, ctors and callbacks our C passes by title address (Cmd_AddCommand(name, 0x...), material type setters) -
+neither data words nor replays show those until a player's mission calls one (#24: water, server commands).
+
+usage: tools/host_unreached.py [XBE] [--out FILE] [--all] [--source]
   XBE defaults to ../unpacked/default.xbe; --all also lists SDK-section targets (D3D, DSOUND, XPP, ...: most are
   SDK replacements, hooked by symbol, not rows).
 Output (stdout or FILE): address, section, name, how many references, first referencing address + kind.
@@ -123,7 +127,26 @@ def collect(data, all_sdk=False):
                 t = int(t, 16)
                 if candidate(t):
                     refs[t].append((at, name, op))
-    return refs, section_of, names
+    return refs, section_of, names, candidate
+
+
+def source_refs(candidate):
+    """{target: [(file:line, section, "src")]} for code-section literals outside comments in our C."""
+    refs = defaultdict(list)
+    for f in sorted((ROOT / "src").rglob("*")):
+        if f.suffix not in (".cpp", ".h", ".inc"):
+            continue
+        # static_init_generated.cpp keys each translated stub by its address; src/runtime is the loader (kernel path).
+        if f.name == "static_init_generated.cpp" or "runtime" in f.relative_to(ROOT).parts[:2]:
+            continue
+        for n, line in enumerate(f.read_text(errors="replace").splitlines(), 1):
+            code = line.split("//", 1)[0]
+            for t in re.findall(r"\b0x([0-9a-fA-F]{8})\b", code):
+                t = int(t, 16)
+                sec = candidate(t)
+                if sec:
+                    refs[t].append((f"{f.relative_to(ROOT)}:{n}", sec, "src"))
+    return refs
 
 
 def main():
@@ -131,8 +154,18 @@ def main():
     ap.add_argument("xbe", nargs="?", default=str(DEFAULT_XBE))
     ap.add_argument("--out")
     ap.add_argument("--all", action="store_true")
+    ap.add_argument("--source", action="store_true", help="literals in our C instead of data/level code")
     args = ap.parse_args()
-    refs, section_of, names = collect(Path(args.xbe).read_bytes(), args.all)
+    refs, section_of, names, candidate = collect(Path(args.xbe).read_bytes(), args.all)
+    if args.source:
+        refs = source_refs(candidate)
+        out = [f"# host_unreached.py --source: {len(refs)} code addresses without C written as literals in src/"]
+        for a in sorted(refs):
+            r = refs[a]
+            out.append(f"{a:08x} {section_of(a)} {names.get(a, '?')} refs={len(r)} at " + ",".join(x[0] for x in r[:4]))
+        text = "\n".join(out) + "\n"
+        (Path(args.out).write_text(text) if args.out else sys.stdout.write(text))
+        return
     out = [f"# host_unreached.py: {len(refs)} functions without C reachable from data or level code"]
     for a in sorted(refs):
         r = refs[a]

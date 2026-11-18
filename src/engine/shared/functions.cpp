@@ -1185,6 +1185,9 @@ const Function kFunctions[] = {
     {"cdOcean_ConstSlot5", 0x0004f280, 0, code(&cdOcean_ConstSlot5), 0, Result::Eax, Status::Compare},  // was FUN_0004f280 (gap, m6/m7)
     {"cdOcean_ConstSlot6", 0x0004f290, 0, code(&cdOcean_ConstSlot6), 0, Result::Eax, Status::Compare},  // was FUN_0004f290 (gap, m6/m7)
     {"cdOceanVertexIter_Ctor", 0x000508a0, 0, code(&cdOceanVertexIter_Ctor), 4, Result::Eax, Status::Compare},  // was FUN_000508a0 (gap, m6/m7)
+    {"cdWaterVertexIter_Ctor", 0x000514b0, 0, code(&cdWaterVertexIter_Ctor), 4, Result::Eax, Status::Compare},  // gap (#24)
+    {"cdWorldVertexLitVertexIter_Ctor", 0x00052e40, 0, code(&cdWorldVertexLitVertexIter_Ctor), 4, Result::Eax, Status::Compare},  // gap
+    {"cdDebugVertexIter_Ctor", 0x0007b910, 0, code(&cdDebugVertexIter_Ctor), 4, Result::Eax, Status::Compare},  // gap
     {"cdRiverVertexIter_Ctor", 0x0004e9d0, 0, code(&cdRiverVertexIter_Ctor), 4, Result::Eax, Status::Compare},  // was FUN_0004e9d0 (gap)
     {"cdOcean_LoadTextures", 0x0004ea90, 0, code(&cdOcean_LoadTextures), 4, Result::Eax, Status::Compare},  // was FUN_0004ea90 (gap)
     {"cdOcean_ReleaseTextures", 0x0004eb00, 0, code(&cdOcean_ReleaseTextures), 4, Result::None, Status::Compare},  // was FUN_0004eb00 (gap)
@@ -8511,6 +8514,7 @@ const Function kFunctions[] = {
     {"Sentient_ClaimNodeIndefinitely", 0x002ba360, 0, code(&Sentient_ClaimNodeIndefinitely), 0, Result::None, Status::Replaced},
     {"NET_OutOfBandPrint", 0x002ba530, 0, code(&NET_OutOfBandPrint_entry), 28, Result::None, Status::Replaced},
     {"Cmd_AddCommand", 0x002ba5c0, 0, code(&Cmd_AddCommand), 8, Result::None, Status::Replaced},
+    {"Cmd_QueueServerCommand", 0x002aaae0, 0, code(&Cmd_QueueServerCommand), 0, Result::None, Status::Compare},  // gap (#24)
     {"Cmd_AddServerCommand", 0x002ba680, 0, code(&Cmd_AddServerCommand), 8, Result::None, Status::Replaced},
     {"Cbuf_ExecuteBuffer", 0x002ba750, 0, code(&Cbuf_ExecuteBuffer), 0, Result::None, Status::Replaced},
     {"Mat34_Transpose3", 0x002ba8e0, 0, code(&Mat34_Transpose3), 0, Result::None, Status::Replaced},

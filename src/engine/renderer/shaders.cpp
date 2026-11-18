@@ -2025,13 +2025,13 @@ void XB_CDECL cdSimplePrelit_RegisterMaterialType() { register_material_type(0x0
 void XB_CDECL cdSimple_RegisterMaterialType() { register_material_type(0x007b635c, own_address(&cdSimpleVertexIter_Ctor)); }
 void XB_CDECL cdRiver_RegisterMaterialType() { register_material_type(0x007b6688, own_address(&cdRiverVertexIter_Ctor)); }
 void XB_CDECL cdOcean_RegisterMaterialType() { register_material_type(0x007b665c, own_address(&cdOceanVertexIter_Ctor)); }
-void XB_CDECL cdWater_RegisterMaterialType() { register_material_type(0x007b6bfc, 0x000514b0); }
+void XB_CDECL cdWater_RegisterMaterialType() { register_material_type(0x007b6bfc, own_address(&cdWaterVertexIter_Ctor)); }
 void XB_CDECL cdWorldBlend_RegisterMaterialType() { register_material_type(0x007b6ecc, own_address(&cdWorldBlendVertexIter_Ctor)); }
-void XB_CDECL cdWorldVertexLit_RegisterMaterialType() { register_material_type(0x007b71bc, 0x00052e40); }
+void XB_CDECL cdWorldVertexLit_RegisterMaterialType() { register_material_type(0x007b71bc, own_address(&cdWorldVertexLitVertexIter_Ctor)); }
 void XB_CDECL cdWorld_RegisterMaterialType() { register_material_type(0x007b749c, own_address(&cdWorldVertexIter_Ctor)); }
 void XB_CDECL cdBackground_RegisterMaterialType() { register_material_type(0x007b776c, own_address(&cdBackgroundVertexIter_Ctor)); }
 void XB_CDECL cdSky_RegisterMaterialType() { register_material_type(0x007b7a48, own_address(&cdSkyVertexIter_Ctor)); }
-void XB_CDECL cdDebug_RegisterMaterialType() { register_material_type(0x007c19e4, 0x0007b910); }
+void XB_CDECL cdDebug_RegisterMaterialType() { register_material_type(0x007c19e4, own_address(&cdDebugVertexIter_Ctor)); }
 
 void XB_THISCALL cdDebug_Register(NglShaderClass* self) {
     register_class(self);

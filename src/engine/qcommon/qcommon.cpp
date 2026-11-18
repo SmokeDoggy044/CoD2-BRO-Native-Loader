@@ -777,8 +777,19 @@ void XB_CDECL Cmd_AddCommand(const char* name, uint32_t function) {
     add_command(0x00929b04, name, function);  // cmd_functions
 }
 
+void XB_CDECL Cmd_QueueServerCommand() {
+    const char* const text = title_global<const char*>(0x00927f50);  // the current command text
+    const int32_t length = static_cast<int32_t>(std::strlen(text));
+    const int32_t used = title_global<int32_t>(0x00929c18);
+    if (used + length + 1 >= title_global<int32_t>(0x00929c14)) return;  // full: dropped
+    char* const buffer = title_global<char*>(0x00929c10);
+    std::memcpy(buffer + used, text, static_cast<size_t>(length));
+    buffer[used + length] = '\n';
+    title_global<int32_t>(0x00929c18) = used + length + 1;
+}
+
 void XB_CDECL Cmd_AddServerCommand(const char* name, uint32_t function) {
-    Cmd_AddCommand(name, 0x002aaae0);
+    Cmd_AddCommand(name, own_address(&Cmd_QueueServerCommand));
     add_command(0x009284e4, name, function);
 }
 

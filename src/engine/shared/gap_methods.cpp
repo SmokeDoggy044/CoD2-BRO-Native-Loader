@@ -974,4 +974,17 @@ uint32_t* XB_CDECL cdOceanVertexIter_Ctor(uint32_t* iter) {
     return vertex_iter_ctor(iter, 0x007b6930);
 }
 
+// Material type setters our cd*_RegisterMaterialType pass by address (#24: water in a mission no replay reached).
+uint32_t* XB_CDECL cdWaterVertexIter_Ctor(uint32_t* iter) {
+    return vertex_iter_ctor(iter, 0x007b6c04);
+}
+
+uint32_t* XB_CDECL cdWorldVertexLitVertexIter_Ctor(uint32_t* iter) {
+    return vertex_iter_ctor(iter, 0x007b71d0);
+}
+
+uint32_t* XB_CDECL cdDebugVertexIter_Ctor(uint32_t* iter) {
+    return vertex_iter_ctor(iter, 0x007be7f4);
+}
+
 }  // namespace game

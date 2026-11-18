@@ -235,5 +235,8 @@ uint32_t XB_STDCALL cdOcean_StateEntry(uint32_t a, uint32_t b, uint32_t c);  // 
 uint32_t XB_CDECL cdOcean_ConstSlot5();  // 0x0004f280
 uint32_t XB_CDECL cdOcean_ConstSlot6();  // 0x0004f290
 uint32_t* XB_CDECL cdOceanVertexIter_Ctor(uint32_t* iter);  // 0x000508a0
+uint32_t* XB_CDECL cdWaterVertexIter_Ctor(uint32_t* iter);  // 0x000514b0
+uint32_t* XB_CDECL cdWorldVertexLitVertexIter_Ctor(uint32_t* iter);  // 0x00052e40
+uint32_t* XB_CDECL cdDebugVertexIter_Ctor(uint32_t* iter);  // 0x0007b910
 
 }  // namespace game

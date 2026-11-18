@@ -251,7 +251,10 @@ void XB_REGS1 XB_CDECL Info_SetValueForKey_Big(const char* key, char* info, cons
 void XB_CDECL Cvar_Init();
 // 0x002d1460: cmdlist, exec, vstr, echo, wait.
 void XB_CDECL Cmd_Init();
-// 0x002ba680: Cmd_AddCommand(name, 0x002aaae0), then the same kind of record on the server command list
+// 0x002aaae0: the client-side handler of every server command: appends the current command text (0x00927f50) and
+// a newline to the second command buffer (0x00929c10, size 0x00929c14, used 0x00929c18) when it fits.
+void XB_CDECL Cmd_QueueServerCommand();
+// 0x002ba680: Cmd_AddCommand(name, Cmd_QueueServerCommand), then the same kind of record on the server command list
 // (0x009284e4) unless it has the name.
 void XB_CDECL Cmd_AddServerCommand(const char* name, uint32_t function);
 
