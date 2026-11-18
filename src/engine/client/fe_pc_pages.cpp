@@ -17,6 +17,7 @@
 #include "fe_setup_internal.h"
 #include "movie.h"
 #include "ngl.h"
+#include "qcommon.h"
 #include "snd.h"
 #include "title_data.h"
 #include "ui_menu.h"
@@ -446,6 +447,44 @@ void pc_add_quit_row(uint8_t* menu, int32_t last) {
 void pc_set_game_volume(int32_t volume) {
     title_global<int32_t>(0x008dce88) = volume < 0 ? 0 : volume > 50 ? 50 : volume;
     SoundMenu_OnBack(0);
+}
+
+int32_t pc_controller_value(int32_t which) {
+    switch (which) {
+        case kPcControlInvert: return title_global<uint8_t>(0x008dce71);
+        case kPcControlVibration: return title_global<uint8_t>(0x008dce72);
+        case kPcControlLookX: return title_global<int32_t>(0x008dce74);
+        case kPcControlLookY: return title_global<int32_t>(0x008dce78);
+        default: return 0;
+    }
+}
+
+void pc_set_controller_value(int32_t which, int32_t value) {
+    const char* const sensitivity_x = reinterpret_cast<const char*>(uintptr_t{0x0082e06c});  // cl_sensitivityX
+    const char* const sensitivity_y = reinterpret_cast<const char*>(uintptr_t{0x0082e05c});  // cl_sensitivityY
+    const float scale = title_global<float>(0x0083ed7c);                                      // 0.04
+    switch (which) {
+        case kPcControlInvert: {
+            const uint8_t inverted = value ? 1 : 0;
+            title_global<uint8_t>(0x008dce71) = inverted;
+            if (uint8_t* const pitch = title_global<uint8_t*>(0x00929c0c)) {  // m_pitch
+                const float now = *reinterpret_cast<float*>(pitch + 0x1c);
+                if (inverted ? now > 0.0f : 0.0f > now)
+                    Cvar_SetValue(reinterpret_cast<const char*>(uintptr_t{0x0082e07c}),
+                                  now * title_global<float>(0x0083eb34));  // m_pitch, * -1
+            }
+            break;
+        }
+        case kPcControlVibration: title_global<uint8_t>(0x008dce72) = value ? 1 : 0; break;
+        case kPcControlLookX:
+        case kPcControlLookY: {
+            const int32_t speed = value < 0 ? 0 : value > 50 ? 50 : value;
+            title_global<int32_t>(which == kPcControlLookX ? 0x008dce74 : 0x008dce78) = speed;
+            Cvar_SetValue(which == kPcControlLookX ? sensitivity_x : sensitivity_y, static_cast<float>(speed) * scale);
+            break;
+        }
+        default: break;
+    }
 }
 
 int32_t pc_pages_take_request() {

@@ -171,8 +171,9 @@ Bindings pad_preset(PadPreset preset) {
                     up = pad(SDL_GAMEPAD_BUTTON_DPAD_UP), down = pad(SDL_GAMEPAD_BUTTON_DPAD_DOWN),
                     left = pad(SDL_GAMEPAD_BUTTON_DPAD_LEFT), right = pad(SDL_GAMEPAD_BUTTON_DPAD_RIGHT),
                     lt = kPadLeftTrigger, rt = kPadRightTrigger;
-    // The game's layouts (config/style_*.cfg): R1/L1 = the triggers, R2/L2 = Black/White (RB/LB here), JOY6 = A,
-    // CIRCLE = B, SQUARE = X, TRIANGLE = Y. Their D-pad lean is the plain lean.
+    // The game's layouts: its Controller screen's A-D exec config/style_h, _e, _f, _g.cfg (FE_ApplyControlSettings;
+    // style_a-d are another platform's). There R1/L1 = the triggers, R2/L2 = Black/White (RB/LB here), JOY6 = A,
+    // CIRCLE = B, SQUARE = X, TRIANGLE = Y; their D-pad lean is the plain lean.
     switch (preset) {
         case PadPreset::Modern:
         case PadPreset::Count:
@@ -180,25 +181,25 @@ Bindings pad_preset(PadPreset preset) {
             set(A::UseReload, x), set(A::NextWeapon, y), set(A::Sprint, ls), set(A::Melee, rs);
             set(A::LeanLeft, left), set(A::LeanRight, right);
             break;
-        case PadPreset::LayoutA:
-            set(A::Fire, rt), set(A::Grenade, lt), set(A::LeanRight, rb), set(A::LeanLeft, lb), set(A::Aim, rs);
+        case PadPreset::LayoutA:  // style_h, the game's default
+            set(A::Fire, rt), set(A::Aim, lt), set(A::Use, rb), set(A::Reload, lb), set(A::Sprint, ls);
+            set(A::Grenade, x), set(A::Jump, y), set(A::Crouch, bb), set(A::Melee, a);
+            set(A::NextWeapon, up), set(A::LeanLeft, left), set(A::LeanRight, right), set(A::NextWeapon, down);
+            break;
+        case PadPreset::LayoutB:  // style_e
+            set(A::Fire, rt), set(A::Grenade, lt), set(A::RaiseStance, rb), set(A::Crouch, lb), set(A::Aim, rs);
             set(A::Sprint, ls), set(A::UseReload, x), set(A::NextWeapon, y), set(A::Melee, bb), set(A::Jump, a);
             set(A::RaiseStance, up), set(A::LeanLeft, left), set(A::LeanRight, right), set(A::Crouch, down);
             break;
-        case PadPreset::LayoutB:
-            set(A::Fire, rt), set(A::Aim, lt), set(A::Melee, rb), set(A::Grenade, lb), set(A::Sprint, ls);
-            set(A::Use, x), set(A::NextWeapon, y), set(A::Reload, bb), set(A::Jump, a);
+        case PadPreset::LayoutC:  // style_f
+            set(A::Fire, rt), set(A::Grenade, lt), set(A::Use, rb), set(A::NextWeapon, lb), set(A::Aim, rs);
+            set(A::Sprint, ls), set(A::Reload, x), set(A::Jump, y), set(A::Crouch, bb), set(A::Melee, a);
+            set(A::NextWeapon, up), set(A::LeanLeft, left), set(A::LeanRight, right), set(A::PrevWeapon, down);
+            break;
+        case PadPreset::LayoutD:  // style_g
+            set(A::Fire, rt), set(A::Grenade, lt), set(A::Reload, rb), set(A::NextWeapon, lb), set(A::Aim, rs);
+            set(A::Crouch, ls), set(A::Melee, x), set(A::Use, y), set(A::Sprint, bb), set(A::Jump, a);
             set(A::RaiseStance, up), set(A::LeanLeft, left), set(A::LeanRight, right), set(A::Crouch, down);
-            break;
-        case PadPreset::LayoutC:
-            set(A::Fire, rt), set(A::Grenade, lt), set(A::LeanRight, rb), set(A::LeanLeft, lb), set(A::Aim, rs);
-            set(A::Crouch, ls), set(A::UseReload, x), set(A::Melee, y), set(A::Sprint, bb), set(A::Jump, a);
-            set(A::NextWeapon, up), set(A::LeanLeft, left), set(A::LeanRight, right), set(A::NextWeapon, down);
-            break;
-        case PadPreset::LayoutD:
-            set(A::Fire, rt), set(A::Aim, lt), set(A::Melee, rb), set(A::Grenade, lb), set(A::Sprint, ls);
-            set(A::Reload, x), set(A::Jump, y), set(A::Crouch, bb), set(A::Use, a);
-            set(A::NextWeapon, up), set(A::LeanLeft, left), set(A::LeanRight, right), set(A::NextWeapon, down);
             break;
     }
     return b;

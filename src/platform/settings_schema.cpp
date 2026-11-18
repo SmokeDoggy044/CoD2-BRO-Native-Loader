@@ -612,6 +612,9 @@ const SettingUi kUi[] = {
      "How long a full stamina bar lasts while sprinting. 1.5 seconds is the game's own; refilling (about 4 seconds "
      "from empty) stays as it is.",
      "1.5 s|3 s|5 s|8 s|Unlimited", nullptr, "sprint"},
+    {"trigger-threshold", "Controller", "Trigger threshold",
+     "How far a trigger goes down before its button counts as pressed (fire, aim, or whatever you bound to it). "
+     "Lower reacts sooner.", nullptr, "%.2f"},
     {"button-prompts", "On screen", "Button prompts",
      "The buttons the game shows in its hints and menus: keys and mouse buttons, or the Xbox controller's. They "
      "follow the controller style chosen in the game's options.",

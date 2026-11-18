@@ -114,6 +114,8 @@ std::atomic<bool> g_wait_release{false};
 // Key capture (begin_key_capture): its state, the input taken, and whether the release wait covers every key.
 std::atomic<Capture> g_capture{Capture::None};
 std::atomic<uint16_t> g_capture_code{0};
+std::atomic<bool> g_capture_pad{false};  // begin_pad_capture: a gamepad button or trigger, not a key
+std::atomic<int> g_trigger_threshold{8000};  // set_trigger_threshold, SDL axis units (0..32767)
 std::atomic<bool> g_wait_all_keys{false};
 constexpr int kStickDeadZone = 12000, kTriggerDeadZone = 8000;  // SDL axis units
 std::mutex g_tap_mutex;
@@ -151,17 +153,63 @@ void follow_menu_mode(SDL_Window* window) {
 
 // Runs on the thread that pumps window events (the renderer's).
 // A key capture takes the event: true when it did.
+// A capture's end: the input, then port 0 neutral until everything is let go.
+void capture_done(InputCode code) {
+    g_capture_code = code;
+    g_wait_all_keys = true;
+    g_wait_release = true;
+    g_blocked = false;
+    g_capture = Capture::Done;
+}
+
+void capture_cancelled() {
+    g_wait_all_keys = true;
+    g_wait_release = true;
+    g_blocked = false;
+    g_capture = Capture::Cancelled;
+}
+
+// begin_pad_capture: the next gamepad button or trigger; Start or Escape cancels, Back and Guide are ignored.
+bool pad_capture_event(const SDL_Event* event) {
+    switch (event->type) {
+        case SDL_EVENT_GAMEPAD_BUTTON_DOWN: {
+            const auto button = static_cast<SDL_GamepadButton>(event->gbutton.button);
+            if (button == SDL_GAMEPAD_BUTTON_START) {
+                capture_cancelled();
+                return true;
+            }
+            const auto code = static_cast<InputCode>(kPadButton + button);
+            if (!is_reserved(code)) capture_done(code);
+            return true;
+        }
+        case SDL_EVENT_GAMEPAD_AXIS_MOTION:
+            if (event->gaxis.axis == SDL_GAMEPAD_AXIS_LEFT_TRIGGER || event->gaxis.axis == SDL_GAMEPAD_AXIS_RIGHT_TRIGGER) {
+                if (event->gaxis.value > g_trigger_threshold.load())
+                    capture_done(event->gaxis.axis == SDL_GAMEPAD_AXIS_LEFT_TRIGGER ? kPadLeftTrigger : kPadRightTrigger);
+                return true;
+            }
+            return false;  // the sticks still move (nothing reads them while blocked)
+        case SDL_EVENT_KEY_DOWN:
+            if (!event->key.repeat && event->key.scancode == SDL_SCANCODE_ESCAPE) capture_cancelled();
+            return true;
+        case SDL_EVENT_KEY_UP:
+        case SDL_EVENT_MOUSE_BUTTON_DOWN:
+        case SDL_EVENT_MOUSE_BUTTON_UP:
+        case SDL_EVENT_MOUSE_WHEEL:
+        case SDL_EVENT_GAMEPAD_BUTTON_UP: return true;
+        default: return false;
+    }
+}
+
 bool capture_event(const SDL_Event* event) {
     if (g_capture.load() != Capture::Waiting) return false;
+    if (g_capture_pad.load()) return pad_capture_event(event);
     InputCode code = 0;
     switch (event->type) {
         case SDL_EVENT_KEY_DOWN:
             if (event->key.repeat) return true;
             if (event->key.scancode == SDL_SCANCODE_ESCAPE) {
-                g_wait_all_keys = true;
-                g_wait_release = true;
-                g_blocked = false;
-                g_capture = Capture::Cancelled;
+                capture_cancelled();
                 return true;
             }
             code = static_cast<InputCode>(event->key.scancode);
@@ -177,11 +225,7 @@ bool capture_event(const SDL_Event* event) {
         default: return false;
     }
     if (!code || is_reserved(code)) return true;
-    g_capture_code = code;
-    g_wait_all_keys = true;
-    g_wait_release = true;
-    g_blocked = false;
-    g_capture = Capture::Done;
+    capture_done(code);
     return true;
 }
 
@@ -388,7 +432,6 @@ struct ActionKeys {
 
 std::atomic<bool> g_native_actions{false};  // set_native_actions
 static_assert(kActionCount <= 32);
-std::atomic<int> g_trigger_threshold{8000};  // set_trigger_threshold, SDL axis units (0..32767)
 
 // A pad input of bindings.h held on `pad`: a button, or a trigger past the threshold.
 bool pad_input_held(SDL_Gamepad* pad, InputCode input) {
@@ -592,9 +635,19 @@ void take_mouse_motion(float& dx, float& dy) {
 
 void begin_key_capture() {
     g_capture_code = 0;
+    g_capture_pad = false;
     g_blocked = true;
     g_capture = Capture::Waiting;
 }
+
+void begin_pad_capture() {
+    g_capture_code = 0;
+    g_capture_pad = true;
+    g_blocked = true;
+    g_capture = Capture::Waiting;
+}
+
+float trigger_threshold() { return static_cast<float>(g_trigger_threshold.load()) / 32767.0f; }
 
 void cancel_key_capture() {
     Capture waiting = Capture::Waiting;
@@ -650,11 +703,18 @@ bool read_port(uint32_t port, PadState& state) {
         if (keys[SDL_SCANCODE_ESCAPE] || keys[SDL_SCANCODE_GRAVE] || keys[SDL_SCANCODE_RETURN] ||
             keys[SDL_SCANCODE_SPACE] || SDL_GetMouseState(nullptr, nullptr))
             return true;
-        if (g_wait_all_keys.load()) {  // after a key capture: every key
+        if (g_wait_all_keys.load()) {  // after a capture: every key, and the first gamepad's buttons and triggers
             int count = 0;
             const bool* all = SDL_GetKeyboardState(&count);
             for (int k = 0; k < count; ++k)
                 if (all[k]) return true;
+            if (SDL_Gamepad* pad = g_ports[0]) {
+                for (int b = 0; b < SDL_GAMEPAD_BUTTON_COUNT; ++b)
+                    if (SDL_GetGamepadButton(pad, static_cast<SDL_GamepadButton>(b))) return true;
+                if (SDL_GetGamepadAxis(pad, SDL_GAMEPAD_AXIS_LEFT_TRIGGER) > g_trigger_threshold.load() ||
+                    SDL_GetGamepadAxis(pad, SDL_GAMEPAD_AXIS_RIGHT_TRIGGER) > g_trigger_threshold.load())
+                    return true;
+            }
             g_wait_all_keys = false;
         }
         g_wait_release = false;

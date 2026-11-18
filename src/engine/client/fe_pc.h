@@ -86,6 +86,13 @@ void pc_pages_enter(uint8_t* menu, int32_t host, int32_t root);
 int32_t pc_page_return_screen(int32_t screen);
 // The game's own master volume (the Sound menu's, 0x008dce88: 0..50) set and applied as that menu does.
 void pc_set_game_volume(int32_t volume);
+// The game's controller settings (its Controller screen's, folded into our Controller page in 1.0.6): invert aim
+// (0x008dce71, 0/1), vibration (0x008dce72, 0/1), look speed horizontal / vertical (0x008dce74 / 78, 0..50). Set
+// applies them as that screen's Accept does (m_pitch's sign, cl_sensitivityX / Y = speed * 0.04).
+enum PcControl : int32_t { kPcControlInvert, kPcControlVibration, kPcControlLookX, kPcControlLookY };
+int32_t pc_controller_value(int32_t which);
+void pc_set_controller_value(int32_t which, int32_t value);
+inline constexpr int32_t kPcControlDefaults[] = {0, 1, 25, 25};  // the screen's Reset to Defaults
 // Our text `english` (a kPcText*) in the game's language (PcSettingsHooks::text).
 const char* pc_text(const char* english);
 // Texts of our Options / pause rows.

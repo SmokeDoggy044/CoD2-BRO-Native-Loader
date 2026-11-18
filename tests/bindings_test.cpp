@@ -79,10 +79,11 @@ int main() {
     CHECK(modern[Action::Melee][0] == pad(SDL_GAMEPAD_BUTTON_RIGHT_STICK) && modern[Action::Use][0] == 0);
     CHECK(input::format_pad_bindings(modern).empty());
     CHECK(input::matching_pad_preset(modern) == PadPreset::Modern);
-    const Bindings layout_d = input::pad_preset(PadPreset::LayoutD);
-    CHECK(layout_d[Action::Use][0] == pad(SDL_GAMEPAD_BUTTON_SOUTH) && layout_d[Action::Jump][0] == pad(SDL_GAMEPAD_BUTTON_NORTH));
-    CHECK(layout_d[Action::NextWeapon][1] == pad(SDL_GAMEPAD_BUTTON_DPAD_DOWN));
-    CHECK(input::matching_pad_preset(layout_d) == PadPreset::LayoutD);
+    const Bindings layout_a = input::pad_preset(PadPreset::LayoutA);  // style_h: the game's default
+    CHECK(layout_a[Action::Use][0] == pad(SDL_GAMEPAD_BUTTON_RIGHT_SHOULDER) && layout_a[Action::Melee][0] == pad(SDL_GAMEPAD_BUTTON_SOUTH));
+    CHECK(layout_a[Action::NextWeapon][1] == pad(SDL_GAMEPAD_BUTTON_DPAD_DOWN));
+    CHECK(input::matching_pad_preset(layout_a) == PadPreset::LayoutA);
+    CHECK(input::pad_preset(PadPreset::LayoutD)[Action::Crouch][1] == pad(SDL_GAMEPAD_BUTTON_DPAD_DOWN));
     for (size_t p = 0; p < static_cast<size_t>(PadPreset::Count); ++p) {  // every preset round-trips and differs
         const Bindings preset = input::pad_preset(static_cast<PadPreset>(p));
         Bindings back;

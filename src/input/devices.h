@@ -100,6 +100,7 @@ void set_native_actions(bool on);
 uint32_t held_actions();
 // How far a trigger goes down before its binding counts as held (0.02..0.95 of its travel; default 0.24).
 void set_trigger_threshold(float fraction);
+float trigger_threshold();
 
 // The device the player used last: keys, mouse buttons and mouse motion count as the
 // keyboard; gamepad buttons and sticks/triggers past a dead zone as a gamepad.
@@ -120,6 +121,9 @@ void set_game_input_blocked(bool blocked);
 // neutral until all keys and buttons are let go.
 enum class Capture : uint8_t { None, Waiting, Done, Cancelled };
 void begin_key_capture();
+// The same for a gamepad button or trigger (bindings.h pad inputs; the controller page): Start or Escape cancels,
+// Back and Guide are ignored; afterwards port 0 stays neutral until the pad's buttons are let go too.
+void begin_pad_capture();
 void cancel_key_capture();
 // The state; Done (code = the input) and Cancelled are reported once, then None.
 Capture key_capture(uint16_t& code);

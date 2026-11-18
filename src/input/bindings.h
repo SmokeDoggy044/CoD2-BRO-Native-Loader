@@ -56,7 +56,7 @@ Bindings default_bindings();
 
 // The gamepad's presets: Modern (the default since 1.0.6: RT fire, LT aim, RB grenade, A jump, B crouch, X use and
 // reload, Y next weapon, L3 sprint, R3 melee, D-pad left/right lean) and the game's own Xbox layouts A-D
-// (config/style_a..d.cfg) as direct bindings: RB/LB stand for its Black/White buttons.
+// (config/style_h, _e, _f, _g.cfg) as direct bindings: RB/LB stand for its Black/White buttons.
 enum class PadPreset : uint8_t { Modern, LayoutA, LayoutB, LayoutC, LayoutD, Count };
 Bindings pad_preset(PadPreset preset);
 inline Bindings default_pad_bindings() { return pad_preset(PadPreset::Modern); }

@@ -46,6 +46,8 @@ platform::Settings live_values() {
     if (const float fov = field_of_view(); fov > 0) ui::put_setting(v, "fov", std::to_string(std::lround(fov)));
     ui::put_setting(v, "mouse-sensitivity", ui::number_text(mouse_sensitivity()));
     platform::set_combined_setting(v, "keys", input::format_bindings(input::bindings()));
+    platform::set_combined_setting(v, "pad", input::format_pad_bindings(input::pad_bindings()));
+    ui::put_setting(v, "trigger-threshold", ui::number_text(input::trigger_threshold()));
     return v;
 }
 
@@ -74,6 +76,13 @@ void apply_live(const platform::Settings& before, const platform::Settings& afte
         input::parse_bindings(combined(after, "keys"), bindings);
         input::set_bindings(bindings);
     }
+    if (differs_combined("pad")) {
+        input::Bindings pad;
+        input::parse_pad_bindings(combined(after, "pad"), pad);
+        input::set_pad_bindings(pad);
+    }
+    if (differs("trigger-threshold"))
+        input::set_trigger_threshold(std::strtof(ui::setting_value(after, "trigger-threshold").c_str(), nullptr));
     if (differs("mouse-sensitivity"))
         set_mouse_sensitivity(std::strtof(ui::setting_value(after, "mouse-sensitivity").c_str(), nullptr));
 }
