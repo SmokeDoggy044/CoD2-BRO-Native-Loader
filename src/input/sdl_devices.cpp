@@ -103,6 +103,16 @@ void refresh_ports() {
         }
         const char* name = SDL_GetGamepadName(*slot);
         LOG_INFO("input", "gamepad on port %d: %s", static_cast<int>(slot - g_ports), name ? name : "?");
+        if (platform::log_enabled(platform::LogLevel::Debug)) {  // what SDL knows of it (paddles, extra buttons)
+            SDL_Joystick* joystick = SDL_GetGamepadJoystick(*slot);
+            char* mapping = SDL_GetGamepadMapping(*slot);
+            LOG_DEBUG("input", "gamepad %u: type %d, vendor %04x product %04x, %d buttons, %d axes; mapping %s",
+                      static_cast<unsigned>(ids[i]), static_cast<int>(SDL_GetGamepadType(*slot)),
+                      SDL_GetGamepadVendor(*slot), SDL_GetGamepadProduct(*slot),
+                      joystick ? SDL_GetNumJoystickButtons(joystick) : -1, joystick ? SDL_GetNumJoystickAxes(joystick) : -1,
+                      mapping ? mapping : "none");
+            SDL_free(mapping);
+        }
     }
     SDL_free(ids);
     g_port0_family = static_cast<int>(family_of(g_ports[0]));
@@ -295,6 +305,10 @@ bool SDLCALL watch_event(void*, SDL_Event* event) {
         case SDL_EVENT_MOUSE_BUTTON_DOWN:
         case SDL_EVENT_MOUSE_WHEEL:
             g_last_device = Device::Keyboard;
+            break;
+        case SDL_EVENT_JOYSTICK_BUTTON_DOWN:  // raw: also buttons the gamepad mapping does not name
+            LOG_DEBUG("input", "joystick %u: raw button %d down", static_cast<unsigned>(event->jbutton.which),
+                      static_cast<int>(event->jbutton.button));
             break;
         case SDL_EVENT_GAMEPAD_BUTTON_DOWN:
             g_last_device = Device::Gamepad;

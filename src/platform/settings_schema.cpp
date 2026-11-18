@@ -278,7 +278,8 @@ const SettingDef kSettings[] = {
     {"pad-use-reload", "BUTTONS", T::Text, G::Controls, kLive | kHidden, 0, 0, nullptr, "", "", "pad", "use-reload"},
     {"pad-raise-stance", "BUTTONS", T::Text, G::Controls, kLive | kHidden, 0, 0, nullptr, "", "", "pad", "raise-stance"},
     {"pad-previous-weapon", "BUTTONS", T::Text, G::Controls, kLive | kHidden, 0, 0, nullptr, "", "", "pad", "previous-weapon"},
-    {"notice-seen", "ID", T::Text, G::Controls, kHidden, 0, 0, nullptr, "",
+    // kLauncher: never passed to the game as an option (the game reads it from settings.ini itself).
+    {"notice-seen", "ID", T::Text, G::Controls, kLauncher | kHidden, 0, 0, nullptr, "",
      "the last one-time notice the game showed (internal: the 1.0.6 controller notice shows until it says "
      "\"controller-1.0.6\")"},
     {"pad-glyphs", "auto|xbox|playstation|nintendo", T::Choice, G::Controls, kLiveIni, 0, 0,
