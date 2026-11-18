@@ -13,6 +13,7 @@
 #include "title_objects.h"
 #include "title_stdio.h"
 #include "title_xapi.h"
+#include "stack_guard.h"
 
 namespace game {
 
@@ -189,6 +190,12 @@ void title_restart_reset() {
     scr_fiber_reset();
     Snd_RestartTitle();
     ngl_gfx_restart_title();
+}
+
+void title_thread_reuse_reset() {
+    game_floor_swap(0);  // left by a longjmp out of the title: no floor, no frame limit
+    stack_guard_reset();
+    objects::reset_thread();
 }
 
 void XB_CDECL title_start() {

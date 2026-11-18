@@ -128,6 +128,7 @@ uint32_t* XB_THISCALL cdSky_NewInstance(void*, uint32_t section) { return new_ma
 uint32_t* XB_THISCALL nglDebugMesh_NewInstance(void*, uint32_t section) { return new_material_instance(section, 0x007be7f4); }
 
 uint8_t* XB_THISCALL ShaderPCUV_DeletingDtor(uint8_t* self, uint32_t flags) { return delete_z_free(self, flags, 0x007b4160); }
+uint8_t* XB_THISCALL ShaderPCUVNode_DeletingDtor(uint8_t* self, uint32_t flags) { return delete_z_free(self, flags, 0x007b4154); }
 uint8_t* XB_THISCALL cdSky_DeletingDtor(uint8_t* self, uint32_t flags) { return delete_z_free(self, flags, 0x007b7a20); }
 
 // cdOcean's shader-type slot 11 (between GetVertexShader 0x009020e8 and GetPixelShader).
@@ -264,6 +265,7 @@ uint32_t XB_STDCALL FxOp1d5_Size(uint32_t) { return 0x40; }
 uint32_t XB_STDCALL FxOp1dd_Size(uint32_t) { return 0x50; }
 uint32_t XB_STDCALL FxOpdd_Size(uint32_t) { return 0x40; }
 uint32_t XB_STDCALL FxSphereDomain_Size(uint32_t) { return 0x20; }
+uint32_t XB_CDECL apsTypeTag_Sphe() { return 0x53706865; }
 uint32_t XB_STDCALL FxLineDomain_Size(uint32_t) { return 0x30; }
 uint32_t XB_STDCALL FxDiscDomain_Size(uint32_t) { return 0x40; }
 

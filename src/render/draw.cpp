@@ -381,6 +381,11 @@ Vertices static_source(const VertexLayout& layout, const ShaderState& shaders, u
 
 }  // namespace
 
+void forget_thread_caches() {
+    t_sources.clear();
+    t_sources_swept = 0;
+}
+
 uint32_t skipped_draws() { return g_skipped_draws.load(std::memory_order_relaxed); }
 
 void install_draw_handlers() { nv2a::set_inline_draw_handler(inline_draw); }

@@ -17,6 +17,7 @@ void stack_guard_enter(uint32_t) {}
 void stack_guard_leave(uint32_t) {}
 void stack_guard_restore(uint32_t, uint32_t) {}
 void stack_guard_range(uint32_t* begin, uint32_t* end) { *begin = *end = 0; }
+void stack_guard_reset() {}
 
 #else
 
@@ -101,6 +102,11 @@ void stack_guard_enter(uint32_t floor) {
         note_margin(outer, e.top);
     }
     if (t_depth < kMax) t_live[t_depth++] = e;
+}
+
+void stack_guard_reset() {
+    for (int i = 0; i < t_depth; ++i) t_live[i] = Entry{};
+    t_depth = 0;
 }
 
 void stack_guard_leave(uint32_t floor) {

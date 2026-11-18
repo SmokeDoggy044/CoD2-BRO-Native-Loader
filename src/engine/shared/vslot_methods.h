@@ -45,6 +45,7 @@ uint32_t* XB_THISCALL cdBackground_NewInstance(void* self, uint32_t section);   
 uint32_t* XB_THISCALL cdSky_NewInstance(void* self, uint32_t section);                       // 0x00055430
 uint32_t* XB_THISCALL nglDebugMesh_NewInstance(void* self, uint32_t section);                // 0x0006e980
 uint8_t* XB_THISCALL ShaderPCUV_DeletingDtor(uint8_t* self, uint32_t flags);                 // 0x00047690
+uint8_t* XB_THISCALL ShaderPCUVNode_DeletingDtor(uint8_t* self, uint32_t flags);             // 0x00047630 (vtable 0x007b4154)
 uint8_t* XB_THISCALL cdSky_DeletingDtor(uint8_t* self, uint32_t flags);                      // 0x000553b0
 uint32_t XB_CDECL cdOcean_GetVertexShader2();                                                // 0x0004e930
 
@@ -112,6 +113,7 @@ uint32_t XB_CDECL apsTypeTag_DLAt();  // 0x000a4a70
 uint32_t XB_CDECL apsTypeTag_KTau();  // 0x000a4a80
 uint32_t XB_CDECL apsTypeTag_SpDe();  // 0x000a4aa0
 uint32_t XB_CDECL apsTypeTag_YHSp();  // 0x000a63c0
+uint32_t XB_CDECL apsTypeTag_Sphe();  // 0x000a63a0 (FxSphereDomain vtable +0x0c)
 uint32_t XB_CDECL apsTypeTag_ZHSp();  // 0x000a63d0
 uint32_t XB_CDECL apsTypeTag_SpSu();  // 0x000a63e0
 uint32_t XB_CDECL apsTypeTag_Line();  // 0x000a63f0

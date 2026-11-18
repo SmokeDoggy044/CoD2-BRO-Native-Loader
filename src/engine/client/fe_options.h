@@ -73,6 +73,7 @@ void XB_THISCALL ControllerConfigMenu_OnDown(uint8_t* menu, uint32_t pad);
 void XB_THISCALL GameplayMenu_OnLeft(uint8_t* menu, uint32_t pad);
 void XB_THISCALL GameplayMenu_OnRight(uint8_t* menu, uint32_t pad);
 void XB_THISCALL ControllerConfigMenu_OnLeft(uint8_t* menu, uint32_t pad);
+void XB_THISCALL ControllerConfigMenu_OnRight(uint8_t* menu, uint32_t pad);  // 0x000127b0 (#27)
 // 0x00012890 / 0x000128d0: previous / next item, the label +0x3c coloured like item 0; 0x00012910 / 0x00012920:
 // left / right = ScreenMenu_ToggleAspect.
 void XB_THISCALL ScreenMenu_OnUp(uint8_t* menu, uint32_t pad);

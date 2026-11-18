@@ -21,9 +21,12 @@ bool start_title_thread(uint32_t stack_size, uint32_t tls_size, uint32_t routine
                         uint32_t* thread_id);
 
 // In-process restart (own engine host 5b, game::TitleHost::relaunch): the calling title thread hands over the next
-// LaunchDataPage and ends; the start thread, blocked in wait_for_title_restart, gets the page once that thread is
-// gone (its host-side thread main calls title_thread_left after leaving the title).
+// LaunchDataPage and leaves the title; the start thread, blocked in wait_for_title_restart, gets the page once it
+// has left (kernel threads call title_thread_left after leaving it).
+// The requesting thread itself does not end: it waits and runs the restarted title's main thread (on Windows the
+// window it opened would go with it). `reset` runs on it before that, to clear its thread_local state.
 [[noreturn]] void request_title_restart(const uint8_t* page, uint32_t size);
+void set_thread_reuse_reset(void (*reset)());
 std::vector<uint8_t> wait_for_title_restart();
 void title_thread_left();
 

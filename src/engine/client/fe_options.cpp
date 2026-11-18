@@ -288,6 +288,10 @@ void XB_THISCALL ControllerConfigMenu_OnLeft(uint8_t* menu, uint32_t) {
     ControllerConfigMenu_ChangeValue(menu, 0);
 }
 
+void XB_THISCALL ControllerConfigMenu_OnRight(uint8_t* menu, uint32_t) {
+    ControllerConfigMenu_ChangeValue(menu, 1);
+}
+
 // The previous / next item, then the label +0x3c coloured like item 0.
 void XB_THISCALL ScreenMenu_OnUp(uint8_t* menu, uint32_t) {
     call(menu, 0xb0);

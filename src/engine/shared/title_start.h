@@ -25,4 +25,8 @@ uint32_t XB_STDCALL title_main_thread(uint32_t parameter);
 // sound and renderer additions). The host then resets title memory and runs the entry again.
 void title_restart_reset();
 
+// The same for the thread that asked for the restart, on that thread: it runs the restarted title's main thread
+// (loader::set_thread_reuse_reset), so its thread_local state goes back to a fresh thread's.
+void title_thread_reuse_reset();
+
 }  // namespace game

@@ -143,6 +143,12 @@ void XB_THISCALL DifficultyMenu_HandleSelect(uint8_t* menu, int32_t difficulty);
 extern "C" void SpecialMaterialsMenu_OnSelect_entry(void);
 // 0x00013600 (thiscall, ret 4): leaves full screen, else back to screen 0x12 (manager +0x0c, tail jump).
 extern "C" void SpecialConceptMenu_OnBack_entry(void);
+// 0x00012f20 (vtable +0x64): +0x4c set -> screen 2; else the front end's +0x04 -> +0x44 record gets +0x48 at +0x1ac,
+// then screen 0x11. Both through the manager's SetActiveScreen as a tail jump (UI_MENU_TAIL_DECIDE). Not compared.
+extern "C" PLATFORM_HIDDEN int32_t XB_CDECL DifficultyMenu_OnBack(uint8_t* menu);
+extern "C" void DifficultyMenu_OnBack_entry(void);
+// 0x00013040 (vtable +0x64): back to the bonus materials screen (8), a tail jump. Not compared.
+extern "C" void BonusCharactersMenu_OnBack_entry(void);
 
 // Draw (+0x28): 0x0031a860, 0x0031aae0, 0x0031b6b0, 0x0031ed50.
 void XB_THISCALL SpecialConceptMenu_Draw(uint8_t* menu);

@@ -192,6 +192,7 @@ const Function kFunctions[] = {
     {"UITextBase_SetOffset44", 0x00011470, 0, code(&UITextBase_SetOffset44), 8, Result::None, Status::Compare},  // was FUN_00011470 (gap)
     {"UITextBase_SetString54", 0x000114b0, 0, code(&UITextBase_SetString54), 4, Result::Eax, Status::Compare},  // was FUN_000114b0 (gap)
     {"UITextBase_MoveBy", 0x000114c0, 0, code(&UITextBase_MoveBy), 8, Result::None, Status::Replaced},
+    {"UITextBase_AddToFields20", 0x000114f0, 0, code(&UITextBase_AddToFields20), 12, Result::None, Status::Compare},  // was FUN_000114f0 (vtable slot after ret N; 2026-11-18)
     {"UITextBase_SetString1C", 0x00011530, 0, code(&UITextBase_SetString1C), 4, Result::Eax, Status::Compare},  // was FUN_00011530 (gap)
     {"UITextBase_SetPosition", 0x00011540, 0, code(&UITextBase_SetPosition), 8, Result::None, Status::Replaced},
     {"UITextBase_SetFloat2C", 0x00011580, 0, code(&UITextBase_SetFloat2C), 4, Result::None, Status::Compare},  // was FUN_00011580 (gap)
@@ -333,6 +334,7 @@ const Function kFunctions[] = {
     {"GameplayMenu_DeletingDtor", 0x00012710, 0, code(&GameplayMenu_DeletingDtor), 4, Result::Eax, Status::Replaced},
     {"ControllerConfigMenu_Dtor", 0x00012730, 0, code(&ControllerConfigMenu_Dtor), 0, Result::None, Status::Replaced},
     {"ControllerConfigMenu_OnLeft", 0x000127a0, 0, code(&ControllerConfigMenu_OnLeft), 4, Result::None, Status::Compare},  // was FUN_000127a0 (gap)
+    {"ControllerConfigMenu_OnRight", 0x000127b0, 0, code(&ControllerConfigMenu_OnRight), 4, Result::None, Status::Compare},  // was FUN_000127b0 (#27 crash)
     {"ControllerConfigMenu_OnUp", 0x000127c0, 0, code(&ControllerConfigMenu_OnUp), 4, Result::None, Status::Replaced},
     {"ControllerConfigMenu_OnDown", 0x000127e0, 0, code(&ControllerConfigMenu_OnDown), 4, Result::None, Status::Replaced},
     {"ControllerConfigMenu_DeletingDtor", 0x00012800, 0, code(&ControllerConfigMenu_DeletingDtor), 4, Result::Eax, Status::Replaced},
@@ -366,11 +368,13 @@ const Function kFunctions[] = {
     {"LoadMaubeugeMenu_DeletingDtor", 0x00012e80, 0, code(&LoadMaubeugeMenu_DeletingDtor), 4, Result::Eax, Status::Replaced},
     {"DifficultyMenu_Dtor", 0x00012ea0, 0, code(&DifficultyMenu_Dtor), 0, Result::None, Status::Replaced},
     {"DifficultyMenu_HandleSelect", 0x00012f10, 0, code(&DifficultyMenu_HandleSelect), 4, Result::None, Status::Compare},  // was FUN_00012f10 (gap)
+    {"DifficultyMenu_OnBack", 0x00012f20, 0, code(&DifficultyMenu_OnBack_entry), 4, Result::None, Status::Replaced},  // was FUN_00012f20; tail jump to the manager: not compared
     {"DifficultyMenu_DeletingDtor", 0x00012f60, 0, code(&DifficultyMenu_DeletingDtor), 4, Result::Eax, Status::Replaced},
     {"BonusMaterialsMenu_Dtor", 0x00012f80, 0, code(&BonusMaterialsMenu_Dtor), 0, Result::None, Status::Replaced},
     {"BonusMaterialsMenu_OnSelect", 0x00012ff0, 0, code(&BonusMaterialsMenu_OnSelect_entry), 4, Result::None, Status::Replaced},  // was FUN_00012ff0 (gap); call inside the first 5 bytes: not compared
     {"BonusMaterialsMenu_OnBack", 0x00013000, 0, code(&BonusMaterialsMenu_OnBack_entry), 4, Result::None, Status::Replaced},  // was FUN_00013000 (gap); tail jump to the manager's SetActiveScreen: not compared
     {"BonusMaterialsMenu_DeletingDtor", 0x00013020, 0, code(&BonusMaterialsMenu_DeletingDtor), 4, Result::Eax, Status::Replaced},
+    {"BonusCharactersMenu_OnBack", 0x00013040, 0, code(&BonusCharactersMenu_OnBack_entry), 4, Result::None, Status::Replaced},  // was FUN_00013040; tail jump to the manager: not compared
     {"BonusWeaponsMenu_Dtor", 0x00013050, 0, code(&BonusWeaponsMenu_Dtor), 0, Result::None, Status::Replaced},
     {"BonusWeaponsMenu_OnBack", 0x000130d0, 0, code(&BonusWeaponsMenu_OnBack_entry), 4, Result::None, Status::Compare},
     {"BonusWeaponsMenu_OnA", 0x00013120, 0, code(&BonusWeaponsMenu_OnA_entry), 4, Result::None, Status::Replaced},
@@ -1203,6 +1207,7 @@ const Function kFunctions[] = {
     {"Cmd_PakRender_f", 0x0028cd40, 0, code(&Cmd_PakRender_f), 0, Result::None, Status::Compare},  // gap reached by address from our C
     {"Cmd_WriteDefaults_f", 0x00293810, 0, code(&Cmd_Nothing_f), 0, Result::None, Status::Compare},  // gap reached by address from our C
     {"Cmd_WriteConfig_f", 0x00293820, 0, code(&Cmd_Nothing_f), 0, Result::None, Status::Compare},  // gap reached by address from our C
+    {"MemHook_ReturnFalse", 0x00293080, 0, code(&MemHook_ReturnFalse), 0, Result::Al, Status::Compare},  // was FUN_00293080: allocator hook slot 0, by address from our C (2026-11-18)
     {"MemHook_Nothing", 0x00296770, 0, code(&MemHook_Nothing), 0, Result::None, Status::Compare},  // gap reached by address from our C
     {"MemHook_FreeIndirect", 0x002968e0, 0, code(&MemHook_FreeIndirect), 4, Result::None, Status::Compare},  // gap reached by address from our C
     {"Cmd_Cg_f", 0x002afb90, 0, code(&Cmd_Cg_f), 0, Result::None, Status::Compare},  // gap reached by address from our C
@@ -1784,6 +1789,7 @@ const Function kFunctions[] = {
     {"ShaderPCUV_Draw", 0x000472e0, 0, code(&ShaderPCUV_Draw), 0, Result::None, Status::Replaced},
     {"ShaderPCUV_AddToList", 0x000474e0, 0, code(&ShaderPCUV_AddToList), 12, Result::None, Status::Replaced},
     {"nglSetDecalZBias", 0x00047590, 0, code(&nglSetDecalZBias), 4, Result::None, Status::Replaced},
+    {"ShaderPCUVNode_DeletingDtor", 0x00047630, 0, code(&ShaderPCUVNode_DeletingDtor), 4, Result::Eax, Status::Compare},  // was FUN_00047630 (vtable slot after ret N; 2026-11-18)
     {"ShaderPCUV_GetName", 0x00047650, 0, code(&ShaderPCUV_GetName), 4, Result::Eax, Status::Replaced},
     {"nglMaterial_LoadTextureRef", 0x00047670, 0, code(&nglMaterial_LoadTextureRef), 4, Result::None, Status::Replaced},
     {"ShaderPCUV_DeletingDtor", 0x00047690, 0, code(&ShaderPCUV_DeletingDtor), 4, Result::Eax, Status::Compare},  // was FUN_00047690 (gap, unreached)
@@ -2454,6 +2460,7 @@ const Function kFunctions[] = {
     {"Anim_InitManagers", 0x0007bac0, 0, code(&Anim_InitManagers), 0, Result::Eax, Status::Replaced},
     {"NAL_GenericAnim_GetField60", 0x0007bc40, 0, code(&NAL_GenericAnim_GetField60), 0, Result::Eax, Status::Replaced},  // was FUN_0007bc40 (gap, unreached); returns within the first 5 bytes: too short to compare
     {"NAL_GenericAnim_GetTrackWord", 0x0007bc50, 0, code(&NAL_GenericAnim_GetTrackWord), 4, Result::Eax, Status::Compare},  // was FUN_0007bc50 (gap, unreached)
+    {"NAL_GenericAnim_EvaluatePose_Thunk", 0x0007bc60, 0, code(&NAL_GenericAnim_EvaluatePose), 12, Result::None, Status::Compare},  // was FUN_0007bc60; jmp thunk
     {"NAL_GenericAnim_GetState", 0x0007bc90, 0, code(&NAL_GenericAnim_GetState), 0, Result::Eax, Status::Compare},  // was FUN_0007bc90 (gap, unreached)
     {"NAL_GenericAnim_CopyState", 0x0007bce0, 0, code(&NAL_GenericAnim_CopyState), 8, Result::None, Status::Compare},  // was FUN_0007bce0 (gap, unreached)
     {"NAL_GenericAnim_BlendStates", 0x0007bd00, 0, code(&NAL_GenericAnim_BlendStates), 16, Result::None, Status::Compare},  // was FUN_0007bd00 (gap, unreached)
@@ -3036,6 +3043,7 @@ const Function kFunctions[] = {
     {"FxDiscDomain_Generate", 0x000a5db0, 0, code(&FxDiscDomain_Generate), 8, Result::Eax, Status::Replaced},
     {"FxCircleDomain_Init", 0x000a5f20, 0, code(&FxCircleDomain_Init), 12, Result::Eax, Status::Replaced},
     {"FxCircleDomain_Generate", 0x000a6250, 0, code(&FxCircleDomain_Generate), 8, Result::Eax, Status::Replaced},
+    {"apsTypeTag_Sphe", 0x000a63a0, 0, code(&apsTypeTag_Sphe), 0, Result::Eax, Status::Compare},  // was FUN_000a63a0 (vtable slot after ret N; 2026-11-18)
     {"FxSphereDomain_Size", 0x000a63b0, 0, code(&FxSphereDomain_Size), 4, Result::Eax, Status::Compare},  // was FUN_000a63b0 (gap, unreached)
     {"apsTypeTag_YHSp", 0x000a63c0, 0, code(&apsTypeTag_YHSp), 0, Result::Eax, Status::Compare},  // was FUN_000a63c0 (gap, unreached)
     {"apsTypeTag_ZHSp", 0x000a63d0, 0, code(&apsTypeTag_ZHSp), 0, Result::Eax, Status::Compare},  // was FUN_000a63d0 (gap, unreached)
@@ -9690,6 +9698,7 @@ const Function kFunctions[] = {
     {"UI_StickDirectionHeld", 0x0030ea00, 0, code(&UI_StickDirectionHeld), 4, Result::Al, Status::Replaced},
     {"UIScreenMgr_PadBitToButton", 0x0030eb40, 0, code(&UIScreenMgr_PadBitToButton), 0, Result::Eax, Status::Replaced},
     {"UIScreenMgr_OnButtonDown", 0x0030ec70, 0, code(&UIScreenMgr_OnButtonDown), 8, Result::None, Status::Replaced},
+    {"UIScreenMgr_DrawActiveScreen_Copy", 0x0030ee80, 0, code(&UIScreenMgr_DrawActiveScreen), 0, Result::None, Status::Compare},  // was FUN_0030ee80: same bytes as 0x00313d10 (UIText-derived vtable slot 113)
     {"UIScreenMgr_Update", 0x0030eea0, 0, code(&UIScreenMgr_Update), 4, Result::None, Status::Replaced},
     {"UIScreenMgr_LayoutAll", 0x0030eed0, 0, code(&UIScreenMgr_LayoutAll), 0, Result::None, Status::Replaced},
     {"UIScreenMgr_AddScreen", 0x0030ef00, 0, code(&UIScreenMgr_AddScreen), 4, Result::None, Status::Compare},  // was FUN_0030ef00 (gap)
@@ -9710,6 +9719,7 @@ const Function kFunctions[] = {
     {"UIText_StartScroll", 0x0030f6b0, 0, code(&UIText_StartScroll), 8, Result::None, Status::Compare},  // was FUN_0030f6b0 (gap)
     {"UIText_ScrollBy", 0x0030f730, 0, code(&UIText_ScrollBy), 4, Result::None, Status::Compare},
     {"UIText_SetFont", 0x0030f830, 0, code(&UIText_SetFont), 4, Result::None, Status::Compare},  // was FUN_0030f830 (gap)
+    {"UIText_SetLineWord", 0x0030f860, 0, code(&UIText_SetLineWord), 8, Result::None, Status::Compare},  // was FUN_0030f860 (vtable slot after ret N; 2026-11-18)
     {"UIText_SetLineSpacing", 0x0030f880, 0, code(&UIText_SetLineSpacing), 4, Result::None, Status::Replaced},
     {"UIText_Draw", 0x0030f900, 0, code(&UIText_Draw), 0, Result::None, Status::Replaced},
     {"UI_GetTextWidth", 0x0030f950, 0, code(&UI_GetTextWidth), 4, Result::St0, Status::Replaced},
@@ -9967,6 +9977,7 @@ const Function kFunctions[] = {
     {"BonusConceptsMenu_Update", 0x0031ba90, 0, code(&BonusConceptsMenu_Update), 4, Result::None, Status::Compare},  // was FUN_0031ba90 (gap)
     {"BonusConceptsMenu_Draw", 0x0031bb50, 0, code(&BonusConceptsMenu_Draw), 0, Result::None, Status::Compare},  // was FUN_0031bb50 (gap)
     {"BonusConceptsMenu_OnLeave", 0x0031bbc0, 0, code(&BonusConceptsMenu_OnLeave_entry), 4, Result::None, Status::Replaced},
+    {"BonusConceptsMenu_RestoreSelection", 0x0031bc10, 0, code(&BonusConceptsMenu_RestoreSelection_entry), 0, Result::None, Status::Replaced},  // was FUN_0031bc10; tail jump to UIMenu_RestoreSelection: not compared
     {"BonusVehiclesMenu_Step", 0x0031bc50, 0, code(&BonusVehiclesMenu_Step_entry), 0, Result::None, Status::Replaced},
     {"FE_BonusVehicleSetText", 0x0031be80, 0, code(&FE_BonusVehicleSetText_entry), 0, Result::None, Status::Replaced},
     {"FE_BonusVehicleLoadImage", 0x0031bf70, 0, code(&FE_BonusVehicleLoadImage_entry), 0, Result::None, Status::Replaced},

@@ -22,5 +22,7 @@ void stack_guard_restore(uint32_t dst, uint32_t size);
 // The table's words (begin, end; 0, 0 in release builds): compare tests that end at a script thread switch
 // leave the switching C frames' entries in it (scr_fiber_switch_ranges).
 void stack_guard_range(uint32_t* begin, uint32_t* end);
+// The calling thread's live entries dropped (a thread reused after a longjmp out of the title).
+void stack_guard_reset();
 
 }  // namespace game

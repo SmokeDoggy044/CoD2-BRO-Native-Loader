@@ -710,6 +710,19 @@ void XB_CDECL SpecialMaterialsMenu_OnUp(uint8_t* menu, uint32_t ebx, uint32_t ed
 
 // --- Unreached slots (host_unreached 2026-11-12) ---
 
+// 0x00012f20 / 0x00013040: found 2026-11-18 when host_unreached learned function starts after `ret N` (#27).
+UI_MENU_TAIL_DECIDE(DifficultyMenu_OnBack_entry, DifficultyMenu_OnBack)
+
+int32_t XB_CDECL DifficultyMenu_OnBack(uint8_t* menu) {
+    if (menu[0x4c]) return 2;
+    uint8_t* const front_end = title_global<uint8_t*>(0x0095f8f8);
+    uint8_t* const record = field<uint8_t*>(field<uint8_t*>(front_end, 4), 0x44);
+    field<uint32_t>(record, 0x1ac) = field<uint32_t>(menu, 0x48);
+    return 0x11;
+}
+
+UI_MENU_TAIL_SCREEN(BonusCharactersMenu_OnBack_entry, 8)
+
 // 0x00012f10 (vtable +0x38): the selected difficulty starts the game.
 void XB_THISCALL DifficultyMenu_HandleSelect(uint8_t* menu, int32_t difficulty) {
     DifficultyMenu_StartGame(difficulty, menu);

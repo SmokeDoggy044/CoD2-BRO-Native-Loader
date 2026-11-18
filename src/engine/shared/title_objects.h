@@ -57,6 +57,8 @@ void queue_apc(uint32_t routine, uint32_t a1, uint32_t a2, uint32_t a3);
 // An in-process title restart (own engine host 5b; no title thread runs): every handle closed, numbering from the
 // first again.
 void reset();
+// The calling thread's queued completion routines dropped (a thread reused across a restart).
+void reset_thread();
 
 // Critical sections on the title's RTL_CRITICAL_SECTION (0x1c bytes at `section`), which its x86 code enters too:
 // the kernel's protocol - LockCount counts the owner plus waiters (-1 free), RecursionCount, OwningThread (the

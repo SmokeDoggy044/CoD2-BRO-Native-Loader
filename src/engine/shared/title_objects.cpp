@@ -329,6 +329,8 @@ void reset() {
     t_apcs.clear();
 }
 
+void reset_thread() { t_apcs.clear(); }
+
 // --- Critical sections ------------------------------------------------------------------------------------------
 
 namespace {

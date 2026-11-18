@@ -7180,7 +7180,7 @@ void XB_CDECL Sys_Main() {
     static uint8_t frame[0x4624];  // never returns: the frame lives as long as the program
     uint8_t* const live = frame + 0x12c;
     uint32_t* const hooks = reinterpret_cast<uint32_t*>(frame + 0x14);
-    static const uint32_t kHooks[6] = {0x00293080, own_address(&MemHook_FreeIndirect), 0x00296760, own_address(&MemHook_Nothing), own_address(&MemHook_AlignedAlloc), own_address(&MemHook_AlignedFree)};
+    static const uint32_t kHooks[6] = {own_address(&MemHook_ReturnFalse), own_address(&MemHook_FreeIndirect), 0x00296760, own_address(&MemHook_Nothing), own_address(&MemHook_AlignedAlloc), own_address(&MemHook_AlignedFree)};
     for (int32_t i = 0; i < 6; ++i) hooks[i] = kHooks[i];
     Mem_SetAllocatorHooks(hooks);
     live_mgr_construct(live);  // LiveMgr_Construct (EAX)
