@@ -124,6 +124,8 @@ struct Shown {
     char title_was[64] = {};
     PcPageView view = {};  // what is shown
     int32_t first = 0;     // the page row in slot 0 (scrolling)
+    uint8_t* markers[2] = {};       // up / down: more rows above / below (our triangles, make_marker)
+    float slot_top = 0, slot_spacing = 0;  // where lay_out put slot 0, and the step
     bool laid_out = false;
 } g_shown;
 
@@ -163,6 +165,37 @@ void set_align_left(uint8_t* text, bool left) {
     flags = static_cast<uint8_t>((flags & ~0x30) | (left ? 0x10 : 0));
 }
 
+// The scroll markers: up above slot 0 while rows are above, down below the last slot while rows are below.
+void place_markers() {
+    Shown& s = g_shown;
+    const int32_t shown = std::max(0, std::min(s.view.rows - s.first, kMax));
+    const bool more[2] = {s.first > 0, s.first + shown < s.view.rows};
+    // Below: clear of the labels' descenders; above: under the title's rule.
+    const float step = std::max(s.slot_spacing, 18.0f);
+    const float y[2] = {s.slot_top - step * 0.66f, s.slot_top + s.slot_spacing * float(shown - 1) + step * 0.86f};
+    for (int k = 0; k < 2; ++k) {
+        uint8_t* const marker = s.markers[k];
+        if (!marker) continue;
+        set_visible(marker, more[k]);
+        if (more[k]) UIPicture_SetPosition(marker, s.host->centre_x, y[k]);
+    }
+}
+
+// A scroll marker: a 16 x 9 triangle around (0, 0) in the menus' dark ink, one quad with its tip twice, as the
+// game makes its scroll bar's arrows (UIScrollBar_Construct: a 0x40-byte picture, vtable +0x3c, depth 80).
+uint8_t* make_marker(bool up) {
+    uint8_t* const block = setup::z_malloc(0x40);
+    if (!block) return nullptr;
+    uint8_t* const picture = UIPicture_Init(block, up ? "pc_scroll_up" : "pc_scroll_down");
+    const float tip = up ? -4.5f : 4.5f, base = -tip;
+    const float points[12] = {0.0f, tip, 0.0f, 0.0f, tip, 0.0f, -8.0f, base, 0.0f, 8.0f, base, 0.0f};
+    const uint32_t ink[4] = {0xff3a3026, 0xff3a3026, 0xff3a3026, 0xff3a3026};
+    using AddQuad = void XB_THISCALL(uint8_t*, const float*, const uint32_t*, uint32_t, uint32_t, const char*);
+    method<AddQuad>(picture, 0x3c)(picture, points, ink, 1, bits(80.0f), "");
+    set_visible(picture, false);
+    return picture;
+}
+
 // The rows' places for the view's row count; texts set; arrows to the selection.
 void lay_out() {
     Shown& s = g_shown;
@@ -174,6 +207,8 @@ void lay_out() {
     if (spacing > h.max_spacing) spacing = h.max_spacing;
     // Pages shorter than the space sit in its middle.
     const float top = h.top + ((h.bottom - h.top) - spacing * float(rows - 1)) * 0.5f;
+    s.slot_top = top;
+    s.slot_spacing = spacing;
     for (int32_t i = 0; i < kMax; ++i) {
         uint8_t* const item = row_item(i);
         uint8_t* const text = field<uint8_t*>(item, 0x10);
@@ -196,6 +231,7 @@ void lay_out() {
         copy_colour(item, s.values[i]);
     }
     s.laid_out = true;
+    place_markers();
 }
 
 // The arrows around the selected row's value (hidden on other rows).
@@ -315,6 +351,8 @@ void XB_THISCALL page_draw(uint8_t* menu) {
     UIMenu_Draw(menu);
     for (int32_t i = 0; i < shown_slots(); ++i)
         if (g_shown.view.row[slot_row(i)].kind == kPcRowValue) call(g_shown.values[i], 0x3c);
+    for (uint8_t* marker : g_shown.markers)
+        if (marker && visible(marker)) call(marker, 0x44);  // UIPicture_Draw
     if (g_shown.host->front_end) Movie_DrawFrame();
 }
 
@@ -436,6 +474,8 @@ void leave() {
         UIPicture_SetPosition(s.arrows[k], s.arrow_at[k][0], s.arrow_at[k][1]);
         set_visible(s.arrows[k], s.arrow_visible[k]);
     }
+    for (uint8_t* marker : s.markers)
+        if (marker) call(marker, 0, 1);  // deleting destructor
     if (s.title) set_text(s.title, s.title_was);
     s = Shown{};
 }
@@ -589,6 +629,7 @@ void pc_pages_enter(uint8_t* menu, int32_t host_index, int32_t root) {
         const uint32_t rep = field<uint32_t>(s.title, 0x1c);
         std::snprintf(s.title_was, sizeof s.title_was, "%s", rep ? reinterpret_cast<const char*>(uintptr_t{rep + 6}) : "");
     }
+    for (int k = 0; k < 2; ++k) s.markers[k] = make_marker(k == 0);
     const char* const arrow_names[2] = {h.arrow_left, h.arrow_right};
     for (int k = 0; k < 2; ++k) {
         s.arrows[k] = find_picture(panel, arrow_names[k]);
