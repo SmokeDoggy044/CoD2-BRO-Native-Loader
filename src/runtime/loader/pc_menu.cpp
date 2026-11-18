@@ -12,6 +12,7 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <vector>
 
 #include "bindings.h"
 #include "devices.h"
@@ -25,6 +26,8 @@
 #include "settings.h"
 #include "settings_schema.h"
 #include "settings_widgets.h"
+#include "title_data.h"
+#include "ui_text.h"
 #include "snd_env.h"
 #include "sound_engine.h"
 
@@ -165,38 +168,58 @@ void notice_done() {
     LOG_INFO("loader", "notice %s shown", kNoticeId);
 }
 
+// The notice's texts (English; lang/*.po translate them, lang/template.pot lists them).
+constexpr const char* kNoticeTitle = "What's new";
+constexpr const char* kNoticeHeading = "New controller support";
+constexpr const char* kNoticeIntro =
+    "Your controller now talks to the game directly instead of pretending to be the original Xbox pad, and it starts "
+    "with a modern layout:";
+constexpr const char* kNoticeLine1 = "RT fire, LT aim, RB grenade";
+constexpr const char* kNoticeLine2 = "A jump, B crouch, X use / reload, Y next weapon";
+constexpr const char* kNoticeLine3 = "L3 sprint, R3 melee, D-pad left / right lean";
+constexpr const char* kNoticeOutro =
+    "The game's original layouts, every single button, invert, vibration and look speed are under Options > Controls "
+    "> Controller (and in the launcher). The on-screen prompts show your controller's own buttons.";
+constexpr const char* kNoticeOk = "OK";
+constexpr const char* kNoticeHint = "A, B or Start on the controller, Enter or a click";
+
+// A notice text in the game's language (UTF-8 for Dear ImGui).
+std::string notice_text(const char* english) {
+    const int32_t language = game::title_global<int32_t>(0x0095f5dc);  // g_languageIndex
+    return platform::ui_text_utf8(language, english).value_or(english);
+}
+
 bool draw_notice() {
     const ImGuiViewport* viewport = ImGui::GetMainViewport();
     ImGui::SetNextWindowPos(viewport->GetCenter(), ImGuiCond_Always, ImVec2(0.5f, 0.5f));
     ImGui::SetNextWindowBgAlpha(0.92f);
     bool open = true;
-    ImGui::Begin("What's new", &open,
+    const std::string title = notice_text(kNoticeTitle) + "###notice";
+    ImGui::Begin(title.c_str(), &open,
                  ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoSavedSettings |
                      ImGuiWindowFlags_NoMove);
     ImGui::PushTextWrapPos(ImGui::GetFontSize() * 32.0f);
-    ImGui::SeparatorText("New controller support");
-    ImGui::TextWrapped(
-        "Your controller now talks to the game directly instead of pretending to be the original Xbox pad, and it "
-        "starts with a modern layout:");
-    ImGui::BulletText("RT fire, LT aim, RB grenade");
-    ImGui::BulletText("A jump, B crouch, X use / reload, Y next weapon");
-    ImGui::BulletText("L3 sprint, R3 melee, D-pad left / right lean");
-    ImGui::TextWrapped(
-        "The game's original layouts, every single button, invert, vibration and look speed are under Options > "
-        "Controls > Controller (and in the launcher). The on-screen prompts show your controller's own buttons.");
+    ImGui::SeparatorText(notice_text(kNoticeHeading).c_str());
+    ImGui::TextWrapped("%s", notice_text(kNoticeIntro).c_str());
+    for (const char* line : {kNoticeLine1, kNoticeLine2, kNoticeLine3}) ImGui::BulletText("%s", notice_text(line).c_str());
+    ImGui::TextWrapped("%s", notice_text(kNoticeOutro).c_str());
     ImGui::PopTextWrapPos();
     ImGui::Separator();
     if (ImGui::IsWindowAppearing()) ImGui::SetKeyboardFocusHere();
-    if (ImGui::Button("OK", ImVec2(ImGui::GetFontSize() * 6.0f, 0))) open = false;
+    if (ImGui::Button(notice_text(kNoticeOk).c_str(), ImVec2(ImGui::GetFontSize() * 6.0f, 0))) open = false;
     ImGui::SameLine();
-    ImGui::TextDisabled("A, B or Start on the controller, Enter or a click");
+    ImGui::TextDisabled("%s", notice_text(kNoticeHint).c_str());
     if (g_notice_dismissed.exchange(false)) open = false;
-    ImGui::End();
     if (!open) notice_done();
     return open;
 }
 
 }  // namespace
+
+std::vector<const char*> notice_texts() {
+    return {kNoticeTitle, kNoticeHeading, kNoticeIntro, kNoticeLine1, kNoticeLine2, kNoticeLine3, kNoticeOutro,
+            kNoticeOk, kNoticeHint};
+}
 
 void set_notice_allowed(bool allowed, bool forced) {
     g_notice_allowed = allowed;

@@ -20,6 +20,8 @@
 
 #include "bindings.h"
 #include "devices.h"
+
+#include <SDL3/SDL_gamepad.h>
 #include "fe_pc.h"
 #include "float_env.h"
 #include "log.h"
@@ -849,7 +851,12 @@ bool write_lang_template(const fs::path& path) {
         add(page.title);
         for (const RowDef& row : page.rows) {
             if (row.label) add(row.label);
-            if (row.kind == Row::Key) add(input::action_label(action_of(row.key)));
+            if (row.kind == Row::Key || row.kind == Row::PadKey) add(input::action_label(action_of(row.key)));
+            if (row.kind == Row::PadPreset) {
+                for (size_t p = 0; p < static_cast<size_t>(input::PadPreset::Count); ++p)
+                    add(input::pad_preset_label(static_cast<input::PadPreset>(p)));
+                add("Custom");
+            }
             if (row.kind != Row::Setting) continue;
             const SettingDef* def = platform::find_setting(row.key);
             const platform::SettingUi* ui = platform::setting_ui(row.key);
@@ -885,8 +892,15 @@ bool write_lang_template(const fs::path& path) {
         }
     }
     for (const char* text : {"Master Volume", "Reset to Defaults", "Apply and Exit", "Back", "Press a key", "none",
-                             "on", "off"})
+                             "on", "off", "Press a button"})
         add(text);
+    // The gamepad's buttons as the Controller page shows them (the descriptive ones: "Left stick click", "D-pad up").
+    for (int b = 0; b < SDL_GAMEPAD_BUTTON_COUNT; ++b) {
+        const std::string name = input::input_name(static_cast<input::InputCode>(input::kPadButton + b));
+        if (name.find(' ') != std::string::npos) add(name);
+    }
+    // The one-time notice (pc_menu.cpp).
+    for (const char* text : notice_texts()) add(text);
     FILE* out = std::fopen(path.string().c_str(), "wb");
     if (!out) {
         std::fprintf(stderr, "cannot write %s\n", path.string().c_str());

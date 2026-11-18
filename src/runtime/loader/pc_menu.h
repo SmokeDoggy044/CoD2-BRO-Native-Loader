@@ -5,6 +5,8 @@
 // running, without the player's input, meanwhile.
 
 #include <filesystem>
+#include <string>
+#include <vector>
 
 #include "settings.h"
 
@@ -19,6 +21,8 @@ void apply_live(const platform::Settings& before, const platform::Settings& afte
 // The one-time notice (1.0.6 controller): call on the title's input polls; opens the PC menu once with it at the
 // first menu the game shows, unless settings.ini says it was seen.
 void notice_poll();
+// The notice's English texts (the language template lists them).
+std::vector<const char*> notice_texts();
 // The PC menu's settings tabs (--dev); off, the menu shows only the notice.
 void set_pc_menu_settings(bool on);
 // Off for unattended runs (scripted presses, menu walks, replays, screenshots): the notice would hold their input.

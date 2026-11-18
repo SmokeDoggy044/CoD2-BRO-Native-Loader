@@ -326,8 +326,6 @@ msgstr "Saltar"
 msgid "Crouch / prone"
 msgstr "Agacharse / tumbarse"
 
-msgid "More Keys"
-msgstr "Más teclas"
 
 msgid "Fire"
 msgstr "Disparar"
@@ -397,3 +395,115 @@ msgstr "1,5 s"
 
 msgid "Unlimited"
 msgstr "Ilimitada"
+
+# 1.0.6: the Controller page, the gamepad's buttons, the one-time notice (AI-drafted; corrections welcome).
+msgid "CONTROLLER"
+msgstr "MANDO"
+
+msgid "Layout"
+msgstr "Esquema"
+
+msgid "Modern"
+msgstr "Moderno"
+
+msgid "Original A"
+msgstr "Original A"
+
+msgid "Original B"
+msgstr "Original B"
+
+msgid "Original C"
+msgstr "Original C"
+
+msgid "Original D"
+msgstr "Original D"
+
+msgid "Custom"
+msgstr "Personalizado"
+
+msgid "Invert Aim"
+msgstr "Invertir apuntado"
+
+msgid "Vibration"
+msgstr "Vibración"
+
+msgid "Look Speed"
+msgstr "Velocidad de la cámara"
+
+msgid "Look Speed Vertical"
+msgstr "Velocidad vertical de la cámara"
+
+msgid "Trigger threshold"
+msgstr "Umbral de los gatillos"
+
+msgid "Button style"
+msgstr "Estilo de botones"
+
+msgid "Detected"
+msgstr "Detectado"
+
+msgid "Raise stance"
+msgstr "Levantarse"
+
+msgid "Use / reload"
+msgstr "Usar / recargar"
+
+msgid "Previous weapon"
+msgstr "Arma anterior"
+
+msgid "Press a button"
+msgstr "Pulsa un botón"
+
+msgid "Left stick click"
+msgstr "Clic stick izquierdo"
+
+msgid "Right stick click"
+msgstr "Clic stick derecho"
+
+msgid "D-pad up"
+msgstr "Cruceta arriba"
+
+msgid "D-pad down"
+msgstr "Cruceta abajo"
+
+msgid "D-pad left"
+msgstr "Cruceta izquierda"
+
+msgid "D-pad right"
+msgstr "Cruceta derecha"
+
+msgid "Back R4"
+msgstr "Trasero R4"
+
+msgid "Back L4"
+msgstr "Trasero L4"
+
+msgid "Back R5"
+msgstr "Trasero R5"
+
+msgid "Back L5"
+msgstr "Trasero L5"
+
+msgid "What's new"
+msgstr "Novedades"
+
+msgid "New controller support"
+msgstr "Nuevo soporte para mandos"
+
+msgid "Your controller now talks to the game directly instead of pretending to be the original Xbox pad, and it starts with a modern layout:"
+msgstr "Tu mando ahora se comunica directamente con el juego en lugar de imitar el mando original de Xbox, y empieza con un esquema moderno:"
+
+msgid "RT fire, LT aim, RB grenade"
+msgstr "RT disparar, LT apuntar, RB granada"
+
+msgid "A jump, B crouch, X use / reload, Y next weapon"
+msgstr "A saltar, B agacharse, X usar / recargar, Y siguiente arma"
+
+msgid "L3 sprint, R3 melee, D-pad left / right lean"
+msgstr "L3 esprintar, R3 cuerpo a cuerpo, cruceta izquierda / derecha asomarse"
+
+msgid "The game's original layouts, every single button, invert, vibration and look speed are under Options > Controls > Controller (and in the launcher). The on-screen prompts show your controller's own buttons."
+msgstr "Los esquemas originales del juego, cada botón, la inversión, la vibración y la velocidad de la cámara están en Opciones > Controles > Mando (y en el lanzador). Los iconos en pantalla muestran los botones de tu mando."
+
+msgid "A, B or Start on the controller, Enter or a click"
+msgstr "A, B o Start en el mando, Intro o un clic"
