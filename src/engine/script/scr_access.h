@@ -82,6 +82,7 @@ ScriptString* XB_CDECL ScrEnt_GetModel(ScriptString* out, uint32_t handle);  // 
 void XB_CDECL ScrEnt_SetSpawnflags(uint32_t handle, uint32_t value);  // 0x00016fc0
 uint32_t XB_CDECL ScrEnt_GetSpawnflags(uint32_t handle);  // 0x00017020
 float XB_CDECL ScrEnt_GetFloat_2fc(uint32_t handle);  // 0x000170e0 (gap)
+void XB_CDECL ScrEnt_SetFloat_2fc(uint32_t handle, uint32_t bits);  // 0x00017080 (gap)
 void XB_CDECL ScrEnt_SetClosespeed(uint32_t handle, uint32_t bits);  // 0x00017140
 float XB_CDECL ScrEnt_GetClosespeed(uint32_t handle);  // 0x000171a0
 void XB_CDECL ScrEnt_SetTarget(uint32_t handle, ScriptString value);  // 0x00017200

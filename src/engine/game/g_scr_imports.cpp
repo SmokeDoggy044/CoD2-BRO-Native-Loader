@@ -475,7 +475,7 @@ const ImportSlot kGameImports2[] = {
     {0x9e8, own_address(&ScrEnt_GetModel)},  // ScrEnt_GetModel
     {0x9f4, own_address(&ScrEnt_SetSpawnflags)},  // ScrEnt_SetSpawnflags
     {0x9f0, own_address(&ScrEnt_GetSpawnflags)},  // ScrEnt_GetSpawnflags
-    {0x9fc, 0x00017080},
+    {0x9fc, own_address(&ScrEnt_SetFloat_2fc)},
     {0x9f8, own_address(&ScrEnt_GetFloat_2fc)},
     {0xa04, own_address(&ScrEnt_SetClosespeed)},  // ScrEnt_SetClosespeed
     {0xa00, own_address(&ScrEnt_GetClosespeed)},  // ScrEnt_GetClosespeed
@@ -501,7 +501,7 @@ const ImportSlot kGameImports2[] = {
     {0xa70, own_address(&ScrEnt_GetRotate)},  // ScrEnt_GetRotate
     {0xa7c, own_address(&ScrEnt_SetDegrees)},  // ScrEnt_SetDegrees
     {0xa78, own_address(&ScrEnt_GetDegrees)},  // ScrEnt_GetDegrees
-    {0xa84, 0x00017080},
+    {0xa84, own_address(&ScrEnt_SetFloat_2fc)},
     {0xa80, own_address(&ScrEnt_GetFloat_2fc)},
     {0xa9c, own_address(&ScrEnt_SetKey)},  // ScrEnt_SetKey
     {0xa98, own_address(&ScrEnt_GetKey)},  // ScrEnt_GetKey

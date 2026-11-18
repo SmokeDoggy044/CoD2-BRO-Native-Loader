@@ -764,4 +764,8 @@ void XB_CDECL Stream_OnReadError(int32_t error);
 // +0x40, the entry cleared, then unlinked from the cells and the sector tree (owner = the zone index).
 void XB_THISCALL ZoneTable_FreeZone(uint8_t* table, uint32_t zone);
 
+// 0x0033aa20: two localized lines (string keys 0x0082d04c, 0x0082d02c) on black, drawn forever; without the
+// string table or font, the console's own disc error screen (our own platform: a fatal error instead).
+[[noreturn]] void XB_CDECL UI_ShowDamagedDiscScreen(uint32_t unused);
+
 }  // namespace game

@@ -1973,7 +1973,7 @@ uint8_t* XB_CDECL Pak_Init(uint8_t* pak) {
     pk<uint32_t>(pak, 8) = 0;
     pk<uint32_t>(pak, 0xc) = 0;
     const auto text = [](uint32_t address) { return reinterpret_cast<const char*>(uintptr_t{address}); };
-    Cmd_AddCommand(text(0x008383a0), 0x0028cd40);  // "PakRender"
+    Cmd_AddCommand(text(0x008383a0), own_address(&Cmd_PakRender_f));  // "PakRender"
     pk<uint32_t>(pak, 4) = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(Cvar_Get(text(0x00838394), text(0x0082e098), 0)));
     pk<uint32_t>(pak, 8) = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(Cvar_Get(text(0x00838388), text(0x0082e098), 0)));
     pk<uint32_t>(pak, 0xc) = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(Cvar_Get(text(0x0083837c), text(0x0082e098), 0)));
@@ -2777,7 +2777,7 @@ uint8_t* XB_CDECL CM_WorldTrees_Construct(uint8_t* self) {
     pk<uint32_t>(self, 4) = 0;
     pk<uint32_t>(self, 8) = 0;
     pk<uint32_t>(self, 4) &= ~1u;
-    Cmd_AddCommand(tstr(0x00833520), 0x002afb90);  // "cg"
+    Cmd_AddCommand(tstr(0x00833520), own_address(&Cmd_Cg_f));  // "cg"
     return self;
 }
 
@@ -4187,8 +4187,7 @@ void XB_CDECL Com_Frame() {
                     title_global<uint8_t>(0x0095f539) = was_paused ? 1 : 0;
                     Cvar_Set2(tstr(0x0082ca00), const_cast<char*>(tstr(0x0082e058)), 1);  // cl_paused "1"
                     title_global<uint8_t>(0x0095f538) = 1;
-                    const TitleRegs regs{0, 0, 0, 0, 0x0095f8d0, static_cast<uint32_t>(was_paused)};
-                    qc_call_regs(0x0030f190, &regs, 0, nullptr);  // FUN_0030f190 (g_uiRoot in ESI)
+                    UIRoot_DrawPausedFrame(&title_global<uint8_t>(0x0095f8d0));  // a paused frame (g_uiRoot)
                 }
                 S_UpdateChannels(title_global<uint8_t*>(0x0095f4c4));
                 S_CheckWaveBankNotifies(title_global<uint8_t*>(0x0095f4c0));  // rm_soundBanks
@@ -7181,7 +7180,7 @@ void XB_CDECL Sys_Main() {
     static uint8_t frame[0x4624];  // never returns: the frame lives as long as the program
     uint8_t* const live = frame + 0x12c;
     uint32_t* const hooks = reinterpret_cast<uint32_t*>(frame + 0x14);
-    static const uint32_t kHooks[6] = {0x00293080, 0x002968e0, 0x00296760, 0x00296770, own_address(&MemHook_AlignedAlloc), own_address(&MemHook_AlignedFree)};
+    static const uint32_t kHooks[6] = {0x00293080, own_address(&MemHook_FreeIndirect), 0x00296760, own_address(&MemHook_Nothing), own_address(&MemHook_AlignedAlloc), own_address(&MemHook_AlignedFree)};
     for (int32_t i = 0; i < 6; ++i) hooks[i] = kHooks[i];
     Mem_SetAllocatorHooks(hooks);
     live_mgr_construct(live);  // LiveMgr_Construct (EAX)
@@ -7444,8 +7443,8 @@ void XB_CDECL Com_Init(uint8_t* launch) {
         add_command(tstr(0x00837be4), own_address(&Com_Freeze_f));  // freeze (Com_Freeze_f)
     }
     add_command(tstr(0x0082ac38), own_address(&Com_Quit_f));  // quit (Com_Quit_f)
-    add_command(tstr(0x00837bd8), 0x00293820);  // writeconfig
-    add_command(tstr(0x00837bc8), 0x00293810);  // writedefaults
+    add_command(tstr(0x00837bd8), own_address(&Cmd_Nothing_f));  // writeconfig
+    add_command(tstr(0x00837bc8), own_address(&Cmd_Nothing_f));  // writedefaults
     const uint32_t set = u32(Cvar_Set2(tstr(0x0083caa8), const_cast<char*>(tstr(0x0083cab0)), 1));  // arch "ps2"
     const uint32_t value_args[2] = {0x0083ca9c, 0x3f800000};  // sys_cpuid 1.0
     boot_call(own_address(&Cvar_SetValue), set, 0, 0, 0, 0, 0, 2, value_args);   // Cvar_SetValue

@@ -30,6 +30,8 @@
 #include "fe.h"
 #include "title_xapi.h"
 #include "unr_methods.h"
+#include "gap_methods.h"
+#include "title_host.h"
 
 namespace game {
 
@@ -1944,7 +1946,7 @@ uint8_t* XB_CDECL ZoneGraph_Init(uint8_t* self) {
     word_at<uint32_t>(self, 0x190) = 0;
     word_at<uint32_t>(self, 0x194) = 0;
     word_at<uint32_t>(self, 0x190) &= ~1u;
-    Cmd_AddCommand(&title_global<const char>(0x00838320), 0x0028c430);  // "ZoneGraph"
+    Cmd_AddCommand(&title_global<const char>(0x00838320), own_address(&Cmd_ZoneGraph_f));  // "ZoneGraph"
     return self;
 }
 
@@ -3579,8 +3581,65 @@ PLATFORM_ASM_ENTRY(Stream_QueueLoad_entry,
                    "pushl %edi\n" PLATFORM_ASM_CALL(Stream_QueueLoad) "addl $16, %esp\n"
                    "ret $0x14")
 
+namespace {
+
+// The string table's text for `key` (the key itself when missing, 0x008379b4 for an empty entry).
+const char* localized_or_key(uint32_t key) {
+    const char* text = reinterpret_cast<const char*>(uintptr_t{key});
+    const uint8_t* const entry = Zone_FindByHash(title_global<uint8_t*>(0x0095f5d8), Loc_HashKey(text));
+    if (!entry) return text;
+    const char* const value = word_at<const char*>(entry, 8);
+    return value ? value : reinterpret_cast<const char*>(uintptr_t{0x008379b4});
+}
+
+}  // namespace
+
+[[noreturn]] void XB_CDECL UI_ShowDamagedDiscScreen(uint32_t) {
+    // Without the string table or the font: the console's own disc error screen (0x0033a750, drawn with the SDK's
+    // font library). Our own platform reports the error and ends instead.
+    if (!title_global<uint8_t*>(0x0095f5d8) || !title_global<uint8_t*>(0x0095f8e0)) {
+        if (native_platform() && title_host().fatal)
+            title_host().fatal("A game file could not be read (the console's damaged disc error). Check the game files.",
+                               0, 0);
+        title_function<void XB_CDECL()>(0x0033a750)();  // UI_ShowDiscErrorScreen (never returns)
+        for (;;) {}
+    }
+    const char* const first = localized_or_key(0x0082d04c);
+    const char* const second = localized_or_key(0x0082d02c);
+    int32_t width = 0, height = 0;
+    nglGetTextExtentf(title_global<uint8_t*>(0x0095f8e0), &width, &height, first);
+    // Centred on 640 by the first line (as unsigned, through a double, truncated); both lines start there.
+    const int32_t x = static_cast<int32_t>(static_cast<double>(static_cast<uint32_t>(640 - width)) *
+                                           title_global<double>(0x0083ecb0));
+    const float left = static_cast<float>(static_cast<uint32_t>(x));
+    NglQuad quad;
+    nglInitQuad(&quad);
+    nglSetQuadRect(&quad, 0.0f, 0.0f, 640.0f, 480.0f);
+    nglSetQuadColor(&quad, 0);
+    nglSetQuadZ(&quad, 300.0f);
+    for (int32_t i = 0; i < 2; ++i) {
+        nglBeginFrame();
+        nglPushScene(0);
+        nglSetClearFlags(0xf3);
+        nglSetSceneDepthEnable(0);
+        nglListAddQuad(&quad);
+        nglPopScene();
+        nglEndFrame();
+    }
+    nglResetDeviceBindings();
+    for (;;) {
+        nglBeginFrame();
+        nglSetClearFlags(3);
+        nglListAddQuad(&quad);
+        const uint8_t* const font = title_global<uint8_t*>(0x0095f8d4);
+        nglListAddTextf(font, left, 200.0f, 0.0f, 0xe0ffffff, 0.5f, 0.5f, first);
+        nglListAddTextf(font, left, 230.0f, 0.0f, 0xe0ffffff, 0.5f, 0.5f, second);
+        nglEndFrame();
+    }
+}
+
 void XB_CDECL Stream_OnReadError(int32_t error) {
-    if (error == 3) title_function<void XB_CDECL(uint32_t)>(0x0033aa20)(0x0095f8d0);  // UI_ShowDamagedDiscScreen
+    if (error == 3) UI_ShowDamagedDiscScreen(0x0095f8d0);
 }
 
 uint32_t XB_CDECL Stream_QueueLoad(uint8_t* system, const char* name, uint32_t kind, const uint32_t* block) {
@@ -3599,7 +3658,7 @@ uint32_t XB_CDECL Stream_QueueLoad(uint8_t* system, const char* name, uint32_t k
                 found = own_function<FileExists>(&File_Exists)(device, file) != 0;
             }
         }
-        if (!found) title_function<void XB_CDECL(uint32_t)>(0x0033aa20)(0x0095f8d0);  // UI_ShowDamagedDiscScreen
+        if (!found) UI_ShowDamagedDiscScreen(0x0095f8d0);
     }
     const uint32_t id = word_at<uint32_t>(system, 0x1c);
     uint8_t* record = reinterpret_cast<uint8_t*>(uintptr_t{own_function<uint32_t XB_THISCALL(uint32_t, uint32_t, uint32_t)>(&SmallHeap_Alloc)(title_global<uint32_t>(0x0095f624), 0xe4, 0)});  // SmallHeap_Alloc

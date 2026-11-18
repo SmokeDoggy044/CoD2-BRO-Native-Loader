@@ -8,7 +8,7 @@ the moment a mission reaches it. Replays only find the ones their missions reach
 that point at a function start in a cleared code section (a Ghidra function, or a 16-byte aligned address after
 INT3/ret padding = a gap function) with no row in src/engine/shared/functions.cpp.
 
-With --source it lists code addresses written as literals in OUR C instead (src/**/*.cpp|h, comments skipped):
+With --source it lists code addresses written as literals in OUR C instead (src/**/*.cpp|h, comments and tools/data/unreached_reviewed.csv skipped):
 handlers, ctors and callbacks our C passes by title address (Cmd_AddCommand(name, 0x...), material type setters) -
 neither data words nor replays show those until a player's mission calls one (#24: water, server commands).
 
@@ -132,6 +132,8 @@ def collect(data, all_sdk=False):
 
 def source_refs(candidate):
     """{target: [(file:line, section, "src")]} for code-section literals outside comments in our C."""
+    import csv
+    reviewed = {int(r["address"], 16) for r in csv.DictReader(open(ROOT / "tools/data/unreached_reviewed.csv"))}
     refs = defaultdict(list)
     for f in sorted((ROOT / "src").rglob("*")):
         if f.suffix not in (".cpp", ".h", ".inc"):
@@ -144,7 +146,7 @@ def source_refs(candidate):
             for t in re.findall(r"\b0x([0-9a-fA-F]{8})\b", code):
                 t = int(t, 16)
                 sec = candidate(t)
-                if sec:
+                if sec and t not in reviewed:
                     refs[t].append((f"{f.relative_to(ROOT)}:{n}", sec, "src"))
     return refs
 

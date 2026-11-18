@@ -130,7 +130,7 @@ def main():
 
     data = hu.DEFAULT_XBE.read_bytes()
     secs = hu.sections(data)
-    refs, section_of, names = hu.collect(data)
+    refs, section_of, names, _ = hu.collect(data)
     mods = progress.load_modules()
     fsrc = (ROOT / "src/engine/shared/functions.cpp").read_text()
     rows = {int(m.group(2), 16): m.group(1) for m in re.finditer(r'\{"(\w+)", 0x([0-9a-f]{8}),', fsrc)}

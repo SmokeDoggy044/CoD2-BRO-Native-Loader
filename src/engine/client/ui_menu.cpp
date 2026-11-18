@@ -1222,10 +1222,10 @@ void XB_CDECL UI_ShowDialogAt(const char* name, uint32_t entry, uint32_t ebx, ui
     f.call(0x00331b09, own_address(&UIDialog_Init_entry), 2, dialog_args);
     if (ok || yes_no) {
         if (ok) {
-            f.button(dialog_of(mgr), 0x0082c9ec, 0x00313dc0, 0x00331b34, 0x00331b4f);  // "INGAME_DIALOG_OK"
+            f.button(dialog_of(mgr), 0x0082c9ec, own_address(&InGameDialog_Yes), 0x00331b34, 0x00331b4f);  // "INGAME_DIALOG_OK"
         } else {
-            f.button(dialog_of(mgr), 0x0082c9d8, 0x00313dc0, 0x00331b92, 0x00331bad);  // "INGAME_DIALOG_YES"
-            f.button(dialog_of(mgr), 0x0082c9c4, 0x00313db0, 0x00331bd3, 0x00331bee);  // "INGAME_DIALOG_NO"
+            f.button(dialog_of(mgr), 0x0082c9d8, own_address(&InGameDialog_Yes), 0x00331b92, 0x00331bad);  // "INGAME_DIALOG_YES"
+            f.button(dialog_of(mgr), 0x0082c9c4, own_address(&InGameDialog_No), 0x00331bd3, 0x00331bee);  // "INGAME_DIALOG_NO"
         }
         uint8_t* const layout = dialog_of(mgr);
         f.regs.eax = (field<uint32_t>(mgr, 0xc) & ~0xffu) | (ok ? 1 : 0);
@@ -2374,7 +2374,7 @@ uint8_t XB_CDECL MemDlg_CheckFreeSpace2() {
     char text[0x200];
     blocks_needed();
     MemDlg_FormatNotEnoughBlocks(title_global<uint32_t>(0x0095f480), text);
-    show_not_enough_blocks(text, 0x0031b2e0, 0x00335410);
+    show_not_enough_blocks(text, own_address(&MemDlg_ContinueWithoutSaving), own_address(&MemDlg_GoToDashboard));
     return 0;
 }
 
@@ -2728,6 +2728,16 @@ void XB_THISCALL DialogMgr_OnButtonDown(uint8_t* mgr, int32_t bit, int32_t pad) 
 
 // +0x38 (index): with the in-game dialog fade (0x0095f900 +0x1c +0x40) not below 0 and a valid button, the button's
 // handler (+0x38 + index * 4, thiscall on the dialog); a true result closes the dialog.
+// UI_ShowDialog's OK / YES and NO: the dialog manager's answer bit (+0x20 bit 3) set / cleared; the dialog closes.
+uint8_t XB_THISCALL InGameDialog_Yes(uint8_t*) {
+    title_global<uint8_t*>(0x0095f900)[0x20] |= 8;
+    return 1;
+}
+uint8_t XB_THISCALL InGameDialog_No(uint8_t*) {
+    title_global<uint8_t*>(0x0095f900)[0x20] &= 0xf7;
+    return 1;
+}
+
 void XB_THISCALL UIDialog_HandleSelect(uint8_t* dialog, int32_t index) {
     const float fade = field<float>(field<uint8_t*>(title_global<uint8_t*>(0x0095f900), 0x1c), 0x40);
     if (!(fade >= title_global<float>(0x0083eafc))) return;  // 0

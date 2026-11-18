@@ -8706,7 +8706,7 @@ void XB_CDECL G_ParseHitLocDamageTable(const char* name, uint8_t* map) {
     }
     title_global<float>(0x0094cc80) = 0.0f;
     if (!Info_ParseFieldsToStruct(0, reinterpret_cast<const uint8_t*>(fields), &title_global<uint8_t>(0x0094cc38), 0x13,
-                                  map, 0, 0, 0x00248c40)) {
+                                  map, 0, 0, own_address(&HitlocTable_NoCallback))) {
         const uint32_t args[2] = {0x0083b9b8, static_cast<uint32_t>(reinterpret_cast<uintptr_t>(name))};
         G_Error(args);  // "Error parsing hitloc damage table %s\\n"
     }

@@ -535,6 +535,7 @@ ScriptString* XB_CDECL ScrEnt_GetModel(ScriptString* out, uint32_t handle) { ret
 void XB_CDECL ScrEnt_SetSpawnflags(uint32_t handle, uint32_t value) { set_ent_word<0x2a0, 0x008d20ec, 1>(handle, &value); }
 uint32_t XB_CDECL ScrEnt_GetSpawnflags(uint32_t handle) { return get_ent_int<0x2a0, 0x008d20e8>(handle); }
 float XB_CDECL ScrEnt_GetFloat_2fc(uint32_t handle) { return get_ent_float<0x2fc, 0x008d20e8>(handle); }
+void XB_CDECL ScrEnt_SetFloat_2fc(uint32_t handle, uint32_t bits) { set_ent_word<0x2fc, 0x008d20e8, 1>(handle, &bits); }
 void XB_CDECL ScrEnt_SetClosespeed(uint32_t handle, uint32_t bits) { set_ent_word<0x300, 0x008d20e8, 1>(handle, &bits); }
 float XB_CDECL ScrEnt_GetClosespeed(uint32_t handle) { return get_ent_float<0x300, 0x008d20e8>(handle); }
 void XB_CDECL ScrEnt_SetTarget(uint32_t handle, ScriptString value) { set_ent_string<0x26c, 0x008d2108>(handle, &value); }

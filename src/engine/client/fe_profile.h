@@ -244,6 +244,14 @@ uint8_t XB_THISCALL ProfileMenu_LoadSuccessOk(uint8_t* dialog);            // 0x
 uint8_t XB_THISCALL ProfileMenu_ReturnToMain(uint8_t* dialog);             // 0x0030d2f0: MEM_RETURN_TO_MAIN / cancel YES
 uint8_t XB_THISCALL PauseMenu_DialogNo(uint8_t* dialog);                   // 0x0030e6a0: 1
 uint8_t XB_THISCALL ProfileMenu_ContinueAndReboot(uint8_t* dialog);        // 0x003125d0: "reboot"
+uint8_t XB_THISCALL AutosaveMenu_UnformattedYes(uint8_t* dialog);          // 0x0030cee0: 0
+uint8_t XB_THISCALL ProfileMenu_UnformattedYes(uint8_t* dialog);           // 0x0030d2e0: 0
+uint8_t XB_THISCALL AutosaveMenu_CorruptOk(uint8_t* dialog);               // 0x003336d0: the format / continue choice
+uint8_t XB_THISCALL ProfileMenu_CorruptOk(uint8_t* dialog);                // 0x00334e50: the same for the profile
+uint8_t XB_THISCALL AutosaveMenu_CorruptFormat(uint8_t* dialog);           // 0x003335d0: MEM_FORMATTING, slots again
+uint8_t XB_THISCALL ProfileMenu_CorruptFormat(uint8_t* dialog);            // 0x003348f0: the same for the profile
+uint8_t XB_THISCALL MemDlg_ContinueWithoutSaving(uint8_t* dialog);         // 0x0031b2e0: front end screen 1
+uint8_t XB_THISCALL MemDlg_GoToDashboard(uint8_t* dialog);                 // 0x00335410: the dashboard's memory area
 uint8_t XB_THISCALL ProfileMenu_ContinueWithoutSaving(uint8_t* dialog);    // 0x0031b250
 uint8_t XB_THISCALL ProfileMenu_InsertCardOk(uint8_t* dialog);             // 0x00325870
 uint8_t XB_THISCALL PauseMenu_ReloadYes(uint8_t* dialog);                  // 0x0032d370: map_restart_internal

@@ -43,11 +43,38 @@ constexpr uint32_t kMbcinfo = 0x0098f674;       // __ptmbcinfo
 constexpr uint32_t kMbcsInitDone = 0x0098f9ec;  // __initmbctable's "done" flag
 constexpr uint32_t kSbcsUsed = 0x00926d38;      // set by _setmbcp(-4) only
 
-constexpr uint32_t kFreeptd = 0x001f3472;       // _freeptd (still the title's: only on a thread's exit)
 constexpr uint32_t kThreadAttachHook = 0x008d137c;
 constexpr uint32_t kThreadDetachHook = 0x008d1380;
 
 uint32_t& word(uint32_t address) { return title_global<uint32_t>(address); }
+
+// _freefls's part (0x001f33a9): a per-thread data block's buffers, its multibyte info (+0x60, counted; not the
+// global 0x0098f674) under lock 13, the block.
+void free_thread_data(uint32_t ptd) {
+    if (!ptd) return;
+    for (const uint32_t offset : {0x24u, 0x2cu, 0x34u, 0x3cu, 0x44u, 0x48u})
+        if (word(ptd + offset)) title_crt_free(word(ptd + offset));
+    if (word(ptd + 0x54) != 0x008d1ad0) title_crt_free(word(ptd + 0x54));
+    title_lock(13);
+    const uint32_t mbc = word(ptd + 0x60);
+    if (mbc && --word(mbc) == 0 && mbc != word(0x0098f674)) title_crt_free(mbc);
+    title_unlock(13);
+    title_crt_free(ptd);
+}
+
+}  // namespace
+
+// 0x001f3472 _freeptd: the given block, or the calling thread's (its TLS slot +0xc; 0x0098f9e0 for a thread without
+// TLS), freed and the slot cleared. (The original bug-checks above DISPATCH_LEVEL; title threads never run there.)
+void XB_CDECL title_freeptd(uint32_t ptd) {
+    const uint32_t thread = title_fs_word(0x28);
+    const uint32_t slot =
+        word(thread + 0x28) ? word(title_fs_word(0x04) + word(kTlsIndex) * 4) + 0xc : 0x0098f9e0;
+    free_thread_data(ptd ? ptd : word(slot));
+    word(slot) = 0;
+}
+
+namespace {
 
 // The CRT's thread notify routine (0x001f8400): a new thread gets nothing (its per-thread data comes with the first
 // _getptd), an ending one frees its per-thread data.
@@ -57,7 +84,7 @@ void XB_STDCALL crt_thread_notify(uint32_t create) {
         return;
     }
     if (const uint32_t hook = word(kThreadDetachHook)) title_function<void XB_CDECL()>(hook)();
-    title_function<void XB_CDECL(uint32_t)>(kFreeptd)(0);
+    title_freeptd(0);
 }
 
 // _mtinit: the lock table, the main thread's per-thread data (thread id and handle -1 only; seed and mbcinfo stay

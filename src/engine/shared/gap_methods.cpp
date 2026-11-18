@@ -13,7 +13,11 @@
 #include "ragdoll.h"
 #include "bro_scr_cover_turret.h"
 #include "script_string.h"
+#include "title_crt.h"
 #include "title_data.h"
+#include "title_heap.h"
+#include "qcommon.h"
+#include "g_scr_runtime.h"
 
 namespace game {
 
@@ -986,5 +990,121 @@ uint32_t* XB_CDECL cdWorldVertexLitVertexIter_Ctor(uint32_t* iter) {
 uint32_t* XB_CDECL cdDebugVertexIter_Ctor(uint32_t* iter) {
     return vertex_iter_ctor(iter, 0x007be7f4);
 }
+
+// --- Callbacks and console commands our C registers by address (tools/host_unreached.py --source) ---
+
+namespace {
+
+int32_t cmd_argc() { return title_global<int32_t>(0x00934248); }
+// The first argument ("" without one).
+const char* cmd_arg1() {
+    return cmd_argc() > 1 ? title_global<const char*>(0x0092df94) : reinterpret_cast<const char*>(uintptr_t{0x0082dfeb});
+}
+void toggle_bit0(uint32_t& word) { word ^= 1; }
+
+}  // namespace
+
+void XB_CDECL zcfree(uint32_t /*opaque*/, void* p) { title_crt_free(static_cast<uint32_t>(reinterpret_cast<uintptr_t>(p))); }
+
+uint8_t* XB_CDECL G_AnimTreeAlloc(uint32_t size) { return static_cast<uint8_t*>(Z_MallocDebug(size)); }
+
+void XB_CDECL HitlocTable_NoCallback() {}
+
+int32_t XB_CDECL Actor_CompareDistanceFromStart(const float* a, const float* b) {
+    // Squared distance from the start point 0x0095ee10, in the original's order (z + y + x).
+    const float sx = title_global<float>(0x0095ee10), sy = title_global<float>(0x0095ee14),
+                sz = title_global<float>(0x0095ee18);
+    const float ax = a[0] - sx, ay = a[1] - sy, az = a[2] - sz;
+    const float bx = b[0] - sx, by = b[1] - sy, bz = b[2] - sz;
+    const float da = az * az + ay * ay + ax * ax;
+    const float db = bz * bz + by * by + bx * bx;
+    if (db > da) return -1;
+    if (da > db) return 1;
+    return 0;
+}
+
+void XB_CDECL MemHook_FreeIndirect(void** block) { Z_Free(static_cast<uint8_t*>(*block)); }
+void XB_CDECL MemHook_Nothing() {}
+
+void XB_CDECL BroScr_DeleteVictimOnNotify(uint32_t, uint32_t ent, uint32_t victim) {
+    Scr_WaitTill(ent, 0x06730ae8);
+    title_function<void XB_CDECL(uint32_t)>(title_global<uint32_t>(0x00922540))(victim);  // GScr_Delete
+}
+
+void XB_CDECL Cmd_Screenshot_f() {
+    char name[0x40];
+    uint32_t count = ++title_global<uint32_t>(0x0098ad64);
+    FixedStr64_Printf(name, reinterpret_cast<const char*>(uintptr_t{0x0083c3d8}), &count);
+    nglSaveScreenshot(name);
+}
+
+void XB_CDECL Cmd_ScreenshotHigh_f() {
+    if (title_global<uint32_t>(0x0095f6c0)) return;
+    title_global<uint32_t>(0x0095f6bc) = 1;
+    word<uint32_t>(title_global<uint8_t*>(0x0093fcd8), 0x20) = 1;
+    title_global<float>(0x00897954) = 0.0f;
+}
+
+void XB_CDECL Cmd_ZoneGraph_f() {
+    uint8_t* const graph = title_global<uint8_t*>(0x0095f640);
+    if (cmd_argc() > 1) {
+        word<uint32_t>(graph, 0x190) |= 1;
+        word<float>(graph, 0x194) = static_cast<float>(title_atof(cmd_arg1()));
+        return;
+    }
+    toggle_bit0(word<uint32_t>(graph, 0x190));
+}
+
+void XB_CDECL Cmd_PakRender_f() { toggle_bit0(*title_global<uint32_t*>(0x0095f638)); }
+
+void XB_CDECL Cmd_Cg_f() {
+    uint32_t& flags = word<uint32_t>(title_global<uint8_t*>(0x0095f4fc), 4);
+    if (cmd_argc() > 1) flags |= 1;
+    else toggle_bit0(flags);
+}
+
+void XB_CDECL Cmd_RenderEnts_f() {
+    uint8_t& on = title_global<uint8_t*>(0x0095f4f8)[0x1a4];
+    on = on == 0;
+}
+
+void XB_CDECL Cmd_SceneFX_f() {
+    float& value = word<float>(title_global<uint8_t*>(0x0095f4f8), 0x1a0);
+    const float on = title_global<float>(0x0083ebec);
+    if (cmd_argc() > 1) {
+        const float arg = static_cast<float>(title_atof(cmd_arg1()));
+        if (arg == title_global<float>(0x0083eb34)) value = value == 0.0f ? on : 0.0f;  // toggle
+        else value = arg == title_global<float>(0x0083eb20) ? on : arg;
+        return;
+    }
+    value = value == 0.0f ? on : 0.0f;
+}
+
+void XB_CDECL Cmd_Nothing_f() {}
+
+void XB_CDECL UIRoot_DrawPausedFrame(uint8_t* root) {
+    // The screen +0x24 drawn on its own (no world) - twice, or once while the overlay +0x2c is in states 2..5.
+    uint8_t* const screen = word<uint8_t*>(root, 0x24);
+    if (!screen) return;
+    int32_t frames = 2;
+    if (root[0x49]) {
+        const uint32_t state = word<uint32_t>(word<uint8_t*>(root, 0x2c), 0xc);
+        if (state >= 2 && state <= 5) frames = 1;
+    }
+    for (; frames > 0; --frames) {
+        nglBeginFrame();
+        nglPushScene(0);
+        nglSetClearFlags(0xf3);
+        nglSetSceneDepthTest(0);
+        nglSetSceneDepthEnable(0);
+        uint8_t* const s = word<uint8_t*>(root, 0x24);
+        title_function<void XB_THISCALL(uint8_t*)>(word<uint32_t>(word<uint8_t*>(s, 0), 0x28))(s);
+        nglPopScene();
+        nglEndFrame();
+    }
+}
+PLATFORM_ASM_ENTRY(UIRoot_DrawPausedFrame_entry,
+                   "pushl %esi\n" PLATFORM_ASM_CALL(UIRoot_DrawPausedFrame) "addl $4, %esp\n"
+                   "ret")
 
 }  // namespace game

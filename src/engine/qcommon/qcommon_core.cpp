@@ -7,6 +7,7 @@
 #include "actor.h"
 #include "cl.h"
 #include "g_scr_runtime.h"
+#include "g_utils.h"
 #include "lanes.h"
 #include "ngl.h"
 #include "qcommon.h"
@@ -3079,13 +3080,27 @@ uint32_t XB_REGS1 XB_CDECL HashStr_Hash(const char* text) {
     return hash;
 }
 
-namespace {
-
-// Calls a title function taking its only argument in ESI.
-extern "C" PLATFORM_HIDDEN void XB_CDECL qcore_call_esi(uint32_t esi, uint32_t function);
-PLATFORM_ASM_ENTRY(qcore_call_esi, "pushl %esi\n movl 8(%esp), %esi\n call *12(%esp)\n popl %esi\n ret")
-
-}  // namespace
+// A full table (no free slot): the table's report callback (+0x1040, when set) for every slot in use (the free-slot
+// bitmap inverted) with the slot's word (+0x40 + slot * 8), then Sys_DebugBreak.
+void XB_CDECL HandleTable512_ReportFull(uint32_t* table) {
+    using Report = void XB_CDECL(int32_t, uint32_t);
+    const uint32_t report = table[0x1040 / 4];
+    if (report) {
+        uint32_t used[16];
+        HandleBits512_Invert(used, table);
+        uint32_t iterator[4] = {addr32(used), used[0], 0, 0xffffffffu};
+        for (;;) {
+            BitIter_Next(0, iterator);
+            const int32_t slot = static_cast<int32_t>(iterator[3]);
+            if (slot == -1 && iterator[2] == 0xffffffffu) break;
+            title_function<Report>(table[0x1040 / 4])(slot, table[0x40 / 4 + slot * 2]);
+        }
+    }
+    Sys_DebugBreak();
+}
+PLATFORM_ASM_ENTRY(HandleTable512_ReportFull_entry,
+                   "pushl %esi\n" PLATFORM_ASM_CALL(HandleTable512_ReportFull) "addl $4, %esp\n"
+                   "ret")
 
 PLATFORM_ASM_ENTRY(HandleTable512_Alloc_entry,
                    "pushl %ebx\n"
@@ -3099,7 +3114,7 @@ uint32_t* XB_CDECL HandleTable512_Alloc(uint32_t* table, uint32_t* out) {
     BitIter_Next(0, iterator);
     const int32_t slot = static_cast<int32_t>(iterator[3]);
     table[slot >> 5] &= ~(1u << (slot & 0x1f));
-    if (slot == -1) qcore_call_esi(addr32(table), 0x0001fa20);  // HandleTable512_ReportFull (table in ESI)
+    if (slot == -1) HandleTable512_ReportFull(table);
     *out = (word_at(reinterpret_cast<const uint8_t*>(table), 0x44 + static_cast<uint32_t>(slot) * 8) << 12) |
            static_cast<uint32_t>(slot);
     return out;
@@ -5411,6 +5426,26 @@ uint32_t* XB_CDECL StringMap_Find(const uint32_t* map, const char* const* name) 
     return nullptr;
 }
 
+// EntHandleTable's HandleTable512_ReportFull: callback +0x2aa8, the slots' words at +0xa8 + slot * 8.
+void XB_CDECL EntHandleTable_ReportFull(uint32_t* table) {
+    using Report = void XB_CDECL(int32_t, uint32_t);
+    if (table[0x2aa8 / 4]) {
+        uint32_t used[42];
+        EntBits_Invert(used, table);
+        uint32_t iterator[4] = {addr32(used), used[0], 0, 0xffffffffu};
+        for (;;) {
+            EntBits_IterNext(iterator);
+            const int32_t slot = static_cast<int32_t>(iterator[3]);
+            if (slot == -1 && iterator[2] == 0xffffffffu) break;
+            title_function<Report>(table[0x2aa8 / 4])(slot, table[0xa8 / 4 + slot * 2]);
+        }
+    }
+    Sys_DebugBreak();
+}
+PLATFORM_ASM_ENTRY(EntHandleTable_ReportFull_entry,
+                   "pushl %esi\n" PLATFORM_ASM_CALL(EntHandleTable_ReportFull) "addl $4, %esp\n"
+                   "ret")
+
 PLATFORM_ASM_ENTRY(EntHandleTable_Alloc_entry,
                    "pushl %ebx\n"
                    "pushl %eax\n" PLATFORM_ASM_CALL(EntHandleTable_Alloc) "addl $8, %esp\n"
@@ -5423,7 +5458,7 @@ uint32_t* XB_CDECL EntHandleTable_Alloc(uint32_t* table, uint32_t* out) {
     EntBits_IterNext(iterator);
     const int32_t slot = static_cast<int32_t>(iterator[3]);
     table[slot >> 5] &= ~(1u << (slot & 0x1f));
-    if (slot == -1) qcore_call_esi(addr32(table), 0x000299c0);  // EntHandleTable_ReportFull
+    if (slot == -1) EntHandleTable_ReportFull(table);
     *out = (word_at(reinterpret_cast<const uint8_t*>(table), 0xac + static_cast<uint32_t>(slot) * 8) << 12) |
            static_cast<uint32_t>(slot);
     return out;

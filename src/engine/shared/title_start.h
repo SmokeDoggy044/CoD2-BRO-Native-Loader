@@ -14,6 +14,8 @@ namespace game {
 
 // The entry: starts the title's main thread (title_main_thread) the way the original entry did and returns.
 void XB_CDECL title_start();
+// 0x001f3472 _freeptd: frees a thread's CRT data (the caller's when `ptd` is 0) and clears its TLS slot.
+void XB_CDECL title_freeptd(uint32_t ptd);
 
 // The title's main thread: heap, CRT state, static initializers, Sys_Main.
 uint32_t XB_STDCALL title_main_thread(uint32_t parameter);

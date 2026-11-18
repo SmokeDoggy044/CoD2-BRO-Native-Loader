@@ -331,6 +331,10 @@ uint32_t XB_STDCALL XLaunchNewImageA(const char* path, const uint8_t* data) {
         std::snprintf(reinterpret_cast<char*>(page + 8), 0x208, "\\Device\\Cdrom0;%s", path + 3);
         title_host().relaunch(page);
     }
+    if (native_platform() && !same_title && title_host().quit) {
+        title_host().quit();  // the dashboard (memory management, ...): there is none on PC, the game ends
+        return 0;
+    }
     return title_function<uint32_t XB_STDCALL(const char*, const uint8_t*, uint32_t, uint32_t)>(0x001ea85a)(path, data,
                                                                                                        0, 0);
 }

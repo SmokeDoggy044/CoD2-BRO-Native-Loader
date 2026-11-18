@@ -270,6 +270,8 @@ uint8_t XB_CDECL UI_StickDirectionHeld(int32_t bit);
 void XB_THISCALL Profile_StoreToSaveSlot(uint8_t* saves);
 // 0x0031f690: every button's +0x58 (3 with 0x0095f8f8, else 4), then UIMenu_Draw while the overlay's fade is >= 0.
 void XB_THISCALL UIDialog_Draw(uint8_t* dialog);
+uint8_t XB_THISCALL InGameDialog_Yes(uint8_t* dialog);  // 0x00313dc0: manager +0x20 |= 8, 1
+uint8_t XB_THISCALL InGameDialog_No(uint8_t* dialog);   // 0x00313db0: manager +0x20 &= ~8, 1
 // 0x000122e0: releases the heading and text, UIMenu_FreeItems, frees the dialog with flags bit 0.
 uint8_t* XB_THISCALL UIDialog_DeletingDtor(uint8_t* dialog, uint32_t flags);
 // 0x00331920 (owner in EAX, dialog in ECX): a three-item UIMenu (layer 8), empty texts, three empty items (mode 1)

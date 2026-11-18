@@ -19,3 +19,33 @@ address,verdict,reason
 0002bc10,live,vtable 0x0083c720 installed only in Sys_Main for the UIX layout stream handed to Live_Init (dropped)
 0002bc40,live,vtable 0x0083c720 installed only in Sys_Main for the UIX layout stream handed to Live_Init (dropped)
 0002bc60,live,vtable 0x0083c720 installed only in Sys_Main for the UIX layout stream handed to Live_Init (dropped)
+0001d9d0,atexit_dtor,static destructor registered with _atexit: the own exe never walks the atexit list (a quit ends the process)
+003798b0,atexit_dtor,static destructor registered with _atexit: never run in the own exe
+00379960,atexit_dtor,static destructor registered with _atexit: never run in the own exe
+00379990,atexit_dtor,static destructor registered with _atexit: never run in the own exe
+00379a40,atexit_dtor,static destructor (empty) registered with static_init_atexit: never run
+00379c10,atexit_dtor,static destructor registered with static_init_atexit: never run
+00379d40,atexit_dtor,static destructor (empty) registered with static_init_atexit: never run
+000ca620,never_started,the file thread: started only when File_Configure's threaded flag is 1; FS_InitPackBuffers passes 0
+00011220,live,Live_GetCurrentUser: only in the signed-in Live state (Live set aside)
+0002bd10,live,InGameLiveOptionsMenu friend-join YES (Live set aside)
+002226c0,live,InGameLiveOptionsMenu boot-to-dashboard YES (Live set aside)
+00223a20,live,InGameLiveOptionsMenu boot-to-dashboard NO: Live log-off (Live set aside)
+00221450,live,Live_EmptyStub: only in the signed-in Live state
+002220e0,live,LiveMgr_SetInput: calls the UIX Live engine (Live set aside)
+00312870,live,Live_CheckGameInvite: our C skips it on the own platform
+002cf920,loader_only,Cmd_LaunchMultiplayer_f: only without the host's launch_multiplayer (the loader)
+002938f0,deliberate_break,__break: int3; ret - the game's own fatal break, the same in the original
+00296760,deliberate_break,allocator hook slot 2: int3; ret in the original too
+00293850,deliberate_break,"crash" developer command: writes to address 0 on purpose
+00297090,deliberate_break,"error" developer command: calls __break on purpose
+001ea85a,loader_only,XapipLaunchNewImageInternal: the own platform relaunches itself or quits (title_host relaunch/quit)
+001f0b4a,never_called,fwprintf in Mem_DebugPrintf: its only caller passes no stream
+001f665b,table_only,_fassign in the _cfltcvt table: our CRT C converts floats itself; nothing calls through the table
+001f6949,table_only,_cfltcvt in the _cfltcvt table: our CRT C converts floats itself; nothing calls through the table
+001f699a,out_of_memory,_callnewh: only when our heap is exhausted (fatal either way)
+001f4264,never_called,_commit: only for streams opened with 'c'; the game opens files rb/wb/ab only
+001f9bd1,never_called,_chsize_lk: only for text-mode append; the game appends with "ab" (binary)
+001efe29,never_called,_flsall: fflush(NULL); the game flushes open streams only
+001f3537,fatal,_amsg_exit: a CRT lock that cannot be made (fatal either way)
+0033a750,loader_only,UI_ShowDiscErrorScreen (SDK font): the own platform reports a fatal error instead

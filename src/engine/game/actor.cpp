@@ -11960,7 +11960,7 @@ uint32_t XB_CDECL Actor_Grenade_FindThrowbackVelocity(uint32_t entry, const floa
     title_global<float>(0x0095ee14) = start[1];
     title_global<float>(0x0095ee18) = start[2];
     own_function<void XB_CDECL(void*, int32_t, uint32_t, uint32_t)>(&title_qsort)(
-        &title_global<uint8_t>(0x0095ee20), title_global<int32_t>(0x00985fd4), 12, 0x001fb290);  // qsort
+        &title_global<uint8_t>(0x0095ee20), title_global<int32_t>(0x00985fd4), 12, own_address(&Actor_CompareDistanceFromStart));  // qsort
     float g = title_global<float>(0x0094d450);
     for (int32_t i = 0; i < title_global<int32_t>(0x00985fd4); ++i) {
         const float* const hint = &title_global<float>(0x0095ee20 + uint32_t(i) * 12);

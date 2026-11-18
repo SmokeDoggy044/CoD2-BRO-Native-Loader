@@ -5,6 +5,7 @@
 #include "scr_fiber.h"
 #include "bg_misc.h"
 #include "gap_methods.h"
+#include "title_start.h"
 #include "unr_methods.h"
 #include "vslot_methods.h"
 #include "bro_scr_actor.h"
@@ -1188,6 +1189,38 @@ const Function kFunctions[] = {
     {"cdWaterVertexIter_Ctor", 0x000514b0, 0, code(&cdWaterVertexIter_Ctor), 4, Result::Eax, Status::Compare},  // gap (#24)
     {"cdWorldVertexLitVertexIter_Ctor", 0x00052e40, 0, code(&cdWorldVertexLitVertexIter_Ctor), 4, Result::Eax, Status::Compare},  // gap
     {"cdDebugVertexIter_Ctor", 0x0007b910, 0, code(&cdDebugVertexIter_Ctor), 4, Result::Eax, Status::Compare},  // gap
+    {"HandleTable512_ReportFull", 0x0001fa20, 0, code(&HandleTable512_ReportFull_entry), 0, Result::None, Status::Compare},  // gap reached by address from our C
+    {"EntHandleTable_ReportFull", 0x000299c0, 0, code(&EntHandleTable_ReportFull_entry), 0, Result::None, Status::Compare},  // gap reached by address from our C
+    {"ScrEnt_SetFloat_2fc", 0x00017080, 0, code(&ScrEnt_SetFloat_2fc), 8, Result::None, Status::Compare},  // gap reached by address from our C
+    {"zcfree", 0x0005af20, 0, code(&zcfree), 8, Result::None, Status::Compare},  // gap reached by address from our C
+    {"Actor_CompareDistanceFromStart", 0x001fb290, 0, code(&Actor_CompareDistanceFromStart), 8, Result::Eax, Status::Compare},  // gap reached by address from our C
+    {"BroScr_DeleteVictimOnNotify", 0x0011fbf0, 0, code(&BroScr_DeleteVictimOnNotify), 12, Result::None, Status::Compare},  // gap reached by address from our C
+    {"Cmd_ScreenshotHigh_f", 0x00235c20, 0, code(&Cmd_ScreenshotHigh_f), 0, Result::None, Status::Compare},  // gap reached by address from our C
+    {"Cmd_Screenshot_f", 0x002373f0, 0, code(&Cmd_Screenshot_f), 0, Result::None, Status::Compare},  // gap reached by address from our C
+    {"HitlocTable_NoCallback", 0x00248c40, 0, code(&HitlocTable_NoCallback), 0, Result::None, Status::Compare},  // gap reached by address from our C
+    {"G_AnimTreeAlloc", 0x0024a050, 0, code(&G_AnimTreeAlloc), 4, Result::Eax, Status::Compare},  // gap reached by address from our C
+    {"Cmd_ZoneGraph_f", 0x0028c430, 0, code(&Cmd_ZoneGraph_f), 0, Result::None, Status::Compare},  // gap reached by address from our C
+    {"Cmd_PakRender_f", 0x0028cd40, 0, code(&Cmd_PakRender_f), 0, Result::None, Status::Compare},  // gap reached by address from our C
+    {"Cmd_WriteDefaults_f", 0x00293810, 0, code(&Cmd_Nothing_f), 0, Result::None, Status::Compare},  // gap reached by address from our C
+    {"Cmd_WriteConfig_f", 0x00293820, 0, code(&Cmd_Nothing_f), 0, Result::None, Status::Compare},  // gap reached by address from our C
+    {"MemHook_Nothing", 0x00296770, 0, code(&MemHook_Nothing), 0, Result::None, Status::Compare},  // gap reached by address from our C
+    {"MemHook_FreeIndirect", 0x002968e0, 0, code(&MemHook_FreeIndirect), 4, Result::None, Status::Compare},  // gap reached by address from our C
+    {"Cmd_Cg_f", 0x002afb90, 0, code(&Cmd_Cg_f), 0, Result::None, Status::Compare},  // gap reached by address from our C
+    {"Cmd_RenderEnts_f", 0x002afc90, 0, code(&Cmd_RenderEnts_f), 0, Result::None, Status::Compare},  // gap reached by address from our C
+    {"Cmd_SceneFX_f", 0x002afcb0, 0, code(&Cmd_SceneFX_f), 0, Result::None, Status::Compare},  // gap reached by address from our C
+    {"AutosaveMenu_UnformattedYes", 0x0030cee0, 0, code(&AutosaveMenu_UnformattedYes), 0, Result::Al, Status::Compare},  // gap reached by address from our C
+    {"ProfileMenu_UnformattedYes", 0x0030d2e0, 0, code(&ProfileMenu_UnformattedYes), 0, Result::Al, Status::Compare},  // gap reached by address from our C
+    {"UIRoot_DrawPausedFrame", 0x0030f190, 0, code(&UIRoot_DrawPausedFrame_entry), 0, Result::None, Status::Compare},  // gap reached by address from our C
+    {"InGameDialog_No", 0x00313db0, 0, code(&InGameDialog_No), 0, Result::Al, Status::Compare},  // gap reached by address from our C
+    {"InGameDialog_Yes", 0x00313dc0, 0, code(&InGameDialog_Yes), 0, Result::Al, Status::Compare},  // gap reached by address from our C
+    {"MemDlg_ContinueWithoutSaving", 0x0031b2e0, 0, code(&MemDlg_ContinueWithoutSaving), 0, Result::Al, Status::Compare},  // gap reached by address from our C
+    {"AutosaveMenu_CorruptFormat", 0x003335d0, 0, code(&AutosaveMenu_CorruptFormat), 0, Result::Al, Status::Compare},  // gap reached by address from our C
+    {"AutosaveMenu_CorruptOk", 0x003336d0, 0, code(&AutosaveMenu_CorruptOk), 0, Result::Al, Status::Compare},  // gap reached by address from our C
+    {"ProfileMenu_CorruptFormat", 0x003348f0, 0, code(&ProfileMenu_CorruptFormat), 0, Result::Al, Status::Compare},  // gap reached by address from our C
+    {"ProfileMenu_CorruptOk", 0x00334e50, 0, code(&ProfileMenu_CorruptOk), 0, Result::Al, Status::Compare},  // gap reached by address from our C
+    {"MemDlg_GoToDashboard", 0x00335410, 0, code(&MemDlg_GoToDashboard), 0, Result::Al, Status::Compare},  // gap reached by address from our C
+    {"UI_ShowDamagedDiscScreen", 0x0033aa20, 0, code(&UI_ShowDamagedDiscScreen), 4, Result::None, Status::Compare},  // gap reached by address from our C
+    {"_freeptd", 0x001f3472, 0, code(&title_freeptd), 4, Result::None, Status::Compare},  // gap reached by address from our C
     {"cdRiverVertexIter_Ctor", 0x0004e9d0, 0, code(&cdRiverVertexIter_Ctor), 4, Result::Eax, Status::Compare},  // was FUN_0004e9d0 (gap)
     {"cdOcean_LoadTextures", 0x0004ea90, 0, code(&cdOcean_LoadTextures), 4, Result::Eax, Status::Compare},  // was FUN_0004ea90 (gap)
     {"cdOcean_ReleaseTextures", 0x0004eb00, 0, code(&cdOcean_ReleaseTextures), 4, Result::None, Status::Compare},  // was FUN_0004eb00 (gap)
