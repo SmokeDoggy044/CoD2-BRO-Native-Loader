@@ -7954,7 +7954,7 @@ address,name,section,module,state,tested,matched
 001f3327,_getptd,.text,crt,inconclusive,12762,0
 001f33a9,FUN_001f33a9,.text,mslib,unnamed,0,0
 001f3469,FUN_001f3469,.text,mslib,unnamed,0,0
-001f3472,FUN_001f3472,.text,mslib,unnamed,0,0
+001f3472,FUN_001f3472,.text,mslib,untested,0,0
 001f34c4,LIBCMT::__mtinit,.text,mslib,library,0,0
 001f3537,LIBCMT::__amsg_exit,.text,mslib,library,0,0
 001f3553,LIBCMT::__fltin2,.text,mslib,library,0,0
@@ -11381,7 +11381,7 @@ address,name,section,module,state,tested,matched
 0030f020,UIMenu_SetSelection,.text,client,untested,0,0
 0030f090,UIMenuItem_SetHighlight,.text,client,matched,3,3
 0030f0b0,UIMenuItem_SetSelected,.text,client,untested,0,0
-0030f190,FUN_0030f190,.text,unassigned,unnamed,0,0
+0030f190,FUN_0030f190,.text,unassigned,untested,0,0
 0030f210,Loc_InitLanguageFromDashboard,.text,qcommon,set-aside,0,0
 0030f2b0,R_FindFont,.text,renderer,replaced,334,334
 0030f380,UIFontTable_SetByName,.text,client,replaced,0,0
