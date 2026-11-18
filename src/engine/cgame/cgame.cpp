@@ -629,6 +629,11 @@ void XB_CDECL CG_DrawHudElemMaterial(const uint8_t* he, const uint8_t* rect) {
     if (*reinterpret_cast<const uint32_t*>(title_global<uint8_t*>(0x0093fcd8) + 0x20)) return;
     const uint32_t material = *reinterpret_cast<const uint32_t*>(he + 0x38);
     if (!material) return;
+    // The Cutscene Bars setting off: the scripts' letterbox bars (full-width elements up to 70 high, e.g.
+    // BroScr_LetterboxFade's) are not drawn; the elements themselves stay as the scripts made them.
+    if (!client_pc_hooks().letterbox_bars && *reinterpret_cast<const int32_t*>(he + 0x30) == 640 &&
+        *reinterpret_cast<const int32_t*>(he + 0x34) <= 70)
+        return;
     const float fallback = *reinterpret_cast<const float*>(rect + 0x28);
     const auto size = [&](uint32_t offset) {
         const int32_t v = *reinterpret_cast<const int32_t*>(he + offset);
@@ -1256,7 +1261,8 @@ void XB_CDECL CG_CalcVrect() {
     else if (size > 100)
         size = clamp_to(0x00834298, 100);
     int32_t height_size = size;
-    if (title_global<uint32_t>(0x0094ad64))
+    // cg_letterbox: the cutscene letterbox (a lower view; the Cutscene Bars setting off keeps the full picture).
+    if (title_global<uint32_t>(0x0094ad64) && client_pc_hooks().letterbox_bars)
         height_size = static_cast<int32_t>(static_cast<float>(size) * g(0x0083f008));
     const int32_t width = title_global<int32_t>(0x0097589c), height = title_global<int32_t>(0x009758a0);
     const int32_t w = (width * size / 100) & ~1;

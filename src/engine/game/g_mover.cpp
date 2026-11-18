@@ -8142,8 +8142,8 @@ uint32_t XB_CDECL G_InitGame(uint32_t entry, uint8_t* unused_eax, uint32_t ebx, 
     for_each_asset(0x00273b44, 0x0083a00c, own_address(&Vehicle_ParseDef), 0x0083a00d, own_address(&Vehicle_ParseDef));
     esi = 1;
     edi = own_address(&Vehicle_ParseDef);
-    const int32_t clients = title_global<int32_t>(0x00950c5c);
-    title_global<int32_t>(0x00985418) = clients < 1 ? 1 : clients > 0x10 ? 0x10 : clients;
+    const int32_t corpses = G_CorpseLimitSetting();  // ai_corpseCount (16 with More Bodies)
+    title_global<int32_t>(0x00985418) = corpses < 1 ? 1 : corpses > 0x10 ? 0x10 : corpses;
     if (!reloaded) {
         const uint32_t reload[1] = {restart ? 1u : 0u};
         call_at(T, 0x00273b80, own_address(&G_InitAnimTrees), TitleRegs{0, ebx, 0, reload[0], esi, edi}, 1, reload);  // G_InitAnimTrees

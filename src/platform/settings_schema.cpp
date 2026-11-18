@@ -254,6 +254,12 @@ const SettingDef kSettings[] = {
     {"key-aim-toggle", "KEYS", T::Text, G::Controls, kLive | kHidden, 0, 0, nullptr, "", "", "keys", "aim-toggle"},
     {"aim-assist", "on|off", T::Switch, G::Controls, 0, 0, 0, nullptr, "on",
      "the view following an enemy under the crosshair (default on)"},
+    {"letterbox", "on|off", T::Switch, G::Graphics, 0, 0, 0, nullptr, "on",
+     "the black bars at the top and bottom during the campaign's cutscenes (default on = as in the game; off: the "
+     "full picture, the cutscene otherwise unchanged)"},
+    {"more-bodies", "on|off", T::Switch, G::Graphics, 0, 0, 0, nullptr, "off",
+     "keep up to 16 fallen soldiers instead of the game's 10 before the farthest one is removed (16 is the game's "
+     "own maximum; default off; campaign only)"},
     {"sprint", "on|off", T::Switch, G::Controls, 0, 0, 0, nullptr, "off",
      "sprint while the Sprint key (Shift; L3 on a controller) is held: the game's own sprint (speed, stamina, "
      "weapon pose), which its campaign leaves unbound (default off = as on the Xbox; campaign only)"},
@@ -563,6 +569,12 @@ const SettingUi kUi[] = {
     {"aim-assist", nullptr, "Aim assist",
      "The view follows an enemy under the crosshair, as on the Xbox. Applies to the controller and the mouse alike, "
      "in the campaign and in multiplayer."},
+    {"letterbox", nullptr, "Cutscene bars",
+     "The black bars at the top and bottom of the screen during cutscenes. Off: the full picture; the cutscenes are "
+     "otherwise unchanged."},
+    {"more-bodies", nullptr, "More bodies",
+     "The game keeps 10 fallen soldiers and removes the farthest one when another falls. On: 16, the most the game "
+     "can hold. Campaign only."},
     {"sprint", nullptr, "Sprint",
      "Hold the Sprint key (Shift, or L3 on a controller) while moving to sprint. The campaign has the game's own "
      "sprint (faster running, stamina, the weapon lowered, no firing) but never lets you use it; this turns it on. "

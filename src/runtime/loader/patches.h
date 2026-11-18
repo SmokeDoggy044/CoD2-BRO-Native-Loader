@@ -89,6 +89,10 @@ struct TitlePatchConfig {
     bool sprint = false;
     // Seconds a full stamina bar lasts while sprinting (1.5 the game's; 0 never runs out).
     float sprint_seconds = 1.5f;
+    // The cutscene letterbox (off: ClientPcHooks::letterbox_bars). Needs CG_CalcVrect and CG_DrawHudElemMaterial as C.
+    bool letterbox = true;
+    // The corpse limit at the game's maximum (ClientPcHooks::more_bodies). Needs G_InitGame and G_TrimCorpseQueue as C.
+    bool more_bodies = false;
 };
 
 // Redirects the title's functions that cannot run on a PC (privileged instructions,
