@@ -1129,6 +1129,8 @@ private:
             settings_.erase("check-updates");
             bindings_ = input::default_bindings();
             store_bindings();
+            pad_bindings_ = input::default_pad_bindings();
+            platform::set_combined_setting(settings_, "pad", input::format_pad_bindings(pad_bindings_));
         }
         ImGui::SetItemTooltip("Every option on every tab back to its default; the game files folder stays.");
         if (!error_.empty()) ImGui::TextColored(ImVec4(1.0f, 0.4f, 0.4f, 1), "%s", error_.c_str());
