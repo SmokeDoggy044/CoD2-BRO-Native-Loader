@@ -18,7 +18,10 @@ namespace game {
 // Settings pages (phase 4.2, fe_pc_pages.cpp): the host keeps the pages (generated from the settings schema), what
 // each row shows and what input does; the game shows the current page in its own menus (the front end's Screen
 // menu, the in-game Options screen) and passes the player's input on.
-inline constexpr int32_t kPcPageMaxRows = 10;
+// A page has up to kPcPageMaxRows rows; the menu shows kPcPageSlots of them and scrolls (1.0.6: one Controller
+// and one Keyboard page instead of sub-pages).
+inline constexpr int32_t kPcPageMaxRows = 40;
+inline constexpr int32_t kPcPageSlots = 10;
 enum PcRowKind : uint8_t {
     kPcRowValue,   // label left, value right between arrows (left / right change it)
     kPcRowLink,    // a sub-page or another screen (accept opens it), centred

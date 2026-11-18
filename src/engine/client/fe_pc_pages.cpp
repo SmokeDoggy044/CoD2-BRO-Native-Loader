@@ -98,7 +98,7 @@ const Host kHosts[2] = {
      123.0f, 362.0f, 24.0f, 149.0f, 444.0f, 318.0f, 1.0f, 22.0f, 0, false},
 };
 
-constexpr int32_t kMax = kPcPageMaxRows;
+constexpr int32_t kMax = kPcPageSlots;  // the menu's item slots; the page's rows scroll through them
 constexpr uint32_t kVtableWords = 0x34;  // through +0xcc
 
 struct Hidden {
@@ -123,6 +123,7 @@ struct Shown {
     uint8_t* title = nullptr;
     char title_was[64] = {};
     PcPageView view = {};  // what is shown
+    int32_t first = 0;     // the page row in slot 0 (scrolling)
     bool laid_out = false;
 } g_shown;
 
@@ -134,6 +135,10 @@ uint8_t* panel_of(uint8_t* menu) { return field<uint8_t*>(menu, 0x34); }
 
 uint8_t* row_item(int32_t row) { return g_shown.items[row]; }
 uint8_t* row_item_of(uint8_t* menu, int32_t row) { return field<uint8_t**>(menu, 4)[row]; }
+
+// Rows in slots: how many show, and the page row of a slot.
+int32_t shown_slots() { return std::max(0, std::min(g_shown.view.rows - g_shown.first, kMax)); }
+int32_t slot_row(int32_t slot) { return g_shown.first + slot; }
 
 void copy_colour(uint8_t* item, uint8_t* text) {
     uint32_t colour;
@@ -162,7 +167,8 @@ void set_align_left(uint8_t* text, bool left) {
 void lay_out() {
     Shown& s = g_shown;
     const Host& h = *s.host;
-    const int32_t rows = s.view.rows;
+    s.first = std::max(0, std::min(s.first, s.view.rows - kMax));
+    const int32_t rows = shown_slots();
     field<int16_t>(s.menu, 0x26) = static_cast<int16_t>(rows);
     float spacing = rows > 1 ? (h.bottom - h.top) / float(rows - 1) : 0.0f;
     if (spacing > h.max_spacing) spacing = h.max_spacing;
@@ -177,7 +183,7 @@ void lay_out() {
             continue;
         }
         set_visible(text, true);
-        const PcPageRow& row = s.view.row[i];
+        const PcPageRow& row = s.view.row[slot_row(i)];
         const float y = top + spacing * float(i);
         const bool value = row.kind == kPcRowValue;
         set_align_left(text, value);
@@ -195,18 +201,44 @@ void lay_out() {
 // The arrows around the selected row's value (hidden on other rows).
 void place_arrows() {
     Shown& s = g_shown;
-    const int32_t row = field<int16_t>(s.menu, 0x22);
-    const bool show = row >= 0 && row < s.view.rows && s.view.row[row].kind == kPcRowValue && s.view.row[row].enabled;
+    const int32_t slot = field<int16_t>(s.menu, 0x22);
+    const int32_t row = slot_row(slot);
+    const bool show = slot >= 0 && slot < shown_slots() && s.view.row[row].kind == kPcRowValue && s.view.row[row].enabled;
     for (int k = 0; k < 2; ++k) {
         uint8_t* const arrow = s.arrows[k];
         if (!arrow) continue;
         set_visible(arrow, show);
         if (!show) continue;
-        uint8_t* const value = s.values[row];
+        uint8_t* const value = s.values[slot];
         const float half = text_width(value) * 0.5f + s.host->arrow_gap;
         const float y = static_cast<float>(setup::get(value, 0xcc));
         UIPicture_SetPosition(arrow, s.host->value_x + (k ? half : -half), y);
     }
+}
+
+// Selects page row `row`, scrolling the slots so it shows (sound: the menu's move sound).
+void select_row(int32_t row, bool sound) {
+    Shown& s = g_shown;
+    if (row < 0 || row >= s.view.rows) return;
+    const int32_t first = row < s.first ? row : row >= s.first + kMax ? row - kMax + 1 : s.first;
+    if (first != s.first) {
+        s.first = first;
+        lay_out();
+    }
+    UIMenu_SetSelection(s.menu, row - s.first, sound ? 1 : 0);
+}
+
+// Up / down: the previous / next row that can be selected, wrapping; scrolls.
+void move_selection(int32_t step) {
+    Shown& s = g_shown;
+    const int32_t n = s.view.rows;
+    if (n <= 0) return;
+    int32_t row = slot_row(field<int16_t>(s.menu, 0x22));
+    for (int32_t tries = 0; tries < n; ++tries) {
+        row = (row + step + n) % n;
+        if (s.view.row[row].enabled) break;
+    }
+    select_row(row, true);
 }
 
 // The host's view again; texts changed where it differs.
@@ -220,23 +252,24 @@ void refresh() {
     for (int32_t i = 0; !changed && i < view.rows; ++i)
         changed = std::memcmp(&view.row[i], &s.view.row[i], sizeof view.row[i]) != 0;
     const int32_t select = view.selected;
+    if (rows_changed) s.first = 0;  // another page
     if (changed) {
         s.view = view;
         if (s.title) set_text(s.title, view.title);
         lay_out();
     }
-    if (select >= 0 && select < s.view.rows) UIMenu_SetSelection(s.menu, select, 0);
-    if (field<int16_t>(s.menu, 0x22) >= s.view.rows) UIMenu_SetSelection(s.menu, 0, 0);
+    if (select >= 0 && select < s.view.rows) select_row(select, false);
+    if (field<int16_t>(s.menu, 0x22) >= shown_slots()) select_row(s.first, false);
     // A dimmed row cannot be selected (up / down skip it): the first row that can.
-    const int32_t at = field<int16_t>(s.menu, 0x22);
+    const int32_t at = slot_row(field<int16_t>(s.menu, 0x22));
     if (at >= 0 && at < s.view.rows && !s.view.row[at].enabled) {
         for (int32_t i = 0; i < s.view.rows; ++i) {
             if (!s.view.row[i].enabled) continue;
-            UIMenu_SetSelection(s.menu, i, 0);
+            select_row(i, false);
             break;
         }
     }
-    for (int32_t i = 0; i < s.view.rows; ++i) copy_colour(row_item(i), s.values[i]);
+    for (int32_t i = 0; i < shown_slots(); ++i) copy_colour(row_item(i), s.values[i]);
     place_arrows();
 }
 
@@ -262,7 +295,7 @@ void handle(int32_t result) {
 int32_t selected_row() { return field<int16_t>(g_shown.menu, 0x22); }
 
 void input(int32_t what) {
-    const int32_t row = selected_row();
+    const int32_t row = slot_row(selected_row());
     const bool value_row = row >= 0 && row < g_shown.view.rows && g_shown.view.row[row].kind == kPcRowValue;
     const int32_t result = hooks().page_input(row, what);
     if ((what == kPcInputLeft || what == kPcInputRight) && value_row) call(g_shown.menu, 0x10);  // the move sound
@@ -280,8 +313,8 @@ void XB_THISCALL page_draw(uint8_t* menu) {
         if (uint8_t* const text = field<uint8_t*>(menu, 0xa0)) call(text, 0x3c);
     }
     UIMenu_Draw(menu);
-    for (int32_t i = 0; i < g_shown.view.rows; ++i)
-        if (g_shown.view.row[i].kind == kPcRowValue) call(g_shown.values[i], 0x3c);
+    for (int32_t i = 0; i < shown_slots(); ++i)
+        if (g_shown.view.row[slot_row(i)].kind == kPcRowValue) call(g_shown.values[i], 0x3c);
     if (g_shown.host->front_end) Movie_DrawFrame();
 }
 
@@ -291,12 +324,12 @@ void XB_THISCALL page_update(uint8_t* menu, float dt) {
     if (g_shown.host->front_end) SCR_LoadingPump();
 }
 
-void XB_THISCALL page_up(uint8_t* menu, uint32_t) {
-    UIMenu_SelectPrev(menu);
+void XB_THISCALL page_up(uint8_t*, uint32_t) {
+    move_selection(-1);
     place_arrows();
 }
-void XB_THISCALL page_down(uint8_t* menu, uint32_t) {
-    UIMenu_SelectNext(menu);
+void XB_THISCALL page_down(uint8_t*, uint32_t) {
+    move_selection(1);
     place_arrows();
 }
 void XB_THISCALL page_left(uint8_t*, uint32_t) { input(kPcInputLeft); }
