@@ -3,6 +3,8 @@
 // runs without it (it reads the same file); it starts the launcher by itself when it
 // finds no game files.
 
+#include <memory>
+#include <sstream>
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_main.h>  // WinMain on Windows
 
@@ -40,6 +42,7 @@
 #include "texture_packs.h"
 #include "ui_theme.h"
 #include "update_check.h"
+#include "pad_mapper.h"
 #include "updater.h"
 
 namespace fs = std::filesystem;
@@ -125,6 +128,8 @@ public:
     Launcher(SDL_Window* window, SDL_Renderer* renderer)
         : window_(window), renderer_(renderer), settings_(platform::load_settings()) {
         if (auto keys = platform::combined_setting(settings_, "keys")) input::parse_bindings(*keys, bindings_);
+        input::parse_pad_bindings(platform::combined_setting(settings_, "pad").value_or(""), pad_bindings_);
+        pad_mapper_ = std::make_unique<launcher::PadMapper>(renderer);
         launcher::remove_update_leftovers(platform::executable_dir());
         if (check_updates()) update_.emplace(COD_BRO_RELEASES, COD_BRO_VERSION);
         if (auto table = launcher::load_game_file_table())
@@ -135,6 +140,10 @@ public:
     // Developer (COD_BRO_LAUNCHER_PAGE): opens "options", "mods", "packs" or "tech" instead of the front page.
     void show_page(std::string_view page) {
         if (page == "options") page_ = Page::Options;
+        if (page == "controls" || page == "controller") {
+            page_ = Page::Options;
+            select_tab_ = page == "controls" ? "Controls" : "Controller";
+        }
         // COD_BRO_LAUNCHER_IMAGE=FILE: as if that disc dump had been chosen (unattended checks of the page).
         if (const char* image = std::getenv("COD_BRO_LAUNCHER_IMAGE"); image && *image) {
             disc_image_ = image;
@@ -156,6 +165,7 @@ public:
     // While a key cell waits for its key (controls()): takes key presses, mouse buttons
     // and the wheel before the UI sees them. True if it took `event`.
     bool capture_event(const SDL_Event& event) {
+        if (pad_mapper_ && pad_mapper_->event(event)) return true;
         bool changed = false;
         const bool taken = ui::key_table_event(key_table_, bindings_, &event, changed);
         if (changed) store_bindings();
@@ -164,6 +174,7 @@ public:
 
     // One frame of the UI. Returns false once the launcher should close.
     bool frame() {
+        if (pad_mapper_) pad_mapper_->new_frame();
         {
             std::lock_guard lock(g_picked_mutex);
             if (g_picked) {
@@ -359,7 +370,9 @@ private:
         update_notice();
         if (!error_.empty()) ImGui::TextColored(ImVec4(1.0f, 0.4f, 0.4f, 1), "%s", error_.c_str());
         ImGui::TextColored(ImVec4(0.9f, 0.9f, 0.9f, 0.75f), "Version %s", COD_BRO_VERSION);
+        notes_button();
         ImGui::EndGroup();
+        notes_window();
 
         if (campaign || multiplayer) return !start_game(multiplayer);
         if (quit) return !save();
@@ -683,6 +696,7 @@ private:
             tab("Graphics", [&] { graphics(); });
             tab("Sound", [&] { sound(); });
             tab("Controls", [&] { controls(); });
+            tab("Controller", [&] { controller(); });
             tab("Multiplayer", [&] { system_link(); });
             ImGui::EndTabBar();
         }
@@ -692,7 +706,9 @@ private:
     // A tab: the tab bar stays put, the tab's settings scroll above the buttons.
     template <typename Body>
     void tab(const char* name, Body body) {
-        if (!ImGui::BeginTabItem(name)) return;
+        const bool select = select_tab_ == name;
+        if (select) select_tab_.clear();
+        if (!ImGui::BeginTabItem(name, nullptr, select ? ImGuiTabItemFlags_SetSelected : 0)) return;
         ImGui::BeginChild(name, ImVec2(0, -footer_));
         ImGui::Spacing();
         // Controls get the left 60%, labels the rest.
@@ -706,6 +722,69 @@ private:
     void general() {
         game_files();
         ui::draw_settings({platform::SettingGroup::Files}, settings_);
+    }
+
+    // What's new: the newest release's notes (GitHub, with the update check). The button beside the version; the
+    // first start of a new version opens them by itself once (notes-seen).
+    void notes_button() {
+        if (!update_) return;
+        const launcher::UpdateCheck::Result r = update_->result();
+        if (r.notes.empty()) return;
+        if (r.status == launcher::UpdateCheck::Status::UpToDate && settings_.get("notes-seen") != COD_BRO_VERSION) {
+            settings_.set("notes-seen", COD_BRO_VERSION);
+            show_notes_ = true;
+        }
+        ImGui::SameLine();
+        if (ImGui::SmallButton("What's new")) show_notes_ = true;
+    }
+
+    void notes_window() {
+        if (!show_notes_ || !update_) return;
+        const launcher::UpdateCheck::Result r = update_->result();
+        const ImGuiViewport* viewport = ImGui::GetMainViewport();
+        ImGui::SetNextWindowPos(viewport->GetCenter(), ImGuiCond_Always, ImVec2(0.5f, 0.5f));
+        ImGui::SetNextWindowSize(ImVec2(viewport->Size.x * 0.86f, viewport->Size.y * 0.82f), ImGuiCond_Always);
+        const std::string title = "What's new in " + r.version + "###notes";
+        if (ImGui::Begin(title.c_str(), &show_notes_,
+                         ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoMove |
+                             ImGuiWindowFlags_NoResize)) {
+            ImGui::BeginChild("notes", ImVec2(0, -ImGui::GetFrameHeightWithSpacing()));
+            notes_text(r.notes);
+            ImGui::EndChild();
+            if (ImGui::Button("Close")) show_notes_ = false;
+            ImGui::SameLine();
+            if (ImGui::Button("Release page") && !SDL_OpenURL(r.url.c_str()))
+                LOG_WARN("launcher", "cannot open %s: %s", r.url.c_str(), SDL_GetError());
+        }
+        ImGui::End();
+    }
+
+    // Release notes' Markdown as the launcher shows it: headings as separators, "- " as bullets, **bold** and
+    // *italic*, `code` and [links](url) as plain text; tables (the install table) left out.
+    static void notes_text(const std::string& markdown) {
+        std::istringstream in(markdown);
+        for (std::string line; std::getline(in, line);) {
+            while (!line.empty() && (line.back() == '\r' || line.back() == ' ')) line.pop_back();
+            if (!line.empty() && line[0] == '|') continue;
+            std::erase_if(line, [](char c) { return c == '*' || c == '`'; });  // **bold**, *italic*, `code`
+            for (size_t open; (open = line.find('[')) != std::string::npos;) {
+                const size_t close = line.find("](", open), end = close == std::string::npos ? close : line.find(')', close);
+                if (end == std::string::npos) break;
+                line = line.substr(0, open) + line.substr(open + 1, close - open - 1) + line.substr(end + 1);
+            }
+            size_t hashes = 0;
+            while (hashes < line.size() && line[hashes] == '#') ++hashes;
+            if (hashes > 0 && hashes < line.size() && line[hashes] == ' ') {
+                ImGui::SeparatorText(line.c_str() + hashes + 1);
+            } else if (line.rfind("- ", 0) == 0) {
+                ImGui::Bullet();
+                ImGui::TextWrapped("%s", line.c_str() + 2);
+            } else if (line.empty()) {
+                ImGui::Spacing();
+            } else {
+                ImGui::TextWrapped("%s", line.c_str());
+            }
+        }
     }
 
     // At the top while a newer release is out: a link to it and, in an installed
@@ -1016,6 +1095,12 @@ private:
         keys();
     }
 
+    // The gamepad's bindings on SDL's picture of a controller (pad_mapper.h).
+    void controller() {
+        if (pad_mapper_ && pad_mapper_->draw(pad_bindings_, ui::setting_value(settings_, "pad-glyphs")))
+            platform::set_combined_setting(settings_, "pad", input::format_pad_bindings(pad_bindings_));
+    }
+
     // The keyboard and mouse bindings (src/input/bindings.h), the PC menu's table.
     void keys() {
         ImGui::SeparatorText("Keys");
@@ -1110,6 +1195,8 @@ private:
             settings_.erase("check-updates");
             bindings_ = input::default_bindings();
             store_bindings();
+            pad_bindings_ = input::default_pad_bindings();
+            platform::set_combined_setting(settings_, "pad", input::format_pad_bindings(pad_bindings_));
         }
         ImGui::SetItemTooltip("Every option on every tab back to its default; the game files folder stays.");
         if (!error_.empty()) ImGui::TextColored(ImVec4(1.0f, 0.4f, 0.4f, 1), "%s", error_.c_str());
@@ -1140,6 +1227,10 @@ private:
     bool restarted_ = false;
     bool profile_ = false;  // Measure performance: --profile auto, not saved
     ui::KeyTable key_table_;
+    input::Bindings pad_bindings_ = input::default_pad_bindings();
+    std::string select_tab_;  // COD_BRO_LAUNCHER_PAGE=controls: that tab once
+    bool show_notes_ = false;  // the What's new window
+    std::unique_ptr<launcher::PadMapper> pad_mapper_;
 };
 
 }  // namespace

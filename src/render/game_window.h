@@ -25,6 +25,9 @@ struct WindowRect {
     int32_t height() const { return bottom - top; }
 };
 
+// Opens the PC menu (pc_menu) on the window's next event pump, as ` would: for a one-time notice (any thread).
+void request_pc_menu();
+
 class GameWindow {
 public:
     GameWindow() = default;
@@ -98,6 +101,7 @@ private:
     std::function<bool()> init_menu_renderer_;
     std::function<void()> shutdown_menu_renderer_;
     bool menu_ready_ = false;
+    bool pc_menu_key_ = true;  // ` toggles the PC menu (BackendConfig::pc_menu_key)
     bool menu_open_ = false;
     bool menu_recapture_ = false;
 

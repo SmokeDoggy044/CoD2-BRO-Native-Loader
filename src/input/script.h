@@ -5,10 +5,12 @@
 // "back@80+4" holds back for 4 s from 80 s.
 // Button names: a b x y black white lt rt start back up down left right ls rs. With native keyboard and mouse
 // (set_native_actions) also the actions of bindings.h by their settings.ini token ("fire@30+2,move-forward@25+4"),
-// held as if their keys were.
+// held as if their keys were, and a PC gamepad's buttons by their pad token ("pad-x@30+1", "pad-rt@31+2"): those
+// press a virtual SDL gamepad (sdl_devices.cpp), so they take the real gamepad's path (its bindings, its menus).
 
 #include <string_view>
 
+#include "bindings.h"
 #include "devices.h"
 
 namespace input {
@@ -20,5 +22,8 @@ bool set_script(std::string_view script);
 void apply_script(PadState& state);
 // The scripted actions held now (bit n = Action n).
 uint32_t scripted_actions();
+// Whether the script presses gamepad buttons (pad-...), and whether `input` (bindings.h pad input) is held now.
+bool script_uses_pad();
+bool scripted_pad_input(InputCode input);
 
 }  // namespace input

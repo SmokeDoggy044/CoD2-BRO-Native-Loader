@@ -20,6 +20,8 @@
 
 #include "bindings.h"
 #include "devices.h"
+
+#include <SDL3/SDL_gamepad.h>
 #include "fe_pc.h"
 #include "float_env.h"
 #include "log.h"
@@ -39,7 +41,10 @@ namespace fs = std::filesystem;
 using platform::SettingDef;
 using platform::SettingType;
 
-enum class Row : uint8_t { Setting, Link, Controller, Key, GameVolume, Mod, Reset, Apply, Back };
+// PadPreset: the gamepad's preset (Modern, Original A-D; "Custom" when the bindings match none); GameControl: one of
+// the game's controller settings (game::PcControl in the key's first character); PadKey: a gamepad binding.
+enum class Row : uint8_t { Setting, Link, Controller, Key, GameVolume, Mod, Reset, Apply, Back, PadPreset, GameControl,
+                           PadKey };
 
 struct RowDef {
     Row kind;
@@ -57,6 +62,8 @@ struct PageDef {
 RowDef setting(const char* key, const char* label = nullptr) { return {Row::Setting, key, label}; }
 RowDef link(const char* page, const char* label) { return {Row::Link, page, label}; }
 RowDef key_row(const char* action) { return {Row::Key, action, nullptr}; }
+RowDef pad_row(const char* action) { return {Row::PadKey, action, nullptr}; }
+RowDef control_row(const char* which, const char* label) { return {Row::GameControl, which, label}; }
 
 // Root pages end in Reset to Defaults + Apply and Exit; sub-pages in Reset to Defaults + Back (added below).
 const std::vector<PageDef>& pages() {
@@ -98,15 +105,22 @@ const std::vector<PageDef>& pages() {
         {"output", "OUTPUT", {setting("speakers"), setting("silent")}},
         {"controls", "CONTROLS",
          {setting("mouse-sensitivity"), setting("aim-assist"), setting("sprint"), setting("sprint-duration"), setting("button-prompts"),
-          {Row::Controller, nullptr, "Controller"}, link("keys1", "Keyboard")}},
+          link("controller", "Controller"), link("keys1", "Keyboard")}},
+        // One scrolling page each (1.0.6): the gamepad's preset, the game's own controller settings (its Controller
+        // screen's) and every binding; the pad gives these actions directly in play, Start and Back stay pause and
+        // objectives. The keyboard's keys likewise.
+        {"controller", "CONTROLLER",
+         {{Row::PadPreset, nullptr, "Layout"}, control_row("0", "Invert Aim"), control_row("1", "Vibration"),
+          control_row("2", "Look Speed"), control_row("3", "Look Speed Vertical"), setting("trigger-threshold"),
+          setting("pad-glyphs"), pad_row("fire"), pad_row("aim"), pad_row("aim-toggle"), pad_row("grenade"),
+          pad_row("melee"), pad_row("jump"), pad_row("crouch"), pad_row("raise-stance"), pad_row("sprint"),
+          pad_row("use-reload"), pad_row("use"), pad_row("reload"), pad_row("next-weapon"), pad_row("previous-weapon"),
+          pad_row("lean-left"), pad_row("lean-right")}},
         {"keys1", "KEYBOARD",
          {key_row("move-forward"), key_row("move-back"), key_row("move-left"), key_row("move-right"),
-          key_row("jump"), key_row("crouch"), link("keys2", "More Keys")}},
-        {"keys2", "KEYBOARD",
-         {key_row("fire"), key_row("aim"), key_row("aim-toggle"), key_row("reload"), key_row("use"),
-          key_row("sprint"), link("keys3", "More Keys")}},
-        {"keys3", "KEYBOARD",
-         {key_row("melee"), key_row("grenade"), key_row("next-weapon"), key_row("lean-left"),
+          key_row("fire"), key_row("aim"), key_row("aim-toggle"), key_row("jump"), key_row("crouch"),
+          key_row("raise-stance"), key_row("sprint"), key_row("melee"), key_row("grenade"), key_row("use-reload"),
+          key_row("use"), key_row("reload"), key_row("next-weapon"), key_row("previous-weapon"), key_row("lean-left"),
           key_row("lean-right")}},
         {"settings", "SETTINGS",
          {link("graphics", "Graphics"), link("sound", "Sound"), link("controls", "Controls")}},
@@ -175,7 +189,8 @@ struct Session {
     int32_t game_volume_on_open = 0;
     std::vector<std::string> stack;  // page ids, root first
     std::vector<int32_t> rows;       // the selected row on each page below the top
-    int32_t capture_row = -1;        // a key row waiting for its key
+    int32_t capture_row = -1;        // a key or pad row waiting for its input
+    int32_t controls_on_open[4] = {};  // the game's controller settings (game::PcControl) when the session began
     int32_t select = -1;             // the row to select once (page changes)
     fs::path mods_dir;
 } g_session;
@@ -452,11 +467,38 @@ std::string key_text(const input::Bindings& bindings, input::Action action) {
     return out.empty() ? "none" : out;
 }
 
+input::Bindings session_pad_bindings() {
+    input::Bindings bindings;
+    input::parse_pad_bindings(platform::combined_setting(g_session.values, "pad").value_or(""), bindings);
+    return bindings;
+}
+
+void set_session_pad_bindings(const input::Bindings& bindings) {
+    const platform::Settings before = g_session.values;
+    platform::set_combined_setting(g_session.values, "pad", input::format_pad_bindings(bindings));
+    apply_values(before);
+}
+
+int32_t control_of(const char* which) { return which ? which[0] - '0' : 0; }
+
+std::string control_text(int32_t which) {
+    const int32_t value = game::pc_controller_value(which);
+    if (which == game::kPcControlInvert || which == game::kPcControlVibration) return value ? "on" : "off";
+    return std::to_string(value);
+}
+
+std::string preset_text(const input::Bindings& pad) {
+    const auto preset = input::matching_pad_preset(pad);
+    return preset ? input::pad_preset_label(*preset) : "Custom";
+}
+
 void reset_page() {
     const platform::Settings before = g_session.values;
     input::Bindings bindings = session_bindings();
     const input::Bindings defaults = input::default_bindings();
-    bool keys = false;
+    input::Bindings pad = session_pad_bindings();
+    const input::Bindings pad_defaults = input::default_pad_bindings();
+    bool keys = false, pads = false;
     for (const ShownRow& row : page_rows(top_page())) {
         if (row.def.kind == Row::Setting) g_session.values.erase(row.def.key);
         if (row.def.kind == Row::GameVolume) set_game_volume(25);  // the Sound menu's default (50%)
@@ -466,9 +508,23 @@ void reset_page() {
             bindings[a] = defaults[a];
             keys = true;
         }
+        if (row.def.kind == Row::PadKey) {
+            const input::Action a = action_of(row.def.key);
+            pad[a] = pad_defaults[a];
+            pads = true;
+        }
+        if (row.def.kind == Row::PadPreset) {
+            pad = pad_defaults;
+            pads = true;
+        }
+        if (row.def.kind == Row::GameControl) {
+            const int32_t which = control_of(row.def.key);
+            game::pc_set_controller_value(which, game::kPcControlDefaults[which]);
+        }
     }
     apply_values(before);
     if (keys) set_session_bindings(bindings);
+    if (pads) set_session_pad_bindings(pad);
 }
 
 void end_session(bool save) {
@@ -477,6 +533,9 @@ void end_session(bool save) {
     if (!save) {
         apply_live(live_values(), g_session.on_open);
         set_game_volume(g_session.game_volume_on_open);
+        for (int32_t which = 0; which < 4; ++which)
+            if (game::pc_controller_value(which) != g_session.controls_on_open[which])
+                game::pc_set_controller_value(which, g_session.controls_on_open[which]);
         g_session.active = false;
         LOG_INFO("loader", "settings pages: closed without saving");
         return;
@@ -525,6 +584,7 @@ void page_begin(int32_t root) {
             s.values.erase(def.key);
     }
     s.game_volume_on_open = game_volume();
+    for (int32_t which = 0; which < 4; ++which) s.controls_on_open[which] = game::pc_controller_value(which);
     s.stack = {kRoots[root]};
     s.select = 0;
 }
@@ -543,9 +603,16 @@ void page_view(game::PcPageView* view) {
         if (state == input::Capture::Done || state == input::Capture::Cancelled) {
             const std::vector<ShownRow> rows = page_rows(top_page());
             if (state == input::Capture::Done && s.capture_row < static_cast<int32_t>(rows.size())) {
-                input::Bindings bindings = session_bindings();
-                input::bind(bindings, action_of(rows[s.capture_row].def.key), 0, code);
-                set_session_bindings(bindings);
+                const RowDef& def = rows[s.capture_row].def;
+                if (def.kind == Row::PadKey) {
+                    input::Bindings pad = session_pad_bindings();
+                    input::bind(pad, action_of(def.key), 0, code);
+                    set_session_pad_bindings(pad);
+                } else {
+                    input::Bindings bindings = session_bindings();
+                    input::bind(bindings, action_of(def.key), 0, code);
+                    set_session_bindings(bindings);
+                }
             }
             s.capture_row = -1;
         } else if (state == input::Capture::None) {
@@ -556,6 +623,7 @@ void page_view(game::PcPageView* view) {
     std::snprintf(view->title, sizeof view->title, "%s", platform::ui_text(language, page.title));
     const std::vector<ShownRow> rows = page_rows(page);
     const input::Bindings bindings = session_bindings();
+    const input::Bindings pad = session_pad_bindings();
     const std::string mod_list = ui::setting_value(s.values, "mod-list");
     view->rows = std::min<int32_t>(static_cast<int32_t>(rows.size()), game::kPcPageMaxRows);
     for (int32_t i = 0; i < view->rows; ++i) {
@@ -589,6 +657,21 @@ void page_view(game::PcPageView* view) {
                 out.kind = game::kPcRowValue;
                 break;
             }
+            case Row::PadKey: {
+                const input::Action a = action_of(row.def.key);
+                label = input::action_label(a);
+                value = i == s.capture_row ? "Press a button" : key_text(pad, a);
+                out.kind = game::kPcRowValue;
+                break;
+            }
+            case Row::PadPreset:
+                value = preset_text(pad);
+                out.kind = game::kPcRowValue;
+                break;
+            case Row::GameControl:
+                value = control_text(control_of(row.def.key));
+                out.kind = game::kPcRowValue;
+                break;
             case Row::Mod:
                 label = row.mod;
                 value = mod_on(mod_list, row.mod) ? "on" : "off";
@@ -658,6 +741,37 @@ int32_t page_input(int32_t index, int32_t action) {
                 bindings[a][1] = 0;
                 set_session_bindings(bindings);
             }
+            return game::kPcResultStay;
+        }
+        case Row::PadKey: {
+            const input::Action a = action_of(row.def.key);
+            if (action == game::kPcInputAccept || action == game::kPcInputRight) {
+                s.capture_row = index;
+                input::begin_pad_capture();
+            } else {  // left: the action loses its buttons
+                input::Bindings pad = session_pad_bindings();
+                pad[a] = {};
+                set_session_pad_bindings(pad);
+            }
+            return game::kPcResultStay;
+        }
+        case Row::PadPreset: {
+            if (action == game::kPcInputAccept) return game::kPcResultStay;
+            constexpr int32_t count = static_cast<int32_t>(input::PadPreset::Count);
+            const auto now = input::matching_pad_preset(session_pad_bindings());
+            // From Custom: right gives the first preset, left the last.
+            int32_t next = now ? static_cast<int32_t>(*now) + dir : dir > 0 ? 0 : count - 1;
+            next = (next + count) % count;
+            set_session_pad_bindings(input::pad_preset(static_cast<input::PadPreset>(next)));
+            return game::kPcResultStay;
+        }
+        case Row::GameControl: {
+            const int32_t which = control_of(row.def.key);
+            const int32_t value = game::pc_controller_value(which);
+            if (which == game::kPcControlInvert || which == game::kPcControlVibration)
+                game::pc_set_controller_value(which, value ? 0 : 1);  // accept, left or right toggles
+            else if (action != game::kPcInputAccept)
+                game::pc_set_controller_value(which, value + dir);
             return game::kPcResultStay;
         }
         case Row::Mod: {
@@ -737,7 +851,12 @@ bool write_lang_template(const fs::path& path) {
         add(page.title);
         for (const RowDef& row : page.rows) {
             if (row.label) add(row.label);
-            if (row.kind == Row::Key) add(input::action_label(action_of(row.key)));
+            if (row.kind == Row::Key || row.kind == Row::PadKey) add(input::action_label(action_of(row.key)));
+            if (row.kind == Row::PadPreset) {
+                for (size_t p = 0; p < static_cast<size_t>(input::PadPreset::Count); ++p)
+                    add(input::pad_preset_label(static_cast<input::PadPreset>(p)));
+                add("Custom");
+            }
             if (row.kind != Row::Setting) continue;
             const SettingDef* def = platform::find_setting(row.key);
             const platform::SettingUi* ui = platform::setting_ui(row.key);
@@ -773,8 +892,15 @@ bool write_lang_template(const fs::path& path) {
         }
     }
     for (const char* text : {"Master Volume", "Reset to Defaults", "Apply and Exit", "Back", "Press a key", "none",
-                             "on", "off"})
+                             "on", "off", "Press a button"})
         add(text);
+    // The gamepad's buttons as the Controller page shows them (the descriptive ones: "Left stick click", "D-pad up").
+    for (int b = 0; b < SDL_GAMEPAD_BUTTON_COUNT; ++b) {
+        const std::string name = input::input_name(static_cast<input::InputCode>(input::kPadButton + b));
+        if (name.find(' ') != std::string::npos) add(name);
+    }
+    // The one-time notice (pc_menu.cpp).
+    for (const char* text : notice_texts()) add(text);
     FILE* out = std::fopen(path.string().c_str(), "wb");
     if (!out) {
         std::fprintf(stderr, "cannot write %s\n", path.string().c_str());

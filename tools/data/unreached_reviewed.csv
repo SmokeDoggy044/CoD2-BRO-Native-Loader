@@ -49,3 +49,6 @@ address,verdict,reason
 001efe29,never_called,_flsall: fflush(NULL); the game flushes open streams only
 001f3537,fatal,_amsg_exit: a CRT lock that cannot be made (fatal either way)
 0033a750,loader_only,UI_ShowDiscErrorScreen (SDK font): the own platform reports a fatal error instead
+00087280,not_function_start,"mid-instruction (lea at 0x0008727f..): KASSRINE words are operand bytes, not pointers (2026-11-18)"
+00090080,not_function_start,"mid-instruction inside a loop (0x00090031..0x000900db): level words are operand bytes, not pointers (2026-11-18)"
+00040360,not_a_pointer,"ngl.cpp nglFlushRenderStates: an NV2A method word (count 1, method 0x360) for set_render_state_simple, not a code address (2026-11-18)"

@@ -335,7 +335,10 @@ void configure_title_services(const Options& options, const fs::path& assets, co
     d3d_config.backend.brightness = options.brightness;
     const bool sharp_text =
         options.sharp_text && text::prepare_sharp_text(assets, platform::executable_dir() / "fonts") > 0;
-    const bool key_prompts = options.button_prompts != loader::TitlePatchConfig::ButtonPrompts::Controller &&
+    // Keycaps, and with our own engine the gamepad's glyphs (its buttons give their actions directly: the game's
+    // Xbox icons would name the wrong buttons) - not without the PC features (--compare).
+    const bool key_prompts = (options.button_prompts != loader::TitlePatchConfig::ButtonPrompts::Controller ||
+                              (options.own_main && options.pc_patches.value_or(!options.compare))) &&
                              text::prepare_key_prompts(assets, platform::executable_dir() / "fonts") > 0;
     // Texture packs (phase 1b): outside the Enhanced switch, never in --compare runs.
     const bool packs =
@@ -366,13 +369,14 @@ void configure_title_services(const Options& options, const fs::path& assets, co
         d3d_config.backend.narrow_ui_draw = &loader::in_game_menu_draw;
     }
     // The ` overlay (Dear ImGui) is a developer tool since phase 4.5: players set everything in the game's own
-    // menus (Options, the pause menu's Settings).
-    if (options.dev) {
-        d3d_config.backend.pc_menu = &loader::pc_menu;
-        d3d_config.backend.pc_menu_shown = &loader::pc_menu_shown;
-        d3d_config.backend.pc_menu_event = &loader::pc_menu_event;
-        loader::set_pc_menu_notice(true);
-    }
+    // menus (Options, the pause menu's Settings). Players get the overlay only for the one-time notice (1.0.6), which
+    // opens it itself; the ` key and its settings are --dev only.
+    d3d_config.backend.pc_menu = &loader::pc_menu;
+    d3d_config.backend.pc_menu_shown = &loader::pc_menu_shown;
+    d3d_config.backend.pc_menu_event = &loader::pc_menu_event;
+    d3d_config.backend.pc_menu_key = options.dev;
+    loader::set_pc_menu_settings(options.dev);
+    if (options.dev) loader::set_pc_menu_notice(true);
     // The front-end menus' PC rows (src/engine/client/fe_pc.h); --compare and --pc-patches off: the original menus.
     if (options.pc_patches.value_or(!options.compare)) {
         loader::install_menu_settings();

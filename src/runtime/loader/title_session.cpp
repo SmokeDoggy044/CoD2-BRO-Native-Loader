@@ -415,6 +415,10 @@ int run_title(XbeImage& image, ThreadEnv& env, const Options& options) {
     ImageSnapshot image_snapshot;
     bool replay_pending = options.replay_at_switch && options.replay.mode != xbox::replay::Mode::Off;
     if (options.own_main) {
+        loader::set_thread_reuse_reset([] {
+            game::title_thread_reuse_reset();
+            render::forget_thread_caches();
+        });
         image_snapshot.take(image);
         xbox::snapshot_memory();
     }

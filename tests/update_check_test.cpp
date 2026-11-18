@@ -126,6 +126,12 @@ int main() {
     CHECK(newest_tag(R"([{"url":"x","html_url":"y","tag_name":"v0.1.6","name":"a"},{"tag_name":"v0.1.5"}])") ==
           "v0.1.6");
     CHECK(newest_tag("[\n  {\n    \"tag_name\" : \"v2.0.0\",\n") == "v2.0.0");
+    // The release notes: unescaped, the first release's only, none when null.
+    using launcher::newest_notes;
+    CHECK(newest_notes(R"([{"tag_name":"v1.0.6","body":"### New\r\n\n- **Pads** \"direct\" \u00e9 \\ end"},{"body":"old"}])") ==
+          "### New\n\n- **Pads** \"direct\" \xc3\xa9 \\ end");
+    CHECK(newest_notes(R"([{"tag_name":"v1","body":null}])").empty());
+    CHECK(newest_notes("[]").empty());
     CHECK(!newest_tag("[]"));
     CHECK(!newest_tag(R"({"message":"API rate limit exceeded"})"));
     CHECK(!newest_tag(R"([{"tag_name":"v0.1.6)"));

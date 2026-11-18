@@ -86,16 +86,36 @@ def collect(data, all_sdk=False):
     rows = {int(m.group(1), 16) for m in
             re.finditer(r'\{"\w+", 0x([0-9a-f]{8}),', (ROOT / "src/engine/shared/functions.cpp").read_text())}
 
+    # Vtable-shaped runs: 3+ consecutive words in .rdata / .data pointing into .text, at least half of them with a
+    # row. Their other members are methods whatever precedes them (0x0030ee80 follows a switch byte table).
+    text = next(s for s in secs if s[0] == ".text")
+    vt_members = set()
+    for name, va, vsize, raw, rsize in secs:
+        if name not in (".rdata", ".data"):
+            continue
+        words = struct.unpack_from(f"<{rsize // 4}I", data, raw)
+        i = 0
+        while i < len(words):
+            j = i
+            while j < len(words) and text[1] <= words[j] < text[1] + text[2]:
+                j += 1
+            if j - i >= 3 and 2 * sum(w in rows for w in words[i:j]) >= j - i:
+                vt_members.update(words[i:j])
+            i = max(j, i + 1)
+
     def candidate(a):
         sec = section_of(a)
         if sec not in CODE or a in rows or kept(a):
             return None
         if sec in SDK and not all_sdk:
             return None
-        if a in names:
+        if a in names or a in vt_members:
             return sec
+        # 16-byte aligned after padding or the end of a function: ret, ret N (C2 xx xx), jmp [reg+disp8] (FF 6x xx),
+        # jmp rel32 (E9). Until 2026-11-18 only CC/C3/90 counted: a method after `ret 4` was missed (#27 crash).
         prev = byte_at(a - 1)
-        if a % 16 == 0 and prev in (0xCC, 0xC3, 0x90):
+        if a % 16 == 0 and (prev in (0xCC, 0xC3, 0x90) or byte_at(a - 3) == 0xC2 or
+                            (byte_at(a - 3) == 0xFF and byte_at(a - 2) & 0xF8 == 0x60) or byte_at(a - 5) == 0xE9):
             return sec
         return None
 

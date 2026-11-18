@@ -39,14 +39,14 @@ item 1
 click                # Controls
 screen 6
 shot controls
-item 3
-click                # Controller (the game's screen 5)
-screen 5
+item 5
+click                # Controller (our page since 1.0.6)
+idle
 shot controller
 b
-screen 6
+idle
 state back_from_controller
-item 4
+item 6
 click                # Keyboard
 wait 0.5
 shot keyboard

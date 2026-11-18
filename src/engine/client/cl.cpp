@@ -37,7 +37,16 @@ ClientPcHooks& client_pc_hooks() {
     return hooks;
 }
 
+namespace {
+// With native actions the pad's own keys run nothing (native_key_command's callers).
+bool pad_key_silenced(int32_t key) {
+    return client_pc_hooks().native_actions && ((key >= 0x9a && key <= 0x9d) || (key >= 0xd3 && key <= 0xdc));
+}
+constexpr const char* kSilenced = "";
+}  // namespace
+
 const char* native_key_command(int32_t key) {
+    if (pad_key_silenced(key)) return kSilenced;
     if (!client_pc_hooks().native_actions || key < kNativeKeyFirst || key >= kNativeKeyFirst + kNativeActionCount)
         return nullptr;
     // In src/input/bindings.h's Action order: the commands the default layout (config/default.cfg) gives the pad
@@ -49,6 +58,7 @@ const char* native_key_command(int32_t key) {
         "+leanleft", "+leanright",  // lean (style A's plain lean: the default's +lean*switchnext switch weapons
                                     // unless aiming)
         "toggle cl_run",            // toggled aim: flips the walking bit +speed holds (CL_KeyMove), as the default R3
+        "+activatereload", "raisestance", "weapprev",  // use / reload on one button, raise stance, previous weapon
     };
     const char* command = kCommands[key - kNativeKeyFirst];
     // The toggled-aim option: Key_Bind_f turns a binding with "+speed" into "toggle cl_run" while 0x008dce70 is set.
@@ -1360,6 +1370,7 @@ void XB_REGS3 XB_CDECL CL_KeyEvent(int32_t down, uint32_t, int32_t key, int32_t 
     }
     const char* const native = native_key_command(key);
     const char* const binding = native ? native : field<const char*>(keys + 8 * key, 4);
+    if (binding && !*binding && native) return;  // a pad key with native actions: the pad's actions come direct
     char cmd[0x400];
     if (!down) {
         if (!binding || binding[0] != '+') return;

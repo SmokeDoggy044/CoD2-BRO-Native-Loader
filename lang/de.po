@@ -326,8 +326,6 @@ msgstr "Springen"
 msgid "Crouch / prone"
 msgstr "Ducken / hinlegen"
 
-msgid "More Keys"
-msgstr "Weitere Tasten"
 
 msgid "Fire"
 msgstr "Feuern"
@@ -397,3 +395,115 @@ msgstr "1,5 s"
 
 msgid "Unlimited"
 msgstr "Unbegrenzt"
+
+# 1.0.6: the Controller page, the gamepad's buttons, the one-time notice (AI-drafted; corrections welcome).
+msgid "CONTROLLER"
+msgstr "CONTROLLER"
+
+msgid "Layout"
+msgstr "Belegung"
+
+msgid "Modern"
+msgstr "Modern"
+
+msgid "Original A"
+msgstr "Original A"
+
+msgid "Original B"
+msgstr "Original B"
+
+msgid "Original C"
+msgstr "Original C"
+
+msgid "Original D"
+msgstr "Original D"
+
+msgid "Custom"
+msgstr "Eigene"
+
+msgid "Invert Aim"
+msgstr "Achse umkehren"
+
+msgid "Vibration"
+msgstr "Vibration"
+
+msgid "Look Speed"
+msgstr "Blickgeschwindigkeit"
+
+msgid "Look Speed Vertical"
+msgstr "Blickgeschwindigkeit vertikal"
+
+msgid "Trigger threshold"
+msgstr "Schwelle der Trigger"
+
+msgid "Button style"
+msgstr "Tastensymbole"
+
+msgid "Detected"
+msgstr "Erkannt"
+
+msgid "Raise stance"
+msgstr "Aufstehen"
+
+msgid "Use / reload"
+msgstr "Benutzen / nachladen"
+
+msgid "Previous weapon"
+msgstr "Vorherige Waffe"
+
+msgid "Press a button"
+msgstr "Taste drücken"
+
+msgid "Left stick click"
+msgstr "L-Stick drücken"
+
+msgid "Right stick click"
+msgstr "R-Stick drücken"
+
+msgid "D-pad up"
+msgstr "Steuerkreuz oben"
+
+msgid "D-pad down"
+msgstr "Steuerkreuz unten"
+
+msgid "D-pad left"
+msgstr "Steuerkreuz links"
+
+msgid "D-pad right"
+msgstr "Steuerkreuz rechts"
+
+msgid "Back R4"
+msgstr "Hinten R4"
+
+msgid "Back L4"
+msgstr "Hinten L4"
+
+msgid "Back R5"
+msgstr "Hinten R5"
+
+msgid "Back L5"
+msgstr "Hinten L5"
+
+msgid "What's new"
+msgstr "Neuigkeiten"
+
+msgid "New controller support"
+msgstr "Neue Controller-Unterstützung"
+
+msgid "Your controller now talks to the game directly instead of pretending to be the original Xbox pad, and it starts with a modern layout:"
+msgstr "Dein Controller spricht jetzt direkt mit dem Spiel, statt sich als originales Xbox-Pad auszugeben, und startet mit einer modernen Belegung:"
+
+msgid "RT fire, LT aim, RB grenade"
+msgstr "RT schießen, LT zielen, RB Granate"
+
+msgid "A jump, B crouch, X use / reload, Y next weapon"
+msgstr "A springen, B ducken, X benutzen / nachladen, Y nächste Waffe"
+
+msgid "L3 sprint, R3 melee, D-pad left / right lean"
+msgstr "L3 sprinten, R3 Nahkampf, Steuerkreuz links / rechts lehnen"
+
+msgid "The game's original layouts, every single button, invert, vibration and look speed are under Options > Controls > Controller (and in the launcher). The on-screen prompts show your controller's own buttons."
+msgstr "Die Originalbelegungen des Spiels, jede einzelne Taste, Invertierung, Vibration und Blickgeschwindigkeit findest du unter Optionen > Steuerung > Controller (und im Launcher). Die Tastensymbole im Spiel zeigen die Tasten deines Controllers."
+
+msgid "A, B or Start on the controller, Enter or a click"
+msgstr "A, B oder Start am Controller, Enter oder ein Klick"

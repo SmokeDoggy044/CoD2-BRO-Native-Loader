@@ -63,6 +63,8 @@ uint32_t XB_THISCALL UIText_GetField7C(uint8_t* self);  // 0x00011770
 uint32_t XB_THISCALL UIText_GetField74(uint8_t* self);  // 0x00011780
 void XB_THISCALL UIText_SetDefaultLineSpacing(uint8_t* self);  // 0x00011790
 void XB_THISCALL UIText_SetField60(uint8_t* self, uint32_t value);  // 0x000118d0
+void XB_THISCALL UITextBase_AddToFields20(uint8_t* self, float a, float b, float c);  // 0x000114f0: +0x20..+0x28 += a, b, c
+void XB_THISCALL UIText_SetLineWord(uint8_t* self, int32_t line, uint32_t value);     // 0x0030f860: lines +0x80, 32 bytes each
 void XB_THISCALL UIText_SetField74(uint8_t* self, uint32_t value);  // 0x000118e0
 void XB_THISCALL UIText_GetFields2C30(uint8_t* self, uint32_t* a, uint32_t* b);  // 0x000118f0
 void XB_THISCALL UIText_SetByte96(uint8_t* self, uint32_t value);  // 0x00011910
@@ -246,6 +248,7 @@ void XB_CDECL HitlocTable_NoCallback();                                        /
 int32_t XB_CDECL Actor_CompareDistanceFromStart(const float* a, const float* b);  // 0x001fb290 (qsort)
 void XB_CDECL MemHook_FreeIndirect(void** block);                              // 0x002968e0: Z_Free(*block)
 void XB_CDECL MemHook_Nothing();                                               // 0x00296770
+uint8_t XB_CDECL MemHook_ReturnFalse();                                        // 0x00293080: xor al, al
 // 0x0011fbf0 (thread: level, ent, victim): waits for notify 0x06730ae8 on ent, deletes victim.
 void XB_CDECL BroScr_DeleteVictimOnNotify(uint32_t level, uint32_t ent, uint32_t victim);
 void XB_CDECL Cmd_Screenshot_f();     // 0x002373f0: nglSaveScreenshot with the next number (0x0098ad64)

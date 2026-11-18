@@ -31,6 +31,7 @@
 #include "options.h"
 #include "os.h"
 #include "patches.h"
+#include "pc_menu.h"
 #include "profiler.h"
 #include "release_map.h"
 #include "replay.h"
@@ -138,6 +139,20 @@ int host_main(int argc, char** argv) {
     if (const std::string keys = input::format_bindings(options.bindings); !keys.empty())
         LOG_INFO("input", "keys: %s", keys.c_str());
     input::set_bindings(options.bindings);
+    if (!options.pad_bindings_error.empty())
+        LOG_WARN("input", "pad setting: %s (ignored; the rest applies)", options.pad_bindings_error.c_str());
+    input::set_pad_bindings(options.pad_bindings);
+    input::set_trigger_threshold(options.trigger_threshold);
+    input::set_pad_family_override(options.pad_glyphs);
+    loader::set_notice_allowed(options.show_notice ||
+                               (options.press_script.empty() && options.menu_walk.empty() && !options.screenshot_dir &&
+                                options.replay.mode == xbox::replay::Mode::Off && !options.compare),
+                               options.show_notice);
+    loader::set_live_pad_glyphs(!options.pad_glyphs                                      ? "auto"
+                                : *options.pad_glyphs == input::PadFamily::PlayStation ? "playstation"
+                                : *options.pad_glyphs == input::PadFamily::Nintendo    ? "nintendo"
+                                : *options.pad_glyphs == input::PadFamily::Steam       ? "steam"
+                                                                                       : "xbox");
     const float aspect = options.aspect;
     loader::install_title_patches(*title, {options.mouse_sensitivity, options.start_level, options.aim_assist,
                                            options.frame_rate, options.late_frames_wait,

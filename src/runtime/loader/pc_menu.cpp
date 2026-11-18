@@ -3,17 +3,22 @@
 
 #include "pc_menu.h"
 
+#include <atomic>
+
+#include <SDL3/SDL_events.h>
 #include <cmath>
 #include <cstdlib>
 #include <initializer_list>
 #include <optional>
 #include <string>
 #include <string_view>
+#include <vector>
 
 #include "bindings.h"
 #include "devices.h"
 #include "enhanced_graphics.h"
 #include "fe_pc.h"
+#include "game_window.h"
 #include "float_env.h"
 #include "imgui.h"
 #include "log.h"
@@ -21,6 +26,8 @@
 #include "settings.h"
 #include "settings_schema.h"
 #include "settings_widgets.h"
+#include "title_data.h"
+#include "ui_text.h"
 #include "snd_env.h"
 #include "sound_engine.h"
 
@@ -35,6 +42,12 @@ ui::KeyTable g_key_table;     // the Controls tab (events and drawing both on th
 }  // namespace
 
 // The settings the menu changes while playing (platform::kLive), as settings.ini text, from what runs now.
+namespace {
+std::string g_pad_glyphs = "auto";  // the pad-glyphs setting as last applied (input keeps only the override)
+}  // namespace
+
+void set_live_pad_glyphs(const std::string& value) { g_pad_glyphs = value.empty() ? "auto" : value; }
+
 platform::Settings live_values() {
     platform::Settings v;
     ui::put_setting(v, "graphics", render::graphics_enhanced() ? "enhanced" : "original");
@@ -46,6 +59,9 @@ platform::Settings live_values() {
     if (const float fov = field_of_view(); fov > 0) ui::put_setting(v, "fov", std::to_string(std::lround(fov)));
     ui::put_setting(v, "mouse-sensitivity", ui::number_text(mouse_sensitivity()));
     platform::set_combined_setting(v, "keys", input::format_bindings(input::bindings()));
+    platform::set_combined_setting(v, "pad", input::format_pad_bindings(input::pad_bindings()));
+    ui::put_setting(v, "trigger-threshold", ui::number_text(input::trigger_threshold()));
+    ui::put_setting(v, "pad-glyphs", g_pad_glyphs);
     return v;
 }
 
@@ -74,6 +90,21 @@ void apply_live(const platform::Settings& before, const platform::Settings& afte
         input::parse_bindings(combined(after, "keys"), bindings);
         input::set_bindings(bindings);
     }
+    if (differs_combined("pad")) {
+        input::Bindings pad;
+        input::parse_pad_bindings(combined(after, "pad"), pad);
+        input::set_pad_bindings(pad);
+    }
+    if (differs("pad-glyphs")) {
+        g_pad_glyphs = ui::setting_value(after, "pad-glyphs");
+        input::set_pad_family_override(g_pad_glyphs == "xbox"          ? std::optional(input::PadFamily::Xbox)
+                                       : g_pad_glyphs == "playstation" ? std::optional(input::PadFamily::PlayStation)
+                                       : g_pad_glyphs == "nintendo"    ? std::optional(input::PadFamily::Nintendo)
+                                       : g_pad_glyphs == "steam"       ? std::optional(input::PadFamily::Steam)
+                                                                       : std::nullopt);
+    }
+    if (differs("trigger-threshold"))
+        input::set_trigger_threshold(std::strtof(ui::setting_value(after, "trigger-threshold").c_str(), nullptr));
     if (differs("mouse-sensitivity"))
         set_mouse_sensitivity(std::strtof(ui::setting_value(after, "mouse-sensitivity").c_str(), nullptr));
 }
@@ -117,7 +148,109 @@ void live_tab(std::initializer_list<platform::SettingGroup> groups) {
 
 }  // namespace
 
+namespace {
+
+// The one-time notice (1.0.6): the controller works directly and starts with the Modern layout. Shown once, in
+// the PC menu's window, at the first menu the game shows; OK (or closing the menu) records it in settings.ini.
+constexpr const char* kNoticeId = "controller-1.0.6";
+enum class Notice { Unknown, Pending, Showing, Done };
+std::atomic<Notice> g_notice{Notice::Unknown};
+std::atomic<bool> g_notice_allowed{true};  // set_notice_allowed
+std::atomic<bool> g_notice_forced{false};
+std::atomic<bool> g_notice_dismissed{false};  // a controller / key press closed it (pc_menu_event)
+
+void notice_done() {
+    g_notice = Notice::Done;
+    platform::Settings file = platform::load_settings();
+    file.set("notice-seen", kNoticeId);
+    if (!platform::save_settings(file))
+        LOG_WARN("loader", "cannot save the settings to %s", platform::settings_path().string().c_str());
+    LOG_INFO("loader", "notice %s shown", kNoticeId);
+}
+
+// The notice's texts (English; lang/*.po translate them, lang/template.pot lists them).
+constexpr const char* kNoticeTitle = "What's new";
+constexpr const char* kNoticeHeading = "New controller support";
+constexpr const char* kNoticeIntro =
+    "Your controller now talks to the game directly instead of pretending to be the original Xbox pad, and it starts "
+    "with a modern layout:";
+constexpr const char* kNoticeLine1 = "RT fire, LT aim, RB grenade";
+constexpr const char* kNoticeLine2 = "A jump, B crouch, X use / reload, Y next weapon";
+constexpr const char* kNoticeLine3 = "L3 sprint, R3 melee, D-pad left / right lean";
+constexpr const char* kNoticeOutro =
+    "The game's original layouts, every single button, invert, vibration and look speed are under Options > Controls "
+    "> Controller (and in the launcher). The on-screen prompts show your controller's own buttons.";
+constexpr const char* kNoticeOk = "OK";
+constexpr const char* kNoticeHint = "A, B or Start on the controller, Enter or a click";
+
+// A notice text in the game's language (UTF-8 for Dear ImGui).
+std::string notice_text(const char* english) {
+    const int32_t language = game::title_global<int32_t>(0x0095f5dc);  // g_languageIndex
+    return platform::ui_text_utf8(language, english).value_or(english);
+}
+
+bool draw_notice() {
+    const ImGuiViewport* viewport = ImGui::GetMainViewport();
+    ImGui::SetNextWindowPos(viewport->GetCenter(), ImGuiCond_Always, ImVec2(0.5f, 0.5f));
+    ImGui::SetNextWindowBgAlpha(0.92f);
+    bool open = true;
+    const std::string title = notice_text(kNoticeTitle) + "###notice";
+    ImGui::Begin(title.c_str(), &open,
+                 ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoSavedSettings |
+                     ImGuiWindowFlags_NoMove);
+    ImGui::PushTextWrapPos(ImGui::GetFontSize() * 32.0f);
+    ImGui::SeparatorText(notice_text(kNoticeHeading).c_str());
+    ImGui::TextWrapped("%s", notice_text(kNoticeIntro).c_str());
+    for (const char* line : {kNoticeLine1, kNoticeLine2, kNoticeLine3}) ImGui::BulletText("%s", notice_text(line).c_str());
+    ImGui::TextWrapped("%s", notice_text(kNoticeOutro).c_str());
+    ImGui::PopTextWrapPos();
+    ImGui::Separator();
+    if (ImGui::IsWindowAppearing()) ImGui::SetKeyboardFocusHere();
+    if (ImGui::Button(notice_text(kNoticeOk).c_str(), ImVec2(ImGui::GetFontSize() * 6.0f, 0))) open = false;
+    ImGui::SameLine();
+    ImGui::TextDisabled("%s", notice_text(kNoticeHint).c_str());
+    if (g_notice_dismissed.exchange(false)) open = false;
+    ImGui::End();
+    if (!open) notice_done();
+    return open;
+}
+
+}  // namespace
+
+std::vector<const char*> notice_texts() {
+    return {kNoticeTitle, kNoticeHeading, kNoticeIntro, kNoticeLine1, kNoticeLine2, kNoticeLine3, kNoticeOutro,
+            kNoticeOk, kNoticeHint};
+}
+
+void set_notice_allowed(bool allowed, bool forced) {
+    g_notice_allowed = allowed;
+    g_notice_forced = forced;
+}
+
+void notice_poll() {
+    if (!g_notice_allowed.load()) return;
+    Notice state = g_notice.load();
+    if (state == Notice::Unknown) {
+        const auto seen = platform::load_settings().get("notice-seen");
+        state = seen && *seen == kNoticeId && !g_notice_forced.load() ? Notice::Done : Notice::Pending;
+        g_notice = state;
+        LOG_DEBUG("loader", "notice %s: %s", kNoticeId, state == Notice::Done ? "seen" : "pending (shows at the first menu)");
+    }
+    if (state != Notice::Pending || !input::in_menu()) return;
+    g_notice = Notice::Showing;
+    LOG_DEBUG("loader", "notice %s: a menu shows, opening it", kNoticeId);
+    render::request_pc_menu();
+}
+
+namespace {
+bool g_pc_menu_settings = true;  // set_pc_menu_settings: the settings tabs (--dev); off: the notice only
+}  // namespace
+
+void set_pc_menu_settings(bool on) { g_pc_menu_settings = on; }
+
 bool pc_menu() {
+    if (g_notice.load() == Notice::Showing) return draw_notice();
+    if (!g_pc_menu_settings) return false;
     const ImGuiViewport* viewport = ImGui::GetMainViewport();
     ImGui::SetNextWindowPos(viewport->GetCenter(), ImGuiCond_Always, ImVec2(0.5f, 0.5f));
     ImGui::SetNextWindowBgAlpha(0.85f);
@@ -159,6 +292,20 @@ bool pc_menu() {
 }
 
 bool pc_menu_event(const void* sdl_event) {
+    // The notice closes with the pad's A, B or Start, or Enter (ImGui's own pad navigation may not see the pad).
+    if (g_notice.load() == Notice::Showing) {
+        const auto* event = static_cast<const SDL_Event*>(sdl_event);
+        const bool pad = event->type == SDL_EVENT_GAMEPAD_BUTTON_DOWN &&
+                         (event->gbutton.button == SDL_GAMEPAD_BUTTON_SOUTH ||
+                          event->gbutton.button == SDL_GAMEPAD_BUTTON_EAST ||
+                          event->gbutton.button == SDL_GAMEPAD_BUTTON_START);
+        const bool key = event->type == SDL_EVENT_KEY_DOWN && !event->key.repeat &&
+                         (event->key.scancode == SDL_SCANCODE_RETURN || event->key.scancode == SDL_SCANCODE_KP_ENTER);
+        if (pad || key) {
+            g_notice_dismissed = true;
+            return true;
+        }
+    }
     input::Bindings bindings = input::bindings();
     bool changed = false;
     const bool taken = ui::key_table_event(g_key_table, bindings, sdl_event, changed);
@@ -168,6 +315,8 @@ bool pc_menu_event(const void* sdl_event) {
 
 void pc_menu_shown(bool open) {
     input::set_game_input_blocked(open);
+    if (!open && g_notice.load() == Notice::Showing) notice_done();  // closed with ` or Escape
+    if (!open && g_notice.load() == Notice::Done) input::wait_for_release();  // the press that closed it stays ours
     g_key_table = {};
     if (open) {
         g_on_open = live_values();

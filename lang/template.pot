@@ -325,6 +325,108 @@ msgstr ""
 msgid "Controller"
 msgstr ""
 
+msgid "CONTROLLER"
+msgstr ""
+
+msgid "Layout"
+msgstr ""
+
+msgid "Modern"
+msgstr ""
+
+msgid "Original A"
+msgstr ""
+
+msgid "Original B"
+msgstr ""
+
+msgid "Original C"
+msgstr ""
+
+msgid "Original D"
+msgstr ""
+
+msgid "Custom"
+msgstr ""
+
+msgid "Invert Aim"
+msgstr ""
+
+msgid "Vibration"
+msgstr ""
+
+msgid "Look Speed"
+msgstr ""
+
+msgid "Look Speed Vertical"
+msgstr ""
+
+msgid "Trigger threshold"
+msgstr ""
+
+msgid "Button style"
+msgstr ""
+
+msgid "Detected"
+msgstr ""
+
+msgid "Xbox"
+msgstr ""
+
+msgid "PlayStation"
+msgstr ""
+
+msgid "Nintendo"
+msgstr ""
+
+msgid "Steam Deck"
+msgstr ""
+
+msgid "Fire"
+msgstr ""
+
+msgid "Aim down sights"
+msgstr ""
+
+msgid "Aim down sights (toggle)"
+msgstr ""
+
+msgid "Throw grenade"
+msgstr ""
+
+msgid "Melee"
+msgstr ""
+
+msgid "Jump"
+msgstr ""
+
+msgid "Crouch / prone"
+msgstr ""
+
+msgid "Raise stance"
+msgstr ""
+
+msgid "Use / reload"
+msgstr ""
+
+msgid "Use"
+msgstr ""
+
+msgid "Reload"
+msgstr ""
+
+msgid "Next weapon"
+msgstr ""
+
+msgid "Previous weapon"
+msgstr ""
+
+msgid "Lean left"
+msgstr ""
+
+msgid "Lean right"
+msgstr ""
+
 msgid "KEYBOARD"
 msgstr ""
 
@@ -338,45 +440,6 @@ msgid "Move left"
 msgstr ""
 
 msgid "Move right"
-msgstr ""
-
-msgid "Jump"
-msgstr ""
-
-msgid "Crouch / prone"
-msgstr ""
-
-msgid "More Keys"
-msgstr ""
-
-msgid "Fire"
-msgstr ""
-
-msgid "Aim down sights"
-msgstr ""
-
-msgid "Aim down sights (toggle)"
-msgstr ""
-
-msgid "Reload"
-msgstr ""
-
-msgid "Use"
-msgstr ""
-
-msgid "Melee"
-msgstr ""
-
-msgid "Throw grenade"
-msgstr ""
-
-msgid "Next weapon"
-msgstr ""
-
-msgid "Lean left"
-msgstr ""
-
-msgid "Lean right"
 msgstr ""
 
 msgid "SETTINGS"
@@ -404,4 +467,64 @@ msgid "Press a key"
 msgstr ""
 
 msgid "none"
+msgstr ""
+
+msgid "Press a button"
+msgstr ""
+
+msgid "Left stick click"
+msgstr ""
+
+msgid "Right stick click"
+msgstr ""
+
+msgid "D-pad up"
+msgstr ""
+
+msgid "D-pad down"
+msgstr ""
+
+msgid "D-pad left"
+msgstr ""
+
+msgid "D-pad right"
+msgstr ""
+
+msgid "Back R4"
+msgstr ""
+
+msgid "Back L4"
+msgstr ""
+
+msgid "Back R5"
+msgstr ""
+
+msgid "Back L5"
+msgstr ""
+
+msgid "What's new"
+msgstr ""
+
+msgid "New controller support"
+msgstr ""
+
+msgid "Your controller now talks to the game directly instead of pretending to be the original Xbox pad, and it starts with a modern layout:"
+msgstr ""
+
+msgid "RT fire, LT aim, RB grenade"
+msgstr ""
+
+msgid "A jump, B crouch, X use / reload, Y next weapon"
+msgstr ""
+
+msgid "L3 sprint, R3 melee, D-pad left / right lean"
+msgstr ""
+
+msgid "The game's original layouts, every single button, invert, vibration and look speed are under Options > Controls > Controller (and in the launcher). The on-screen prompts show your controller's own buttons."
+msgstr ""
+
+msgid "OK"
+msgstr ""
+
+msgid "A, B or Start on the controller, Enter or a click"
 msgstr ""

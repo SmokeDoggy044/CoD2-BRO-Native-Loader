@@ -413,4 +413,7 @@ GfxDevice* gfx_device();
 // state the comparison path keeps, docs/developers/own-renderer.md) until they go.
 GfxDevice* open_gfx_device(const DisplayDesc& desc, uint32_t* xbox_device);
 
+// The calling thread's draw-source cache dropped (a title thread reused across a restart; draw.cpp).
+void forget_thread_caches();
+
 }  // namespace render

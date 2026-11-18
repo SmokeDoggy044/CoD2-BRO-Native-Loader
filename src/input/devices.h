@@ -33,6 +33,7 @@
 // renderer pumps window events.
 
 #include <cstdint>
+#include <optional>
 
 namespace input {
 
@@ -94,9 +95,19 @@ void set_action_remap(ActionRemap remap);
 // their pad buttons as before (WASD and the action keys steer the menus); the menu keys, Escape and Tab stay pad
 // buttons. Off (the default): the action keys are pad buttons everywhere.
 void set_native_actions(bool on);
-// Bit n = Action n is held now (keys, mouse buttons, wheel steps). 0 in menus, while game input is blocked and
-// until the keys that closed our menu are let go.
+// Bit n = Action n is held now (keys, mouse buttons, wheel steps, and the first gamepad's buttons and triggers
+// through its own bindings, bindings.h pad_bindings). 0 in menus, while game input is blocked and until the keys
+// that closed our menu are let go.
 uint32_t held_actions();
+// How far a trigger goes down before its binding counts as held (0.02..0.95 of its travel; default 0.24).
+void set_trigger_threshold(float fraction);
+float trigger_threshold();
+// The button style of the first gamepad (for the prompts' glyphs): from SDL's gamepad type unless overridden (the
+// pad-glyphs setting); Xbox when there is none.
+// PlayStation4: a PS4 / PS3 pad (Share / Options); Steam: Valve's (Steam Deck, Steam Controller).
+enum class PadFamily : uint8_t { Xbox, PlayStation, Nintendo, PlayStation4, Steam };
+PadFamily pad_family();
+void set_pad_family_override(std::optional<PadFamily> family);
 
 // The device the player used last: keys, mouse buttons and mouse motion count as the
 // keyboard; gamepad buttons and sticks/triggers past a dead zone as a gamepad.
@@ -110,6 +121,9 @@ bool in_menu();
 // pressed, mouse motion and pointing are dropped and clicks do not capture the mouse.
 // The title keeps running.
 void set_game_input_blocked(bool blocked);
+// Port 0 reads as nothing pressed until every key, mouse button and gamepad button is let go (after a press that
+// closed something of ours, so the game does not see it too).
+void wait_for_release();
 
 // Key capture for rebinding in the game's own menus (own engine phase 4): the next key, mouse button or wheel step
 // is taken (it gives no pad buttons) and reported once by key_capture; Escape cancels. Reserved keys (bindings.h
@@ -117,6 +131,9 @@ void set_game_input_blocked(bool blocked);
 // neutral until all keys and buttons are let go.
 enum class Capture : uint8_t { None, Waiting, Done, Cancelled };
 void begin_key_capture();
+// The same for a gamepad button or trigger (bindings.h pad inputs; the controller page): Start or Escape cancels,
+// Back and Guide are ignored; afterwards port 0 stays neutral until the pad's buttons are let go too.
+void begin_pad_capture();
 void cancel_key_capture();
 // The state; Done (code = the input) and Cancelled are reported once, then None.
 Capture key_capture(uint16_t& code);

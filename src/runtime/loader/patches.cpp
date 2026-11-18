@@ -3,6 +3,7 @@
 // table says codmp_xboxf.xbe (multiplayer).
 
 #include "patches.h"
+#include "pc_menu.h"
 
 #include <algorithm>
 #include <array>
@@ -22,6 +23,7 @@
 #include <vector>
 
 #include <SDL3/SDL_scancode.h>
+#include <SDL3/SDL_gamepad.h>
 
 #include "compiler.h"
 #include "crash.h"
@@ -261,7 +263,16 @@ static_assert(game::kNativeActionCount == static_cast<int32_t>(input::kActionCou
 uint32_t XB_CDECL native_actions() {
     const uint32_t held = input::held_actions();
     if (xbox::replay::on_stream() && xbox::replay::replaying() && xbox::replay::version() < 5) return 0;
-    return xbox::replay::value('Y', held);
+    const uint32_t value = xbox::replay::value('Y', held);
+    static uint32_t logged = 0;  // --debug: the held actions when they change (keyboard, mouse, gamepad, script)
+    if (value != logged && platform::log_enabled(platform::LogLevel::Debug)) {
+        std::string names;
+        for (size_t a = 0; a < input::kActionCount; ++a)
+            if (value >> a & 1) (names += names.empty() ? "" : " ") += input::action_token(static_cast<input::Action>(a));
+        LOG_DEBUG("input", "held actions: %s", names.empty() ? "none" : names.c_str());
+    }
+    logged = value;
+    return value;
 }
 
 // pushad; pushfd; call mouse_look; popfd; popad; jmp CL_MouseMove
@@ -391,6 +402,7 @@ void remap_keyboard_actions(const input::PadState& default_layout, input::PadSta
 // (src/text/key_prompts.h) while the keyboard and mouse are in use. In menus A and B are
 // Return and Backspace (the menu keys), and the D-pad the arrow keys.
 TitlePatchConfig::ButtonPrompts g_button_prompts = TitlePatchConfig::ButtonPrompts::Auto;
+bool g_pad_prompts = false;  // PC features on (the gamepad glyphs; off: the game's own icons)
 
 // The player's action for each of kPadControls in the default layout (src/input/bindings.h);
 // its first input is the key shown.
@@ -418,13 +430,121 @@ text::PromptIcon prompt_icon(const PadControl& control) {
     return kAnalog[control.analog];
 }
 
+// The action a layout command gives (the commands of config/style_*.cfg and default.cfg); Count for none.
+input::Action action_of_command(const char* command) {
+    using A = input::Action;
+    struct Entry { const char* command; A action; };
+    static constexpr Entry kCommands[] = {
+        {"+attack", A::Fire},        {"+speed", A::Aim},              {"toggle cl_run", A::AimToggle},
+        {"+melee", A::Melee},        {"+grenadeattack", A::Grenade},  {"+sprint", A::Sprint},
+        {"+reload", A::Reload},      {"+activate", A::Use},           {"+activatereload", A::UseReload},
+        {"+moveup", A::Jump},        {"lowerstance", A::Crouch},      {"raisestance", A::RaiseStance},
+        {"weapnext", A::NextWeapon}, {"weapprev", A::PrevWeapon},     {"+leanleft", A::LeanLeft},
+        {"+leanright", A::LeanRight}, {"+leanleftswitchnext", A::LeanLeft}, {"+leanrightswitchnext", A::LeanRight},
+    };
+    for (const Entry& e : kCommands)
+        if (strcasecmp(command, e.command) == 0) return e.action;
+    return A::Count;
+}
+
+// The pad input shown for an action: its first binding, else one of an action that does the same (use and reload
+// on one button stand in for each other).
+input::InputCode pad_input_for(const input::Bindings& pad, input::Action action) {
+    using A = input::Action;
+    if (pad[action][0]) return pad[action][0];
+    if (action == A::Use || action == A::Reload) return pad[A::UseReload][0];
+    if (action == A::UseReload) return pad[A::Use][0] ? pad[A::Use][0] : pad[A::Reload][0];
+    return 0;
+}
+
+// The SDL gamepad input at a pad control's place (A = south, Black = RB, White = LB): menus keep the positions.
+input::InputCode positional_pad_input(const PadControl& control) {
+    const auto button = [](SDL_GamepadButton b) { return static_cast<input::InputCode>(input::kPadButton + b); };
+    switch (control.digital) {
+        case input::kDpadUp: return button(SDL_GAMEPAD_BUTTON_DPAD_UP);
+        case input::kDpadDown: return button(SDL_GAMEPAD_BUTTON_DPAD_DOWN);
+        case input::kDpadLeft: return button(SDL_GAMEPAD_BUTTON_DPAD_LEFT);
+        case input::kDpadRight: return button(SDL_GAMEPAD_BUTTON_DPAD_RIGHT);
+        case input::kLeftThumb: return button(SDL_GAMEPAD_BUTTON_LEFT_STICK);
+        case input::kRightThumb: return button(SDL_GAMEPAD_BUTTON_RIGHT_STICK);
+        case 0: break;
+        default: return 0;
+    }
+    switch (control.analog) {
+        case input::kA: return button(SDL_GAMEPAD_BUTTON_SOUTH);
+        case input::kB: return button(SDL_GAMEPAD_BUTTON_EAST);
+        case input::kX: return button(SDL_GAMEPAD_BUTTON_WEST);
+        case input::kY: return button(SDL_GAMEPAD_BUTTON_NORTH);
+        case input::kBlack: return button(SDL_GAMEPAD_BUTTON_RIGHT_SHOULDER);
+        case input::kWhite: return button(SDL_GAMEPAD_BUTTON_LEFT_SHOULDER);
+        case input::kLeftTrigger: return input::kPadLeftTrigger;
+        case input::kRightTrigger: return input::kPadRightTrigger;
+        default: return 0;
+    }
+}
+
+// Gamepad prompts with the pad giving its actions directly (own engine, 1.0.6): each of the game's button icons
+// shows the pad button bound to the action its layout puts there (src/text/key_prompts.h "@pad-..." glyphs, in the
+// pad's style); in menus, where the pad is still the Xbox pad, the button at that place.
+text::KeyLabels pad_prompt_labels() {
+    using text::PromptIcon;
+    text::KeyLabels labels;
+    auto label = [&](PromptIcon icon) -> std::string& { return labels[static_cast<size_t>(icon)]; };
+    const input::PadFamily family = input::pad_family();
+    const char* const suffix = family == input::PadFamily::PlayStation    ? "/ps"
+                               : family == input::PadFamily::PlayStation4 ? "/ps4"
+                               : family == input::PadFamily::Nintendo     ? "/nin"
+                               : family == input::PadFamily::Steam        ? "/steam"
+                                                                          : "";
+    const auto glyph = [&](input::InputCode input) {
+        return input ? input::prompt_label(input) + suffix : std::string();
+    };
+    const bool menu = input::in_menu();
+    const input::Bindings pad = input::pad_bindings();
+    for (const PadControl& control : kPadControls) {
+        const PromptIcon icon = prompt_icon(control);
+        if (icon == PromptIcon::Count) continue;
+        input::InputCode input = positional_pad_input(control);
+        if (!menu) {
+            const input::Action action = action_of_command(key_binding(control.key_code));
+            input = action == input::Action::Count ? 0 : pad_input_for(pad, action);
+        }
+        label(icon) = glyph(input);
+    }
+    const std::string left = label(PromptIcon::DpadLeft), right = label(PromptIcon::DpadRight);
+    label(PromptIcon::DpadLeftRight) = left == std::string("@pad-left") + suffix && right == std::string("@pad-right") + suffix
+                                           ? std::string("@pad-leftright") + suffix
+                                           : left;
+    label(PromptIcon::DpadUpDown) = std::string("@pad-updown") + suffix;
+    label(PromptIcon::Dpad) = std::string("@pad-dpad") + suffix;
+    label(PromptIcon::Start) = std::string("@pad-start") + suffix;
+    label(PromptIcon::Back) = std::string("@pad-back") + suffix;
+    return labels;
+}
+
 void update_button_prompts() {
     using text::PromptIcon;
+    if (g_pad_prompts && game::client_pc_hooks().native_actions) notice_poll();  // our own engine only
     const bool keyboard = g_button_prompts == TitlePatchConfig::ButtonPrompts::Keyboard ||
                           (g_button_prompts == TitlePatchConfig::ButtonPrompts::Auto &&
                            input::last_device() == input::Device::Keyboard);
+    {  // --debug: which glyphs the prompts show, when that changes (reports of prompts that do not follow the pad)
+        static int logged = -1;
+        const int now = keyboard ? 0 : game::client_pc_hooks().native_actions && g_pad_prompts ? 1 : 2;
+        if (now != logged) {
+            LOG_DEBUG("text", "button prompts now %s (last device: %s, setting: %d)",
+                      now == 0 ? "keys" : now == 1 ? "pad glyphs" : "the game's icons",
+                      input::last_device() == input::Device::Keyboard ? "keyboard/mouse" : "gamepad",
+                      static_cast<int>(g_button_prompts));
+            logged = now;
+        }
+    }
     if (!keyboard) {
-        text::set_key_labels(std::nullopt);
+        // Our own engine's pad gives its actions directly: its own glyphs; else the game's icons.
+        if (game::client_pc_hooks().native_actions && g_pad_prompts)
+            text::set_key_labels(pad_prompt_labels());
+        else
+            text::set_key_labels(std::nullopt);
         return;
     }
     text::KeyLabels labels;
@@ -2634,6 +2754,7 @@ void install_title_patches(const TitleInfo& title, const TitlePatchConfig& confi
         // Scene starts reach the device (the render graph's world / HUD split, 0.5b).
         game::renderer_pc_hooks().mark_scenes = true;
         g_button_prompts = config.button_prompts;
+        g_pad_prompts = true;
     } else {
         g_button_prompts = TitlePatchConfig::ButtonPrompts::Controller;
         LOG_INFO("patches", "PC features off: the game's code runs as on the Xbox (30 fps)");

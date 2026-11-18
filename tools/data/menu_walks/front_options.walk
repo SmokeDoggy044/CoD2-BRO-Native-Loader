@@ -18,12 +18,12 @@ item 1
 a
 screen 6
 shot controls      # our Controls page (settings pages, 4.2)
-item 3
+item 5
 a
-screen 5
-shot controller    # the game's Controller screen, back to our page
+idle
+shot controller    # our Controller page (1.0.6: scrolls; the game's own screen is no longer used)
 b
-screen 6
+idle
 b
 screen 3
 item 2

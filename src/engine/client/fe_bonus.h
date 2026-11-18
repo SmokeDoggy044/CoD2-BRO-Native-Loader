@@ -132,6 +132,9 @@ BONUS_GAP_FUNCTION(BonusCharactersMenu_OnUp)
 // 0x0031d980: the image file closed state (+0x74 = -1, +0x78 / +0x7c cleared), row 0 (+0x22 = 0, +0x88 (0, 1)), the
 // characters reached at least 1, FE_BonusCharacterLabel, the image, then UIMenu_RestoreSelection (tail jump).
 BONUS_GAP_FUNCTION(BonusCharactersMenu_RestoreSelection)
+// 0x0031bc10 (vtable +0x40, menu kept in EDI): row 0 (+0x22 = 0, +0x88 (0, 1)), +0x8c = 1, full screen (+0xc0) off,
+// FE_BonusLevelLabel, the image (FE_BonusConceptLoadImage), then UIMenu_RestoreSelection (tail jump).
+BONUS_GAP_FUNCTION(BonusConceptsMenu_RestoreSelection)
 
 // 0x0031dcb0 / 0x0031dce0 (ret 4): the next / previous row; the image (FE_BonusMainLoadImage) when it changed.
 BONUS_GAP_FUNCTION(BonusMaterialsMenu_OnDown)

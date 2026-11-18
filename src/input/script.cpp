@@ -25,6 +25,7 @@ struct Press {
     uint16_t buttons;
     int analog;  // AnalogButton, or -1
     uint32_t actions;  // bit n = Action n
+    InputCode pad_input;  // a PC gamepad button (bindings.h), or 0
 };
 
 std::mutex g_mutex;
@@ -47,6 +48,11 @@ bool parse_button(std::string_view name, Press& press) {
         if (n.name != name) continue;
         press.buttons = n.buttons;
         press.analog = n.analog;
+        return true;
+    }
+    if (const auto input = pad_input_from_token(name)) {
+        press.analog = -1;
+        press.pad_input = *input;
         return true;
     }
     if (const auto action = action_from_token(name)) {
@@ -95,6 +101,21 @@ void apply_script(PadState& state) {
         state.buttons |= press.buttons;
         if (press.analog >= 0) state.analog_buttons[press.analog] = 0xFF;
     }
+}
+
+bool script_uses_pad() {
+    std::lock_guard lock(g_mutex);
+    for (const Press& press : g_presses)
+        if (press.pad_input) return true;
+    return false;
+}
+
+bool scripted_pad_input(InputCode input) {
+    std::lock_guard lock(g_mutex);
+    const double now = std::chrono::duration<double>(Clock::now() - g_start).count();
+    for (const Press& press : g_presses)
+        if (press.pad_input == input && now >= press.at && now < press.at + press.hold) return true;
+    return false;
 }
 
 uint32_t scripted_actions() {

@@ -12,11 +12,14 @@ target_compile_definitions(launcher_update PRIVATE COD_BRO_VERSION="${PROJECT_VE
 add_executable(cod_bro_launcher WIN32
     main.cpp
     front_picture.cpp
+    pad_mapper.cpp
 )
 cod_bro_windows_resources(cod_bro_launcher "Call of Duty 2: Big Red One native loader - launcher" PROGRAM)
 target_link_libraries(cod_bro_launcher PRIVATE imgui_sdlrenderer launcher_update platform settings_ui input_bindings audio_devices text)
 # Only declarations from src/render/ (enhanced_graphics.h: the settings).
 target_include_directories(cod_bro_launcher PRIVATE ${PROJECT_SOURCE_DIR}/src/render)
+# SDL's testcontroller pictures for the controller mapper (third_party/sdl_gamepad_art/README.md).
+target_include_directories(cod_bro_launcher PRIVATE ${PROJECT_SOURCE_DIR}/third_party/sdl_gamepad_art)
 target_compile_definitions(cod_bro_launcher PRIVATE COD_BRO_VERSION="${PROJECT_VERSION}"
     COD_BRO_RELEASES="SmokeDoggy044/CoD2-BRO-Native-Loader")
 # This platform's release archive (cmake/release*.cmake, packaging/sniper): the updater fetches it.

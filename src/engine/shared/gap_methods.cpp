@@ -280,6 +280,16 @@ void XB_THISCALL UIText_SetField60(uint8_t* self, uint32_t value) {
     word<uint32_t>(self, 0x60) = value;
 }
 
+void XB_THISCALL UITextBase_AddToFields20(uint8_t* self, float a, float b, float c) {
+    word<float>(self, 0x20) += a;
+    word<float>(self, 0x24) += b;
+    word<float>(self, 0x28) += c;
+}
+
+void XB_THISCALL UIText_SetLineWord(uint8_t* self, int32_t line, uint32_t value) {
+    word<uint32_t>(word<uint8_t*>(self, 0x80), uint32_t(line) * 32) = value;
+}
+
 void XB_THISCALL UIText_SetField74(uint8_t* self, uint32_t value) {
     word<uint32_t>(self, 0x74) = value;
 }
@@ -1025,6 +1035,7 @@ int32_t XB_CDECL Actor_CompareDistanceFromStart(const float* a, const float* b) 
 
 void XB_CDECL MemHook_FreeIndirect(void** block) { Z_Free(static_cast<uint8_t*>(*block)); }
 void XB_CDECL MemHook_Nothing() {}
+uint8_t XB_CDECL MemHook_ReturnFalse() { return 0; }
 
 void XB_CDECL BroScr_DeleteVictimOnNotify(uint32_t, uint32_t ent, uint32_t victim) {
     Scr_WaitTill(ent, 0x06730ae8);

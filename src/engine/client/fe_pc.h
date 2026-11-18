@@ -18,7 +18,10 @@ namespace game {
 // Settings pages (phase 4.2, fe_pc_pages.cpp): the host keeps the pages (generated from the settings schema), what
 // each row shows and what input does; the game shows the current page in its own menus (the front end's Screen
 // menu, the in-game Options screen) and passes the player's input on.
-inline constexpr int32_t kPcPageMaxRows = 10;
+// A page has up to kPcPageMaxRows rows; the menu shows kPcPageSlots of them and scrolls (1.0.6: one Controller
+// and one Keyboard page instead of sub-pages).
+inline constexpr int32_t kPcPageMaxRows = 40;
+inline constexpr int32_t kPcPageSlots = 10;
 enum PcRowKind : uint8_t {
     kPcRowValue,   // label left, value right between arrows (left / right change it)
     kPcRowLink,    // a sub-page or another screen (accept opens it), centred
@@ -86,6 +89,13 @@ void pc_pages_enter(uint8_t* menu, int32_t host, int32_t root);
 int32_t pc_page_return_screen(int32_t screen);
 // The game's own master volume (the Sound menu's, 0x008dce88: 0..50) set and applied as that menu does.
 void pc_set_game_volume(int32_t volume);
+// The game's controller settings (its Controller screen's, folded into our Controller page in 1.0.6): invert aim
+// (0x008dce71, 0/1), vibration (0x008dce72, 0/1), look speed horizontal / vertical (0x008dce74 / 78, 0..50). Set
+// applies them as that screen's Accept does (m_pitch's sign, cl_sensitivityX / Y = speed * 0.04).
+enum PcControl : int32_t { kPcControlInvert, kPcControlVibration, kPcControlLookX, kPcControlLookY };
+int32_t pc_controller_value(int32_t which);
+void pc_set_controller_value(int32_t which, int32_t value);
+inline constexpr int32_t kPcControlDefaults[] = {0, 1, 25, 25};  // the screen's Reset to Defaults
 // Our text `english` (a kPcText*) in the game's language (PcSettingsHooks::text).
 const char* pc_text(const char* english);
 // Texts of our Options / pause rows.

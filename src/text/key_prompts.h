@@ -28,7 +28,8 @@ enum class PromptIcon {
 
 // What each icon shows: a key's name ("F", "Space", "Esc"), or a picture -
 // "@lmb" "@rmb" "@mmb" (a mouse with that button), "@up" "@down" "@left" "@right"
-// "@leftright" "@updown" "@arrows" (arrow keys). Empty: an empty keycap.
+// "@leftright" "@updown" "@arrows" (arrow keys), or a gamepad button "@pad-<token>[/ps|/nin]" (bindings.h pad
+// tokens, plus "leftright" "updown" "dpad"; drawn in Xbox, PlayStation or Nintendo style). Empty: an empty keycap.
 using KeyLabels = std::array<std::string, static_cast<size_t>(PromptIcon::Count)>;
 
 // Finds the icon textures in the packs under `assets`; `fonts_dir` has the font the

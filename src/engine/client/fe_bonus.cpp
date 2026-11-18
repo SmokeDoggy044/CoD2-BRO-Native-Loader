@@ -843,6 +843,7 @@ void XB_CDECL BonusWeaponsMenu_RestoreSelection(uint8_t* menu, uint32_t ebx, uin
 BONUS_HANDLER_ENTRY(BonusCharactersMenu_OnDown)
 BONUS_HANDLER_ENTRY(BonusCharactersMenu_OnUp)
 BONUS_PLAIN_ENTRY(BonusCharactersMenu_RestoreSelection)
+BONUS_PLAIN_ENTRY(BonusConceptsMenu_RestoreSelection)
 
 void XB_CDECL BonusCharactersMenu_OnDown(uint8_t* menu, uint32_t ebx, uint32_t, uint32_t, uint32_t entry_esp) {
     // push esi; push edi: EDI = the menu, ESI = the old row.
@@ -877,6 +878,22 @@ void XB_CDECL BonusCharactersMenu_RestoreSelection(uint8_t* menu, uint32_t ebx, 
     if (reached < 1) reached = 1;
     c.run_eax(own_address(&FE_BonusCharacterLabel_entry), address_of(menu));  // FE_BonusCharacterLabel
     c.run_eax(own_address(&FE_BonusCharacterLoadImage_entry), address_of(menu));
+    restore_selection_tail(menu, ebx, edi, esi, entry_esp);
+}
+
+void XB_CDECL BonusConceptsMenu_RestoreSelection(uint8_t* menu, uint32_t ebx, uint32_t edi, uint32_t esi,
+                                                 uint32_t entry_esp) {
+    // push edi; mov edi, ecx: EDI = the menu, ESI as at the entry.
+    Calls c{entry_esp - 4, TitleRegs{}};
+    c.regs.ebx = ebx;
+    c.regs.ecx = address_of(menu);
+    c.regs.esi = esi;
+    c.regs.edi = address_of(menu);
+    select_row0(c, menu);
+    field<int32_t>(menu, 0x8c) = 1;
+    menu[0xc0] = 0;
+    c.run(own_address(&FE_BonusLevelLabel_entry));  // menu in EDI
+    c.run_eax(kConcepts.load_image, address_of(menu));
     restore_selection_tail(menu, ebx, edi, esi, entry_esp);
 }
 

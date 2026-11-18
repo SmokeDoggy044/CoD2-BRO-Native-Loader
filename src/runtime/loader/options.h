@@ -21,6 +21,7 @@
 #include <utility>
 #include <vector>
 #include "bindings.h"
+#include "devices.h"
 #include "patches.h"
 #include "replay.h"
 #include "settings.h"
@@ -78,6 +79,11 @@ struct Options {
     float mouse_sensitivity = 0.11f;
     input::Bindings bindings = input::default_bindings();  // --keys
     std::string bindings_error;  // a word of --keys it did not know (logged; the rest applies)
+    input::Bindings pad_bindings = input::default_pad_bindings();  // --pad (gamepad, src/input/bindings.h)
+    std::string pad_bindings_error;
+    float trigger_threshold = 0.24f;
+    std::optional<input::PadFamily> pad_glyphs;  // --pad-glyphs (nullopt: the pad's own)
+    bool show_notice = false;                    // --show-notice (testing)
     bool aim_assist = true;
     bool mounted_gun_fix = true;  // --mounted-gun-fix (loader::TitlePatchConfig::mounted_gun_fix)
     bool sprint = false;          // --sprint (loader::TitlePatchConfig::sprint)

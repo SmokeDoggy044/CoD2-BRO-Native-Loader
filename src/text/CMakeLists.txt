@@ -18,7 +18,7 @@ target_include_directories(text PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_include_directories(text SYSTEM PRIVATE ${stb_SOURCE_DIR})
 # Only render's headers (TextureReplacement, the texture hash).
 target_include_directories(text PUBLIC ${PROJECT_SOURCE_DIR}/src/render)
-target_link_libraries(text PUBLIC platform)
+target_link_libraries(text PUBLIC platform PRIVATE SDL3::SDL3)  # SDL_LoadPNG: the gamepad glyphs
 
 # src/text/fonts/ next to the executables, as in a release.
 add_custom_target(fonts ALL

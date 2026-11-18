@@ -71,7 +71,8 @@ int main() {
             const std::string shown = platform::utf8_to_cp1252(translated);
             check(shown.find('?') == std::string::npos || translated.find('?') != std::string::npos,
                   file + ": \"" + translated + "\" has characters Windows-1252 lacks");
-            check(shown.size() <= 35, file + ": \"" + translated + "\" is longer than 35 characters");
+            // Menu rows: 35 characters at most. Longer English texts are not rows (the one-time notice).
+            check(english.size() > 35 || shown.size() <= 35, file + ": \"" + translated + "\" is longer than 35 characters");
         }
         for (const auto& [english, unused] : known)
             if (!texts.count(english)) std::printf("note: %s has no translation of \"%s\"\n", file.c_str(), english.c_str());
