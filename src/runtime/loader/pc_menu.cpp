@@ -210,6 +210,7 @@ bool draw_notice() {
     ImGui::SameLine();
     ImGui::TextDisabled("%s", notice_text(kNoticeHint).c_str());
     if (g_notice_dismissed.exchange(false)) open = false;
+    ImGui::End();
     if (!open) notice_done();
     return open;
 }

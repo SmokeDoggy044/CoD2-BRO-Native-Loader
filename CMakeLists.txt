@@ -81,7 +81,7 @@ if(WIN32)
     set(SDL_TEST_LIBRARY OFF CACHE BOOL "" FORCE)
     FetchContent_Declare(sdl3
         GIT_REPOSITORY https://github.com/libsdl-org/SDL.git
-        GIT_TAG release-3.2.10)
+        GIT_TAG release-3.4.18)  # the Linux release's too (packaging/sniper/inside.sh): SDL_LoadPNG, newer pad support
     FetchContent_MakeAvailable(sdl3)
 else()
     find_package(SDL3 REQUIRED CONFIG)
