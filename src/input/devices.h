@@ -120,6 +120,9 @@ bool in_menu();
 // pressed, mouse motion and pointing are dropped and clicks do not capture the mouse.
 // The title keeps running.
 void set_game_input_blocked(bool blocked);
+// Port 0 reads as nothing pressed until every key, mouse button and gamepad button is let go (after a press that
+// closed something of ours, so the game does not see it too).
+void wait_for_release();
 
 // Key capture for rebinding in the game's own menus (own engine phase 4): the next key, mouse button or wheel step
 // is taken (it gives no pad buttons) and reported once by key_capture; Escape cancels. Reserved keys (bindings.h

@@ -279,6 +279,8 @@ const SettingDef kSettings[] = {
     {"pad-raise-stance", "BUTTONS", T::Text, G::Controls, kLive | kHidden, 0, 0, nullptr, "", "", "pad", "raise-stance"},
     {"pad-previous-weapon", "BUTTONS", T::Text, G::Controls, kLive | kHidden, 0, 0, nullptr, "", "", "pad", "previous-weapon"},
     // kLauncher: never passed to the game as an option (the game reads it from settings.ini itself).
+    {"show-notice", "", T::Flag, G::Controls, kCommandLine | kHidden, 0, 0, nullptr, "",
+     "show the one-time notice at the first menu even when it was seen, also in scripted runs (testing)"},
     {"notice-seen", "ID", T::Text, G::Controls, kLauncher | kHidden, 0, 0, nullptr, "",
      "the last one-time notice the game showed (internal: the 1.0.6 controller notice shows until it says "
      "\"controller-1.0.6\")"},

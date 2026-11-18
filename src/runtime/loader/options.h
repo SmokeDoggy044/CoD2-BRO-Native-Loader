@@ -83,6 +83,7 @@ struct Options {
     std::string pad_bindings_error;
     float trigger_threshold = 0.24f;
     std::optional<input::PadFamily> pad_glyphs;  // --pad-glyphs (nullopt: the pad's own)
+    bool show_notice = false;                    // --show-notice (testing)
     bool aim_assist = true;
     bool mounted_gun_fix = true;  // --mounted-gun-fix (loader::TitlePatchConfig::mounted_gun_fix)
     bool sprint = false;          // --sprint (loader::TitlePatchConfig::sprint)

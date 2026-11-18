@@ -4,6 +4,8 @@
 #include "pc_menu.h"
 
 #include <atomic>
+
+#include <SDL3/SDL_events.h>
 #include <cmath>
 #include <cstdlib>
 #include <initializer_list>
@@ -150,6 +152,8 @@ constexpr const char* kNoticeId = "controller-1.0.6";
 enum class Notice { Unknown, Pending, Showing, Done };
 std::atomic<Notice> g_notice{Notice::Unknown};
 std::atomic<bool> g_notice_allowed{true};  // set_notice_allowed
+std::atomic<bool> g_notice_forced{false};
+std::atomic<bool> g_notice_dismissed{false};  // a controller / key press closed it (pc_menu_event)
 
 void notice_done() {
     g_notice = Notice::Done;
@@ -183,6 +187,9 @@ bool draw_notice() {
     ImGui::Separator();
     if (ImGui::IsWindowAppearing()) ImGui::SetKeyboardFocusHere();
     if (ImGui::Button("OK", ImVec2(ImGui::GetFontSize() * 6.0f, 0))) open = false;
+    ImGui::SameLine();
+    ImGui::TextDisabled("A, B or Start on the controller, Enter or a click");
+    if (g_notice_dismissed.exchange(false)) open = false;
     ImGui::End();
     if (!open) notice_done();
     return open;
@@ -190,23 +197,35 @@ bool draw_notice() {
 
 }  // namespace
 
-void set_notice_allowed(bool allowed) { g_notice_allowed = allowed; }
+void set_notice_allowed(bool allowed, bool forced) {
+    g_notice_allowed = allowed;
+    g_notice_forced = forced;
+}
 
 void notice_poll() {
     if (!g_notice_allowed.load()) return;
     Notice state = g_notice.load();
     if (state == Notice::Unknown) {
         const auto seen = platform::load_settings().get("notice-seen");
-        state = seen && *seen == kNoticeId ? Notice::Done : Notice::Pending;
+        state = seen && *seen == kNoticeId && !g_notice_forced.load() ? Notice::Done : Notice::Pending;
         g_notice = state;
+        LOG_DEBUG("loader", "notice %s: %s", kNoticeId, state == Notice::Done ? "seen" : "pending (shows at the first menu)");
     }
     if (state != Notice::Pending || !input::in_menu()) return;
     g_notice = Notice::Showing;
+    LOG_DEBUG("loader", "notice %s: a menu shows, opening it", kNoticeId);
     render::request_pc_menu();
 }
 
+namespace {
+bool g_pc_menu_settings = true;  // set_pc_menu_settings: the settings tabs (--dev); off: the notice only
+}  // namespace
+
+void set_pc_menu_settings(bool on) { g_pc_menu_settings = on; }
+
 bool pc_menu() {
     if (g_notice.load() == Notice::Showing) return draw_notice();
+    if (!g_pc_menu_settings) return false;
     const ImGuiViewport* viewport = ImGui::GetMainViewport();
     ImGui::SetNextWindowPos(viewport->GetCenter(), ImGuiCond_Always, ImVec2(0.5f, 0.5f));
     ImGui::SetNextWindowBgAlpha(0.85f);
@@ -248,6 +267,20 @@ bool pc_menu() {
 }
 
 bool pc_menu_event(const void* sdl_event) {
+    // The notice closes with the pad's A, B or Start, or Enter (ImGui's own pad navigation may not see the pad).
+    if (g_notice.load() == Notice::Showing) {
+        const auto* event = static_cast<const SDL_Event*>(sdl_event);
+        const bool pad = event->type == SDL_EVENT_GAMEPAD_BUTTON_DOWN &&
+                         (event->gbutton.button == SDL_GAMEPAD_BUTTON_SOUTH ||
+                          event->gbutton.button == SDL_GAMEPAD_BUTTON_EAST ||
+                          event->gbutton.button == SDL_GAMEPAD_BUTTON_START);
+        const bool key = event->type == SDL_EVENT_KEY_DOWN && !event->key.repeat &&
+                         (event->key.scancode == SDL_SCANCODE_RETURN || event->key.scancode == SDL_SCANCODE_KP_ENTER);
+        if (pad || key) {
+            g_notice_dismissed = true;
+            return true;
+        }
+    }
     input::Bindings bindings = input::bindings();
     bool changed = false;
     const bool taken = ui::key_table_event(g_key_table, bindings, sdl_event, changed);
@@ -258,6 +291,7 @@ bool pc_menu_event(const void* sdl_event) {
 void pc_menu_shown(bool open) {
     input::set_game_input_blocked(open);
     if (!open && g_notice.load() == Notice::Showing) notice_done();  // closed with ` or Escape
+    if (!open && g_notice.load() == Notice::Done) input::wait_for_release();  // the press that closed it stays ours
     g_key_table = {};
     if (open) {
         g_on_open = live_values();

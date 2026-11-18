@@ -111,6 +111,8 @@ struct BackendConfig {
     // While the menu is open, each window event (an SDL_Event) first; true = the menu took it (a key being bound:
     // Escape then cancels instead of closing the menu).
     bool (*pc_menu_event)(const void* sdl_event) = nullptr;
+    // ` opens and closes it (developers, --dev). Off: only request_pc_menu opens it (the one-time notice).
+    bool pc_menu_key = true;
     std::string menu_font;  // a TTF for the menu; empty: Dear ImGui's own
     // Vulkan: where compiled pipelines are kept between runs (loaded at start, saved while playing and at
     // exit); empty: none kept. Data for another GPU or driver is ignored.

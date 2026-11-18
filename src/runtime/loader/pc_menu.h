@@ -19,8 +19,10 @@ void apply_live(const platform::Settings& before, const platform::Settings& afte
 // The one-time notice (1.0.6 controller): call on the title's input polls; opens the PC menu once with it at the
 // first menu the game shows, unless settings.ini says it was seen.
 void notice_poll();
+// The PC menu's settings tabs (--dev); off, the menu shows only the notice.
+void set_pc_menu_settings(bool on);
 // Off for unattended runs (scripted presses, menu walks, replays, screenshots): the notice would hold their input.
-void set_notice_allowed(bool allowed);
+void set_notice_allowed(bool allowed, bool forced = false);  // forced: also when settings.ini says it was seen
 // The settings pages of the game's own menus (menu_pages.cpp): installs the page hooks (fe_pc.h).
 void install_menu_pages(const std::filesystem::path& mods_dir, bool quit_row);
 // Writes every text of our own the game's menus show (page titles, row labels, values, our menu rows; English, as

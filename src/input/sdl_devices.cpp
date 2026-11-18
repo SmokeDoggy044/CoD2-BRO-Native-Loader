@@ -720,6 +720,11 @@ Capture key_capture(uint16_t& code) {
     return state;
 }
 
+void wait_for_release() {
+    g_wait_all_keys = true;
+    g_wait_release = true;
+}
+
 void set_game_input_blocked(bool blocked) {
     g_blocked = blocked;
     g_wait_release = !blocked;
@@ -745,6 +750,7 @@ bool read_port(uint32_t port, PadState& state) {
     state = PadState{};
     if (port >= kPortCount) return false;
     std::lock_guard lock(g_mutex);
+    if (port == 0) update_virtual_pad();  // also while blocked: a scripted press may be for our own menu
     if (g_blocked.load()) return port == 0 || g_ports[port] != nullptr;
     if (port == 0 && g_wait_release.load()) {
         const bool* keys = SDL_GetKeyboardState(nullptr);
@@ -767,7 +773,6 @@ bool read_port(uint32_t port, PadState& state) {
         }
         g_wait_release = false;
     }
-    if (port == 0) update_virtual_pad();
     if (g_ports[port]) read_gamepad(g_ports[port], state);
     if (port == 0) {
         read_keyboard_mouse(state);

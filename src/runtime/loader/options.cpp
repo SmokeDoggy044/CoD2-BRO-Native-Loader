@@ -206,6 +206,8 @@ bool apply_setting(Options& o, Combined& combined, const platform::SettingDef& d
         input::parse_pad_bindings(v, o.pad_bindings, &o.pad_bindings_error, true);
     } else if (key == "trigger-threshold") {
         o.trigger_threshold = f();
+    } else if (key == "show-notice") {
+        o.show_notice = on || v.empty();
     } else if (key == "pad-glyphs") {
         o.pad_glyphs = v == "xbox"          ? std::optional(input::PadFamily::Xbox)
                        : v == "playstation" ? std::optional(input::PadFamily::PlayStation)
