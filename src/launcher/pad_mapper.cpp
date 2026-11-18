@@ -70,6 +70,18 @@ SDL_Texture* load_png(SDL_Renderer* renderer, const unsigned char* data, unsigne
     return texture;
 }
 
+// What SDL knows of a gamepad (its paddles show in the mapping as paddle1..4) - the log, for reports.
+void log_pad(SDL_Gamepad* pad) {
+    if (!pad) return;
+    SDL_Joystick* joystick = SDL_GetGamepadJoystick(pad);
+    char* mapping = SDL_GetGamepadMapping(pad);
+    LOG_INFO("launcher", "gamepad: %s, type %d, vendor %04x product %04x, %d buttons; mapping %s",
+             SDL_GetGamepadName(pad) ? SDL_GetGamepadName(pad) : "?", static_cast<int>(SDL_GetGamepadType(pad)),
+             SDL_GetGamepadVendor(pad), SDL_GetGamepadProduct(pad), joystick ? SDL_GetNumJoystickButtons(joystick) : -1,
+             mapping ? mapping : "none");
+    SDL_free(mapping);
+}
+
 ImTextureID id(SDL_Texture* texture) { return reinterpret_cast<ImTextureID>(texture); }
 
 // The actions the picture can give a button (moving is the left stick's).
@@ -96,6 +108,7 @@ PadMapper::PadMapper(SDL_Renderer* renderer) : renderer_(renderer) {
         if (count > 0) pad_ = SDL_OpenGamepad(ids[0]);
         SDL_free(ids);
     }
+    log_pad(pad_);
 }
 
 PadMapper::~PadMapper() {
@@ -104,10 +117,14 @@ PadMapper::~PadMapper() {
     if (pad_) SDL_CloseGamepad(pad_);
 }
 
+
 bool PadMapper::event(const SDL_Event& event) {
     switch (event.type) {
         case SDL_EVENT_GAMEPAD_ADDED:
-            if (!pad_) pad_ = SDL_OpenGamepad(event.gdevice.which);
+            if (!pad_) {
+                pad_ = SDL_OpenGamepad(event.gdevice.which);
+                log_pad(pad_);
+            }
             return false;
         case SDL_EVENT_GAMEPAD_REMOVED:
             if (pad_ && SDL_GetGamepadID(pad_) == event.gdevice.which) {
