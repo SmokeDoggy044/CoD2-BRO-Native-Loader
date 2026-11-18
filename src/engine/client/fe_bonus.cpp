@@ -922,6 +922,46 @@ void XB_CDECL BonusMaterialsMenu_OnLeft(uint8_t* menu, uint32_t ebx, uint32_t ed
     c.run_eax(own_address(&FE_BonusMainLoadImage_entry), address_of(menu));
 }
 
+namespace {
+
+// 0x00335640 (menu in EDI): the selected bonus movie - sound and movie stopped, the image freed, the movie by row
+// (row 0: 0x0082c528) and, on row 1, by the unlocked set (0x0095f5dc, 0x0095ee00) and item (+0x7c),
+// played; then the image loaded again (a tail jump, at the caller's stack).
+void play_selected_movie(uint8_t* menu, const Calls& c) {
+    S_StopSoundHandle(title_global<uint32_t*>(0x0095f4cc));
+    SndSys_Update();
+    Movie_Stop(1);
+    FE_BonusMainFreeImage(menu);
+    uint8_t& music_off = title_global<uint8_t>(0x0095f46d);
+    uint32_t name = 0x0082c530;
+    const int32_t item = field<int32_t>(menu, 0x7c);
+    const uint32_t set = title_global<uint32_t>(0x0095f5dc);
+    if (selection(menu) == 0) {
+        music_off = 1;
+        name = 0x0082c528;
+    } else if (set == 1) {
+        static constexpr uint32_t kNames[3] = {0x0082ba24, 0x0082ba18, 0x0082ba0c};
+        if (item >= 0 && item < 3) name = kNames[item];
+    } else {
+        // The first set while 0x0095ee00 is clear has one more movie (0x0082b9f4) after the first.
+        const bool extra = set == 0 && !title_global<uint8_t>(0x0095ee00);
+        static constexpr uint32_t kExtra[5] = {0x0082ba00, 0x0082b9f4, 0x0082ba24, 0x0082ba18, 0x0082ba0c};
+        static constexpr uint32_t kPlain[4] = {0x0082ba00, 0x0082ba24, 0x0082ba18, 0x0082ba0c};
+        if (extra && item >= 0 && item < 5) name = kExtra[item];
+        else if (!extra && item >= 0 && item < 4) name = kPlain[item];
+        if (item == 0) music_off = 1;
+    }
+    menu[0x3c] = 1;
+    title_global<uint8_t>(0x008dce8d) = 1;
+    CL_PlayMovie(reinterpret_cast<const char*>(uintptr_t{name}));
+    menu[0x60] = 0;
+    field<int32_t>(menu, 0x84) = 5;
+    menu[0x3c] = 0;
+    c.run_eax(own_address(&FE_BonusMainLoadImage_entry), address_of(menu));
+}
+
+}  // namespace
+
 BONUS_GAP_ENTRY(BonusMaterialsMenu_HandleSelect_entry, BonusMaterialsMenu_HandleSelect, "pushl %eax\n", "24", "ret")
 
 void XB_CDECL BonusMaterialsMenu_HandleSelect(uint8_t* menu, int32_t index, uint32_t ebx, uint32_t, uint32_t esi,
@@ -935,7 +975,7 @@ void XB_CDECL BonusMaterialsMenu_HandleSelect(uint8_t* menu, int32_t index, uint
     field<int32_t>(menu, 0x80) = selection(menu);
     if (uint32_t(index) > 5) return;
     if (index <= 1) {  // the jump table's cases 0 and 1
-        c.run(0x00335640);  // plays the selected bonus movie (menu in EDI)
+        play_selected_movie(menu, c);
         return;
     }
     c.method(title_global<uint8_t*>(0x0095f8f8), 0xc, uint32_t(7 + index));  // the front end's screen 9 .. 12

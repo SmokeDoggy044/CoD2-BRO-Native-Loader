@@ -45,6 +45,9 @@ struct TitleHost {
     // The main menu's Multiplayer ("load_mp_exe"): the multiplayer is another program; the host starts it and ends
     // this one. Null: the title's own relaunch.
     void (*launch_multiplayer)() = nullptr;
+    // Leaving for the dashboard (or any other program): the game ends, as it would on the console. Null: the title's
+    // own relaunch.
+    void (*quit)() = nullptr;
     // The LaunchDataPage the previous title left (its address in contiguous memory, 0 = none); XGetLaunchInfo takes
     // it and frees it with free_contiguous.
     uint32_t* launch_data_page = nullptr;

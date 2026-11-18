@@ -35,6 +35,7 @@
 
 #include "title_data.h"
 #include "title_heap.h"
+#include "gap_methods.h"
 
 namespace game {
 
@@ -49,7 +50,6 @@ constexpr int32_t Z_BUF_ERROR = -5;
 constexpr int32_t Z_VERSION_ERROR = -6;
 
 constexpr uint32_t kZlibVersion = 0x007baddc;  // "1.1.4"
-constexpr uint32_t kZcfree = 0x0005af20;
 constexpr uint32_t MANY = 1440;
 
 // ZALLOC / ZFREE through the stream's title callbacks.
@@ -264,7 +264,7 @@ int32_t XB_CDECL inflateInit2_(ZStream* z, int32_t w, const char* version, int32
         z->zalloc = own_address(&zcalloc);
         z->opaque = 0;
     }
-    if (z->zfree == 0) z->zfree = kZcfree;
+    if (z->zfree == 0) z->zfree = own_address(&zcfree);
     z->state = zalloc(z, 1, sizeof(InflateState));
     if (z->state == nullptr) return Z_MEM_ERROR;
     static_cast<InflateState*>(z->state)->blocks = nullptr;
@@ -1746,7 +1746,7 @@ int32_t XB_CDECL deflateInit2_(ZStream* strm, int32_t level_in, int32_t method, 
         strm->zalloc = own_address(&zcalloc);
         strm->opaque = 0;
     }
-    if (strm->zfree == 0) strm->zfree = kZcfree;
+    if (strm->zfree == 0) strm->zfree = own_address(&zcfree);
     if (level == -1) level = 6;  // Z_DEFAULT_COMPRESSION
     if (window_bits < 0) {      // suppress the zlib header
         noheader = 1;

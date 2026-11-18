@@ -673,6 +673,9 @@ uint32_t XB_REGS1 XB_CDECL HashStr_Hash(const char* text);
 // 0x0001ee70 (table in EAX, out in EBX): takes the first free slot of a 512-slot handle table; out =
 // generation << 12 | slot.
 extern "C" PLATFORM_HIDDEN uint32_t* XB_CDECL HandleTable512_Alloc(uint32_t* table, uint32_t* out);
+// 0x0001fa20 (table in ESI): a full table's report - the callback +0x1040 for each slot in use, Sys_DebugBreak.
+extern "C" PLATFORM_HIDDEN void XB_CDECL HandleTable512_ReportFull(uint32_t* table);
+extern "C" void HandleTable512_ReportFull_entry(void);
 extern "C" void HandleTable512_Alloc_entry(void);
 // 0x00015a90: {data, capacity, count} resize to count (zeroed), reallocating to `capacity` past the capacity.
 void XB_THISCALL DynArray_Resize(uint8_t* array, uint32_t count, uint32_t capacity);
@@ -820,6 +823,9 @@ extern "C" PLATFORM_HIDDEN uint32_t* XB_CDECL StringMap_Find(const uint32_t* map
 extern "C" void StringMap_Find_entry(void);
 // 0x00027f30 (table EAX, out EBX): HandleTable512_Alloc on the entity bits (generation +0xac).
 extern "C" PLATFORM_HIDDEN uint32_t* XB_CDECL EntHandleTable_Alloc(uint32_t* table, uint32_t* out);
+// 0x000299c0 (table in ESI): HandleTable512_ReportFull for the entity table (callback +0x2aa8, words +0xa8).
+extern "C" PLATFORM_HIDDEN void XB_CDECL EntHandleTable_ReportFull(uint32_t* table);
+extern "C" void EntHandleTable_ReportFull_entry(void);
 extern "C" void EntHandleTable_Alloc_entry(void);
 // 0x000280a0 (array ESI, capacity EBX) / 0x000280f0 (array ESI; item) / 0x00028470 (array EDI; size): aligned
 // DynArray {data, capacity, count} reserve / push_back / resize (Mem_AlignedAlloc'd blocks).

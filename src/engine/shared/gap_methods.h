@@ -235,5 +235,29 @@ uint32_t XB_STDCALL cdOcean_StateEntry(uint32_t a, uint32_t b, uint32_t c);  // 
 uint32_t XB_CDECL cdOcean_ConstSlot5();  // 0x0004f280
 uint32_t XB_CDECL cdOcean_ConstSlot6();  // 0x0004f290
 uint32_t* XB_CDECL cdOceanVertexIter_Ctor(uint32_t* iter);  // 0x000508a0
+uint32_t* XB_CDECL cdWaterVertexIter_Ctor(uint32_t* iter);  // 0x000514b0
+uint32_t* XB_CDECL cdWorldVertexLitVertexIter_Ctor(uint32_t* iter);  // 0x00052e40
+uint32_t* XB_CDECL cdDebugVertexIter_Ctor(uint32_t* iter);  // 0x0007b910
+
+// Callbacks and console commands our C registers by address.
+void XB_CDECL zcfree(uint32_t opaque, void* p);                                // 0x0005af20: _free(p)
+uint8_t* XB_CDECL G_AnimTreeAlloc(uint32_t size);                              // 0x0024a050: Z_MallocDebug
+void XB_CDECL HitlocTable_NoCallback();                                        // 0x00248c40
+int32_t XB_CDECL Actor_CompareDistanceFromStart(const float* a, const float* b);  // 0x001fb290 (qsort)
+void XB_CDECL MemHook_FreeIndirect(void** block);                              // 0x002968e0: Z_Free(*block)
+void XB_CDECL MemHook_Nothing();                                               // 0x00296770
+// 0x0011fbf0 (thread: level, ent, victim): waits for notify 0x06730ae8 on ent, deletes victim.
+void XB_CDECL BroScr_DeleteVictimOnNotify(uint32_t level, uint32_t ent, uint32_t victim);
+void XB_CDECL Cmd_Screenshot_f();     // 0x002373f0: nglSaveScreenshot with the next number (0x0098ad64)
+void XB_CDECL Cmd_ScreenshotHigh_f();  // 0x00235c20: pauses (cl_paused, 0x0095f6bc) for a large capture
+void XB_CDECL Cmd_ZoneGraph_f();      // 0x0028c430: "ZoneGraph [scale]"
+void XB_CDECL Cmd_PakRender_f();      // 0x0028cd40
+void XB_CDECL Cmd_Cg_f();             // 0x002afb90
+void XB_CDECL Cmd_RenderEnts_f();     // 0x002afc90
+void XB_CDECL Cmd_SceneFX_f();        // 0x002afcb0
+void XB_CDECL Cmd_Nothing_f();        // 0x00293810 writedefaults, 0x00293820 writeconfig: empty in this build
+// 0x0030f190 (root in ESI): a paused frame - the root's screen (+0x24) drawn alone, once or twice.
+extern "C" PLATFORM_HIDDEN void XB_CDECL UIRoot_DrawPausedFrame(uint8_t* root);
+extern "C" void UIRoot_DrawPausedFrame_entry(void);
 
 }  // namespace game

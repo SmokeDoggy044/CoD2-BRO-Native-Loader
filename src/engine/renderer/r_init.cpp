@@ -12,6 +12,7 @@
 #include "tr_main.h"
 #include "title_crt.h"
 #include "xgraphics.h"
+#include "gap_methods.h"
 
 namespace game {
 
@@ -123,8 +124,8 @@ uint8_t* XB_CDECL SceneFX_Init(uint8_t* self) {
         title_global<uint32_t>(0x00988784 + count * 4) = own_address(&NullCallback);
         ++count;
     }
-    Cmd_AddCommand("SceneFX", 0x002afcb0);
-    Cmd_AddCommand("RenderEnts", 0x002afc90);
+    Cmd_AddCommand("SceneFX", own_address(&Cmd_SceneFX_f));
+    Cmd_AddCommand("RenderEnts", own_address(&Cmd_RenderEnts_f));
     std::memset(self + 4, 0, 0x63 * 4);
     return self;
 }

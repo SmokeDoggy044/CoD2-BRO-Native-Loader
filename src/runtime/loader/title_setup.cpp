@@ -273,6 +273,10 @@ void configure_title_services(const Options& options, const fs::path& assets, co
             }
             render::request_quit();
         };
+        host.quit = [] {
+            LOG_INFO("loader", "the game asked for the dashboard: quitting");
+            render::request_quit();
+        };
         host.launch_data_page = &xbox::launch_data_page_word();
         host.language = options.language;
         host.widescreen = options.widescreen;

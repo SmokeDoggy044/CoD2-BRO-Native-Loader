@@ -765,7 +765,7 @@ void XB_CDECL G_InitAnimTrees(uint32_t arg) {
     title_global<uint32_t>(0x00927098) = list[0];  // g_numAnimTrees
     own_function<void XB_CDECL()>(&G_InitAnimScripts)();  // G_InitAnimScripts
     own_function<void XB_CDECL()>(&G_InitTurretAnimScripts)();  // G_InitTurretAnimScripts
-    own_function<void XB_CDECL(uint32_t, uint32_t)>(&G_SetupAnimTrees)(0x0024a050, arg);  // G_SetupAnimTrees
+    own_function<void XB_CDECL(uint32_t, uint32_t)>(&G_SetupAnimTrees)(own_address(&G_AnimTreeAlloc), arg);  // G_SetupAnimTrees
     const char* const name = reinterpret_cast<const char*>(uintptr_t{0x0083a894});  // "generic_human"
     uint8_t* const tree = G_FindAnimTreeByName(name);
     if (!tree)
@@ -1059,8 +1059,7 @@ void XB_CDECL G_CheckMissionEnd(uint32_t entry_esp) {
                 const uint32_t paused = word_at(title_global<uint8_t*>(0x0093fcd8), 0x20);
                 title_global<uint8_t>(0x0095f539) = paused != 0;
                 own_function<CvarSet>(&Cvar_Set2)(text(0x0082ca00), text(0x0082e058), 1);  // cl_paused "1"
-                const TitleRegs draw{0, 0, 0, 0, 0x0095f8d0, paused};
-                g_ent_call(0x0030f190, &draw, 0, nullptr);  // a paused frame (ESI = g_uiRoot)
+                UIRoot_DrawPausedFrame(&title_global<uint8_t>(0x0095f8d0));  // a paused frame (g_uiRoot)
                 title_global<uint8_t>(0x0095f538) = 1;
                 continue;
             }

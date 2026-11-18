@@ -10,6 +10,7 @@
 #include "levels_twins.h"
 #include "scr_field.h"
 #include "bro_scr_exploder.h"
+#include "gap_methods.h"
 
 namespace game {
 
@@ -172,7 +173,8 @@ void XB_CDECL BroScr_NotetrackDropGun(uint32_t target, uint32_t actor, uint32_t 
         set_vector(0x00922b24, holder, ent_vector(0x00922b20, gun));
         set_vector(0x00922ba4, holder, ent_vector(0x00922ba0, gun));
         using StartThread = uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t*, uint32_t*);
-        title_function<StartThread>(0x0045a620)(0, 0, 0, 0, 0x0011fbf0, level_entity(), &gun, &holder);  // Scr_StartThread_ent_ent_ent
+        title_function<StartThread>(0x0045a620)(0, 0, 0, 0, own_address(&BroScr_DeleteVictimOnNotify), level_entity(), &gun,
+                                                 &holder);  // Scr_StartThread_ent_ent_ent
         scr_release(&name);
     }
     own_function<void XB_CDECL(uint32_t, uint32_t)>(&BroScr_PutGunInHand)(actor, 0x0036b1a5);  // BroScr_PutGunInHand

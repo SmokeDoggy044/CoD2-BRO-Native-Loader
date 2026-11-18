@@ -3381,8 +3381,8 @@ uint32_t XB_CDECL R_Register() {
     title_global<uint32_t>(0x0095e7f0) = cvar_get(text(0x0083c144), text(0x0082e098), 0x200);  // r_showSkeletons
     title_global<uint32_t>(0x0095e6d4) = cvar_get(text(0x0083c134), text(0x0082e098), 0x200);  // r_singlecell
     title_global<uint32_t>(0x0095e6e0) = cvar_get(text(0x0083c124), text(0x008342cc), 0x1);  // r_portalbevels
-    add_command(text(0x0083c118), 0x002373f0);
-    add_command(text(0x0083c108), 0x00235c20);
+    add_command(text(0x0083c118), own_address(&Cmd_Screenshot_f));
+    add_command(text(0x0083c108), own_address(&Cmd_ScreenshotHigh_f));
     title_global<uint32_t>(0x0095e700) = cvar_get(text(0x0083c0f8), text(0x0082e058), 0x100);  // r_testshadow
     return title_global<uint32_t>(0x0095e700);
 }

@@ -13,6 +13,7 @@
 #include "qcommon_core.h"
 #include "qcommon_fs.h"
 #include "snd.h"
+#include "title_xapi.h"
 
 // As fe_menus.cpp: the entries move the C frame below a gap and hand the C version the entry ESP; every title call
 // then runs where the original's would (the text setters keep a stack buffer's address in a heap record). 192 KB
@@ -926,13 +927,13 @@ void XB_CDECL AutosaveMenu_ShowNoSaveDialog(uint8_t* menu, uint32_t entry_esp) {
 void XB_CDECL AutosaveMenu_ShowCorruptDialog(uint8_t* menu, uint32_t entry_esp) {
     menu[0x34] = 0;
     menu[0x35] = 1;
-    corrupt_dialog(menu, 0x44, 0x0082ab84, 0x003336d0, entry_esp);  // XBOX_CORRUPT_DETECT
+    corrupt_dialog(menu, 0x44, 0x0082ab84, own_address(&AutosaveMenu_CorruptOk), entry_esp);  // XBOX_CORRUPT_DETECT
 }
 
 void XB_CDECL ProfileMenu_ShowCorruptDialog(uint8_t* menu, uint32_t entry_esp) {
     menu[0x36] = 1;
     menu[0x35] = 0;
-    corrupt_dialog(menu, 0x48, 0x0082af10, 0x00334e50, entry_esp);  // MEM_XBOX_CORRUPT_DETECT
+    corrupt_dialog(menu, 0x48, 0x0082af10, own_address(&ProfileMenu_CorruptOk), entry_esp);  // MEM_XBOX_CORRUPT_DETECT
 }
 
 void XB_CDECL AutosaveMenu_OnSaveOpFailed(int32_t error, int32_t operation, uint8_t* menu, uint32_t entry_esp) {
@@ -1041,11 +1042,11 @@ void XB_CDECL AutosaveMenu_StartProfileLoad(uint32_t entry_esp) { start_profile_
 void XB_CDECL ProfileMenu_StartProfileLoad(uint32_t entry_esp) { start_profile_load(entry_esp); }
 
 void XB_CDECL AutosaveMenu_ShowUnformattedDialog(uint32_t entry_esp) {
-    unformatted_dialog(0x0030cee0, 0x003125d0, entry_esp);
+    unformatted_dialog(own_address(&AutosaveMenu_UnformattedYes), 0x003125d0, entry_esp);
 }
 
 void XB_CDECL ProfileMenu_ShowUnformattedDialog(uint32_t entry_esp) {
-    unformatted_dialog(0x0030d2e0, 0x0031b250, entry_esp);
+    unformatted_dialog(own_address(&ProfileMenu_UnformattedYes), 0x0031b250, entry_esp);
 }
 
 void XB_CDECL ProfileMenu_StartLoad(uint32_t entry_esp) {
@@ -1747,6 +1748,77 @@ uint8_t XB_THISCALL ProfileMenu_ReturnToMain(uint8_t*) {
 uint8_t XB_THISCALL ProfileMenu_ContinueAndReboot(uint8_t*) {
     title_global<uint8_t>(0x0095ee08) = field<int32_t>(in_game_screen(0x1c), 0x48) == 4;
     Cmd_ExecuteRegisteredCommand(title_text(0x0082c894));  // "reboot"
+    return 1;
+}
+
+// MEM_DIALOG_YES of the unformatted-unit dialogs: nothing, the dialog stays.
+uint8_t XB_THISCALL AutosaveMenu_UnformattedYes(uint8_t*) { return 0; }
+uint8_t XB_THISCALL ProfileMenu_UnformattedYes(uint8_t*) { return 0; }
+
+namespace {
+
+// The corrupt-unit dialogs' OK: MEM_ERROR_XBOX_CORRUPT_DETECT with "format" / "continue without" buttons, NO selected.
+uint8_t corrupt_choice(uint32_t first_label, uint32_t first_handler, uint32_t second_label, uint32_t second_handler) {
+    show_dialog(0x0082aef0);
+    add_button_inline(first_label, first_handler);
+    add_button_inline(second_label, second_handler);
+    select_no();
+    layout_buttons();
+    return 0;
+}
+// Their format choice: MEM_FORMATTING (no buttons), then every save slot made again.
+void formatting() {
+    show_dialog(0x0082adc4);
+    layout_buttons();
+}
+
+}  // namespace
+
+uint8_t XB_THISCALL AutosaveMenu_CorruptOk(uint8_t*) {
+    return corrupt_choice(0x0082c8b8, own_address(&AutosaveMenu_CorruptFormat), 0x0082c8a8,
+                          own_address(&ProfileMenu_ContinueAndReboot));
+}
+
+uint8_t XB_THISCALL ProfileMenu_CorruptOk(uint8_t*) {
+    return corrupt_choice(0x0082aed4, own_address(&ProfileMenu_CorruptFormat), 0x0082b0f4,
+                          own_address(&MemDlg_ContinueWithoutSaving));
+}
+
+uint8_t XB_THISCALL AutosaveMenu_CorruptFormat(uint8_t*) {
+    formatting();
+    uint8_t* const screen = in_game_screen(0x1c);
+    screen[0x39] = 1;
+    field<int32_t>(screen, 0x44) = 2;
+    SaveSlot_InitAll(title_global<uint8_t*>(0x0095f480));
+    return 0;
+}
+
+uint8_t XB_THISCALL ProfileMenu_CorruptFormat(uint8_t*) {
+    formatting();
+    uint8_t* const screen = front_end_screen(0x3c);
+    field<int32_t>(screen, 0x48) = 2;
+    screen[0x34] = 1;
+    SaveSlot_InitAll(title_global<uint8_t*>(0x0095f480));
+    return 0;
+}
+
+// The not-enough-blocks dialog's "continue without saving": the front end's screen 1 without the save.
+uint8_t XB_THISCALL MemDlg_ContinueWithoutSaving(uint8_t*) {
+    // Live_CheckGameInvite (set aside: the service is gone); our own platform has no invites to check.
+    if (!title_global<uint8_t>(0x008dd1d0) && !native_platform()) title_function<void XB_CDECL()>(0x00312870)();
+    title_global<uint8_t>(0x008dd1cf) = 1;
+    title_global<uint8_t>(0x0095f91a) = 0;
+    call(title_global<uint8_t*>(0x0095f8f8), 0xc, 1);
+    return 1;
+}
+
+// ... and its "free more blocks": the console's memory management in the dashboard (launch data 2, 0, 0x55, 0xb).
+// On our own platform XLaunchNewImageA ends the game for that.
+uint8_t XB_THISCALL MemDlg_GoToDashboard(uint8_t*) {
+    uint32_t data[0x300] = {2, 0, 0x55, 0xb};
+    SCR_DrawLaunchLoadingScreen(0x96);
+    title_function<void XB_STDCALL()>(0x003e6720)();  // D3DDevice_PersistDisplay
+    XLaunchNewImageA(nullptr, reinterpret_cast<const uint8_t*>(data));
     return 1;
 }
 
