@@ -252,6 +252,35 @@ const SettingDef kSettings[] = {
     {"key-lean-left", "KEYS", T::Text, G::Controls, kLive | kHidden, 0, 0, nullptr, "", "", "keys", "lean-left"},
     {"key-lean-right", "KEYS", T::Text, G::Controls, kLive | kHidden, 0, 0, nullptr, "", "", "keys", "lean-right"},
     {"key-aim-toggle", "KEYS", T::Text, G::Controls, kLive | kHidden, 0, 0, nullptr, "", "", "keys", "aim-toggle"},
+    {"key-use-reload", "KEYS", T::Text, G::Controls, kLive | kHidden, 0, 0, nullptr, "", "", "keys", "use-reload"},
+    {"key-raise-stance", "KEYS", T::Text, G::Controls, kLive | kHidden, 0, 0, nullptr, "", "", "keys", "raise-stance"},
+    {"key-previous-weapon", "KEYS", T::Text, G::Controls, kLive | kHidden, 0, 0, nullptr, "", "", "keys", "previous-weapon"},
+    {"pad", "LIST", T::Text, G::Controls, 0, 0, 0, nullptr, "",
+     "gamepad bindings that differ from the Modern preset, e.g. \"jump=pad-a crouch=pad-b grenade=pad-lb\" "
+     "(src/input/bindings.h); settings.ini keeps them as one pad-<action> line each"},
+    {"pad-move-forward", "BUTTONS", T::Text, G::Controls, kLive | kHidden, 0, 0, nullptr, "", "", "pad", "move-forward"},
+    {"pad-move-back", "BUTTONS", T::Text, G::Controls, kLive | kHidden, 0, 0, nullptr, "", "", "pad", "move-back"},
+    {"pad-move-left", "BUTTONS", T::Text, G::Controls, kLive | kHidden, 0, 0, nullptr, "", "", "pad", "move-left"},
+    {"pad-move-right", "BUTTONS", T::Text, G::Controls, kLive | kHidden, 0, 0, nullptr, "", "", "pad", "move-right"},
+    {"pad-fire", "BUTTONS", T::Text, G::Controls, kLive | kHidden, 0, 0, nullptr, "", "", "pad", "fire"},
+    {"pad-aim", "BUTTONS", T::Text, G::Controls, kLive | kHidden, 0, 0, nullptr, "", "", "pad", "aim"},
+    {"pad-use", "BUTTONS", T::Text, G::Controls, kLive | kHidden, 0, 0, nullptr, "", "", "pad", "use"},
+    {"pad-reload", "BUTTONS", T::Text, G::Controls, kLive | kHidden, 0, 0, nullptr, "", "", "pad", "reload"},
+    {"pad-jump", "BUTTONS", T::Text, G::Controls, kLive | kHidden, 0, 0, nullptr, "", "", "pad", "jump"},
+    {"pad-crouch", "BUTTONS", T::Text, G::Controls, kLive | kHidden, 0, 0, nullptr, "", "", "pad", "crouch"},
+    {"pad-sprint", "BUTTONS", T::Text, G::Controls, kLive | kHidden, 0, 0, nullptr, "", "", "pad", "sprint"},
+    {"pad-melee", "BUTTONS", T::Text, G::Controls, kLive | kHidden, 0, 0, nullptr, "", "", "pad", "melee"},
+    {"pad-grenade", "BUTTONS", T::Text, G::Controls, kLive | kHidden, 0, 0, nullptr, "", "", "pad", "grenade"},
+    {"pad-next-weapon", "BUTTONS", T::Text, G::Controls, kLive | kHidden, 0, 0, nullptr, "", "", "pad", "next-weapon"},
+    {"pad-lean-left", "BUTTONS", T::Text, G::Controls, kLive | kHidden, 0, 0, nullptr, "", "", "pad", "lean-left"},
+    {"pad-lean-right", "BUTTONS", T::Text, G::Controls, kLive | kHidden, 0, 0, nullptr, "", "", "pad", "lean-right"},
+    {"pad-aim-toggle", "BUTTONS", T::Text, G::Controls, kLive | kHidden, 0, 0, nullptr, "", "", "pad", "aim-toggle"},
+    {"pad-use-reload", "BUTTONS", T::Text, G::Controls, kLive | kHidden, 0, 0, nullptr, "", "", "pad", "use-reload"},
+    {"pad-raise-stance", "BUTTONS", T::Text, G::Controls, kLive | kHidden, 0, 0, nullptr, "", "", "pad", "raise-stance"},
+    {"pad-previous-weapon", "BUTTONS", T::Text, G::Controls, kLive | kHidden, 0, 0, nullptr, "", "", "pad", "previous-weapon"},
+    {"trigger-threshold", "F", T::Float, G::Controls, kLiveIni, 0.02, 0.95, nullptr, "0.24",
+     "how far a gamepad trigger goes down before its action counts as held (0.02..0.95 of its travel; default "
+     "0.24)"},
     {"aim-assist", "on|off", T::Switch, G::Controls, 0, 0, 0, nullptr, "on",
      "the view following an enemy under the crosshair (default on)"},
     {"letterbox", "on|off", T::Switch, G::Graphics, 0, 0, 0, nullptr, "on",
@@ -594,7 +623,8 @@ const SettingUi kUi[] = {
 };
 
 bool is_combined(std::string_view key) {
-    return key == "graphics-features" || key == "volume" || key == "reverb" || key == "enhanced" || key == "keys";
+    return key == "graphics-features" || key == "volume" || key == "reverb" || key == "enhanced" || key == "keys" ||
+           key == "pad";
 }
 
 std::vector<std::pair<std::string, std::string>> words(const std::string& text) {
@@ -751,13 +781,14 @@ std::string settings_help(const char* program) {
         }
     }
     out += "\nOlder combined forms are still read: --graphics-features, --volume, --reverb and --enhanced \"key=value "
-           "...\"; --keys \"action=key ...\" is the command-line form of the key-<action> lines.\n";
+           "...\"; --keys \"action=key ...\" and --pad \"action=button ...\" are the command-line forms of the "
+           "key-<action> and pad-<action> lines.\n";
     return out;
 }
 
 bool upgrade_settings(Settings& settings) {
     bool changed = false;
-    for (const char* combined : {"graphics-features", "volume", "reverb", "enhanced", "keys"}) {
+    for (const char* combined : {"graphics-features", "volume", "reverb", "enhanced", "keys", "pad"}) {
         const std::optional<std::string> text = settings.get(combined);
         if (!text) continue;
         settings.erase(combined);

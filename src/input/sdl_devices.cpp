@@ -28,6 +28,36 @@ std::mutex g_mutex;  // the port table
 bool g_started = false;
 SDL_Gamepad* g_ports[kPortCount] = {};  // gamepad on each port (port 0 may have none)
 
+// The script's virtual gamepad (script.h pad-...): attached once a script presses pad buttons, its buttons and
+// triggers set from the script on every poll (SDL applies them when it next updates the joysticks). Needs g_mutex.
+SDL_Joystick* g_virtual_pad = nullptr;
+
+void update_virtual_pad() {
+    if (!g_virtual_pad) {
+        if (!script_uses_pad()) return;
+        SDL_VirtualJoystickDesc desc;
+        SDL_INIT_INTERFACE(&desc);
+        desc.type = SDL_JOYSTICK_TYPE_GAMEPAD;
+        desc.naxes = SDL_GAMEPAD_AXIS_COUNT;
+        desc.nbuttons = SDL_GAMEPAD_BUTTON_COUNT;
+        desc.name = "cod_bro script gamepad";
+        const SDL_JoystickID id = SDL_AttachVirtualJoystick(&desc);
+        g_virtual_pad = id ? SDL_OpenJoystick(id) : nullptr;
+        if (!g_virtual_pad) {
+            LOG_WARN("input", "script gamepad: %s", SDL_GetError());
+            return;
+        }
+        LOG_INFO("input", "script gamepad attached");
+    }
+    for (int b = 0; b < SDL_GAMEPAD_BUTTON_COUNT; ++b)
+        SDL_SetJoystickVirtualButton(g_virtual_pad, b, scripted_pad_input(static_cast<InputCode>(kPadButton + b)));
+    // A virtual pad's triggers map from the full axis range: released is -32768 (0 reads as half pressed).
+    SDL_SetJoystickVirtualAxis(g_virtual_pad, SDL_GAMEPAD_AXIS_LEFT_TRIGGER,
+                               scripted_pad_input(kPadLeftTrigger) ? 32767 : -32768);
+    SDL_SetJoystickVirtualAxis(g_virtual_pad, SDL_GAMEPAD_AXIS_RIGHT_TRIGGER,
+                               scripted_pad_input(kPadRightTrigger) ? 32767 : -32768);
+}
+
 // Opens new gamepads into free ports and closes unplugged ones. Needs g_mutex.
 void refresh_ports() {
     for (auto& pad : g_ports) {
@@ -203,6 +233,9 @@ bool SDLCALL watch_event(void*, SDL_Event* event) {
             break;
         case SDL_EVENT_GAMEPAD_BUTTON_DOWN:
             g_last_device = Device::Gamepad;
+            LOG_DEBUG("input", "gamepad %u: button %s (%d) down", static_cast<unsigned>(event->gbutton.which),
+                      SDL_GetGamepadStringForButton(static_cast<SDL_GamepadButton>(event->gbutton.button)),
+                      static_cast<int>(event->gbutton.button));
             break;
         case SDL_EVENT_GAMEPAD_AXIS_MOTION: {
             const bool trigger = event->gaxis.axis == SDL_GAMEPAD_AXIS_LEFT_TRIGGER ||
@@ -355,6 +388,32 @@ struct ActionKeys {
 
 std::atomic<bool> g_native_actions{false};  // set_native_actions
 static_assert(kActionCount <= 32);
+std::atomic<int> g_trigger_threshold{8000};  // set_trigger_threshold, SDL axis units (0..32767)
+
+// A pad input of bindings.h held on `pad`: a button, or a trigger past the threshold.
+bool pad_input_held(SDL_Gamepad* pad, InputCode input) {
+    if (input == kPadLeftTrigger || input == kPadRightTrigger) {
+        const SDL_GamepadAxis axis =
+            input == kPadLeftTrigger ? SDL_GAMEPAD_AXIS_LEFT_TRIGGER : SDL_GAMEPAD_AXIS_RIGHT_TRIGGER;
+        return SDL_GetGamepadAxis(pad, axis) > g_trigger_threshold.load();
+    }
+    if (input < kPadButton || input >= kPadButton + SDL_GAMEPAD_BUTTON_COUNT) return false;
+    return SDL_GetGamepadButton(pad, static_cast<SDL_GamepadButton>(input - kPadButton));
+}
+
+// The actions the first gamepad (port 0's) holds through its own bindings (pad_bindings).
+uint32_t pad_held_actions() {
+    std::lock_guard lock(g_mutex);
+    update_virtual_pad();
+    SDL_Gamepad* pad = g_ports[0];
+    if (!pad) return 0;
+    const Bindings bound = pad_bindings();
+    uint32_t mask = 0;
+    for (size_t a = 0; a < kActionCount; ++a)
+        for (InputCode input : bound.inputs[a])
+            if (input && pad_input_held(pad, input)) mask |= 1u << a;
+    return mask;
+}
 
 void read_keyboard_mouse(PadState& state) {
     const bool menus = menu_mode();
@@ -443,7 +502,11 @@ uint32_t held_actions() {
     uint32_t mask = 0;
     for (size_t a = 0; a < kActionCount; ++a)
         if (input.held(static_cast<Action>(a))) mask |= 1u << a;
-    return mask | scripted_actions();
+    return mask | pad_held_actions() | scripted_actions();
+}
+
+void set_trigger_threshold(float fraction) {
+    g_trigger_threshold = static_cast<int>(std::clamp(fraction, 0.02f, 0.95f) * 32767.0f);
 }
 
 Device last_device() { return g_last_device.load(); }
@@ -596,6 +659,7 @@ bool read_port(uint32_t port, PadState& state) {
         }
         g_wait_release = false;
     }
+    if (port == 0) update_virtual_pad();
     if (g_ports[port]) read_gamepad(g_ports[port], state);
     if (port == 0) {
         read_keyboard_mouse(state);

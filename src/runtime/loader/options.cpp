@@ -103,6 +103,11 @@ bool apply_setting(Options& o, Combined& combined, const platform::SettingDef& d
         std::istringstream in(v);
         for (std::string word; in >> word;) text += std::string(" ") + def.part_key + "=" + word;
         input::parse_bindings(text, o.bindings, &o.bindings_error, true);
+    } else if (def.part_of && std::string_view(def.part_of) == "pad") {  // pad-<action> = "pad-a pad-rb"
+        std::string text;
+        std::istringstream in(v);
+        for (std::string word; in >> word;) text += std::string(" ") + def.part_key + "=" + word;
+        input::parse_pad_bindings(text, o.pad_bindings, &o.pad_bindings_error, true);
     } else if (def.part_of) {
         const std::string_view part_of = def.part_of;
         std::string& text = part_of == "graphics-features" ? combined.graphics_features
@@ -197,6 +202,10 @@ bool apply_setting(Options& o, Combined& combined, const platform::SettingDef& d
         o.mouse_sensitivity = f();
     } else if (key == "keys") {  // the combined form (command line, recordings): onto what came before
         input::parse_bindings(v, o.bindings, &o.bindings_error, true);
+    } else if (key == "pad") {
+        input::parse_pad_bindings(v, o.pad_bindings, &o.pad_bindings_error, true);
+    } else if (key == "trigger-threshold") {
+        o.trigger_threshold = f();
     } else if (key == "aim-assist") {
         o.aim_assist = on;
     } else if (key == "mounted-gun-fix") {

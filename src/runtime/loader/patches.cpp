@@ -261,7 +261,16 @@ static_assert(game::kNativeActionCount == static_cast<int32_t>(input::kActionCou
 uint32_t XB_CDECL native_actions() {
     const uint32_t held = input::held_actions();
     if (xbox::replay::on_stream() && xbox::replay::replaying() && xbox::replay::version() < 5) return 0;
-    return xbox::replay::value('Y', held);
+    const uint32_t value = xbox::replay::value('Y', held);
+    static uint32_t logged = 0;  // --debug: the held actions when they change (keyboard, mouse, gamepad, script)
+    if (value != logged && platform::log_enabled(platform::LogLevel::Debug)) {
+        std::string names;
+        for (size_t a = 0; a < input::kActionCount; ++a)
+            if (value >> a & 1) (names += names.empty() ? "" : " ") += input::action_token(static_cast<input::Action>(a));
+        LOG_DEBUG("input", "held actions: %s", names.empty() ? "none" : names.c_str());
+    }
+    logged = value;
+    return value;
 }
 
 // pushad; pushfd; call mouse_look; popfd; popad; jmp CL_MouseMove

@@ -94,9 +94,12 @@ void set_action_remap(ActionRemap remap);
 // their pad buttons as before (WASD and the action keys steer the menus); the menu keys, Escape and Tab stay pad
 // buttons. Off (the default): the action keys are pad buttons everywhere.
 void set_native_actions(bool on);
-// Bit n = Action n is held now (keys, mouse buttons, wheel steps). 0 in menus, while game input is blocked and
-// until the keys that closed our menu are let go.
+// Bit n = Action n is held now (keys, mouse buttons, wheel steps, and the first gamepad's buttons and triggers
+// through its own bindings, bindings.h pad_bindings). 0 in menus, while game input is blocked and until the keys
+// that closed our menu are let go.
 uint32_t held_actions();
+// How far a trigger goes down before its binding counts as held (0.02..0.95 of its travel; default 0.24).
+void set_trigger_threshold(float fraction);
 
 // The device the player used last: keys, mouse buttons and mouse motion count as the
 // keyboard; gamepad buttons and sticks/triggers past a dead zone as a gamepad.

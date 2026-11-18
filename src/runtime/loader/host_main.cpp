@@ -138,6 +138,10 @@ int host_main(int argc, char** argv) {
     if (const std::string keys = input::format_bindings(options.bindings); !keys.empty())
         LOG_INFO("input", "keys: %s", keys.c_str());
     input::set_bindings(options.bindings);
+    if (!options.pad_bindings_error.empty())
+        LOG_WARN("input", "pad setting: %s (ignored; the rest applies)", options.pad_bindings_error.c_str());
+    input::set_pad_bindings(options.pad_bindings);
+    input::set_trigger_threshold(options.trigger_threshold);
     const float aspect = options.aspect;
     loader::install_title_patches(*title, {options.mouse_sensitivity, options.start_level, options.aim_assist,
                                            options.frame_rate, options.late_frames_wait,

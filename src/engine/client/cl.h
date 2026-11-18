@@ -74,10 +74,13 @@ struct ClientPcHooks {
     bool more_bodies = false;
 };
 ClientPcHooks& client_pc_hooks();
-// Native keyboard and mouse (ClientPcHooks::native_actions): the actions' key numbers start at JOY17 (the pad uses
-// JOY1-16, no config binds JOY17 or above), 17 of them; their commands are the default controller layout's.
+// Native keyboard, mouse and gamepad (ClientPcHooks::native_actions): the actions' key numbers start at JOY17 (the
+// pad uses JOY1-16, no config binds JOY17 or above), 20 of them (0xdf..0xf2: JOY17-32, AUX1-4, which nothing
+// sends); their commands are the ones the controller layouts bind. With native actions the pad's own keys (D-pad
+// 0x9a-0x9d, buttons 0xd3-0xdc) run no binding: the pad gives its actions directly (src/input/bindings.h); Start
+// (Escape) and Back (Tab) keep theirs.
 constexpr int32_t kNativeKeyFirst = 0xdf;
-constexpr int32_t kNativeActionCount = 17;
+constexpr int32_t kNativeActionCount = 20;
 // The command a native action key runs (null: none, or not a native key while native actions are off).
 const char* native_key_command(int32_t key);
 

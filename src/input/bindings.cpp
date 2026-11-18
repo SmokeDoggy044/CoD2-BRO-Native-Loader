@@ -2,6 +2,7 @@
 
 #include <SDL3/SDL_scancode.h>
 #include <SDL3/SDL_keyboard.h>
+#include <SDL3/SDL_gamepad.h>
 
 #include <algorithm>
 #include <cctype>
@@ -34,6 +35,9 @@ constexpr ActionInfo kActions[] = {
     {"lean-left", "Lean left"},
     {"lean-right", "Lean right"},
     {"aim-toggle", "Aim down sights (toggle)"},
+    {"use-reload", "Use / reload"},
+    {"raise-stance", "Raise stance"},
+    {"previous-weapon", "Previous weapon"},
 };
 static_assert(std::size(kActions) == kActionCount);
 
@@ -47,7 +51,46 @@ std::string lower_dashed(const char* name) {
     return token;
 }
 
+// The pad inputs: settings token and name (Xbox names; the prompts draw the pad's own glyphs).
+struct PadInputInfo {
+    InputCode input;
+    const char* token;
+    const char* name;
+};
+constexpr InputCode pad(SDL_GamepadButton button) { return static_cast<InputCode>(kPadButton + button); }
+constexpr PadInputInfo kPadInputs[] = {
+    {pad(SDL_GAMEPAD_BUTTON_SOUTH), "pad-a", "A"},
+    {pad(SDL_GAMEPAD_BUTTON_EAST), "pad-b", "B"},
+    {pad(SDL_GAMEPAD_BUTTON_WEST), "pad-x", "X"},
+    {pad(SDL_GAMEPAD_BUTTON_NORTH), "pad-y", "Y"},
+    {pad(SDL_GAMEPAD_BUTTON_LEFT_SHOULDER), "pad-lb", "LB"},
+    {pad(SDL_GAMEPAD_BUTTON_RIGHT_SHOULDER), "pad-rb", "RB"},
+    {kPadLeftTrigger, "pad-lt", "LT"},
+    {kPadRightTrigger, "pad-rt", "RT"},
+    {pad(SDL_GAMEPAD_BUTTON_LEFT_STICK), "pad-ls", "Left stick click"},
+    {pad(SDL_GAMEPAD_BUTTON_RIGHT_STICK), "pad-rs", "Right stick click"},
+    {pad(SDL_GAMEPAD_BUTTON_DPAD_UP), "pad-up", "D-pad up"},
+    {pad(SDL_GAMEPAD_BUTTON_DPAD_DOWN), "pad-down", "D-pad down"},
+    {pad(SDL_GAMEPAD_BUTTON_DPAD_LEFT), "pad-left", "D-pad left"},
+    {pad(SDL_GAMEPAD_BUTTON_DPAD_RIGHT), "pad-right", "D-pad right"},
+    {pad(SDL_GAMEPAD_BUTTON_BACK), "pad-back", "Back"},
+    {pad(SDL_GAMEPAD_BUTTON_START), "pad-start", "Start"},
+    {pad(SDL_GAMEPAD_BUTTON_MISC1), "pad-misc", "Share"},
+    {pad(SDL_GAMEPAD_BUTTON_TOUCHPAD), "pad-touchpad", "Touchpad"},
+    {pad(SDL_GAMEPAD_BUTTON_RIGHT_PADDLE1), "pad-paddle-r1", "Right paddle 1"},
+    {pad(SDL_GAMEPAD_BUTTON_LEFT_PADDLE1), "pad-paddle-l1", "Left paddle 1"},
+    {pad(SDL_GAMEPAD_BUTTON_RIGHT_PADDLE2), "pad-paddle-r2", "Right paddle 2"},
+    {pad(SDL_GAMEPAD_BUTTON_LEFT_PADDLE2), "pad-paddle-l2", "Left paddle 2"},
+};
+
+const PadInputInfo* pad_input_info(InputCode input) {
+    for (const PadInputInfo& info : kPadInputs)
+        if (info.input == input) return &info;
+    return nullptr;
+}
+
 std::string input_token(InputCode input) {
+    if (const PadInputInfo* info = pad_input_info(input)) return info->token;
     if (input > kMouseButton && input <= kMouseButton + 5) return "mouse" + std::to_string(input - kMouseButton);
     if (input == kWheelUp) return "wheel-up";
     if (input == kWheelDown) return "wheel-down";
@@ -58,6 +101,8 @@ std::string input_token(InputCode input) {
 
 std::optional<InputCode> input_from_token(std::string_view token) {
     if (token == "none") return InputCode{0};
+    for (const PadInputInfo& info : kPadInputs)
+        if (token == info.token) return info.input;
     for (InputCode input : {mouse(1), mouse(2), mouse(3), mouse(4), mouse(5), kWheelUp, kWheelDown, kWheel})
         if (token == input_token(input)) return input;
     for (int code = 1; code < SDL_SCANCODE_COUNT; ++code) {
@@ -69,6 +114,24 @@ std::optional<InputCode> input_from_token(std::string_view token) {
 
 std::mutex g_bindings_mutex;
 Bindings g_bindings = default_bindings();  // guarded by g_bindings_mutex
+Bindings g_pad_bindings = default_pad_bindings();  // guarded by g_bindings_mutex
+
+// parse_bindings / parse_pad_bindings: `pad` takes pad inputs only, `keys` everything else.
+bool parse_into(std::string_view text, Bindings& bindings, std::string* error, bool pad_inputs);
+std::string format_against(const Bindings& bindings, const Bindings& defaults);
+
+struct PresetInfo {
+    const char* token;
+    const char* label;
+};
+constexpr PresetInfo kPresets[] = {
+    {"modern", "Modern"},
+    {"layout-a", "Original A"},
+    {"layout-b", "Original B"},
+    {"layout-c", "Original C"},
+    {"layout-d", "Original D"},
+};
+static_assert(std::size(kPresets) == static_cast<size_t>(PadPreset::Count));
 
 }  // namespace
 
@@ -94,8 +157,81 @@ Bindings default_bindings() {
     return b;
 }
 
+Bindings pad_preset(PadPreset preset) {
+    using A = Action;
+    Bindings b;
+    const auto set = [&](A action, InputCode input) {
+        auto& inputs = b[action];
+        (inputs[0] ? inputs[1] : inputs[0]) = input;
+    };
+    const InputCode a = pad(SDL_GAMEPAD_BUTTON_SOUTH), bb = pad(SDL_GAMEPAD_BUTTON_EAST),
+                    x = pad(SDL_GAMEPAD_BUTTON_WEST), y = pad(SDL_GAMEPAD_BUTTON_NORTH),
+                    lb = pad(SDL_GAMEPAD_BUTTON_LEFT_SHOULDER), rb = pad(SDL_GAMEPAD_BUTTON_RIGHT_SHOULDER),
+                    ls = pad(SDL_GAMEPAD_BUTTON_LEFT_STICK), rs = pad(SDL_GAMEPAD_BUTTON_RIGHT_STICK),
+                    up = pad(SDL_GAMEPAD_BUTTON_DPAD_UP), down = pad(SDL_GAMEPAD_BUTTON_DPAD_DOWN),
+                    left = pad(SDL_GAMEPAD_BUTTON_DPAD_LEFT), right = pad(SDL_GAMEPAD_BUTTON_DPAD_RIGHT),
+                    lt = kPadLeftTrigger, rt = kPadRightTrigger;
+    // The game's layouts (config/style_*.cfg): R1/L1 = the triggers, R2/L2 = Black/White (RB/LB here), JOY6 = A,
+    // CIRCLE = B, SQUARE = X, TRIANGLE = Y. Their D-pad lean is the plain lean.
+    switch (preset) {
+        case PadPreset::Modern:
+        case PadPreset::Count:
+            set(A::Fire, rt), set(A::Aim, lt), set(A::Grenade, rb), set(A::Jump, a), set(A::Crouch, bb);
+            set(A::UseReload, x), set(A::NextWeapon, y), set(A::Sprint, ls), set(A::Melee, rs);
+            set(A::LeanLeft, left), set(A::LeanRight, right);
+            break;
+        case PadPreset::LayoutA:
+            set(A::Fire, rt), set(A::Grenade, lt), set(A::LeanRight, rb), set(A::LeanLeft, lb), set(A::Aim, rs);
+            set(A::Sprint, ls), set(A::UseReload, x), set(A::NextWeapon, y), set(A::Melee, bb), set(A::Jump, a);
+            set(A::RaiseStance, up), set(A::LeanLeft, left), set(A::LeanRight, right), set(A::Crouch, down);
+            break;
+        case PadPreset::LayoutB:
+            set(A::Fire, rt), set(A::Aim, lt), set(A::Melee, rb), set(A::Grenade, lb), set(A::Sprint, ls);
+            set(A::Use, x), set(A::NextWeapon, y), set(A::Reload, bb), set(A::Jump, a);
+            set(A::RaiseStance, up), set(A::LeanLeft, left), set(A::LeanRight, right), set(A::Crouch, down);
+            break;
+        case PadPreset::LayoutC:
+            set(A::Fire, rt), set(A::Grenade, lt), set(A::LeanRight, rb), set(A::LeanLeft, lb), set(A::Aim, rs);
+            set(A::Crouch, ls), set(A::UseReload, x), set(A::Melee, y), set(A::Sprint, bb), set(A::Jump, a);
+            set(A::NextWeapon, up), set(A::LeanLeft, left), set(A::LeanRight, right), set(A::NextWeapon, down);
+            break;
+        case PadPreset::LayoutD:
+            set(A::Fire, rt), set(A::Aim, lt), set(A::Melee, rb), set(A::Grenade, lb), set(A::Sprint, ls);
+            set(A::Reload, x), set(A::Jump, y), set(A::Crouch, bb), set(A::Use, a);
+            set(A::NextWeapon, up), set(A::LeanLeft, left), set(A::LeanRight, right), set(A::NextWeapon, down);
+            break;
+    }
+    return b;
+}
+
+const char* pad_preset_token(PadPreset preset) { return kPresets[static_cast<size_t>(preset)].token; }
+const char* pad_preset_label(PadPreset preset) { return kPresets[static_cast<size_t>(preset)].label; }
+
+std::optional<PadPreset> pad_preset_from_token(std::string_view token) {
+    for (size_t p = 0; p < std::size(kPresets); ++p)
+        if (token == kPresets[p].token) return static_cast<PadPreset>(p);
+    return std::nullopt;
+}
+
+std::optional<PadPreset> matching_pad_preset(const Bindings& bindings) {
+    for (size_t p = 0; p < std::size(kPresets); ++p)
+        if (pad_preset(static_cast<PadPreset>(p)) == bindings) return static_cast<PadPreset>(p);
+    return std::nullopt;
+}
+
 bool parse_bindings(std::string_view text, Bindings& bindings, std::string* error, bool onto) {
     if (!onto) bindings = default_bindings();
+    return parse_into(text, bindings, error, false);
+}
+
+bool parse_pad_bindings(std::string_view text, Bindings& bindings, std::string* error, bool onto) {
+    if (!onto) bindings = default_pad_bindings();
+    return parse_into(text, bindings, error, true);
+}
+
+namespace {
+
+bool parse_into(std::string_view text, Bindings& bindings, std::string* error, bool pad_inputs) {
     std::array<size_t, kActionCount> seen{};  // inputs read per action
     bool ok = true;
     auto fail = [&](std::string_view word, const char* why) {
@@ -128,8 +264,8 @@ bool parse_bindings(std::string_view text, Bindings& bindings, std::string* erro
             fail(word, "unknown action");
             continue;
         }
-        if (!input) {
-            fail(word, "unknown key");
+        if (!input || (*input && is_pad_input(*input) != pad_inputs)) {
+            fail(word, pad_inputs ? "unknown pad button" : "unknown key");
             continue;
         }
         const size_t index = static_cast<size_t>(action - std::begin(kActions));
@@ -141,8 +277,14 @@ bool parse_bindings(std::string_view text, Bindings& bindings, std::string* erro
     return ok;
 }
 
-std::string format_bindings(const Bindings& bindings) {
-    const Bindings defaults = default_bindings();
+}  // namespace
+
+std::string format_bindings(const Bindings& bindings) { return format_against(bindings, default_bindings()); }
+std::string format_pad_bindings(const Bindings& bindings) { return format_against(bindings, default_pad_bindings()); }
+
+namespace {
+
+std::string format_against(const Bindings& bindings, const Bindings& defaults) {
     std::string text;
     for (size_t a = 0; a < kActionCount; ++a) {
         if (bindings.inputs[a] == defaults.inputs[a]) continue;
@@ -157,6 +299,8 @@ std::string format_bindings(const Bindings& bindings) {
     return text;
 }
 
+}  // namespace
+
 const char* action_token(Action action) { return kActions[static_cast<size_t>(action)].token; }
 
 std::optional<Action> action_from_token(std::string_view token) {
@@ -167,7 +311,14 @@ std::optional<Action> action_from_token(std::string_view token) {
 
 const char* action_label(Action action) { return kActions[static_cast<size_t>(action)].label; }
 
+std::optional<InputCode> pad_input_from_token(std::string_view token) {
+    for (const PadInputInfo& info : kPadInputs)
+        if (token == info.token) return info.input;
+    return std::nullopt;
+}
+
 std::string input_name(InputCode input) {
+    if (const PadInputInfo* info = pad_input_info(input)) return info->name;
     if (input == mouse(1)) return "Left mouse";
     if (input == mouse(2)) return "Middle mouse";
     if (input == mouse(3)) return "Right mouse";
@@ -183,7 +334,8 @@ bool is_reserved(InputCode input) {
     for (SDL_Scancode code : {SDL_SCANCODE_ESCAPE, SDL_SCANCODE_TAB, SDL_SCANCODE_GRAVE, SDL_SCANCODE_F10,
                               SDL_SCANCODE_F11, SDL_SCANCODE_F12})  // ` opens the PC menu
         if (input == key(code)) return true;
-    return false;
+    return input == pad(SDL_GAMEPAD_BUTTON_START) || input == pad(SDL_GAMEPAD_BUTTON_BACK) ||
+           input == pad(SDL_GAMEPAD_BUTTON_GUIDE);
 }
 
 bool is_bound(const Bindings& bindings, InputCode input) {
@@ -204,6 +356,7 @@ void bind(Bindings& bindings, Action action, size_t slot, InputCode input) {
 }
 
 std::string prompt_label(InputCode input) {
+    if (const PadInputInfo* info = pad_input_info(input)) return std::string("@") + info->token;
     if (input == mouse(1)) return "@lmb";
     if (input == mouse(3)) return "@rmb";
     if (input == mouse(2)) return "@mmb";
@@ -235,6 +388,16 @@ void set_bindings(const Bindings& bindings) {
 Bindings bindings() {
     std::lock_guard lock(g_bindings_mutex);
     return g_bindings;
+}
+
+void set_pad_bindings(const Bindings& bindings) {
+    std::lock_guard lock(g_bindings_mutex);
+    g_pad_bindings = bindings;
+}
+
+Bindings pad_bindings() {
+    std::lock_guard lock(g_bindings_mutex);
+    return g_pad_bindings;
 }
 
 }  // namespace input
