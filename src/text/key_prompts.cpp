@@ -390,10 +390,10 @@ void draw_pad_glyph(Canvas& canvas, float left, float top, float w, float h, con
                            : token == "start" ? (ps ? "Options" : nin ? "+" : "Start")
                            : token == "misc" ? (ps ? "Mic" : nin ? "Cap" : "Share")
                            : token == "touchpad" ? "Pad"
-                           : token == "paddle-r1" ? "R4"
-                           : token == "paddle-l1" ? "L4"
-                           : token == "paddle-r2" ? "R5"
-                           : token == "paddle-l2" ? "L5"
+                           : token == "paddle-r1" ? "P1"
+                           : token == "paddle-r2" ? "P2"
+                           : token == "paddle-l1" ? "P3"
+                           : token == "paddle-l2" ? "P4"
                                                   : "?";
         pill(canvas, cx, cy, size * 0.48f, size * 0.25f, size * 0.25f, size, text);
     }
