@@ -19,6 +19,10 @@ if(WIN32)
     foreach(option ALSOFT_INSTALL ALSOFT_INSTALL_CONFIG ALSOFT_INSTALL_HRTF_DATA ALSOFT_INSTALL_AMBDEC_PRESETS)
         set(${option} OFF CACHE BOOL "" FORCE)
     endforeach()
+    # Unix backends off: their checks find the build machine's headers (PipeWire's then fails to compile).
+    foreach(backend PIPEWIRE PULSEAUDIO JACK ALSA OSS SOLARIS SNDIO PORTAUDIO)
+        set(ALSOFT_BACKEND_${backend} OFF CACHE BOOL "" FORCE)
+    endforeach()
     FetchContent_Declare(openal_soft
         GIT_REPOSITORY https://github.com/kcat/openal-soft.git
         GIT_TAG 1.24.2)
