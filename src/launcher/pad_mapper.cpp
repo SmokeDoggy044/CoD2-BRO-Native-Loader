@@ -263,6 +263,22 @@ bool PadMapper::draw(input::Bindings& pad, const std::string& glyphs) {
         ImGui::PopID();
     }
 
+    // The sticks: where each one is pushed (past a small dead zone), a marker over it moving with it.
+    if (pad_ && highlight_) {
+        struct Stick { SDL_GamepadAxis x, y; float cx, cy; };
+        static constexpr Stick kSticks[] = {{SDL_GAMEPAD_AXIS_LEFTX, SDL_GAMEPAD_AXIS_LEFTY, 98, 177},
+                                            {SDL_GAMEPAD_AXIS_RIGHTX, SDL_GAMEPAD_AXIS_RIGHTY, 331, 254}};
+        for (const Stick& stick : kSticks) {
+            const float dx = SDL_GetGamepadAxis(pad_, stick.x) / 32767.0f, dy = SDL_GetGamepadAxis(pad_, stick.y) / 32767.0f;
+            if (dx * dx + dy * dy < 0.25f * 0.25f) continue;
+            const float reach = 22.0f;  // picture pixels: about the stick's rim
+            const ImVec2 at(front_at.x + (stick.cx + dx * reach) * scale, front_at.y + (stick.cy + dy * reach) * scale);
+            const float half = 15.0f * scale;
+            draw->AddImage(id(highlight_), ImVec2(at.x - half, at.y - half), ImVec2(at.x + half, at.y + half), ImVec2(0, 0),
+                           ImVec2(1, 1), IM_COL32(10, 255, 21, 255));
+        }
+    }
+
     // Beside the back picture: the selected control and its action.
     ImGui::SetCursorScreenPos(ImVec2(back_at.x + kWidth * back_s + gap, back_at.y));
     ImGui::BeginGroup();
