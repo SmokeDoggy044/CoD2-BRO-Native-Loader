@@ -528,6 +528,17 @@ void update_button_prompts() {
     const bool keyboard = g_button_prompts == TitlePatchConfig::ButtonPrompts::Keyboard ||
                           (g_button_prompts == TitlePatchConfig::ButtonPrompts::Auto &&
                            input::last_device() == input::Device::Keyboard);
+    {  // --debug: which glyphs the prompts show, when that changes (reports of prompts that do not follow the pad)
+        static int logged = -1;
+        const int now = keyboard ? 0 : game::client_pc_hooks().native_actions && g_pad_prompts ? 1 : 2;
+        if (now != logged) {
+            LOG_DEBUG("text", "button prompts now %s (last device: %s, setting: %d)",
+                      now == 0 ? "keys" : now == 1 ? "pad glyphs" : "the game's icons",
+                      input::last_device() == input::Device::Keyboard ? "keyboard/mouse" : "gamepad",
+                      static_cast<int>(g_button_prompts));
+            logged = now;
+        }
+    }
     if (!keyboard) {
         // Our own engine's pad gives its actions directly: its own glyphs; else the game's icons.
         if (game::client_pc_hooks().native_actions && g_pad_prompts)
