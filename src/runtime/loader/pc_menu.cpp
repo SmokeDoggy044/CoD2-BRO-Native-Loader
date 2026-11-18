@@ -97,6 +97,7 @@ void apply_live(const platform::Settings& before, const platform::Settings& afte
         input::set_pad_family_override(g_pad_glyphs == "xbox"          ? std::optional(input::PadFamily::Xbox)
                                        : g_pad_glyphs == "playstation" ? std::optional(input::PadFamily::PlayStation)
                                        : g_pad_glyphs == "nintendo"    ? std::optional(input::PadFamily::Nintendo)
+                                       : g_pad_glyphs == "steam"       ? std::optional(input::PadFamily::Steam)
                                                                        : std::nullopt);
     }
     if (differs("trigger-threshold"))

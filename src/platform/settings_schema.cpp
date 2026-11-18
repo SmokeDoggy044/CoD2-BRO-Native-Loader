@@ -286,8 +286,8 @@ const SettingDef kSettings[] = {
     {"notice-seen", "ID", T::Text, G::Controls, kLauncher | kHidden, 0, 0, nullptr, "",
      "the last one-time notice the game showed (internal: the 1.0.6 controller notice shows until it says "
      "\"controller-1.0.6\")"},
-    {"pad-glyphs", "auto|xbox|playstation|nintendo", T::Choice, G::Controls, kLiveIni, 0, 0,
-     "auto|xbox|playstation|nintendo", "auto",
+    {"pad-glyphs", "auto|xbox|playstation|nintendo|steam", T::Choice, G::Controls, kLiveIni, 0, 0,
+     "auto|xbox|playstation|nintendo|steam", "auto",
      "the gamepad buttons the prompts show: the connected pad's style (auto, default), or Xbox, PlayStation or "
      "Nintendo buttons"},
     {"trigger-threshold", "F", T::Float, G::Controls, kLiveIni, 0.02, 0.95, nullptr, "0.24",
@@ -629,7 +629,7 @@ const SettingUi kUi[] = {
      "Lower reacts sooner.", nullptr, "%.2f"},
     {"pad-glyphs", nullptr, "Button style",
      "The controller buttons the prompts show: your controller's own (detected), or always Xbox, PlayStation or "
-     "Nintendo buttons.", "Detected|Xbox|PlayStation|Nintendo"},
+     "Nintendo buttons.", "Detected|Xbox|PlayStation|Nintendo|Steam Deck"},
     {"button-prompts", "On screen", "Button prompts",
      "The buttons the game shows in its hints and menus: keys and mouse buttons, or the Xbox controller's. They "
      "follow the controller style chosen in the game's options.",

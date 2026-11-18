@@ -491,9 +491,11 @@ text::KeyLabels pad_prompt_labels() {
     text::KeyLabels labels;
     auto label = [&](PromptIcon icon) -> std::string& { return labels[static_cast<size_t>(icon)]; };
     const input::PadFamily family = input::pad_family();
-    const char* const suffix = family == input::PadFamily::PlayStation ? "/ps"
-                               : family == input::PadFamily::Nintendo  ? "/nin"
-                                                                       : "";
+    const char* const suffix = family == input::PadFamily::PlayStation    ? "/ps"
+                               : family == input::PadFamily::PlayStation4 ? "/ps4"
+                               : family == input::PadFamily::Nintendo     ? "/nin"
+                               : family == input::PadFamily::Steam        ? "/steam"
+                                                                          : "";
     const auto glyph = [&](input::InputCode input) {
         return input ? input::prompt_label(input) + suffix : std::string();
     };

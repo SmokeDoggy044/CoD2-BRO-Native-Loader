@@ -104,7 +104,8 @@ void set_trigger_threshold(float fraction);
 float trigger_threshold();
 // The button style of the first gamepad (for the prompts' glyphs): from SDL's gamepad type unless overridden (the
 // pad-glyphs setting); Xbox when there is none.
-enum class PadFamily : uint8_t { Xbox, PlayStation, Nintendo };
+// PlayStation4: a PS4 / PS3 pad (Share / Options); Steam: Valve's (Steam Deck, Steam Controller).
+enum class PadFamily : uint8_t { Xbox, PlayStation, Nintendo, PlayStation4, Steam };
 PadFamily pad_family();
 void set_pad_family_override(std::optional<PadFamily> family);
 

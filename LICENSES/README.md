@@ -50,6 +50,9 @@ face buttons in three styles, a button highlight) as C arrays, unchanged; SDL's 
 1997-2026 Sam Lantinga; use, alter and redistribute freely), quoted in that folder's `README.md`. The launcher's
 controller mapper draws them.
 
+`src/text/fonts/prompts/`: controller button glyphs from Kenney's Input Prompts 1.5A (www.kenney.nl), CC0
+(`src/text/fonts/prompts/License.txt`, `src/text/fonts/prompts/README.md`), renamed after the pad tokens.
+
 `src/text/fonts/`: unmodified fonts under the SIL Open Font License 1.1 (EB Garamond, Jost,
 Liberation Serif, Anton); sources and license texts in `src/text/fonts/README.md` and
 `src/text/fonts/licenses/`. They are shipped as separate files next to the programs, which

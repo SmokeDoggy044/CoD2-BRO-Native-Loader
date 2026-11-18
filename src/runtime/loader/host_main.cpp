@@ -151,6 +151,7 @@ int host_main(int argc, char** argv) {
     loader::set_live_pad_glyphs(!options.pad_glyphs                                      ? "auto"
                                 : *options.pad_glyphs == input::PadFamily::PlayStation ? "playstation"
                                 : *options.pad_glyphs == input::PadFamily::Nintendo    ? "nintendo"
+                                : *options.pad_glyphs == input::PadFamily::Steam       ? "steam"
                                                                                        : "xbox");
     const float aspect = options.aspect;
     loader::install_title_patches(*title, {options.mouse_sensitivity, options.start_level, options.aim_assist,

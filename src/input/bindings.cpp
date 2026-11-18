@@ -77,11 +77,11 @@ constexpr PadInputInfo kPadInputs[] = {
     {pad(SDL_GAMEPAD_BUTTON_START), "pad-start", "Start"},
     {pad(SDL_GAMEPAD_BUTTON_MISC1), "pad-misc", "Share"},
     {pad(SDL_GAMEPAD_BUTTON_TOUCHPAD), "pad-touchpad", "Touchpad"},
-    // Back paddles, named as SDL numbers them (the Xbox Elite's P1-P4: P1 / P2 right, P3 / P4 left).
-    {pad(SDL_GAMEPAD_BUTTON_RIGHT_PADDLE1), "pad-paddle-r1", "Paddle P1"},
-    {pad(SDL_GAMEPAD_BUTTON_LEFT_PADDLE1), "pad-paddle-l1", "Paddle P3"},
-    {pad(SDL_GAMEPAD_BUTTON_RIGHT_PADDLE2), "pad-paddle-r2", "Paddle P2"},
-    {pad(SDL_GAMEPAD_BUTTON_LEFT_PADDLE2), "pad-paddle-l2", "Paddle P4"},
+    // The back buttons (paddles) by the names Steam gives any pad's: L4 / R4 upper, L5 / R5 lower.
+    {pad(SDL_GAMEPAD_BUTTON_RIGHT_PADDLE1), "pad-paddle-r1", "Back R4"},
+    {pad(SDL_GAMEPAD_BUTTON_LEFT_PADDLE1), "pad-paddle-l1", "Back L4"},
+    {pad(SDL_GAMEPAD_BUTTON_RIGHT_PADDLE2), "pad-paddle-r2", "Back R5"},
+    {pad(SDL_GAMEPAD_BUTTON_LEFT_PADDLE2), "pad-paddle-l2", "Back L5"},
 };
 
 const PadInputInfo* pad_input_info(InputCode input) {

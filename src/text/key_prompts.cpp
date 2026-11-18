@@ -2,6 +2,8 @@
 
 #include "key_prompts.h"
 
+#include <SDL3/SDL.h>
+
 #include <algorithm>
 #include <atomic>
 #include <cmath>
@@ -58,6 +60,14 @@ std::unordered_map<uint64_t, const IconTexture*> g_by_content;
 std::vector<uint8_t> g_ttf;
 stbtt_fontinfo g_font;
 bool g_have_font = false;
+
+// Kenney's gamepad glyphs (fonts/prompts/<set>/<token>.png, README there), "set/token" -> straight RGBA; read by
+// prepare_key_prompts.
+struct GlyphImage {
+    int width = 0, height = 0;
+    std::vector<uint8_t> rgba;
+};
+std::map<std::string, GlyphImage> g_glyph_images;
 
 std::mutex g_mutex;
 std::optional<KeyLabels> g_labels;  // guarded by g_mutex
@@ -353,13 +363,62 @@ void dpad(Canvas& canvas, float cx, float cy, float size, int lit) {
     for (const auto& k : kArms) arrow(canvas, cx + k.dx * o, cy + k.dy * o, a, k.dx, k.dy, (lit & k.bit) ? kInk : kPadDim);
 }
 
+// An image glyph scaled into the box (its aspect kept, a small margin), bilinear over premultiplied colour.
+void draw_image(Canvas& canvas, float left, float top, float w, float h, const GlyphImage& image) {
+    const float margin = std::min(w, h) * 0.04f;
+    const float fit = std::min((w - 2 * margin) / image.width, (h - 2 * margin) / image.height);
+    const float dw = image.width * fit, dh = image.height * fit;
+    const float x0 = left + (w - dw) / 2, y0 = top + (h - dh) / 2;
+    const auto texel = [&](int x, int y, int c) {
+        x = std::clamp(x, 0, image.width - 1);
+        y = std::clamp(y, 0, image.height - 1);
+        return image.rgba[(static_cast<size_t>(y) * image.width + x) * 4 + c] / 255.0f;
+    };
+    for (int y = static_cast<int>(y0); y < static_cast<int>(std::ceil(y0 + dh)); ++y)
+        for (int x = static_cast<int>(x0); x < static_cast<int>(std::ceil(x0 + dw)); ++x) {
+            const float sx = (x + 0.5f - x0) / fit - 0.5f, sy = (y + 0.5f - y0) / fit - 0.5f;
+            const int ix = static_cast<int>(std::floor(sx)), iy = static_cast<int>(std::floor(sy));
+            const float fx = sx - ix, fy = sy - iy;
+            float premul[3] = {0, 0, 0}, alpha = 0;
+            for (int k = 0; k < 4; ++k) {
+                const int tx = ix + (k & 1), ty = iy + (k >> 1);
+                const float weight = ((k & 1) ? fx : 1 - fx) * ((k >> 1) ? fy : 1 - fy);
+                const float a = texel(tx, ty, 3) * weight;
+                for (int c = 0; c < 3; ++c) premul[c] += texel(tx, ty, c) * a;
+                alpha += a;
+            }
+            if (alpha <= 0.0f) continue;
+            canvas.blend(x, y, Color{premul[0] / alpha, premul[1] / alpha, premul[2] / alpha, 1.0f}, alpha);
+        }
+}
+
+// Kenney's image for a token in a set ("/ps4" falls back to the PlayStation set; the paddles are their own set).
+const GlyphImage* glyph_image(const std::string& set, const std::string& token) {
+    const auto find = [&](const std::string& s) -> const GlyphImage* {
+        const auto it = g_glyph_images.find(s + "/" + token);
+        return it == g_glyph_images.end() ? nullptr : &it->second;
+    };
+    if (token.rfind("paddle-", 0) == 0) return find("paddles");
+    if (const GlyphImage* image = find(set)) return image;
+    return set == "playstation4" ? find("playstation") : nullptr;
+}
+
 void draw_pad_glyph(Canvas& canvas, float left, float top, float w, float h, const std::string& label) {
     std::string token = label.substr(5);  // after "@pad-"
     PadStyle style = PadStyle::Xbox;
+    std::string set = "xbox";
     if (const size_t slash = token.find('/'); slash != std::string::npos) {
         const std::string family = token.substr(slash + 1);
-        style = family == "ps" ? PadStyle::PlayStation : family == "nin" ? PadStyle::Nintendo : PadStyle::Xbox;
+        style = family == "ps" || family == "ps4" ? PadStyle::PlayStation
+                : family == "nin"                 ? PadStyle::Nintendo
+                                                  : PadStyle::Xbox;
+        set = family == "ps" ? "playstation" : family == "ps4" ? "playstation4" : family == "nin" ? "nintendo"
+              : family == "steam" ? "steam" : "xbox";
         token.resize(slash);
+    }
+    if (const GlyphImage* image = glyph_image(set, token)) {
+        draw_image(canvas, left, top, w, h, *image);
+        return;
     }
     const float size = std::min(w, h), cx = left + w / 2, cy = top + h / 2;
     const bool ps = style == PadStyle::PlayStation, nin = style == PadStyle::Nintendo;
@@ -390,10 +449,10 @@ void draw_pad_glyph(Canvas& canvas, float left, float top, float w, float h, con
                            : token == "start" ? (ps ? "Options" : nin ? "+" : "Start")
                            : token == "misc" ? (ps ? "Mic" : nin ? "Cap" : "Share")
                            : token == "touchpad" ? "Pad"
-                           : token == "paddle-r1" ? "P1"
-                           : token == "paddle-r2" ? "P2"
-                           : token == "paddle-l1" ? "P3"
-                           : token == "paddle-l2" ? "P4"
+                           : token == "paddle-r1" ? "R4"
+                           : token == "paddle-r2" ? "R5"
+                           : token == "paddle-l1" ? "L4"
+                           : token == "paddle-l2" ? "L5"
                                                   : "?";
         pill(canvas, cx, cy, size * 0.48f, size * 0.25f, size * 0.25f, size, text);
     }
@@ -458,7 +517,38 @@ std::shared_ptr<const render::TextureReplacement> draw(const IconTexture& textur
 
 }  // namespace
 
+namespace {
+
+// Every fonts/prompts/<set>/<token>.png (Kenney's gamepad glyphs) into g_glyph_images.
+void load_glyph_images(const fs::path& dir) {
+    std::error_code error;
+    for (const auto& set : fs::directory_iterator(dir, error)) {
+        if (!set.is_directory()) continue;
+        for (const auto& file : fs::directory_iterator(set.path(), error)) {
+            if (file.path().extension() != ".png") continue;
+            SDL_Surface* loaded = SDL_LoadPNG(file.path().string().c_str());
+            SDL_Surface* rgba = loaded ? SDL_ConvertSurface(loaded, SDL_PIXELFORMAT_RGBA32) : nullptr;
+            if (loaded) SDL_DestroySurface(loaded);
+            if (!rgba) continue;
+            GlyphImage image;
+            image.width = rgba->w;
+            image.height = rgba->h;
+            image.rgba.resize(static_cast<size_t>(rgba->w) * rgba->h * 4);
+            for (int y = 0; y < rgba->h; ++y)
+                std::memcpy(image.rgba.data() + static_cast<size_t>(y) * rgba->w * 4,
+                            static_cast<const uint8_t*>(rgba->pixels) + static_cast<size_t>(y) * rgba->pitch,
+                            static_cast<size_t>(rgba->w) * 4);
+            SDL_DestroySurface(rgba);
+            g_glyph_images[set.path().filename().string() + "/" + file.path().stem().string()] = std::move(image);
+        }
+    }
+}
+
+}  // namespace
+
 size_t prepare_key_prompts(const fs::path& assets, const fs::path& fonts_dir) {
+    load_glyph_images(fonts_dir / "prompts");
+    LOG_INFO("text", "gamepad glyphs: %zu images (Kenney's Input Prompts)", g_glyph_images.size());
     g_ttf = read_file(fonts_dir / kLabelFont);
     g_have_font = !g_ttf.empty() && stbtt_InitFont(&g_font, g_ttf.data(), stbtt_GetFontOffsetForIndex(g_ttf.data(), 0));
     if (!g_have_font) LOG_WARN("text", "%s is missing; key prompts show no key names", (fonts_dir / kLabelFont).string().c_str());

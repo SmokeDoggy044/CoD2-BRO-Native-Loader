@@ -212,6 +212,7 @@ bool apply_setting(Options& o, Combined& combined, const platform::SettingDef& d
         o.pad_glyphs = v == "xbox"          ? std::optional(input::PadFamily::Xbox)
                        : v == "playstation" ? std::optional(input::PadFamily::PlayStation)
                        : v == "nintendo"    ? std::optional(input::PadFamily::Nintendo)
+                       : v == "steam"       ? std::optional(input::PadFamily::Steam)
                                             : std::nullopt;
     } else if (key == "aim-assist") {
         o.aim_assist = on;

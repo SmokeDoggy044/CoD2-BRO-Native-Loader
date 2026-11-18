@@ -66,9 +66,10 @@ std::atomic<int> g_port0_family{static_cast<int>(PadFamily::Xbox)};
 
 PadFamily family_of(SDL_Gamepad* pad) {
     if (!pad) return PadFamily::Xbox;
+    if (SDL_GetGamepadVendor(pad) == 0x28de) return PadFamily::Steam;  // Valve
     switch (SDL_GetGamepadType(pad)) {
         case SDL_GAMEPAD_TYPE_PS3:
-        case SDL_GAMEPAD_TYPE_PS4:
+        case SDL_GAMEPAD_TYPE_PS4: return PadFamily::PlayStation4;
         case SDL_GAMEPAD_TYPE_PS5: return PadFamily::PlayStation;
         case SDL_GAMEPAD_TYPE_NINTENDO_SWITCH_PRO:
         case SDL_GAMEPAD_TYPE_NINTENDO_SWITCH_JOYCON_LEFT:
