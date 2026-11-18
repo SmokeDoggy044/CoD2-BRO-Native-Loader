@@ -188,21 +188,13 @@ std::string input_protocol(SDL_Gamepad* pad, const SDL_GUID& guid) {
 
 }  // namespace
 
-// What SDL says of the controller's connection and mode (the launcher shows it: back buttons depend on the mode).
+// The controller's input protocol (X-Input / D-Input), type and back buttons (the launcher shows it: whether the back
+// buttons reach the game depends on the controller's mode).
 PadMapper::Mode PadMapper::mode() const {
     Mode m;
     if (!pad_) return m;
     SDL_Joystick* joystick = SDL_GetGamepadJoystick(pad_);
     const SDL_GUID guid = joystick ? SDL_GetJoystickGUID(joystick) : SDL_GUID{};
-    const uint16_t bus = static_cast<uint16_t>(guid.data[0] | guid.data[1] << 8);  // SDL's GUIDs start with the bus
-    const SDL_JoystickConnectionState state = joystick ? SDL_GetJoystickConnectionState(joystick) : SDL_JOYSTICK_CONNECTION_UNKNOWN;
-    // A wireless receiver is a USB device too; only some drivers tell it from a cable.
-    const char* connection = bus == 0x05 ? "Bluetooth"
-                             : bus == 0x03 && state == SDL_JOYSTICK_CONNECTION_WIRELESS ? "wireless receiver"
-                             : bus == 0x03 && state == SDL_JOYSTICK_CONNECTION_WIRED ? "USB cable"
-                             : bus == 0x03 ? "USB or wireless receiver"
-                             : state == SDL_JOYSTICK_CONNECTION_WIRELESS ? "wireless"
-                                                                         : "connection unknown";
     const char* type = "";  // a standard pad: the protocol says enough
     switch (SDL_GetGamepadType(pad_)) {
         case SDL_GAMEPAD_TYPE_XBOX360: type = "Xbox 360 (XInput)"; break;
@@ -221,10 +213,9 @@ PadMapper::Mode PadMapper::mode() const {
     SDL_free(mapping);
     const std::string protocol = input_protocol(pad_, guid);
     char text[192];
-    std::snprintf(text, sizeof text, "%s%s%s%s%s, %s (%04x:%04x)", protocol.c_str(), protocol.empty() ? "" : " over ",
-                  connection, *type ? ", " : "", type,
-                  m.back_buttons ? "back buttons reported" : "no back buttons reported", SDL_GetGamepadVendor(pad_),
-                  SDL_GetGamepadProduct(pad_));
+    std::snprintf(text, sizeof text, "%s%s%s, %s (%04x:%04x)", protocol.empty() ? "protocol unknown" : protocol.c_str(),
+                  *type ? ", " : "", type, m.back_buttons ? "back buttons reported" : "no back buttons reported",
+                  SDL_GetGamepadVendor(pad_), SDL_GetGamepadProduct(pad_));
     m.text = text;
     return m;
 }
@@ -311,7 +302,7 @@ bool PadMapper::draw(input::Bindings& pad, const std::string& glyphs) {
         ImGui::PopStyleColor();
         if (!m.back_buttons)
             ImGui::SetItemTooltip("This mode reports no back buttons (paddles). Many controllers report them only in "
-                                  "another mode, often Bluetooth; see the controller's manual.");
+                                  "their D-Input mode; see the controller's manual for switching.");
     }
     ImGui::TextWrapped("Press a button on your controller or click one in the picture, then choose what it does.");
 

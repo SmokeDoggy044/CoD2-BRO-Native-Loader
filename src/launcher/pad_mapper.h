@@ -33,7 +33,7 @@ public:
 private:
     enum class Style { Xbox, PlayStation, Nintendo };
     struct Mode {
-        std::string text;           // "Bluetooth, standard controller, back buttons reported (2dc8:6012)"
+        std::string text;           // "D-Input, back buttons reported (2dc8:6012)"
         bool back_buttons = false;  // its mapping has paddles
     };
     Mode mode() const;
