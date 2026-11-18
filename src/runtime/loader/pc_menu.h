@@ -13,6 +13,8 @@ namespace loader {
 // The live settings (platform::kLive) as settings.ini text, from what runs now; and applying what differs between
 // two such forms (the game's thread or the presenting one).
 platform::Settings live_values();
+// The pad-glyphs setting at start-up (live_values reports it; input keeps only the override).
+void set_live_pad_glyphs(const std::string& value);
 void apply_live(const platform::Settings& before, const platform::Settings& after);
 // The settings pages of the game's own menus (menu_pages.cpp): installs the page hooks (fe_pc.h).
 void install_menu_pages(const std::filesystem::path& mods_dir, bool quit_row);

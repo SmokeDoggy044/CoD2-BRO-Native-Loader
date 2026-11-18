@@ -293,6 +293,7 @@ int loader_main(int argc, char** argv) {
         LOG_WARN("input", "pad setting: %s (ignored; the rest applies)", options->pad_bindings_error.c_str());
     input::set_pad_bindings(options->pad_bindings);
     input::set_trigger_threshold(options->trigger_threshold);
+    input::set_pad_family_override(options->pad_glyphs);
     loader::install_title_patches(*title, {options->mouse_sensitivity, options->start_level, options->aim_assist,
                                            options->frame_rate, options->late_frames_wait,
                                            options->widescreen ? aspect : 0.0f, options->field_of_view,

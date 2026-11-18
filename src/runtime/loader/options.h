@@ -21,6 +21,7 @@
 #include <utility>
 #include <vector>
 #include "bindings.h"
+#include "devices.h"
 #include "patches.h"
 #include "replay.h"
 #include "settings.h"
@@ -81,6 +82,7 @@ struct Options {
     input::Bindings pad_bindings = input::default_pad_bindings();  // --pad (gamepad, src/input/bindings.h)
     std::string pad_bindings_error;
     float trigger_threshold = 0.24f;
+    std::optional<input::PadFamily> pad_glyphs;  // --pad-glyphs (nullopt: the pad's own)
     bool aim_assist = true;
     bool mounted_gun_fix = true;  // --mounted-gun-fix (loader::TitlePatchConfig::mounted_gun_fix)
     bool sprint = false;          // --sprint (loader::TitlePatchConfig::sprint)

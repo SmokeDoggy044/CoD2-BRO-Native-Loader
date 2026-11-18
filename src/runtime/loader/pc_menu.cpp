@@ -35,6 +35,12 @@ ui::KeyTable g_key_table;     // the Controls tab (events and drawing both on th
 }  // namespace
 
 // The settings the menu changes while playing (platform::kLive), as settings.ini text, from what runs now.
+namespace {
+std::string g_pad_glyphs = "auto";  // the pad-glyphs setting as last applied (input keeps only the override)
+}  // namespace
+
+void set_live_pad_glyphs(const std::string& value) { g_pad_glyphs = value.empty() ? "auto" : value; }
+
 platform::Settings live_values() {
     platform::Settings v;
     ui::put_setting(v, "graphics", render::graphics_enhanced() ? "enhanced" : "original");
@@ -48,6 +54,7 @@ platform::Settings live_values() {
     platform::set_combined_setting(v, "keys", input::format_bindings(input::bindings()));
     platform::set_combined_setting(v, "pad", input::format_pad_bindings(input::pad_bindings()));
     ui::put_setting(v, "trigger-threshold", ui::number_text(input::trigger_threshold()));
+    ui::put_setting(v, "pad-glyphs", g_pad_glyphs);
     return v;
 }
 
@@ -80,6 +87,13 @@ void apply_live(const platform::Settings& before, const platform::Settings& afte
         input::Bindings pad;
         input::parse_pad_bindings(combined(after, "pad"), pad);
         input::set_pad_bindings(pad);
+    }
+    if (differs("pad-glyphs")) {
+        g_pad_glyphs = ui::setting_value(after, "pad-glyphs");
+        input::set_pad_family_override(g_pad_glyphs == "xbox"          ? std::optional(input::PadFamily::Xbox)
+                                       : g_pad_glyphs == "playstation" ? std::optional(input::PadFamily::PlayStation)
+                                       : g_pad_glyphs == "nintendo"    ? std::optional(input::PadFamily::Nintendo)
+                                                                       : std::nullopt);
     }
     if (differs("trigger-threshold"))
         input::set_trigger_threshold(std::strtof(ui::setting_value(after, "trigger-threshold").c_str(), nullptr));

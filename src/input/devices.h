@@ -33,6 +33,7 @@
 // renderer pumps window events.
 
 #include <cstdint>
+#include <optional>
 
 namespace input {
 
@@ -101,6 +102,11 @@ uint32_t held_actions();
 // How far a trigger goes down before its binding counts as held (0.02..0.95 of its travel; default 0.24).
 void set_trigger_threshold(float fraction);
 float trigger_threshold();
+// The button style of the first gamepad (for the prompts' glyphs): from SDL's gamepad type unless overridden (the
+// pad-glyphs setting); Xbox when there is none.
+enum class PadFamily : uint8_t { Xbox, PlayStation, Nintendo };
+PadFamily pad_family();
+void set_pad_family_override(std::optional<PadFamily> family);
 
 // The device the player used last: keys, mouse buttons and mouse motion count as the
 // keyboard; gamepad buttons and sticks/triggers past a dead zone as a gamepad.

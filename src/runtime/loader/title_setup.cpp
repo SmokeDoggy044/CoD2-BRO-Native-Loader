@@ -335,7 +335,10 @@ void configure_title_services(const Options& options, const fs::path& assets, co
     d3d_config.backend.brightness = options.brightness;
     const bool sharp_text =
         options.sharp_text && text::prepare_sharp_text(assets, platform::executable_dir() / "fonts") > 0;
-    const bool key_prompts = options.button_prompts != loader::TitlePatchConfig::ButtonPrompts::Controller &&
+    // Keycaps, and with our own engine the gamepad's glyphs (its buttons give their actions directly: the game's
+    // Xbox icons would name the wrong buttons) - not without the PC features (--compare).
+    const bool key_prompts = (options.button_prompts != loader::TitlePatchConfig::ButtonPrompts::Controller ||
+                              (options.own_main && options.pc_patches.value_or(!options.compare))) &&
                              text::prepare_key_prompts(assets, platform::executable_dir() / "fonts") > 0;
     // Texture packs (phase 1b): outside the Enhanced switch, never in --compare runs.
     const bool packs =

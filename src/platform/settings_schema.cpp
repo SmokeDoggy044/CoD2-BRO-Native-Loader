@@ -278,6 +278,10 @@ const SettingDef kSettings[] = {
     {"pad-use-reload", "BUTTONS", T::Text, G::Controls, kLive | kHidden, 0, 0, nullptr, "", "", "pad", "use-reload"},
     {"pad-raise-stance", "BUTTONS", T::Text, G::Controls, kLive | kHidden, 0, 0, nullptr, "", "", "pad", "raise-stance"},
     {"pad-previous-weapon", "BUTTONS", T::Text, G::Controls, kLive | kHidden, 0, 0, nullptr, "", "", "pad", "previous-weapon"},
+    {"pad-glyphs", "auto|xbox|playstation|nintendo", T::Choice, G::Controls, kLiveIni, 0, 0,
+     "auto|xbox|playstation|nintendo", "auto",
+     "the gamepad buttons the prompts show: the connected pad's style (auto, default), or Xbox, PlayStation or "
+     "Nintendo buttons"},
     {"trigger-threshold", "F", T::Float, G::Controls, kLiveIni, 0.02, 0.95, nullptr, "0.24",
      "how far a gamepad trigger goes down before its action counts as held (0.02..0.95 of its travel; default "
      "0.24)"},
@@ -615,6 +619,9 @@ const SettingUi kUi[] = {
     {"trigger-threshold", "Controller", "Trigger threshold",
      "How far a trigger goes down before its button counts as pressed (fire, aim, or whatever you bound to it). "
      "Lower reacts sooner.", nullptr, "%.2f"},
+    {"pad-glyphs", nullptr, "Button style",
+     "The controller buttons the prompts show: your controller's own (detected), or always Xbox, PlayStation or "
+     "Nintendo buttons.", "Detected|Xbox|PlayStation|Nintendo"},
     {"button-prompts", "On screen", "Button prompts",
      "The buttons the game shows in its hints and menus: keys and mouse buttons, or the Xbox controller's. They "
      "follow the controller style chosen in the game's options.",

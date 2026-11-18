@@ -31,6 +31,7 @@
 #include "options.h"
 #include "os.h"
 #include "patches.h"
+#include "pc_menu.h"
 #include "profiler.h"
 #include "release_map.h"
 #include "replay.h"
@@ -142,6 +143,11 @@ int host_main(int argc, char** argv) {
         LOG_WARN("input", "pad setting: %s (ignored; the rest applies)", options.pad_bindings_error.c_str());
     input::set_pad_bindings(options.pad_bindings);
     input::set_trigger_threshold(options.trigger_threshold);
+    input::set_pad_family_override(options.pad_glyphs);
+    loader::set_live_pad_glyphs(!options.pad_glyphs                                      ? "auto"
+                                : *options.pad_glyphs == input::PadFamily::PlayStation ? "playstation"
+                                : *options.pad_glyphs == input::PadFamily::Nintendo    ? "nintendo"
+                                                                                       : "xbox");
     const float aspect = options.aspect;
     loader::install_title_patches(*title, {options.mouse_sensitivity, options.start_level, options.aim_assist,
                                            options.frame_rate, options.late_frames_wait,

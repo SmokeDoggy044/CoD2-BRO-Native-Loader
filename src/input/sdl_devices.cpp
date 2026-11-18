@@ -35,6 +35,8 @@ SDL_Joystick* g_virtual_pad = nullptr;
 void update_virtual_pad() {
     if (!g_virtual_pad) {
         if (!script_uses_pad()) return;
+        // Unattended runs: the window may not have the focus, and SDL drops gamepad input without it.
+        SDL_SetHint(SDL_HINT_JOYSTICK_ALLOW_BACKGROUND_EVENTS, "1");
         SDL_VirtualJoystickDesc desc;
         SDL_INIT_INTERFACE(&desc);
         desc.type = SDL_JOYSTICK_TYPE_GAMEPAD;
@@ -648,6 +650,30 @@ void begin_pad_capture() {
 }
 
 float trigger_threshold() { return static_cast<float>(g_trigger_threshold.load()) / 32767.0f; }
+
+namespace {
+std::atomic<int> g_pad_family_override{-1};  // set_pad_family_override; -1 = from the gamepad
+}  // namespace
+
+void set_pad_family_override(std::optional<PadFamily> family) {
+    g_pad_family_override = family ? static_cast<int>(*family) : -1;
+}
+
+PadFamily pad_family() {
+    if (const int forced = g_pad_family_override.load(); forced >= 0) return static_cast<PadFamily>(forced);
+    std::lock_guard lock(g_mutex);
+    if (!g_ports[0]) return PadFamily::Xbox;
+    switch (SDL_GetGamepadType(g_ports[0])) {
+        case SDL_GAMEPAD_TYPE_PS3:
+        case SDL_GAMEPAD_TYPE_PS4:
+        case SDL_GAMEPAD_TYPE_PS5: return PadFamily::PlayStation;
+        case SDL_GAMEPAD_TYPE_NINTENDO_SWITCH_PRO:
+        case SDL_GAMEPAD_TYPE_NINTENDO_SWITCH_JOYCON_LEFT:
+        case SDL_GAMEPAD_TYPE_NINTENDO_SWITCH_JOYCON_RIGHT:
+        case SDL_GAMEPAD_TYPE_NINTENDO_SWITCH_JOYCON_PAIR: return PadFamily::Nintendo;
+        default: return PadFamily::Xbox;
+    }
+}
 
 void cancel_key_capture() {
     Capture waiting = Capture::Waiting;

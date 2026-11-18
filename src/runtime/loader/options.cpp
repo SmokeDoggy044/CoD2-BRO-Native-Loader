@@ -206,6 +206,11 @@ bool apply_setting(Options& o, Combined& combined, const platform::SettingDef& d
         input::parse_pad_bindings(v, o.pad_bindings, &o.pad_bindings_error, true);
     } else if (key == "trigger-threshold") {
         o.trigger_threshold = f();
+    } else if (key == "pad-glyphs") {
+        o.pad_glyphs = v == "xbox"          ? std::optional(input::PadFamily::Xbox)
+                       : v == "playstation" ? std::optional(input::PadFamily::PlayStation)
+                       : v == "nintendo"    ? std::optional(input::PadFamily::Nintendo)
+                                            : std::nullopt;
     } else if (key == "aim-assist") {
         o.aim_assist = on;
     } else if (key == "mounted-gun-fix") {

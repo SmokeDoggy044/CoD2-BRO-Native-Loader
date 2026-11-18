@@ -264,7 +264,146 @@ void draw_mouse(Canvas& canvas, float left, float top, float w, float h, int but
     });
 }
 
+// --- Gamepad glyphs (1.0.6) -----------------------------------------------------------------------------------
+// "@pad-<token>[/ps|/nin]" (bindings.h pad tokens; the suffix picks PlayStation or Nintendo buttons, none: Xbox):
+// our own drawings of the pad's buttons - round face buttons with a coloured letter or shape, shoulder and trigger
+// tabs, stick caps, a D-pad cross with the direction lit, small labelled pills for the rest.
+
+enum class PadStyle { Xbox, PlayStation, Nintendo };
+
+constexpr Color kPadBody{0.13f, 0.13f, 0.14f, 1.0f};
+constexpr Color kPadDim{0.42f, 0.42f, 0.45f, 1.0f};
+
+float circle(float px, float py, float cx, float cy, float r) { return std::hypot(px - cx, py - cy) - r; }
+
+// A rotated box (angle in radians) centred on (cx, cy).
+float rotated_box(float px, float py, float cx, float cy, float half_w, float half_h, float angle) {
+    const float c = std::cos(angle), s = std::sin(angle);
+    const float x = (px - cx) * c + (py - cy) * s, y = -(px - cx) * s + (py - cy) * c;
+    return rounded_rect(x, y, 0, 0, half_w, half_h, std::min(half_w, half_h));
+}
+
+void body_with_outline(Canvas& canvas, float cx, float cy, float hw, float hh, float radius, float line) {
+    canvas.fill(cx - hw, cy - hh, cx + hw, cy + hh, kPadBody,
+                [&](float px, float py) { return rounded_rect(px, py, cx, cy, hw, hh, radius); });
+    canvas.fill(cx - hw, cy - hh, cx + hw, cy + hh, kOutline, [&](float px, float py) {
+        return std::abs(rounded_rect(px, py, cx, cy, hw - line / 2, hh - line / 2, radius - line / 2)) - line / 2;
+    });
+}
+
+void face_button(Canvas& canvas, float cx, float cy, float size, int position, PadStyle style) {
+    // position: 0 south, 1 east, 2 west, 3 north.
+    const float r = size * 0.46f, line = std::max(1.0f, size * 0.06f);
+    body_with_outline(canvas, cx, cy, r, r, r, line);
+    const float inner = r - line;
+    if (style == PadStyle::PlayStation) {
+        static constexpr Color kColors[] = {{0.55f, 0.72f, 1.0f, 1.0f}, {1.0f, 0.42f, 0.47f, 1.0f},
+                                            {0.95f, 0.58f, 0.86f, 1.0f}, {0.36f, 0.88f, 0.72f, 1.0f}};
+        const Color c = kColors[position];
+        const float t = std::max(1.0f, size * 0.07f), e = inner * 0.55f;
+        switch (position) {
+            case 0:  // cross
+                canvas.fill(cx - e, cy - e, cx + e, cy + e, c, [&](float px, float py) {
+                    return std::min(rotated_box(px, py, cx, cy, e, t / 2, 0.785398f),
+                                    rotated_box(px, py, cx, cy, e, t / 2, -0.785398f));
+                });
+                break;
+            case 1:  // circle
+                canvas.fill(cx - e, cy - e, cx + e, cy + e, c,
+                            [&](float px, float py) { return std::abs(circle(px, py, cx, cy, e * 0.8f)) - t / 2; });
+                break;
+            case 2:  // square
+                canvas.fill(cx - e, cy - e, cx + e, cy + e, c, [&](float px, float py) {
+                    return std::abs(rounded_rect(px, py, cx, cy, e * 0.72f, e * 0.72f, t * 0.3f)) - t / 2;
+                });
+                break;
+            default:  // triangle: a filled one with the body colour inside
+                arrow(canvas, cx, cy + e * 0.08f, e * 1.7f, 0, -1, c);
+                arrow(canvas, cx, cy + e * 0.18f, e * 1.7f - t * 2.6f, 0, -1, kPadBody);
+                break;
+        }
+        return;
+    }
+    static constexpr const char* kXbox[] = {"A", "B", "X", "Y"};
+    static constexpr const char* kNintendo[] = {"B", "A", "Y", "X"};  // by position
+    static constexpr Color kXboxColors[] = {{0.50f, 0.83f, 0.33f, 1.0f}, {0.95f, 0.35f, 0.33f, 1.0f},
+                                            {0.33f, 0.58f, 0.98f, 1.0f}, {0.98f, 0.82f, 0.25f, 1.0f}};
+    const bool xbox = style == PadStyle::Xbox;
+    label_text(canvas, cx, cy, inner * 1.3f, inner * 0.95f, xbox ? kXbox[position] : kNintendo[position],
+               xbox ? kXboxColors[position] : kInk);
+}
+
+void pill(Canvas& canvas, float cx, float cy, float hw, float hh, float radius, float size, const char* text) {
+    body_with_outline(canvas, cx, cy, hw, hh, radius, std::max(1.0f, size * 0.06f));
+    label_text(canvas, cx, cy, (hw - size * 0.08f) * 2 * 0.86f, hh * 0.95f, text, kInk);
+}
+
+// The D-pad cross; `lit` bits: 1 up, 2 down, 4 left, 8 right.
+void dpad(Canvas& canvas, float cx, float cy, float size, int lit) {
+    const float arm = size * 0.46f, half = size * 0.16f, line = std::max(1.0f, size * 0.05f);
+    const auto cross = [&](float px, float py, float shrink) {
+        return std::min(rounded_rect(px, py, cx, cy, half - shrink, arm - shrink, size * 0.05f),
+                        rounded_rect(px, py, cx, cy, arm - shrink, half - shrink, size * 0.05f));
+    };
+    canvas.fill(cx - arm, cy - arm, cx + arm, cy + arm, kPadBody, [&](float px, float py) { return cross(px, py, 0); });
+    canvas.fill(cx - arm, cy - arm, cx + arm, cy + arm, kOutline,
+                [&](float px, float py) { return std::abs(cross(px, py, line / 2)) - line / 2; });
+    const float a = size * 0.2f, o = arm * 0.62f;
+    const struct { int bit, dx, dy; } kArms[] = {{1, 0, -1}, {2, 0, 1}, {4, -1, 0}, {8, 1, 0}};
+    for (const auto& k : kArms) arrow(canvas, cx + k.dx * o, cy + k.dy * o, a, k.dx, k.dy, (lit & k.bit) ? kInk : kPadDim);
+}
+
+void draw_pad_glyph(Canvas& canvas, float left, float top, float w, float h, const std::string& label) {
+    std::string token = label.substr(5);  // after "@pad-"
+    PadStyle style = PadStyle::Xbox;
+    if (const size_t slash = token.find('/'); slash != std::string::npos) {
+        const std::string family = token.substr(slash + 1);
+        style = family == "ps" ? PadStyle::PlayStation : family == "nin" ? PadStyle::Nintendo : PadStyle::Xbox;
+        token.resize(slash);
+    }
+    const float size = std::min(w, h), cx = left + w / 2, cy = top + h / 2;
+    const bool ps = style == PadStyle::PlayStation, nin = style == PadStyle::Nintendo;
+    if (token == "a" || token == "b" || token == "x" || token == "y") {
+        face_button(canvas, cx, cy, size, token == "a" ? 0 : token == "b" ? 1 : token == "x" ? 2 : 3, style);
+    } else if (token == "lb" || token == "rb") {
+        const bool l = token == "lb";
+        pill(canvas, cx, cy, size * 0.48f, size * 0.27f, size * 0.12f, size,
+             ps ? (l ? "L1" : "R1") : nin ? (l ? "L" : "R") : (l ? "LB" : "RB"));
+    } else if (token == "lt" || token == "rt") {
+        const bool l = token == "lt";
+        pill(canvas, cx, cy, size * 0.36f, size * 0.46f, size * 0.22f, size,
+             ps ? (l ? "L2" : "R2") : nin ? (l ? "ZL" : "ZR") : (l ? "LT" : "RT"));
+    } else if (token == "ls" || token == "rs") {
+        const bool l = token == "ls";
+        const float r = size * 0.46f, line = std::max(1.0f, size * 0.06f);
+        body_with_outline(canvas, cx, cy, r, r, r, line);
+        canvas.fill(cx - r, cy - r, cx + r, cy + r, kPadDim,
+                    [&](float px, float py) { return std::abs(circle(px, py, cx, cy, r * 0.62f)) - line / 2; });
+        label_text(canvas, cx, cy, r * 0.95f, r * 0.62f, ps ? (l ? "L3" : "R3") : (l ? "LS" : "RS"), kInk);
+    } else if (token == "up" || token == "down" || token == "left" || token == "right" || token == "leftright" ||
+               token == "updown" || token == "dpad") {
+        const int lit = token == "up" ? 1 : token == "down" ? 2 : token == "left" ? 4 : token == "right" ? 8
+                        : token == "leftright" ? 12 : token == "updown" ? 3 : 15;
+        dpad(canvas, cx, cy, size, lit);
+    } else {
+        const char* text = token == "back" ? (ps ? "Share" : nin ? "-" : "Back")
+                           : token == "start" ? (ps ? "Options" : nin ? "+" : "Start")
+                           : token == "misc" ? (ps ? "Mic" : nin ? "Cap" : "Share")
+                           : token == "touchpad" ? "Pad"
+                           : token == "paddle-r1" ? "R4"
+                           : token == "paddle-l1" ? "L4"
+                           : token == "paddle-r2" ? "R5"
+                           : token == "paddle-l2" ? "L5"
+                                                  : "?";
+        pill(canvas, cx, cy, size * 0.48f, size * 0.25f, size * 0.25f, size, text);
+    }
+}
+
 void draw_keycap(Canvas& canvas, float left, float top, float w, float h, const std::string& label) {
+    if (label.rfind("@pad-", 0) == 0) {
+        draw_pad_glyph(canvas, left, top, w, h, label);
+        return;
+    }
     if (label == "@lmb" || label == "@rmb" || label == "@mmb") {
         draw_mouse(canvas, left, top, w, h, label == "@lmb" ? 0 : label == "@rmb" ? 1 : 2);
         return;
