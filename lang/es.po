@@ -20,6 +20,9 @@ msgstr "Gráficos mejorados"
 msgid "Quit Game"
 msgstr "Salir del juego"
 
+msgid "Quit the game? Progress since the last checkpoint will be lost."
+msgstr "¿Salir del juego? Se perderá el progreso desde el último punto de control."
+
 msgid "Press ENTER or START"
 msgstr "Pulsa ENTER o START"
 

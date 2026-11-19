@@ -19,6 +19,9 @@ msgstr ""
 msgid "Quit Game"
 msgstr ""
 
+msgid "Quit the game? Progress since the last checkpoint will be lost."
+msgstr ""
+
 msgid "Press ENTER or START"
 msgstr ""
 

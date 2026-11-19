@@ -1841,7 +1841,7 @@ uint8_t* XB_STDCALL InGameScreens_Construct(uint8_t* mgr) {
     field<uint32_t>(mgr, 0) = 0x008286cc;  // InGameScreens vtable
     uint8_t* pause = z_malloc(0x44);
     if (pause) {
-        init_screen_menu(pause, 5, mgr);
+        init_screen_menu(pause, pc_quit_row() ? 6 : 5, mgr);  // our Quit Game: a sixth row (fe_pc.h)
         field<uint16_t>(pause, 0x2a) |= 0x180;
         field<uint32_t>(pause, 0) = 0x008289f8;  // PauseMenu vtable
         pause[0x33] = 0;

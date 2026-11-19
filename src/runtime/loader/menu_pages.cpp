@@ -819,7 +819,7 @@ void install_menu_pages(const fs::path& mods_dir, bool quit_row) {
     // Quit Game adds title allocations at boot (a sixth main-menu row): not while recording or replaying, so that
     // recordings made before it and after it replay alike.
     if (quit_row) hooks.quit_game = [] {
-        LOG_INFO("loader", "Quit Game (main menu)");
+        LOG_INFO("loader", "Quit Game");
         render::request_quit();
     };
 }
@@ -845,7 +845,8 @@ bool write_lang_template(const fs::path& path) {
         }
     };
     for (const char* text : {game::kPcTextGraphics, game::kPcTextControls, game::kPcTextSettings,
-                             game::kPcTextEnhancedGraphics, game::kPcTextQuitGame, game::kPcTextPressStart})
+                             game::kPcTextEnhancedGraphics, game::kPcTextQuitGame, game::kPcTextQuitGameWarning,
+                             game::kPcTextPressStart})
         add(text);
     for (const PageDef& page : pages()) {
         add(page.title);

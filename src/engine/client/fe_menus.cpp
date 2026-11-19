@@ -589,10 +589,13 @@ void XB_THISCALL PauseMenu_Draw(uint8_t* menu) {
     UIMenu_Draw(menu);
 }
 
+// The last row: 4 (Quit), or 5 with our Quit Game (fe_pc.h).
+static int32_t pause_last_row(uint8_t* menu) { return field<int16_t>(menu, 0x26) - 1; }
+
 void XB_THISCALL PauseMenu_OnDown(uint8_t* menu, uint32_t) {
     const int32_t old = field<int16_t>(menu, 0x22);
     call(menu, 0xb4);
-    if (old != 4) return;
+    if (old != pause_last_row(menu)) return;
     call(menu, 0x88, 0, 1);
     call(menu, 0x10);
 }
@@ -601,12 +604,13 @@ void XB_THISCALL PauseMenu_OnUp(uint8_t* menu, uint32_t) {
     const int32_t old = field<int16_t>(menu, 0x22);
     call(menu, 0xb0);
     if (old != 0) return;
-    call(menu, 0x88, 4, 1);
+    call(menu, 0x88, pause_last_row(menu), 1);
     call(menu, 0x10);
 }
 
 FE_GAP_ENTRY(PauseMenu_ShowRestartDialog_entry, "", PauseMenu_ShowRestartDialog, "4", "ret")
 FE_GAP_ENTRY(PauseMenu_ShowQuitDialog_entry, "", PauseMenu_ShowQuitDialog, "4", "ret")
+FE_GAP_ENTRY(PauseMenu_ShowQuitGameDialog_entry, "", PauseMenu_ShowQuitGameDialog, "4", "ret")
 
 void XB_CDECL PauseMenu_ShowRestartDialog(uint32_t entry_esp) {
     // MEM_RESTART_WARNING, MEM_DIALOG_YES, MEM_DIALOG_NO
@@ -616,6 +620,18 @@ void XB_CDECL PauseMenu_ShowRestartDialog(uint32_t entry_esp) {
 void XB_CDECL PauseMenu_ShowQuitDialog(uint32_t entry_esp) {
     // MEM_QUIT_WARNING, MEM_DIALOG_YES, MEM_DIALOG_NO
     yes_no_dialog(entry_esp, 0x0082c8c8, 0x0082c8b8, 0x0032dd00, 0x0082c8a8, 0x0030e6a0, false);
+}
+
+// Our Quit Game's Yes: the program ends (as the main menu's Quit Game).
+uint8_t XB_THISCALL PauseMenu_QuitGameYes(uint8_t*) {
+    pc_settings_hooks().quit_game();
+    return 1;
+}
+
+void XB_CDECL PauseMenu_ShowQuitGameDialog(uint32_t entry_esp) {
+    // Our warning (a string that is no key shows as it is), MEM_DIALOG_YES, MEM_DIALOG_NO
+    yes_no_dialog(entry_esp, address_of(pc_text(kPcTextQuitGameWarning)), 0x0082c8b8,
+                  own_address(&PauseMenu_QuitGameYes), 0x0082c8a8, 0x0030e6a0, false);
 }
 
 // --- In-game Live options ---
@@ -1033,7 +1049,7 @@ void XB_THISCALL PauseMenu_ResumeButton(uint8_t* menu, uint32_t) {
 }
 
 // 0x00336670 (+0x38): 0 resume, 1 / 2 the in-game screens' (0x0095f8fc) screen 1 / 8 (tail jump), 3 / 4 the restart
-// / quit dialogs (menu in ESI). Not compared.
+// / quit dialogs (menu in ESI); 5 our Quit Game's. Not compared.
 UI_GLOBAL_TAIL_DECIDE_ARG(PauseMenu_HandleSelect_entry, PauseMenu_HandleSelect, "0x0095f8fc")
 
 int32_t XB_CDECL PauseMenu_HandleSelect(uint8_t* menu, uint32_t index) {
@@ -1058,6 +1074,9 @@ int32_t XB_CDECL PauseMenu_HandleSelect(uint8_t* menu, uint32_t index) {
         return -1;
     case 4:
         title_call(own_address(&PauseMenu_ShowQuitDialog_entry), regs);
+        return -1;
+    case 5:  // our Quit Game (fe_pc.h; the menu has a sixth row only with our PC menus)
+        if (pc_quit_row()) title_call(own_address(&PauseMenu_ShowQuitGameDialog_entry), regs);
         return -1;
     default: return -1;
     }

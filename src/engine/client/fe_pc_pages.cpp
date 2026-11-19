@@ -517,6 +517,20 @@ void pc_add_quit_row(uint8_t* menu, int32_t last) {
     }
 }
 
+void pc_add_pause_quit_row(uint8_t* menu) {
+    if (field<int16_t>(menu, 0x26) < 6) return;  // built without room for it
+    uint8_t* const quit = field<uint8_t*>(row_item_of(menu, 4), 0x10);
+    uint8_t* const restart = field<uint8_t*>(row_item_of(menu, 3), 0x10);
+    if (!quit || !restart) return;
+    uint8_t* const text = new_text(quit, 1.0f);
+    if (!text) return;
+    set_visible(text, true);
+    set_text(text, pc_text(kPcTextQuitGame));
+    const float spacing = field<float>(quit, 0x30) - field<float>(restart, 0x30);
+    set_position(text, field<float>(quit, 0x2c), field<float>(quit, 0x30) + spacing);
+    UIMenu_SetItem(menu, 5, text, 1);
+}
+
 void pc_set_game_volume(int32_t volume) {
     title_global<int32_t>(0x008dce88) = volume < 0 ? 0 : volume > 50 ? 50 : volume;
     SoundMenu_OnBack(0);
