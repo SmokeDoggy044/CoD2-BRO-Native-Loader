@@ -18,6 +18,7 @@
 #include <thread>
 #include <utility>
 #include <vector>
+#include "system_info.h"
 #include "title_crt.h"
 #include "settings_schema.h"
 #include "replay.h"
@@ -407,6 +408,7 @@ std::optional<fs::path> find_assets(const Options& options, int argc, char** arg
         return std::nullopt;
     }
     LOG_INFO("loader", "assets: %s", assets->string().c_str());
+    platform::log_system_info();
     return assets;
 }
 

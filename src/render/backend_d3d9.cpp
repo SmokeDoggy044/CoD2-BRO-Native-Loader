@@ -178,7 +178,12 @@ public:
         }
         D3DADAPTER_IDENTIFIER9 id{};
         if (SUCCEEDED(d3d_->GetAdapterIdentifier(D3DADAPTER_DEFAULT, 0, &id)))
-            LOG_INFO("render", "%s, adapter: %s", name, id.Description);
+            LOG_INFO("render", "%s, adapter: %s (%04lx:%04lx), driver %s %u.%u.%u.%u", name, id.Description,
+                     static_cast<unsigned long>(id.VendorId), static_cast<unsigned long>(id.DeviceId), id.Driver,
+                     static_cast<unsigned>(id.DriverVersion.HighPart >> 16) & 0xFFFF,
+                     static_cast<unsigned>(id.DriverVersion.HighPart) & 0xFFFF,
+                     static_cast<unsigned>(id.DriverVersion.LowPart >> 16) & 0xFFFF,
+                     static_cast<unsigned>(id.DriverVersion.LowPart) & 0xFFFF);
         // Translated vertex programs are vs_3_0 and use constants up to c202; an adapter
         // whose hardware can't run them gets the runtime's software vertex processing.
         DWORD vertex_processing = D3DCREATE_HARDWARE_VERTEXPROCESSING;

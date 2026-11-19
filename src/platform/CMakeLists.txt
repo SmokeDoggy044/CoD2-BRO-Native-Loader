@@ -5,6 +5,7 @@ add_library(platform STATIC
     program.cpp
     settings.cpp
     settings_schema.cpp
+    system_info.cpp
     sha256.cpp
     chacha20.cpp
     texture_index.cpp
@@ -24,3 +25,4 @@ find_package(Threads REQUIRED)
 target_link_libraries(platform PUBLIC cod_bro_options Threads::Threads ${CMAKE_DL_LIBS})
 # Our own texts' translations (ui_text.h): the source tree's lang/ when the program has none beside it.
 set_source_files_properties(ui_text.cpp PROPERTIES COMPILE_DEFINITIONS COD_BRO_LANG_DIR="${PROJECT_SOURCE_DIR}/lang")
+set_source_files_properties(system_info.cpp PROPERTIES COMPILE_DEFINITIONS COD_BRO_VERSION="${PROJECT_VERSION}")

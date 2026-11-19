@@ -269,6 +269,49 @@ bool Context::create(SDL_Window* window, bool validation) {
     return true;
 }
 
+namespace {
+
+// The driver's version as its vendor numbers it (what the vendor's control panel or `vulkaninfo` shows).
+std::string driver_version(const VkPhysicalDeviceProperties& properties) {
+    const uint32_t v = properties.driverVersion;
+    char text[32];
+    if (properties.vendorID == 0x10DE)  // NVIDIA: 10.8.8.6 bits
+        std::snprintf(text, sizeof(text), "%u.%u.%u.%u", v >> 22, (v >> 14) & 0xFF, (v >> 6) & 0xFF, v & 0x3F);
+#ifdef _WIN32
+    else if (properties.vendorID == 0x8086)  // Intel on Windows: 18.14 bits
+        std::snprintf(text, sizeof(text), "%u.%u", v >> 14, v & 0x3FFF);
+#endif
+    else
+        std::snprintf(text, sizeof(text), "%u.%u.%u", VK_API_VERSION_MAJOR(v), VK_API_VERSION_MINOR(v),
+                      VK_API_VERSION_PATCH(v));
+    return text;
+}
+
+// One line per GPU before we pick one: if a driver fails while the device is made, the log still names it.
+void log_device(VkPhysicalDevice device) {
+    VkPhysicalDeviceDriverProperties driver{VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DRIVER_PROPERTIES};
+    VkPhysicalDeviceProperties2 properties2{VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2};
+    VkPhysicalDeviceProperties& properties = properties2.properties;
+    vkGetPhysicalDeviceProperties(device, &properties);
+    const bool has_driver_info = properties.apiVersion >= VK_API_VERSION_1_2;
+    if (has_driver_info) {
+        properties2.pNext = &driver;
+        vkGetPhysicalDeviceProperties2(device, &properties2);
+    }
+    const char* type = properties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU     ? "discrete"
+                       : properties.deviceType == VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU ? "integrated"
+                       : properties.deviceType == VK_PHYSICAL_DEVICE_TYPE_CPU            ? "software"
+                                                                                         : "other";
+    LOG_INFO("render", "GPU: %s (%s, %04x:%04x), driver %s%s%s%s %s, Vulkan %u.%u.%u", properties.deviceName, type,
+             properties.vendorID, properties.deviceID, has_driver_info ? driver.driverName : "",
+             has_driver_info && driver.driverInfo[0] ? " " : "", has_driver_info ? driver.driverInfo : "",
+             has_driver_info ? "," : "", driver_version(properties).c_str(),
+             VK_API_VERSION_MAJOR(properties.apiVersion), VK_API_VERSION_MINOR(properties.apiVersion),
+             VK_API_VERSION_PATCH(properties.apiVersion));
+}
+
+}  // namespace
+
 // The first device with Vulkan 1.3, dynamic rendering, synchronization2, a swap chain and a queue that
 // draws and presents to our surface; discrete GPUs first. COD_BRO_VK_DEVICE (part of the name) picks one.
 bool Context::pick_device(bool& has_d24s8) {
@@ -278,6 +321,7 @@ bool Context::pick_device(bool& has_d24s8) {
     vkEnumeratePhysicalDevices(instance_, &count, devices.data());
     const char* wanted = std::getenv("COD_BRO_VK_DEVICE");
     int best_score = -1;
+    for (VkPhysicalDevice device : devices) log_device(device);
     for (VkPhysicalDevice device : devices) {
         VkPhysicalDeviceProperties properties;
         vkGetPhysicalDeviceProperties(device, &properties);
@@ -329,9 +373,10 @@ bool Context::pick_device(bool& has_d24s8) {
     VkFormatProperties d24s8;
     vkGetPhysicalDeviceFormatProperties(physical_, VK_FORMAT_D24_UNORM_S8_UINT, &d24s8);
     has_d24s8 = (d24s8.optimalTilingFeatures & VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT) != 0;
-    LOG_INFO("render", "Vulkan %u.%u.%u: %s (driver %08x)%s", VK_API_VERSION_MAJOR(properties.apiVersion),
+    LOG_INFO("render", "Vulkan %u.%u.%u: %s (driver %s)%s", VK_API_VERSION_MAJOR(properties.apiVersion),
              VK_API_VERSION_MINOR(properties.apiVersion), VK_API_VERSION_PATCH(properties.apiVersion),
-             properties.deviceName, properties.driverVersion, has_d24s8 ? "" : ", depth 32-bit float (no D24S8)");
+             properties.deviceName, driver_version(properties).c_str(),
+             has_d24s8 ? "" : ", depth 32-bit float (no D24S8)");
     return true;
 }
 
