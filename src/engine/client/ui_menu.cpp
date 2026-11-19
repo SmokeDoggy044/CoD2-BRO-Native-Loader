@@ -2163,12 +2163,22 @@ PLATFORM_ASM_ENTRY(UIRoot_DrawHud_entry,
                    "pushl %esi\n" PLATFORM_ASM_CALL(UIRoot_DrawHud) "addl $4, %esp\n"
                    "ret")
 
+namespace {
+// The game's cg_draw2D at 0: cgame leaves out what it draws over the view (crosshair, hints, letterbox), and the HUD
+// panels (compass, stance, ammo, health) go too - our Hide HUD key (input::Action::HideHud) toggles it.
+bool hud_hidden() {
+    static uint8_t* draw_2d = nullptr;
+    if (!draw_2d) draw_2d = Cvar_FindVar(text_at(0x008398a8));  // "cg_draw2D" (cgame registers it)
+    return draw_2d && field<int32_t>(draw_2d, 0x20) == 0;
+}
+}  // namespace
+
 void XB_CDECL UIRoot_DrawHud(uint8_t* root) {
     if (!root[0x49]) call(field<uint8_t*>(root, 0x20), 0x18);
     if (root[0x4f]) return;
     push_ui_scene();
     uint8_t* const active_dialogs = field<uint8_t*>(root, 0x30);
-    if (!active_dialogs || (field<int32_t>(active_dialogs, 0xc) < 0 && !root[0x49])) {
+    if ((!active_dialogs || (field<int32_t>(active_dialogs, 0xc) < 0 && !root[0x49])) && !hud_hidden()) {
         const ClientPcHooks& hooks = client_pc_hooks();
         if (hooks.hud_draw_begin) hooks.hud_draw_begin();
         call(field<uint8_t*>(root, 0x20), 0x14);  // HudManager_Draw

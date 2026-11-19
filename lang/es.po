@@ -454,6 +454,9 @@ msgstr "Usar / recargar"
 msgid "Previous weapon"
 msgstr "Arma anterior"
 
+msgid "Hide HUD"
+msgstr "Ocultar HUD"
+
 msgid "Press a button"
 msgstr "Pulsa un botón"
 

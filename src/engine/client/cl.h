@@ -80,7 +80,7 @@ ClientPcHooks& client_pc_hooks();
 // 0x9a-0x9d, buttons 0xd3-0xdc) run no binding: the pad gives its actions directly (src/input/bindings.h); Start
 // (Escape) and Back (Tab) keep theirs.
 constexpr int32_t kNativeKeyFirst = 0xdf;
-constexpr int32_t kNativeActionCount = 20;
+constexpr int32_t kNativeActionCount = 21;
 // The command a native action key runs (null: none, or not a native key while native actions are off).
 const char* native_key_command(int32_t key);
 

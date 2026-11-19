@@ -430,6 +430,9 @@ msgstr ""
 msgid "Lean right"
 msgstr ""
 
+msgid "Hide HUD"
+msgstr ""
+
 msgid "KEYBOARD"
 msgstr ""
 

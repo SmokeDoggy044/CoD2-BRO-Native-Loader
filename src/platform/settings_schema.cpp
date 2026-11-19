@@ -255,6 +255,7 @@ const SettingDef kSettings[] = {
     {"key-use-reload", "KEYS", T::Text, G::Controls, kLive | kHidden, 0, 0, nullptr, "", "", "keys", "use-reload"},
     {"key-raise-stance", "KEYS", T::Text, G::Controls, kLive | kHidden, 0, 0, nullptr, "", "", "keys", "raise-stance"},
     {"key-previous-weapon", "KEYS", T::Text, G::Controls, kLive | kHidden, 0, 0, nullptr, "", "", "keys", "previous-weapon"},
+    {"key-hide-hud", "KEYS", T::Text, G::Controls, kLive | kHidden, 0, 0, nullptr, "", "", "keys", "hide-hud"},
     {"pad", "LIST", T::Text, G::Controls, 0, 0, 0, nullptr, "",
      "gamepad bindings that differ from the Modern preset, e.g. \"jump=pad-a crouch=pad-b grenade=pad-lb\" "
      "(src/input/bindings.h); settings.ini keeps them as one pad-<action> line each"},
@@ -278,6 +279,7 @@ const SettingDef kSettings[] = {
     {"pad-use-reload", "BUTTONS", T::Text, G::Controls, kLive | kHidden, 0, 0, nullptr, "", "", "pad", "use-reload"},
     {"pad-raise-stance", "BUTTONS", T::Text, G::Controls, kLive | kHidden, 0, 0, nullptr, "", "", "pad", "raise-stance"},
     {"pad-previous-weapon", "BUTTONS", T::Text, G::Controls, kLive | kHidden, 0, 0, nullptr, "", "", "pad", "previous-weapon"},
+    {"pad-hide-hud", "BUTTONS", T::Text, G::Controls, kLive | kHidden, 0, 0, nullptr, "", "", "pad", "hide-hud"},
     // kLauncher: never passed to the game as an option (the game reads it from settings.ini itself).
     {"show-notice", "", T::Flag, G::Controls, kCommandLine | kHidden, 0, 0, nullptr, "",
      "show the one-time notice at the first menu even when it was seen, also in scripted runs (testing)"},
