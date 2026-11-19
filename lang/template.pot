@@ -298,7 +298,7 @@ msgstr ""
 msgid "Aim assist"
 msgstr ""
 
-msgid "Skip title screen"
+msgid "Skip intro"
 msgstr ""
 
 msgid "Sprint"
@@ -536,4 +536,19 @@ msgid "OK"
 msgstr ""
 
 msgid "A, B or Start on the controller, Enter or a click"
+msgstr ""
+
+msgid "The campaign has the game's own sprint (faster running with stamina), but the original game never lets you use it. Do you want to sprint in the campaign?"
+msgstr ""
+
+msgid "Off is the original game. You can change this at any time under Options > Controls > Sprint, or in the launcher."
+msgstr ""
+
+msgid "Keep it off (original)"
+msgstr ""
+
+msgid "Turn sprint on"
+msgstr ""
+
+msgid "Left / right to choose, A or Enter to confirm, B or Escape keeps it off"
 msgstr ""

@@ -658,6 +658,13 @@ void force_calls(const compare::TitleRegisters* saved, bool scene) {
 
 }  // namespace
 
+bool set_sprint_now(bool on) {
+    if (!(client_c(0x002abec0) && client_c(0x002abeb0))) return false;
+    game::client_pc_hooks().sprint = on;
+    return true;
+}
+
+
 int32_t campaign_level() { return g_campaign ? title<int32_t>(g_start_sites.campaign_level) : -1; }
 
 namespace {
@@ -2740,10 +2747,10 @@ void install_title_patches(const TitleInfo& title, const TitlePatchConfig& confi
             game::client_pc_hooks().letterbox_bars = false;
             LOG_INFO("patches", "cutscene bars off");
         }
-        // Skip Title Screen: read by our TitleMenu_Update only (where the original runs, nothing changes).
-        if (config.skip_title && campaign) {
-            game::client_pc_hooks().skip_title = true;
-            LOG_INFO("patches", "title screen skipped");
+        // Skip Intro: read by our start-up movie list and TitleMenu_Update only (where the original runs, nothing changes).
+        if (config.skip_intro && campaign) {
+            game::client_pc_hooks().skip_intro = true;
+            LOG_INFO("patches", "intro skipped");
         }
         if (config.more_bodies && campaign && client_c(0x00273790) && client_c(0x0024fe60)) {
             game::client_pc_hooks().more_bodies = true;

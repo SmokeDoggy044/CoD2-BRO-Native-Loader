@@ -299,8 +299,8 @@ msgstr "Sensibilità mouse"
 msgid "Aim assist"
 msgstr "Mira assistita"
 
-msgid "Skip title screen"
-msgstr "Salta la schermata del titolo"
+msgid "Skip intro"
+msgstr "Salta l'introduzione"
 
 msgid "Button prompts"
 msgstr "Icone dei tasti"

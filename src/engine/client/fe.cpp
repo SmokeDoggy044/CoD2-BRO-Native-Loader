@@ -3732,7 +3732,7 @@ uint32_t XB_CDECL FrontEndMenu_Update(const FrameIn* in, uint32_t entry_esp) {
             static constexpr uint32_t kMovies[3][2] = {
                 {0x0082cb08, 0x003369d9}, {0x0082cafc, 0x003369fb}, {0x0082cbd8, 0x00336a1d}};  // ATVI, Treyarch
             for (const auto& movie : kMovies) {
-                if (title_global<uint8_t>(0x0095f91c)) break;
+                if (title_global<uint8_t>(0x0095f91c) || client_pc_hooks().skip_intro) break;  // our Skip Intro
                 f.regs.esi = movie[0];
                 title_global<uint8_t>(0x0095f46d) = 1;
                 f.call(0x24, movie[1], own_address(&CL_PlayMovie_entry), 0x0082dfeb);

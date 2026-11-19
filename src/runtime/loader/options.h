@@ -89,7 +89,7 @@ struct Options {
     bool sprint = false;          // --sprint (loader::TitlePatchConfig::sprint)
     bool letterbox = true;        // --letterbox (loader::TitlePatchConfig::letterbox)
     bool more_bodies = false;     // --more-bodies (loader::TitlePatchConfig::more_bodies)
-    bool skip_title = false;      // --skip-title (loader::TitlePatchConfig::skip_title)
+    bool skip_intro = false;      // --skip-intro (loader::TitlePatchConfig::skip_intro)
     std::string sprint_duration = "1.5";  // --sprint-duration: seconds, or "unlimited"
     bool glow = false;            // --glow (loader::TitlePatchConfig::glow)
     int32_t frame_rate = 0;  // --fps: 0 = the display's rate (loader::TitlePatchConfig::frame_rate)

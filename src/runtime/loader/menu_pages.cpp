@@ -104,7 +104,7 @@ const std::vector<PageDef>& pages() {
          {setting("resampler"), setting("more-voices"), setting("stereo-scenes"), setting("reverb-clutter")}},
         {"output", "OUTPUT", {setting("speakers"), setting("silent")}},
         {"controls", "CONTROLS",
-         {setting("mouse-sensitivity"), setting("aim-assist"), setting("skip-title"), setting("sprint"), setting("sprint-duration"), setting("button-prompts"),
+         {setting("mouse-sensitivity"), setting("aim-assist"), setting("skip-intro"), setting("sprint"), setting("sprint-duration"), setting("button-prompts"),
           link("controller", "Controller"), link("keys1", "Keyboard")}},
         // One scrolling page each (1.0.6): the gamepad's preset, the game's own controller settings (its Controller
         // screen's) and every binding; the pad gives these actions directly in play, Start and Back stay pause and

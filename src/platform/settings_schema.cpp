@@ -303,9 +303,9 @@ const SettingDef kSettings[] = {
     {"more-bodies", "on|off", T::Switch, G::Graphics, 0, 0, 0, nullptr, "off",
      "keep up to 16 fallen soldiers instead of the game's 10 before the farthest one is removed (16 is the game's "
      "own maximum; default off; campaign only)"},
-    {"skip-title", "on|off", T::Switch, G::Controls, 0, 0, 0, nullptr, "off",
-     "go straight past the \"Press START\" title screen to the profiles (default off = as on the Xbox, where it "
-     "picks the controller you play with)"},
+    {"skip-intro", "on|off", T::Switch, G::Controls, 0, 0, 0, nullptr, "off",
+     "at start-up, after the copyright screen, go straight to the profiles: no ATVI, Treyarch and intro movies and no "
+     "\"Press START\" title screen (default off = as on the Xbox)"},
     {"sprint", "on|off", T::Switch, G::Controls, 0, 0, 0, nullptr, "off",
      "sprint while the Sprint key (Shift; L3 on a controller) is held: the game's own sprint (speed, stamina, "
      "weapon pose), which its campaign leaves unbound (default off = as on the Xbox; campaign only)"},
@@ -621,9 +621,9 @@ const SettingUi kUi[] = {
     {"more-bodies", nullptr, "More bodies",
      "The game keeps 10 fallen soldiers and removes the farthest one when another falls. On: 16, the most the game "
      "can hold. Campaign only."},
-    {"skip-title", nullptr, "Skip title screen",
-     "Go straight from the intro to the profiles, without the \"Press START\" screen. On the Xbox that screen picks "
-     "the controller you play with; on a PC every keyboard, mouse and controller already counts. Off: as on the Xbox."},
+    {"skip-intro", nullptr, "Skip intro",
+     "At start-up, after the copyright screen, go straight to the profiles: the ATVI, Treyarch and intro movies and "
+     "the \"Press START\" screen are left out. Off: as on the Xbox."},
     {"sprint", nullptr, "Sprint",
      "Hold the Sprint key (Shift, or L3 on a controller) while moving to sprint. The campaign has the game's own "
      "sprint (faster running, stamina, the weapon lowered, no firing) but never lets you use it; this turns it on. "

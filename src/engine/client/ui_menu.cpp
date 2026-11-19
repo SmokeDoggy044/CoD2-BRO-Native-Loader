@@ -2893,9 +2893,9 @@ void XB_THISCALL FrontEndMenu_OnButtonDown(uint8_t* mgr, int32_t bit, int32_t pa
 void XB_THISCALL TitleMenu_Update(uint8_t* menu, float) {
     menu[0x3c] = 0;
     if (title_global<uint8_t>(0x0095f91e)) return;
-    // Skip Title Screen (ClientPcHooks::skip_title): once the screen shows (TitleMenu_Draw's condition), port 0 is
+    // Skip Intro (ClientPcHooks::skip_intro): once the screen shows (TitleMenu_Draw's condition), port 0 is
     // the active pad, as UIScreenMgr_HandleInput makes the first pad that presses a button, and START is accepted.
-    if (client_pc_hooks().skip_title && title_global<uint8_t>(0x0095f91b) == 1 && field<int32_t>(menu, 0x40) == 0) {
+    if (client_pc_hooks().skip_intro && title_global<uint8_t>(0x0095f91b) == 1 && field<int32_t>(menu, 0x40) == 0) {
         title_global<int32_t>(0x008dcf18) = 0;
         title_global<int32_t>(0x008d50d8) = 0;
         field<int32_t>(title_global<uint8_t*>(0x0095f6fc), 0x44d0) = 0;  // g_liveMgr
