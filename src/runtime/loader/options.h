@@ -61,6 +61,7 @@ struct Options {
     float field_of_view = 0;      // cg_fov; 0: the game's own (70)
     float aspect = 16.0f / 9.0f;  // with widescreen: the picture's shape (wider than 16:9: experimental)
     uint32_t language = 1;  // XC_LANGUAGE
+    std::string text_language = "game";  // --text-language game|polish (game_texts.h, ui_text.h)
     uint32_t screenshot_interval = 0;
     std::optional<fs::path> screenshot_dir;
     bool silent = false;

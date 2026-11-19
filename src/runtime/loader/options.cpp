@@ -135,6 +135,8 @@ bool apply_setting(Options& o, Combined& combined, const platform::SettingDef& d
         o.symbols = fs::path(v);
     } else if (key == "multiplayer") {
         o.multiplayer = on;
+    } else if (key == "text-language") {
+        o.text_language = v;
     } else if (key == "language") {
         static constexpr std::pair<std::string_view, uint32_t> kLanguages[] = {
             {"english", 1}, {"german", 3}, {"french", 4}, {"spanish", 5}, {"italian", 6}};

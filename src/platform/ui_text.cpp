@@ -25,6 +25,7 @@ struct Language {
 
 std::mutex g_mutex;
 std::string g_dir;
+std::string g_text_language;  // set_text_language
 std::unordered_map<std::string, std::unique_ptr<Language>> g_languages;
 
 fs::path text_dir() {
@@ -198,19 +199,62 @@ std::string utf8_to_cp1252(std::string_view text) {
     return out;
 }
 
+void set_text_language(const std::string& code) {
+    std::lock_guard lock(g_mutex);
+    g_text_language = code;
+}
+
+bool polish_text() { return g_text_language == "pl"; }
+
+std::string ui_text_dir() {
+    std::lock_guard lock(g_mutex);
+    return text_dir().string();
+}
+
+std::string utf8_to_game_text(std::string_view text) {
+    if (!polish_text()) return utf8_to_cp1252(text);
+    // The Polish letters' Windows-1250 codes; everything else as Windows-1252.
+    static constexpr struct {
+        const char* utf8;
+        char code;
+    } kPolish[] = {{"ą", '\xB9'}, {"ć", '\xE6'}, {"ę", '\xEA'}, {"ł", '\xB3'}, {"ń", '\xF1'}, {"ś", '\x9C'},
+                   {"ź", '\x9F'}, {"ż", '\xBF'}, {"Ą", '\xA5'}, {"Ć", '\xC6'}, {"Ę", '\xCA'}, {"Ł", '\xA3'},
+                   {"Ń", '\xD1'}, {"Ś", '\x8C'}, {"Ź", '\x8F'}, {"Ż", '\xAF'}};
+    std::string out;
+    for (size_t i = 0; i < text.size();) {
+        bool done = false;
+        for (const auto& p : kPolish)
+            if (text.substr(i).starts_with(p.utf8)) {
+                out += p.code;
+                i += std::string_view(p.utf8).size();
+                done = true;
+                break;
+            }
+        if (done) continue;
+        size_t length = 1;
+        const unsigned char c = static_cast<unsigned char>(text[i]);
+        if ((c & 0xe0) == 0xc0) length = 2;
+        else if ((c & 0xf0) == 0xe0) length = 3;
+        else if ((c & 0xf8) == 0xf0) length = 4;
+        out += utf8_to_cp1252(text.substr(i, length));
+        i += length;
+    }
+    return out;
+}
+
 const char* ui_text(int index, const char* english) {
     std::lock_guard lock(g_mutex);
-    Language* lang = language(ui_language_code(index));
+    Language* lang = language(g_text_language.empty() ? ui_language_code(index) : g_text_language.c_str());
     const auto found = lang->utf8.find(english);
     if (found == lang->utf8.end()) return english;
     auto [it, added] = lang->cp1252.try_emplace(found->first);
-    if (added) it->second = utf8_to_cp1252(found->second);
+    if (added) it->second = utf8_to_game_text(found->second);
     return it->second.c_str();
 }
 
 std::optional<std::string> ui_text_utf8(int index, std::string_view english) {
     std::lock_guard lock(g_mutex);
-    Language* lang = language(ui_language_code(index));
+    Language* lang = language(g_text_language.empty() ? ui_language_code(index) : g_text_language.c_str());
     const auto found = lang->utf8.find(std::string(english));
     if (found == lang->utf8.end()) return std::nullopt;
     return found->second;

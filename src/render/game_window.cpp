@@ -242,7 +242,9 @@ bool GameWindow::init_menu() {
     int window_width = 0, window_height = 0;
     SDL_GetWindowSize(window_, &window_width, &window_height);
     const float size = std::clamp(static_cast<float>(window_height) / 34.0f, 15.0f, 48.0f);
-    if (menu_font_.empty() || !io.Fonts->AddFontFromFileTTF(menu_font_.c_str(), size)) {
+    // Latin-1 and Latin Extended-A (the Polish letters of our texts), general punctuation.
+    static const ImWchar kRanges[] = {0x0020, 0x00FF, 0x0100, 0x017F, 0x2000, 0x206F, 0};
+    if (menu_font_.empty() || !io.Fonts->AddFontFromFileTTF(menu_font_.c_str(), size, nullptr, kRanges)) {
         ImFontConfig font;
         font.SizePixels = std::round(size);
         io.Fonts->AddFontDefault(&font);

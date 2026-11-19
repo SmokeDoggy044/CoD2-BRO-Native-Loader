@@ -30,6 +30,16 @@ std::optional<std::string> ui_text_utf8(int index, std::string_view english);
 // UTF-8 to Windows-1252; characters it has no code for become '?'.
 std::string utf8_to_cp1252(std::string_view text);
 
+// The text language (the text-language setting): our texts in `code` ("pl") whatever the game's language, and the
+// game's character set with Polish letters on their Windows-1250 codes (the fonts get them: text::
+// set_sharp_text_polish). Empty: the game's language and Windows-1252. Set before any text is asked for.
+void set_text_language(const std::string& code);
+bool polish_text();
+// Where the language files are (lang/ next to the program, else the source tree's).
+std::string ui_text_dir();
+// UTF-8 to the game's character set as it stands (utf8_to_cp1252, plus the Polish letters with Polish text).
+std::string utf8_to_game_text(std::string_view text);
+
 // Where the language files are (tests): `dir`/<code>.po. Default: lang/ next to the program, else the source tree's.
 void set_ui_text_dir(const std::string& dir);
 

@@ -125,7 +125,7 @@ std::map<uint32_t, std::string> read_corrections(const fs::path& path) {
     std::string ignored;
     bool fuzzy = false;
     auto finish = [&] {
-        if (hash && !text.empty() && !fuzzy) out[*hash] = platform::utf8_to_cp1252(text);
+        if (hash && !text.empty() && !fuzzy) out[*hash] = platform::utf8_to_game_text(text);
         hash.reset(), text.clear(), fuzzy = false, reading = nullptr;
     };
     for (std::string line; std::getline(file, line);) {
@@ -150,6 +150,7 @@ std::map<uint32_t, std::string> read_corrections(const fs::path& path) {
 }
 
 std::map<uint32_t, std::string> g_corrections;
+std::map<uint32_t, std::string> g_translation;  // the text language's (lang/game/<code>.po), under everything else
 
 // --- PC wording ---
 
@@ -207,16 +208,15 @@ input::Bindings g_bindings;
 int32_t g_language = -1;
 
 void apply(bool keyboard) {
-    std::vector<std::pair<uint32_t, std::string>> overrides;
+    std::map<uint32_t, std::string> texts = g_translation;
     const int32_t language = game::title_global<int32_t>(0x0095f5dc);  // g_languageIndex
     if (keyboard) {
         for (const PcWording& w : kPcWording) {
-            if (!w.english || g_corrections.count(w.hash)) continue;
-            overrides.emplace_back(w.hash, with_keys(platform::ui_text(language, w.english), g_bindings));
+            if (w.english) texts[w.hash] = with_keys(platform::ui_text(language, w.english), g_bindings);
         }
     }
-    for (const auto& [hash, text] : g_corrections) overrides.emplace_back(hash, text);
-    game::loc_set_overrides(std::move(overrides));
+    for (const auto& [hash, text] : g_corrections) texts[hash] = text;
+    game::loc_set_overrides(std::vector<std::pair<uint32_t, std::string>>(texts.begin(), texts.end()));
 }
 
 }  // namespace
@@ -243,6 +243,12 @@ void start_game_texts(const fs::path& template_path) {
         } else {
             LOG_WARN("text", "cannot write the game text template %s", template_path.string().c_str());
         }
+    }
+    if (platform::polish_text()) {
+        const fs::path translation = fs::path(platform::ui_text_dir()) / "game" / "pl.po";
+        g_translation = read_corrections(translation);
+        LOG_INFO("text", "text language Polish: %zu game texts from %s", g_translation.size(),
+                 translation.string().c_str());
     }
     const fs::path corrections = platform::user_data_dir() / "text_overrides.po";
     g_corrections = read_corrections(corrections);

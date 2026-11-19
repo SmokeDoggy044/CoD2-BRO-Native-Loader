@@ -10,6 +10,7 @@ language, using the file here for it:
 | French        | `fr.po` |
 | Spanish       | `es.po` |
 | Italian       | `it.po` |
+| Polish (text language) | `pl.po` |
 
 A text without a translation stays English. The first versions of these files were drafted by an AI (Claude);
 corrections from native speakers are welcome as pull requests.
@@ -32,3 +33,20 @@ msgstr "Campo de visión"
 
 `template.pot` lists every text. It is written by the program: `cod_bro --lang-template lang/template.pot`.
 After a new text is added, the test `ui_text_test` lists the files that miss it.
+
+## Polish: the game's own texts too
+
+The Text language setting (launcher, or Graphics > Screen) set to Polish shows every text on screen in Polish -
+menus, hints, objectives and subtitles - while the game itself (its voices) stays in the disc's language.
+`game/pl.po` holds the game's texts (2628 of them), `pl.po` ours. The game's fonts get the Polish letters drawn
+in for this (Sharper text is switched on with it).
+
+The first version of both was drafted by an AI (Claude) and has not been checked by a native speaker yet:
+corrections are very welcome. In `game/pl.po` each entry is keyed by `msgctxt` (the game's string key); `msgid` is
+the English text for reference. Keep `[TOKENS]`, `~tokens`, `%s`, the subtitle timings at the start ("12.34|15.60|"
+or "5|") and the `|` line breaks; a `|` may be added to split a long subtitle line in two.
+
+To fix a line for yourself without editing the release's file, copy the entry into `text_overrides.po` in your
+data folder (`%APPDATA%\cod_bro` or `~/.local/share/cod_bro`) and change its `msgstr` there; it wins over
+`game/pl.po` (this works in any language). `cod_bro --game-text-template FILE` writes every text a session loads
+with its key, to find one.

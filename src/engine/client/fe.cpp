@@ -4396,8 +4396,33 @@ int32_t button_token_key(const ButtonToken& token) {
 
 }  // namespace
 
+namespace {
+const char* expand_button_token(const char* token);
+}  // namespace
+
+// A word that is a token with punctuation after it ("[USE_RIGHT_STICK]," - translations put commas there; the words
+// come split at spaces only) expands too, the punctuation kept (ours: the original matches whole words only).
 const char* XB_THISCALL UIText_ExpandButtonToken(uint8_t*, const char* token) {
     if (!token) return nullptr;
+    const char* expanded = expand_button_token(token);
+    if (expanded != token || (token[0] != '[' && token[0] != '~')) return expanded;
+    const size_t length = std::strlen(token);
+    size_t end = length;
+    while (end > 1 && std::strchr(",.;:!?)", token[end - 1])) --end;
+    if (end == length || end >= 0x80) return expanded;
+    char bare[0x80];
+    std::memcpy(bare, token, end);
+    bare[end] = 0;
+    const char* const word = expand_button_token(bare);
+    if (!std::strcmp(word, bare)) return token;  // not a token after all
+    static char joined[0x200];  // the caller copies it at once (UIText_LocalizeWords)
+    std::snprintf(joined, sizeof(joined), "%s%s", word, token + end);
+    return joined;
+}
+
+namespace {
+
+const char* expand_button_token(const char* token) {
     for (const ButtonToken& entry : kGlyphTokens) {
         if (std::strcmp(token, text_at(entry.name))) continue;
         const int32_t key = button_token_key(entry);
@@ -4421,6 +4446,8 @@ const char* XB_THISCALL UIText_ExpandButtonToken(uint8_t*, const char* token) {
         if (!std::strcmp(token, text_at(entry[0]))) return Loc_GetString(text_at(entry[1]));
     return token;
 }
+
+}  // namespace
 
 // --- Unreached slots (host_unreached 2026-11-12) ---
 

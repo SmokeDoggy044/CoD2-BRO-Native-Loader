@@ -56,6 +56,9 @@ struct TitleHost {
     // and a 16:9 picture.
     uint32_t language = 1;
     bool widescreen = false;
+    // A font table to read instead of the pack's (Polish text: text::polish_font_table), or null for the pack's own.
+    // `name` as the pack names the font. The returned text is the title's to parse (and keep).
+    char* (*font_table)(const char* name) = nullptr;
 
     // Where the calling title thread's exception chain (FS:[0]) ends: 0xFFFFFFFF, or on Windows the host thread's
     // own first record (title_seh.cpp stops there). Null = 0xFFFFFFFF.

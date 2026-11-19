@@ -56,6 +56,9 @@ const SettingDef kSettings[] = {
      "loader, or tools/data)"},
     {"language", "L", T::Choice, G::Files, 0, 0, 0, "english|german|french|spanish|italian", "english",
      "the console language; the game uses it where its disc has that language"},
+    {"text-language", "game|polish", T::Choice, G::Files, 0, 0, 0, "game|polish", "game",
+     "the language of the texts on screen (menus, hints, subtitles): the game's own, or Polish (our translation, "
+     "lang/game/pl.po; the voices stay in the game's language)"},
     {"memory", "MB", T::Int, G::Files, 0, 16, 1024, nullptr, "64",
      "Xbox memory budget (default 64, like a retail Xbox; devkit: 128)"},
 
@@ -462,6 +465,9 @@ const SettingUi kUi[] = {
      "log lists the disc's languages.",
      "English|German|French|Spanish|Italian"},
     // Renderer first: the launcher's Graphics tab starts with it
+    {"text-language", nullptr, "Text language",
+     "The language of the texts on screen: menus, hints and subtitles. Polish is our own translation (lang/game/pl.po, "
+     "corrections welcome); the voices stay in the game's language.", "Game|Polski"},
     {"renderer", "Renderer", "Renderer",
      "Vulkan is the renderer of our own engine (needs a Vulkan 1.3 graphics driver; without one the game uses "
      "Direct3D 9 by itself). Choose Direct3D 9 if the picture or the speed is wrong with Vulkan.",

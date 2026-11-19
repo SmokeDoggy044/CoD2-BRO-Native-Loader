@@ -552,3 +552,12 @@ msgstr "Pulsa {aim-toggle}"
 
 msgid "Press and hold [AIM] to setup your weapon"
 msgstr "Mantén pulsado [AIM] para montar tu arma"
+
+msgid "Text language"
+msgstr "Idioma de los textos"
+
+msgid "Game"
+msgstr "Juego"
+
+msgid "Polski"
+msgstr "Polski"

@@ -17,6 +17,8 @@
 #include <utility>
 #include <vector>
 
+#include "sharp_text.h"
+#include "ui_text.h"
 #include "game_texts.h"
 #include "bindings.h"
 #include "compare.h"
@@ -164,6 +166,10 @@ int host_main(int argc, char** argv) {
                                            loader::sprint_seconds(options.sprint_duration), options.letterbox,
                                            options.more_bodies, options.skip_intro,
                                            options.hit_markers});
+    if (options.text_language == "polish") {  // before any text or font (ui_text.h, sharp_text.h)
+        platform::set_text_language("pl");
+        text::set_sharp_text_polish(true);
+    }
     loader::start_game_texts(options.game_text_template);
     if (!loader::prepare_fs_access(image)) return loader::startup_failed("cannot prepare the game's code");
     loader::configure_title_services(options, *assets, *title, aspect, [] {

@@ -552,3 +552,12 @@ msgstr "Drücke {aim-toggle}"
 
 msgid "Press and hold [AIM] to setup your weapon"
 msgstr "Halte [AIM] gedrückt, um deine Waffe aufzustellen"
+
+msgid "Text language"
+msgstr "Textsprache"
+
+msgid "Game"
+msgstr "Spiel"
+
+msgid "Polski"
+msgstr "Polski"
