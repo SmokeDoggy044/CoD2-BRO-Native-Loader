@@ -226,6 +226,8 @@ bool apply_setting(Options& o, Combined& combined, const platform::SettingDef& d
         o.letterbox = on;
     } else if (key == "more-bodies") {
         o.more_bodies = on;
+    } else if (key == "hit-markers") {
+        o.hit_markers = on;
     } else if (key == "skip-intro") {
         o.skip_intro = on;
     } else if (key == "sprint-duration") {

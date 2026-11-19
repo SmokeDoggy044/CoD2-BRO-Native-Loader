@@ -2752,6 +2752,10 @@ void install_title_patches(const TitleInfo& title, const TitlePatchConfig& confi
             game::client_pc_hooks().skip_intro = true;
             LOG_INFO("patches", "intro skipped");
         }
+        if (config.hit_markers && campaign && client_c(0x00250340) && client_c(0x00285f80)) {
+            game::client_pc_hooks().hit_markers = true;
+            LOG_INFO("patches", "hit markers on");
+        }
         if (config.more_bodies && campaign && client_c(0x00273790) && client_c(0x0024fe60)) {
             game::client_pc_hooks().more_bodies = true;
             LOG_INFO("patches", "more bodies: up to 16");

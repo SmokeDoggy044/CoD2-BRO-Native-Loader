@@ -85,6 +85,9 @@ msgstr ""
 msgid "Cutscene bars"
 msgstr ""
 
+msgid "Hit markers"
+msgstr ""
+
 msgid "Language"
 msgstr ""
 

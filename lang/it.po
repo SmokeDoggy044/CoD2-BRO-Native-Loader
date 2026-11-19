@@ -534,3 +534,6 @@ msgstr "Sinistra / destra per scegliere, A o Invio per confermare, B o Esc lo la
 
 msgid "Game cursor"
 msgstr "Cursore del gioco"
+
+msgid "Hit markers"
+msgstr "Indicatori di colpo"

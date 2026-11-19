@@ -72,6 +72,8 @@ struct ClientPcHooks {
     bool letterbox_bars = true;
     // Set (More Bodies): the corpse limit is the game's maximum, 16, instead of ai_corpseCount (10).
     bool more_bodies = false;
+    // Set (the Hit Markers setting): CG_Draw2D marks the player's hits round the crosshair (cgame.h CG_NoteHitMarker).
+    bool hit_markers = false;
     // Set (the Skip Intro setting): after the copyright screen the start-up movies are left out (as when a button
     // skips them), and TitleMenu_Update accepts the title screen as soon as it shows, for port 0 (where the keyboard,
     // mouse and pad all arrive), as if START had been pressed there.

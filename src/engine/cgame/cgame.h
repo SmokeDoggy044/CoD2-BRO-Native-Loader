@@ -379,6 +379,10 @@ extern "C" void CG_DrawAdsOverlay_entry(void);
 // centre shader (+0x4bc) and the two spread ticks (+0x4c0: shader 0x00976064 through CG_StretchPicRotate, spread
 // BG_GetWeaponSpread blended to +0x658 by 0x00972a40 / 255, scaled by the fov, at least +0x4cc).
 void XB_CDECL CG_DrawWeaponReticle();
+// Hit markers (ours, ClientPcHooks::hit_markers): G_Damage notes a hit (or a kill) by the player on an actor or a
+// vehicle; CG_Draw2D draws four short strokes round the crosshair for 300 ms - white for a hit, red for a kill.
+void CG_NoteHitMarker(bool kill);
+void CG_DrawHitMarker();
 // 0x00285f80: the 2D pass of a frame - fades, damage, hud elements, crosshair and weapon hud,
 // checkpoint, objectives or the centre print, subtitles - in a pushed 2D scene.
 void XB_CDECL CG_Draw2D();

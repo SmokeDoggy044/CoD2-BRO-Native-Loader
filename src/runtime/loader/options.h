@@ -90,6 +90,7 @@ struct Options {
     bool sprint = false;          // --sprint (loader::TitlePatchConfig::sprint)
     bool letterbox = true;        // --letterbox (loader::TitlePatchConfig::letterbox)
     bool more_bodies = false;     // --more-bodies (loader::TitlePatchConfig::more_bodies)
+    bool hit_markers = false;     // --hit-markers (loader::TitlePatchConfig::hit_markers)
     bool skip_intro = false;      // --skip-intro (loader::TitlePatchConfig::skip_intro)
     std::string sprint_duration = "1.5";  // --sprint-duration: seconds, or "unlimited"
     bool glow = false;            // --glow (loader::TitlePatchConfig::glow)

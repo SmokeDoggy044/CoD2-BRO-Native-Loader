@@ -534,3 +534,6 @@ msgstr "Gauche / droite pour choisir, A ou Entrée pour confirmer, B ou Échap l
 
 msgid "Game cursor"
 msgstr "Curseur du jeu"
+
+msgid "Hit markers"
+msgstr "Marqueurs de touche"

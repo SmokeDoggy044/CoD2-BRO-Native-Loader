@@ -74,7 +74,7 @@ const std::vector<PageDef>& pages() {
         {"display", "DISPLAY",
          {setting("fullscreen"), setting("game-cursor"), setting("scale"), setting("aspect"), setting("render-scale"), setting("fps")}},
         {"screen", "SCREEN",
-         {setting("brightness"), setting("fov"), setting("sharp-text"), setting("letterbox"), setting("language")}},
+         {setting("brightness"), setting("fov"), setting("sharp-text"), setting("letterbox"), setting("hit-markers"), setting("language")}},
         {"image", "IMAGE QUALITY",
          {setting("fxaa", "Anti-aliasing"), setting("anisotropic"), setting("anisotropy"), setting("sharpen"),
           setting("sharpness"), setting("vibrance"), setting("vibrance-amount")}},

@@ -302,6 +302,9 @@ const SettingDef kSettings[] = {
     {"letterbox", "on|off", T::Switch, G::Graphics, 0, 0, 0, nullptr, "on",
      "the black bars at the top and bottom during the campaign's cutscenes (default on = as in the game; off: the "
      "full picture, the cutscene otherwise unchanged)"},
+    {"hit-markers", "on|off", T::Switch, G::Graphics, 0, 0, 0, nullptr, "off",
+     "short strokes round the crosshair when your shot hits (white) or kills (red) (default off = as in the game; "
+     "campaign only)"},
     {"more-bodies", "on|off", T::Switch, G::Graphics, 0, 0, 0, nullptr, "off",
      "keep up to 16 fallen soldiers instead of the game's 10 before the farthest one is removed (16 is the game's "
      "own maximum; default off; campaign only)"},
@@ -622,6 +625,9 @@ const SettingUi kUi[] = {
     {"letterbox", nullptr, "Cutscene bars",
      "The black bars at the top and bottom of the screen during cutscenes. Off: the full picture; the cutscenes are "
      "otherwise unchanged."},
+    {"hit-markers", nullptr, "Hit markers",
+     "Four short strokes round the crosshair when your shot hits an enemy: white for a hit, red for a kill. Off: as in "
+     "the game. Campaign only."},
     {"more-bodies", nullptr, "More bodies",
      "The game keeps 10 fallen soldiers and removes the farthest one when another falls. On: 16, the most the game "
      "can hold. Campaign only."},

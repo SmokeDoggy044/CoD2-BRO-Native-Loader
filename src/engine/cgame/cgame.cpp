@@ -2,6 +2,7 @@
 
 #include <cmath>
 #include <cstdarg>
+#include <algorithm>
 #include <cstring>
 
 #include "bg_misc.h"
@@ -2895,6 +2896,50 @@ void XB_CDECL CG_DrawWeaponReticle() {
     set_color(nullptr);
 }
 
+namespace {
+int32_t g_hit_pending = 0;      // 1 hit, 2 kill: noted by the game, stamped with cg.time when next drawn
+int32_t g_hit_start = -100000;  // cg.time the marker started
+bool g_hit_kill = false;
+constexpr int32_t kHitMarkerMs = 300;
+}  // namespace
+
+void CG_NoteHitMarker(bool kill) {
+    if (!client_pc_hooks().hit_markers) return;
+    g_hit_pending = std::max(g_hit_pending, kill ? 2 : 1);
+}
+
+void CG_DrawHitMarker() {
+    if (!client_pc_hooks().hit_markers) return;
+    const int32_t now = cg_time();
+    if (g_hit_pending) {
+        g_hit_kill = g_hit_pending == 2 || (g_hit_kill && now - g_hit_start < kHitMarkerMs);
+        g_hit_start = now;
+        g_hit_pending = 0;
+    }
+    const int32_t age = now - g_hit_start;
+    if (age < 0 || age >= kHitMarkerMs) return;
+    const float alpha = 1.0f - static_cast<float>(age) / kHitMarkerMs;
+    const float colour[4] = {1.0f, g_hit_kill ? 0.2f : 1.0f, g_hit_kill ? 0.15f : 1.0f, alpha};
+    const auto set_color = title_function<void XB_CDECL(const float*)>(title_global<uint32_t>(0x0092852c));
+    set_color(colour);
+    // Four strokes on the diagonals, from 6 to 13 units out of the screen's centre (640x480 units, scaled like the
+    // crosshair), 1.5 units wide: each a quad of its own corners in screen pixels.
+    constexpr float kInner = 6.0f, kOuter = 13.0f, kWidth = 1.5f;
+    const float xs = title_global<float>(0x009758b8), ys = title_global<float>(0x009758bc);  // cgs.screenX/YScale
+    const float cx = 320.0f * xs, cy = 240.0f * ys;
+    const float half_width = kWidth * 0.5f * ys;
+    const uint32_t white = title_global<uint32_t>(0x00975c3c);  // cgs.media.whiteShader
+    for (int i = 0; i < 4; ++i) {
+        const float dx = (i & 1) ? 0.70710678f : -0.70710678f, dy = (i & 2) ? 0.70710678f : -0.70710678f;
+        const float x0 = cx + dx * kInner * ys, y0 = cy + dy * kInner * ys;
+        const float x1 = cx + dx * kOuter * ys, y1 = cy + dy * kOuter * ys;
+        const float nx = -dy * half_width, ny = dx * half_width;  // across the stroke
+        const float verts[8] = {x0 + nx, y0 + ny, x1 + nx, y1 + ny, x1 - nx, y1 - ny, x0 - nx, y0 - ny};
+        title_function<DrawQuad>(title_global<uint32_t>(0x0092853c))(verts, &title_global<float>(0x00839a3c), white);
+    }
+    set_color(nullptr);
+}
+
 void XB_CDECL CG_Draw2D() {
     if (title_global<int32_t>(0x00971a88) || title_global<int32_t>(0x00971a8c)) return;
     nglPushScene(1);
@@ -2920,6 +2965,7 @@ void XB_CDECL CG_Draw2D() {
         // Over the intro screen the hud elements go on top.
         if (snapshot_ok()) {
             CG_DrawWeaponReticle();
+            CG_DrawHitMarker();
             if (weapon_hud()) CG_DrawViewDirIcon();
         }
         if (snapshot_ok() && title_global<int32_t>(0x00948c94)) CG_DrawHudElems();
@@ -2927,6 +2973,7 @@ void XB_CDECL CG_Draw2D() {
         if (snapshot_ok() && title_global<int32_t>(0x00948c94)) CG_DrawHudElems();
         if (snapshot_ok()) {
             CG_DrawWeaponReticle();
+            CG_DrawHitMarker();
             if (weapon_hud()) CG_DrawViewDirIcon();
         }
     }

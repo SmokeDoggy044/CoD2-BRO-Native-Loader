@@ -534,3 +534,6 @@ msgstr "Links / rechts zum Wählen, A oder Enter zum Bestätigen, B oder Escape 
 
 msgid "Game cursor"
 msgstr "Spiel-Mauszeiger"
+
+msgid "Hit markers"
+msgstr "Treffermarker"
