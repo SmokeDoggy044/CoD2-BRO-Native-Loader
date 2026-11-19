@@ -361,6 +361,9 @@ const SettingDef kSettings[] = {
     {"lang-template", "FILE", T::Path, G::Testing, kCli, 0, 0, nullptr, "",
      "write every text of our own that the game's menus show (the settings pages, our menu rows) to FILE as a "
      "gettext template (lang/template.pot, for translations) and end"},
+    {"game-text-template", "FILE", T::Path, G::Testing, kCli, 0, 0, nullptr, "",
+     "write every text of the game's own string tables this session loads (menus, hints, subtitles, by key hash) "
+     "to FILE as a gettext template; entries copied to text_overrides.po in the data folder replace those texts"},
     {"menu-walk", "SCRIPT DIR", T::Custom, G::Testing, kCli, 0, 0, nullptr, "",
      "unattended menu walk (testing): steps or @FILE (src/runtime/loader/menu_walk.h) that wait for menu screens, "
      "press pad buttons, move and click a scripted mouse and take pictures with the menu state into DIR"},

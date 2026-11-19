@@ -537,3 +537,18 @@ msgstr "Spiel-Mauszeiger"
 
 msgid "Hit markers"
 msgstr "Treffermarker"
+
+msgid "Use {move}"
+msgstr "Benutze {move}"
+
+msgid "Move the mouse"
+msgstr "Bewege die Maus"
+
+msgid "Press and hold {sprint}"
+msgstr "Halte {sprint} gedrückt"
+
+msgid "Press {aim-toggle}"
+msgstr "Drücke {aim-toggle}"
+
+msgid "Press and hold [AIM] to setup your weapon"
+msgstr "Halte [AIM] gedrückt, um deine Waffe aufzustellen"

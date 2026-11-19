@@ -537,3 +537,18 @@ msgstr "Cursor del juego"
 
 msgid "Hit markers"
 msgstr "Marcadores de impacto"
+
+msgid "Use {move}"
+msgstr "Usa {move}"
+
+msgid "Move the mouse"
+msgstr "Mueve el ratón"
+
+msgid "Press and hold {sprint}"
+msgstr "Mantén pulsado {sprint}"
+
+msgid "Press {aim-toggle}"
+msgstr "Pulsa {aim-toggle}"
+
+msgid "Press and hold [AIM] to setup your weapon"
+msgstr "Mantén pulsado [AIM] para montar tu arma"

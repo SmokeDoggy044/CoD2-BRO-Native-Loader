@@ -558,3 +558,18 @@ msgstr ""
 
 msgid "Left / right to choose, A or Enter to confirm, B or Escape keeps it off"
 msgstr ""
+
+msgid "Use {move}"
+msgstr ""
+
+msgid "Move the mouse"
+msgstr ""
+
+msgid "Press and hold {sprint}"
+msgstr ""
+
+msgid "Press {aim-toggle}"
+msgstr ""
+
+msgid "Press and hold [AIM] to setup your weapon"
+msgstr ""

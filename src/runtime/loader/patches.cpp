@@ -2,6 +2,7 @@
 // turned into no-ops. Addresses are for CoD2: BRO default.xbe (XDK 5849) unless a
 // table says codmp_xboxf.xbe (multiplayer).
 
+#include "game_texts.h"
 #include "patches.h"
 #include "pc_menu.h"
 
@@ -528,6 +529,7 @@ void update_button_prompts() {
     const bool keyboard = g_button_prompts == TitlePatchConfig::ButtonPrompts::Keyboard ||
                           (g_button_prompts == TitlePatchConfig::ButtonPrompts::Auto &&
                            input::last_device() == input::Device::Keyboard);
+    update_game_texts(keyboard);  // the PC wording of the game's texts follows the same device
     {  // --debug: which glyphs the prompts show, when that changes (reports of prompts that do not follow the pad)
         static int logged = -1;
         const int now = keyboard ? 0 : game::client_pc_hooks().native_actions && g_pad_prompts ? 1 : 2;

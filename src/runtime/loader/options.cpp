@@ -129,6 +129,8 @@ bool apply_setting(Options& o, Combined& combined, const platform::SettingDef& d
         o.xbe = fs::path(v);
     } else if (key == "data") {
         o.data = fs::path(v);
+    } else if (key == "game-text-template") {
+        o.game_text_template = fs::path(v);
     } else if (key == "symbols") {
         o.symbols = fs::path(v);
     } else if (key == "multiplayer") {

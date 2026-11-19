@@ -148,6 +148,7 @@ set(game_code_sources
     qcommon/qcommon.cpp
     qcommon/qcommon_core.cpp
     qcommon/qcommon_fs.cpp
+    qcommon/loc_overrides.cpp
     renderer/r_init.cpp
     renderer/r_static_init.cpp
     game/ragdoll.cpp

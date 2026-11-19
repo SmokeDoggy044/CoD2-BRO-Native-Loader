@@ -18,6 +18,7 @@
 #include <string_view>
 #include <vector>
 
+#include "game_texts.h"
 #include "bindings.h"
 #include "devices.h"
 
@@ -902,6 +903,7 @@ bool write_lang_template(const fs::path& path) {
     }
     // The one-time notice (pc_menu.cpp).
     for (const char* text : notice_texts()) add(text);
+    for (const char* text : game_text_texts()) add(text);
     FILE* out = std::fopen(path.string().c_str(), "wb");
     if (!out) {
         std::fprintf(stderr, "cannot write %s\n", path.string().c_str());

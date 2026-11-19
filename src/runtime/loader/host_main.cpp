@@ -17,6 +17,7 @@
 #include <utility>
 #include <vector>
 
+#include "game_texts.h"
 #include "bindings.h"
 #include "compare.h"
 #include "crash.h"
@@ -163,6 +164,7 @@ int host_main(int argc, char** argv) {
                                            loader::sprint_seconds(options.sprint_duration), options.letterbox,
                                            options.more_bodies, options.skip_intro,
                                            options.hit_markers});
+    loader::start_game_texts(options.game_text_template);
     if (!loader::prepare_fs_access(image)) return loader::startup_failed("cannot prepare the game's code");
     loader::configure_title_services(options, *assets, *title, aspect, [] {
         loader::run_fatal_exit_hook(false);
