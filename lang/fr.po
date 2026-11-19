@@ -516,3 +516,18 @@ msgstr "Les dispositions d'origine du jeu, chaque bouton, l'inversion, les vibra
 
 msgid "A, B or Start on the controller, Enter or a click"
 msgstr "A, B ou Start sur la manette, Entrée ou un clic"
+
+msgid "The campaign has the game's own sprint (faster running with stamina), but the original game never lets you use it. Do you want to sprint in the campaign?"
+msgstr "La campagne contient le sprint du jeu lui-même (course plus rapide avec endurance), mais le jeu d'origine ne vous laisse jamais l'utiliser. Voulez-vous sprinter dans la campagne ?"
+
+msgid "Off is the original game. You can change this at any time under Options > Controls > Sprint, or in the launcher."
+msgstr "Désactivé correspond au jeu d'origine. Vous pouvez le changer à tout moment dans Options > Commandes > Sprint, ou dans le lanceur."
+
+msgid "Keep it off (original)"
+msgstr "Laisser désactivé (origine)"
+
+msgid "Turn sprint on"
+msgstr "Activer le sprint"
+
+msgid "Left / right to choose, A or Enter to confirm, B or Escape keeps it off"
+msgstr "Gauche / droite pour choisir, A ou Entrée pour confirmer, B ou Échap le laisse désactivé"

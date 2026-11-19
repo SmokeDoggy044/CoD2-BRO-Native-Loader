@@ -215,11 +215,74 @@ bool draw_notice() {
     return open;
 }
 
+// The one-time sprint question (1.0.7): the campaign's own sprint stays off by default (as on the Xbox); after the
+// notice, at a menu, players are asked once whether they want it. settings.ini keeps `sprint-asked` (and `sprint =
+// on` for yes); not asked when sprint is already on.
+enum class Ask { Unknown, Pending, Showing, Done };
+std::atomic<Ask> g_ask{Ask::Unknown};
+std::atomic<int> g_ask_choice{0};   // the highlighted answer: 0 keep it off, 1 turn it on
+std::atomic<int> g_ask_answer{-1};  // a controller / key press answered (pc_menu_event)
+
+constexpr const char* kAskTitle = "Sprint";
+constexpr const char* kAskText =
+    "The campaign has the game's own sprint (faster running with stamina), but the original game never lets you use "
+    "it. Do you want to sprint in the campaign?";
+constexpr const char* kAskNote =
+    "Off is the original game. You can change this at any time under Options > Controls > Sprint, or in the launcher.";
+constexpr const char* kAskOff = "Keep it off (original)";
+constexpr const char* kAskOn = "Turn sprint on";
+constexpr const char* kAskHint = "Left / right to choose, A or Enter to confirm, B or Escape keeps it off";
+
+void ask_done(bool on) {
+    g_ask = Ask::Done;
+    platform::Settings file = platform::load_settings();
+    file.set("sprint-asked", "1");
+    if (on) file.set("sprint", "on");
+    if (!platform::save_settings(file))
+        LOG_WARN("loader", "cannot save the settings to %s", platform::settings_path().string().c_str());
+    const bool now = on && set_sprint_now(true);
+    LOG_INFO("loader", "sprint question: %s%s", on ? "on" : "kept off", on && !now ? " (from the next start)" : "");
+}
+
+bool draw_ask() {
+    const ImGuiViewport* viewport = ImGui::GetMainViewport();
+    ImGui::SetNextWindowPos(viewport->GetCenter(), ImGuiCond_Always, ImVec2(0.5f, 0.5f));
+    ImGui::SetNextWindowBgAlpha(0.92f);
+    bool open = true;
+    const std::string title = notice_text(kAskTitle) + "###sprint";
+    ImGui::Begin(title.c_str(), &open,
+                 ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoSavedSettings |
+                     ImGuiWindowFlags_NoMove);
+    ImGui::PushTextWrapPos(ImGui::GetFontSize() * 30.0f);
+    ImGui::TextWrapped("%s", notice_text(kAskText).c_str());
+    ImGui::Spacing();
+    ImGui::TextDisabled("%s", notice_text(kAskNote).c_str());
+    ImGui::PopTextWrapPos();
+    ImGui::Separator();
+    int answer = -1;
+    const char* labels[2] = {kAskOff, kAskOn};
+    for (int i = 0; i < 2; ++i) {
+        if (i) ImGui::SameLine();
+        const bool chosen = g_ask_choice.load() == i;
+        if (chosen) ImGui::PushStyleColor(ImGuiCol_Button, ImGui::GetStyleColorVec4(ImGuiCol_ButtonActive));
+        if (ImGui::Button(notice_text(labels[i]).c_str())) answer = i;
+        if (chosen) ImGui::PopStyleColor();
+        if (ImGui::IsItemHovered()) g_ask_choice = i;
+    }
+    ImGui::TextDisabled("%s", notice_text(kAskHint).c_str());
+    if (const int pressed = g_ask_answer.exchange(-1); pressed >= 0) answer = pressed;
+    ImGui::End();
+    if (!open) answer = 0;  // the window's close box: as it was
+    if (answer < 0) return true;
+    ask_done(answer == 1);
+    return false;
+}
+
 }  // namespace
 
 std::vector<const char*> notice_texts() {
     return {kNoticeTitle, kNoticeHeading, kNoticeIntro, kNoticeLine1, kNoticeLine2, kNoticeLine3, kNoticeOutro,
-            kNoticeOk, kNoticeHint};
+            kNoticeOk, kNoticeHint, kAskTitle, kAskText, kAskNote, kAskOff, kAskOn, kAskHint};
 }
 
 void set_notice_allowed(bool allowed, bool forced) {
@@ -236,9 +299,24 @@ void notice_poll() {
         g_notice = state;
         LOG_DEBUG("loader", "notice %s: %s", kNoticeId, state == Notice::Done ? "seen" : "pending (shows at the first menu)");
     }
-    if (state != Notice::Pending || !input::in_menu()) return;
-    g_notice = Notice::Showing;
-    LOG_DEBUG("loader", "notice %s: a menu shows, opening it", kNoticeId);
+    if (state == Notice::Pending && input::in_menu()) {
+        g_notice = Notice::Showing;
+        LOG_DEBUG("loader", "notice %s: a menu shows, opening it", kNoticeId);
+        render::request_pc_menu();
+        return;
+    }
+    if (state != Notice::Done) return;
+    Ask ask = g_ask.load();
+    if (ask == Ask::Unknown) {
+        const platform::Settings file = platform::load_settings();
+        const bool asked = file.get("sprint-asked").has_value() || file.get("sprint") == std::optional<std::string>("on");
+        ask = asked && !g_notice_forced.load() ? Ask::Done : Ask::Pending;
+        g_ask = ask;
+    }
+    if (ask != Ask::Pending || !input::in_menu()) return;
+    g_ask = Ask::Showing;
+    g_ask_choice = 0;
+    LOG_DEBUG("loader", "sprint question: a menu shows, opening it");
     render::request_pc_menu();
 }
 
@@ -250,6 +328,7 @@ void set_pc_menu_settings(bool on) { g_pc_menu_settings = on; }
 
 bool pc_menu() {
     if (g_notice.load() == Notice::Showing) return draw_notice();
+    if (g_ask.load() == Ask::Showing) return draw_ask();
     if (!g_pc_menu_settings) return false;
     const ImGuiViewport* viewport = ImGui::GetMainViewport();
     ImGui::SetNextWindowPos(viewport->GetCenter(), ImGuiCond_Always, ImVec2(0.5f, 0.5f));
@@ -306,6 +385,34 @@ bool pc_menu_event(const void* sdl_event) {
             return true;
         }
     }
+    // The sprint question: left / right choose, A, Start or Enter confirm, B or Escape keep it off.
+    if (g_ask.load() == Ask::Showing) {
+        const auto* event = static_cast<const SDL_Event*>(sdl_event);
+        if (event->type == SDL_EVENT_GAMEPAD_BUTTON_DOWN) {
+            switch (event->gbutton.button) {
+                case SDL_GAMEPAD_BUTTON_DPAD_LEFT: g_ask_choice = 0; return true;
+                case SDL_GAMEPAD_BUTTON_DPAD_RIGHT: g_ask_choice = 1; return true;
+                case SDL_GAMEPAD_BUTTON_SOUTH:
+                case SDL_GAMEPAD_BUTTON_START: g_ask_answer = g_ask_choice.load(); return true;
+                case SDL_GAMEPAD_BUTTON_EAST: g_ask_answer = 0; return true;
+                default: return true;
+            }
+        }
+        if (event->type == SDL_EVENT_GAMEPAD_AXIS_MOTION && event->gaxis.axis == SDL_GAMEPAD_AXIS_LEFTX) {
+            if (event->gaxis.value < -16000) g_ask_choice = 0;
+            if (event->gaxis.value > 16000) g_ask_choice = 1;
+            return true;
+        }
+        if (event->type == SDL_EVENT_KEY_DOWN && !event->key.repeat) {
+            switch (event->key.scancode) {
+                case SDL_SCANCODE_LEFT: g_ask_choice = 0; return true;
+                case SDL_SCANCODE_RIGHT: g_ask_choice = 1; return true;
+                case SDL_SCANCODE_RETURN:
+                case SDL_SCANCODE_KP_ENTER: g_ask_answer = g_ask_choice.load(); return true;
+                default: break;
+            }
+        }
+    }
     input::Bindings bindings = input::bindings();
     bool changed = false;
     const bool taken = ui::key_table_event(g_key_table, bindings, sdl_event, changed);
@@ -316,6 +423,7 @@ bool pc_menu_event(const void* sdl_event) {
 void pc_menu_shown(bool open) {
     input::set_game_input_blocked(open);
     if (!open && g_notice.load() == Notice::Showing) notice_done();  // closed with ` or Escape
+    if (!open && g_ask.load() == Ask::Showing) ask_done(false);       // closed with ` or Escape: kept off
     if (!open && g_notice.load() == Notice::Done) input::wait_for_release();  // the press that closed it stays ours
     g_key_table = {};
     if (open) {

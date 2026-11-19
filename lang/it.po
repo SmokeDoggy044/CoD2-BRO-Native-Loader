@@ -516,3 +516,18 @@ msgstr "Gli schemi originali del gioco, ogni singolo tasto, l'inversione, la vib
 
 msgid "A, B or Start on the controller, Enter or a click"
 msgstr "A, B o Start sul controller, Invio o un clic"
+
+msgid "The campaign has the game's own sprint (faster running with stamina), but the original game never lets you use it. Do you want to sprint in the campaign?"
+msgstr "La campagna ha lo scatto del gioco stesso (corsa più veloce con resistenza), ma il gioco originale non te lo fa mai usare. Vuoi scattare nella campagna?"
+
+msgid "Off is the original game. You can change this at any time under Options > Controls > Sprint, or in the launcher."
+msgstr "Disattivato è il gioco originale. Puoi cambiarlo in qualsiasi momento in Opzioni > Controlli > Scatto, o nel launcher."
+
+msgid "Keep it off (original)"
+msgstr "Lascialo disattivato (originale)"
+
+msgid "Turn sprint on"
+msgstr "Attiva lo scatto"
+
+msgid "Left / right to choose, A or Enter to confirm, B or Escape keeps it off"
+msgstr "Sinistra / destra per scegliere, A o Invio per confermare, B o Esc lo lascia disattivato"

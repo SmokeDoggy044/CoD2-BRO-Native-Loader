@@ -516,3 +516,18 @@ msgstr "Die Originalbelegungen des Spiels, jede einzelne Taste, Invertierung, Vi
 
 msgid "A, B or Start on the controller, Enter or a click"
 msgstr "A, B oder Start am Controller, Enter oder ein Klick"
+
+msgid "The campaign has the game's own sprint (faster running with stamina), but the original game never lets you use it. Do you want to sprint in the campaign?"
+msgstr "Die Kampagne hat das eigene Sprinten des Spiels (schnelleres Laufen mit Ausdauer), doch das Originalspiel lässt es dich nie benutzen. Möchtest du in der Kampagne sprinten?"
+
+msgid "Off is the original game. You can change this at any time under Options > Controls > Sprint, or in the launcher."
+msgstr "Aus entspricht dem Originalspiel. Du kannst das jederzeit unter Optionen > Steuerung > Sprinten oder im Launcher ändern."
+
+msgid "Keep it off (original)"
+msgstr "Aus lassen (Original)"
+
+msgid "Turn sprint on"
+msgstr "Sprinten einschalten"
+
+msgid "Left / right to choose, A or Enter to confirm, B or Escape keeps it off"
+msgstr "Links / rechts zum Wählen, A oder Enter zum Bestätigen, B oder Escape lässt es aus"
