@@ -251,26 +251,40 @@ and the [tools we use](docs/developers/tools.md).
 
 ## Thanks
 
-Thanks to everyone whose report led to a fix or a feature in a release, many of them
-with logs, screenshots and patient retesting:
+Thanks to everyone who reported a problem or suggested something, many of them with logs,
+screenshots and patient retesting. Where each report stands:
 
-| | Reports |
-|---|---|
-| [cibere11](https://github.com/cibere11) | [#1](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader/issues/1) language setting, [#7](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader/issues/7) automatic updates |
-| [jbond2003](https://github.com/jbond2003) | [#3](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader/issues/3) menus without a keyboard, [#4](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader/issues/4) controller prompts |
-| [armitom](https://github.com/armitom) | [#5](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader/issues/5) field of view setting |
-| [Skiner111](https://github.com/Skiner111) | [#6](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader/issues/6) black screen on Intel HD 3000 |
-| [ElTioRata](https://github.com/ElTioRata) | [#9](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader/issues/9) multiplayer start-up crash |
-| [ZehuaZhang](https://github.com/ZehuaZhang) | [#10](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader/issues/10) ultrawide support |
-| [IIFLIPII](https://github.com/IIFLIPII) | [#13](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader/issues/13) sprint |
-| [SneakiestDuke68](https://github.com/SneakiestDuke68) | [#14](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader/issues/14) key bindings, [#29](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader/issues/29) ambient occlusion lines and the Polish text option |
-| [dosndr2017-sys](https://github.com/dosndr2017-sys) | [#16](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader/issues/16) Xbox memory setup on Windows, [#24](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader/issues/24) crash in The Great Crusade |
-| [ZIRBY112](https://github.com/ZIRBY112) | [#19](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader/issues/19) cutscene bars, sniper and tank aiming |
-| [kratosac57-cyber](https://github.com/kratosac57-cyber) | [#20](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader/issues/20) the European disc with Spanish, [#26](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader/issues/26) closing after the prologue and Quit Game in the pause menu |
-| [Robin613507](https://github.com/Robin613507) | [#23](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader/issues/23) cutscene bars, more bodies, hide HUD, skip intro and PC wording |
-| [Jmon86](https://github.com/Jmon86) | [#27](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader/issues/27) controller crash, black screen and hit markers |
+| | Report | State |
+|---|---|---|
+| [cibere11](https://github.com/cibere11) | [#1](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader/issues/1) Language setting | Added in [0.1.5](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader/releases/tag/v0.1.5) |
+| [jbond2003](https://github.com/jbond2003) | [#2](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader/issues/2) Input needing the window clicked | Could not be reproduced yet |
+| [jbond2003](https://github.com/jbond2003) | [#3](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader/issues/3) Menus without a keyboard | Fixed in [0.1.5](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader/releases/tag/v0.1.5) |
+| [jbond2003](https://github.com/jbond2003) | [#4](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader/issues/4) Controller prompts with keyboard and mouse | Fixed in [0.1.5](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader/releases/tag/v0.1.5) |
+| [armitom](https://github.com/armitom) | [#5](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader/issues/5) Field of view setting | Added in [0.1.9](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader/releases/tag/v0.1.9) |
+| [Skiner111](https://github.com/Skiner111) | [#6](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader/issues/6) Black screen on Intel HD 3000 | Fixed |
+| [cibere11](https://github.com/cibere11) | [#7](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader/issues/7) Automatic updates | Added in [0.1.7](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader/releases/tag/v0.1.7) |
+| [Skiner111](https://github.com/Skiner111) | [#8](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader/issues/8) Low GPU use with Direct3D 9 | Renderer changed since; not confirmed |
+| [ElTioRata](https://github.com/ElTioRata) | [#9](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader/issues/9) Multiplayer start-up crash | Fixed in [0.1.13](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader/releases/tag/v0.1.13) |
+| [ZehuaZhang](https://github.com/ZehuaZhang) | [#10](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader/issues/10) Ultrawide support | Added in [0.1.9](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader/releases/tag/v0.1.9) (experimental) |
+| [ZehuaZhang](https://github.com/ZehuaZhang) | [#11](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader/issues/11) Thompson firing on its own | Not fixed yet; needs a log |
+| [YaroslavValerySablin](https://github.com/YaroslavValerySablin) | [#12](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader/issues/12) Russian and other languages | Not planned yet (Polish came first) |
+| [IIFLIPII](https://github.com/IIFLIPII) | [#13](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader/issues/13) Sprint | Added in [1.0.3](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader/releases/tag/v1.0.3) |
+| [SneakiestDuke68](https://github.com/SneakiestDuke68) | [#14](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader/issues/14) Binding the arrow keys, Enter and Backspace | Added in [0.2.1](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader/releases/tag/v0.2.1) |
+| [dosndr2017-sys](https://github.com/dosndr2017-sys) | [#16](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader/issues/16) "Cannot set up the Xbox memory" on Windows | Fixed in [0.2.2](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader/releases/tag/v0.2.2) |
+| [Hutchyy9](https://github.com/Hutchyy9) | [#17](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader/issues/17) Hang before the second mission | Traced to damaged game files, not the game |
+| [ZIRBY112](https://github.com/ZIRBY112) | [#19](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader/issues/19) Cutscene bars, sniper and tank aiming | Fixed in [1.0.0](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader/releases/tag/v1.0.0) |
+| [kratosac57-cyber](https://github.com/kratosac57-cyber) | [#20](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader/issues/20) The European disc with Spanish | Works since [1.0.3](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader/releases/tag/v1.0.3) |
+| [roioros](https://github.com/roioros) | [#22](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader/issues/22) Cheats (god mode, infinite ammo) | Planned for later |
+| [Robin613507](https://github.com/Robin613507) | [#23](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader/issues/23) Cutscene bars, more bodies, hide HUD, skip intro, PC wording | Added in [1.0.5](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader/releases/tag/v1.0.5) and [1.0.7](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader/releases/tag/v1.0.7); more than 16 bodies and draw distance on hold |
+| [dosndr2017-sys](https://github.com/dosndr2017-sys) | [#24](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader/issues/24) Crash in The Great Crusade | Fixed in [1.0.4](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader/releases/tag/v1.0.4) |
+| [KraxxBR1](https://github.com/KraxxBR1) | [#25](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader/issues/25) Game closing at start-up (AMD) | Crash now logged ([1.0.7](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader/releases/tag/v1.0.7)); still being investigated |
+| [kratosac57-cyber](https://github.com/kratosac57-cyber) | [#26](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader/issues/26) Closing after the prologue; quitting to Windows | Fixed in [1.0.6](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader/releases/tag/v1.0.6); Quit Game in [1.0.7](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader/releases/tag/v1.0.7) |
+| [Jmon86](https://github.com/Jmon86) | [#27](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader/issues/27) Controller crash, black screen, hit markers | Fixed in [1.0.6](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader/releases/tag/v1.0.6); hit markers in [1.0.7](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader/releases/tag/v1.0.7) |
+| [invictus39](https://github.com/invictus39) | [#28](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader/issues/28) Vulkan crash on AMD | Being investigated |
+| [SneakiestDuke68](https://github.com/SneakiestDuke68) | [#29](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader/issues/29) Ambient occlusion lines; Polish | Changed in [1.0.7](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader/releases/tag/v1.0.7) (waiting for confirmation); Polish text option in [1.0.7](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader/releases/tag/v1.0.7) (first draft) |
 
-Thanks also to everyone who plays the game this way and tells others about it.
+Thanks also to everyone who reported an antivirus warning (see [Antivirus warnings](#antivirus-warnings-windows)),
+and to everyone who plays the game this way and tells others about it.
 
 ## Made with AI
 
