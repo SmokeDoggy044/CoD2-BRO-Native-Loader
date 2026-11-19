@@ -299,6 +299,9 @@ msgstr "Sensibilidad del ratón"
 msgid "Aim assist"
 msgstr "Ayuda al apuntar"
 
+msgid "Skip title screen"
+msgstr "Omitir pantalla de título"
+
 msgid "Button prompts"
 msgstr "Iconos de botones"
 

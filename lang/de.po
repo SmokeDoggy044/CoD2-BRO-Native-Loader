@@ -299,6 +299,9 @@ msgstr "Mausempfindlichkeit"
 msgid "Aim assist"
 msgstr "Zielhilfe"
 
+msgid "Skip title screen"
+msgstr "Titelbildschirm überspringen"
+
 msgid "Button prompts"
 msgstr "Tastensymbole"
 

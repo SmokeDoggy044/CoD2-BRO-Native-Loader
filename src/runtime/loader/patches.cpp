@@ -2740,6 +2740,11 @@ void install_title_patches(const TitleInfo& title, const TitlePatchConfig& confi
             game::client_pc_hooks().letterbox_bars = false;
             LOG_INFO("patches", "cutscene bars off");
         }
+        // Skip Title Screen: read by our TitleMenu_Update only (where the original runs, nothing changes).
+        if (config.skip_title && campaign) {
+            game::client_pc_hooks().skip_title = true;
+            LOG_INFO("patches", "title screen skipped");
+        }
         if (config.more_bodies && campaign && client_c(0x00273790) && client_c(0x0024fe60)) {
             game::client_pc_hooks().more_bodies = true;
             LOG_INFO("patches", "more bodies: up to 16");

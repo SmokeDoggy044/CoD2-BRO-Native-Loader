@@ -224,6 +224,8 @@ bool apply_setting(Options& o, Combined& combined, const platform::SettingDef& d
         o.letterbox = on;
     } else if (key == "more-bodies") {
         o.more_bodies = on;
+    } else if (key == "skip-title") {
+        o.skip_title = on;
     } else if (key == "sprint-duration") {
         o.sprint_duration = v;
     } else if (key == "net-port") {

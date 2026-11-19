@@ -93,6 +93,8 @@ struct TitlePatchConfig {
     bool letterbox = true;
     // The corpse limit at the game's maximum (ClientPcHooks::more_bodies). Needs G_InitGame and G_TrimCorpseQueue as C.
     bool more_bodies = false;
+    // Past the title screen at once (ClientPcHooks::skip_title; our TitleMenu_Update reads it).
+    bool skip_title = false;
 };
 
 // Redirects the title's functions that cannot run on a PC (privileged instructions,

@@ -167,6 +167,7 @@ void apply_game_options(Options& options, bool replaying, const std::string& rec
         {"sprint", "--sprint", &Options::sprint, false},
         {"letterbox", "--letterbox", &Options::letterbox, true},
         {"more_bodies", "--more-bodies", &Options::more_bodies, false},
+        {"skip_title", "--skip-title", &Options::skip_title, false},
     };
     for (const GameOption& option : kGameOptions) {
         const std::string key = std::string("#game ") + option.name + "=";
@@ -329,6 +330,7 @@ int load_options(int argc, char** argv, std::optional<Options>& parsed_out) {
         parsed->sprint = false;
         parsed->letterbox = true;
         parsed->more_bodies = false;
+        parsed->skip_title = false;
         parsed->sprint_duration = "1.5";
     }
     apply_game_options(*parsed, replaying, recorded_command_line);
