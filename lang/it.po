@@ -531,3 +531,6 @@ msgstr "Attiva lo scatto"
 
 msgid "Left / right to choose, A or Enter to confirm, B or Escape keeps it off"
 msgstr "Sinistra / destra per scegliere, A o Invio per confermare, B o Esc lo lascia disattivato"
+
+msgid "Game cursor"
+msgstr "Cursore del gioco"

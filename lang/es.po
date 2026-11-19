@@ -531,3 +531,6 @@ msgstr "Activar el sprint"
 
 msgid "Left / right to choose, A or Enter to confirm, B or Escape keeps it off"
 msgstr "Izquierda / derecha para elegir, A o Intro para confirmar, B o Escape lo deja desactivado"
+
+msgid "Game cursor"
+msgstr "Cursor del juego"

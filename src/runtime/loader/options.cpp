@@ -142,6 +142,8 @@ bool apply_setting(Options& o, Combined& combined, const platform::SettingDef& d
         o.memory_mb = u();
     } else if (key == "fullscreen") {
         o.fullscreen = on;
+    } else if (key == "game-cursor") {
+        o.game_cursor = on;
     } else if (key == "windowed") {
         if (on) o.fullscreen = false;
     } else if (key == "scale") {

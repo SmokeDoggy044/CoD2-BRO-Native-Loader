@@ -384,6 +384,7 @@ void configure_title_services(const Options& options, const fs::path& assets, co
                                    options.replay.mode == xbox::replay::Mode::Off);
     }
     d3d_config.backend.menu_font = (platform::executable_dir() / "fonts" / "Jost-500-Medium.ttf").string();
+    d3d_config.backend.game_cursor = options.game_cursor;
     d3d_config.backend.pipeline_cache_path =
         (options.data.value_or(platform::user_data_dir()) / "cache" / "vulkan_pipelines.bin").string();
     d3d_config.backend.fullscreen = options.fullscreen;

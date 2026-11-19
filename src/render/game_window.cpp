@@ -1,6 +1,7 @@
 // The back ends' shared window, events, prompt, picture placement, gamma and overlay text. See game_window.h.
 
 #include <atomic>
+#include "game_cursor.h"
 #include "game_window.h"
 
 #include <algorithm>
@@ -19,6 +20,7 @@ namespace render {
 GameWindow::~GameWindow() {
     close_menu();
     if (window_) SDL_DestroyWindow(window_);
+    if (cursor_) SDL_DestroyCursor(cursor_);
     if (sdl_started_) SDL_QuitSubSystem(SDL_INIT_VIDEO);
 }
 
@@ -58,6 +60,15 @@ bool GameWindow::open(const BackendConfig& config, SDL_WindowFlags api_flags) {
     pc_menu_event_ = config.pc_menu_event;
     pc_menu_key_ = config.pc_menu_key;
     menu_font_ = config.menu_font;
+    if (config.game_cursor) {
+        // About 1/30 of the display's height (36 pixels at 1080), sized once for the display the window opens on.
+        int display_height = static_cast<int>(window_height);
+        if (const SDL_DisplayMode* mode = SDL_GetDesktopDisplayMode(SDL_GetDisplayForWindow(window_)))
+            display_height = mode->h;
+        cursor_ = make_game_cursor(display_height / 30);
+        if (cursor_) SDL_SetCursor(cursor_);
+        else LOG_WARN("render", "game cursor: %s (the system's pointer stays)", SDL_GetError());
+    }
     return true;
 }
 
@@ -226,6 +237,7 @@ bool GameWindow::init_menu() {
     ImGuiIO& io = ImGui::GetIO();
     io.IniFilename = nullptr;
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard | ImGuiConfigFlags_NavEnableGamepad;
+    if (cursor_) io.ConfigFlags |= ImGuiConfigFlags_NoMouseCursorChange;  // our pointer stays
     ui::apply_theme();  // the launcher's look
     int window_width = 0, window_height = 0;
     SDL_GetWindowSize(window_, &window_width, &window_height);

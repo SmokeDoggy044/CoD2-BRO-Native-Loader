@@ -531,3 +531,6 @@ msgstr "Sprinten einschalten"
 
 msgid "Left / right to choose, A or Enter to confirm, B or Escape keeps it off"
 msgstr "Links / rechts zum Wählen, A oder Enter zum Bestätigen, B oder Escape lässt es aus"
+
+msgid "Game cursor"
+msgstr "Spiel-Mauszeiger"

@@ -60,6 +60,8 @@ const SettingDef kSettings[] = {
      "Xbox memory budget (default 64, like a retail Xbox; devkit: 128)"},
 
     // --- Display
+    {"game-cursor", "on|off", T::Switch, G::Display, 0, 0, 0, nullptr, "on",
+     "the menus' mouse pointer: an arrow in the game's colours (on, default) or the system's (off)"},
     {"fullscreen", "", T::Flag, G::Display, 0, 0, 0, nullptr, "false",
      "borderless fullscreen (Alt+Enter switches while playing)"},
     {"windowed", "", T::Flag, G::Display, kCli, 0, 0, nullptr, "false",
@@ -465,6 +467,8 @@ const SettingUi kUi[] = {
     // Display
     {"aspect", "Window", "Aspect ratio", nullptr},
     {"fullscreen", nullptr, "Fullscreen", "Alt+Enter switches between window and fullscreen while playing."},
+    {"game-cursor", nullptr, "Game cursor",
+     "The mouse pointer in the menus: an arrow in the game's paper and ink colours. Off: your system's pointer."},
     {"scale", nullptr, "Window size", nullptr, nullptr, "x%d", "fullscreen=false"},
     {"render-scale", "Picture", "Render scale", nullptr},
     {"fps", nullptr, "Frame rate", nullptr},

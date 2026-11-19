@@ -56,6 +56,7 @@ struct Options {
     loader::TitlePatchConfig::ButtonPrompts button_prompts = loader::TitlePatchConfig::ButtonPrompts::Auto;
     float render_scale = 0;  // 0: the window's (fullscreen: the screen's) height
     bool fullscreen = false;
+    bool game_cursor = true;  // --game-cursor (render::BackendConfig::game_cursor)
     bool widescreen = true;
     float field_of_view = 0;      // cg_fov; 0: the game's own (70)
     float aspect = 16.0f / 9.0f;  // with widescreen: the picture's shape (wider than 16:9: experimental)

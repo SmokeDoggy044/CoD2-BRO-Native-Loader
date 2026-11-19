@@ -12,6 +12,7 @@ target_include_directories(mesh_smooth PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 # Xbox Direct3D 8 on a D3D9 back end (portable).
 add_library(render STATIC
     backend_d3d9.cpp
+    game_cursor.cpp
     game_window.cpp
     vk/backend_vulkan.cpp
     vk/gfx_vulkan.cpp

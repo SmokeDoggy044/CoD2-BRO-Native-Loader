@@ -52,6 +52,9 @@ msgstr ""
 msgid "Fullscreen"
 msgstr ""
 
+msgid "Game cursor"
+msgstr ""
+
 msgid "Window size"
 msgstr ""
 
