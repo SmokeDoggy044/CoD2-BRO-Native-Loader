@@ -557,7 +557,10 @@ uint32_t XB_CDECL Stream_LoadDds(char* name, uint8_t* data, uint32_t size, uint3
 }
 
 uint32_t XB_CDECL Stream_LoadFdf(char* name, uint8_t* data, uint32_t, uint32_t zone) {
-    return Stream_RegisterFont(name, title_global<uint32_t>(0x0095f630), reinterpret_cast<char*>(data), zone);
+    char* text = reinterpret_cast<char*>(data);
+    if (const auto table = title_host().font_table)  // ours: Polish letters (title_host.h)
+        if (char* ours = table(name)) text = ours;
+    return Stream_RegisterFont(name, title_global<uint32_t>(0x0095f630), text, zone);
 }
 
 uint32_t XB_CDECL Stream_LoadStb(char*, uint8_t* data, uint32_t, uint32_t zone) {

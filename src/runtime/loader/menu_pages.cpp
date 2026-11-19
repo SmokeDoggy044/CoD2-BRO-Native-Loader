@@ -18,6 +18,7 @@
 #include <string_view>
 #include <vector>
 
+#include "game_texts.h"
 #include "bindings.h"
 #include "devices.h"
 
@@ -72,9 +73,9 @@ const std::vector<PageDef>& pages() {
          {setting("graphics", "Enhanced Graphics"), link("display", "Display"), link("screen", "Screen"),
           link("image", "Image Quality"), link("lighting", "Lighting"), link("detail", "Detail")}},
         {"display", "DISPLAY",
-         {setting("fullscreen"), setting("scale"), setting("aspect"), setting("render-scale"), setting("fps")}},
+         {setting("fullscreen"), setting("game-cursor"), setting("scale"), setting("aspect"), setting("render-scale"), setting("fps")}},
         {"screen", "SCREEN",
-         {setting("brightness"), setting("fov"), setting("sharp-text"), setting("letterbox"), setting("language")}},
+         {setting("brightness"), setting("fov"), setting("sharp-text"), setting("letterbox"), setting("hit-markers"), setting("language"), setting("text-language")}},
         {"image", "IMAGE QUALITY",
          {setting("fxaa", "Anti-aliasing"), setting("anisotropic"), setting("anisotropy"), setting("sharpen"),
           setting("sharpness"), setting("vibrance"), setting("vibrance-amount")}},
@@ -104,7 +105,7 @@ const std::vector<PageDef>& pages() {
          {setting("resampler"), setting("more-voices"), setting("stereo-scenes"), setting("reverb-clutter")}},
         {"output", "OUTPUT", {setting("speakers"), setting("silent")}},
         {"controls", "CONTROLS",
-         {setting("mouse-sensitivity"), setting("aim-assist"), setting("sprint"), setting("sprint-duration"), setting("button-prompts"),
+         {setting("mouse-sensitivity"), setting("aim-assist"), setting("skip-intro"), setting("sprint"), setting("sprint-duration"), setting("button-prompts"),
           link("controller", "Controller"), link("keys1", "Keyboard")}},
         // One scrolling page each (1.0.6): the gamepad's preset, the game's own controller settings (its Controller
         // screen's) and every binding; the pad gives these actions directly in play, Start and Back stay pause and
@@ -115,13 +116,13 @@ const std::vector<PageDef>& pages() {
           setting("pad-glyphs"), pad_row("fire"), pad_row("aim"), pad_row("aim-toggle"), pad_row("grenade"),
           pad_row("melee"), pad_row("jump"), pad_row("crouch"), pad_row("raise-stance"), pad_row("sprint"),
           pad_row("use-reload"), pad_row("use"), pad_row("reload"), pad_row("next-weapon"), pad_row("previous-weapon"),
-          pad_row("lean-left"), pad_row("lean-right")}},
+          pad_row("lean-left"), pad_row("lean-right"), pad_row("hide-hud")}},
         {"keys1", "KEYBOARD",
          {key_row("move-forward"), key_row("move-back"), key_row("move-left"), key_row("move-right"),
           key_row("fire"), key_row("aim"), key_row("aim-toggle"), key_row("jump"), key_row("crouch"),
           key_row("raise-stance"), key_row("sprint"), key_row("melee"), key_row("grenade"), key_row("use-reload"),
           key_row("use"), key_row("reload"), key_row("next-weapon"), key_row("previous-weapon"), key_row("lean-left"),
-          key_row("lean-right")}},
+          key_row("lean-right"), key_row("hide-hud")}},
         {"settings", "SETTINGS",
          {link("graphics", "Graphics"), link("sound", "Sound"), link("controls", "Controls")}},
     };
@@ -819,7 +820,7 @@ void install_menu_pages(const fs::path& mods_dir, bool quit_row) {
     // Quit Game adds title allocations at boot (a sixth main-menu row): not while recording or replaying, so that
     // recordings made before it and after it replay alike.
     if (quit_row) hooks.quit_game = [] {
-        LOG_INFO("loader", "Quit Game (main menu)");
+        LOG_INFO("loader", "Quit Game");
         render::request_quit();
     };
 }
@@ -845,7 +846,8 @@ bool write_lang_template(const fs::path& path) {
         }
     };
     for (const char* text : {game::kPcTextGraphics, game::kPcTextControls, game::kPcTextSettings,
-                             game::kPcTextEnhancedGraphics, game::kPcTextQuitGame, game::kPcTextPressStart})
+                             game::kPcTextEnhancedGraphics, game::kPcTextQuitGame, game::kPcTextQuitGameWarning,
+                             game::kPcTextPressStart})
         add(text);
     for (const PageDef& page : pages()) {
         add(page.title);
@@ -901,6 +903,7 @@ bool write_lang_template(const fs::path& path) {
     }
     // The one-time notice (pc_menu.cpp).
     for (const char* text : notice_texts()) add(text);
+    for (const char* text : game_text_texts()) add(text);
     FILE* out = std::fopen(path.string().c_str(), "wb");
     if (!out) {
         std::fprintf(stderr, "cannot write %s\n", path.string().c_str());

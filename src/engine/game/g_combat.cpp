@@ -3,6 +3,8 @@
 #include <cstring>
 
 #include "cg_view.h"
+#include "cgame.h"
+#include "cl.h"
 #include "fx.h"
 #include "g_main.h"
 #include "g_spawn.h"
@@ -312,6 +314,10 @@ void XB_CDECL G_Damage(const float* point, uint32_t* args) {
     if (weapon <= 0) weapon = pointer_at_word(args[1])[3];
     G_ApplyDamage(dn, pointer_at_word(args[0]), taken, pointer_at_word(args[1]), pointer_at_word(args[2]), pt, mod, weapon,
                   static_cast<int32_t>(args[7]));
+    // Our hit markers: the player (the one entity with a client) hurt an actor or a vehicle; health 0 or less = a kill.
+    if (client_pc_hooks().hit_markers && args[0] != args[2] && pointer_at(attacker, 0x23c) &&
+        (field<uint32_t>(targ, 0x240) || field<uint32_t>(targ, 0x248)))
+        CG_NoteHitMarker(field<int32_t>(targ, 0x350) <= 0);
 }
 
 void XB_CDECL Pain_ForwardToOwner(uint8_t* self, uint8_t* attacker, int32_t damage, const float* point, int32_t mod,

@@ -2,6 +2,7 @@
 // turned into no-ops. Addresses are for CoD2: BRO default.xbe (XDK 5849) unless a
 // table says codmp_xboxf.xbe (multiplayer).
 
+#include "game_texts.h"
 #include "patches.h"
 #include "pc_menu.h"
 
@@ -528,6 +529,7 @@ void update_button_prompts() {
     const bool keyboard = g_button_prompts == TitlePatchConfig::ButtonPrompts::Keyboard ||
                           (g_button_prompts == TitlePatchConfig::ButtonPrompts::Auto &&
                            input::last_device() == input::Device::Keyboard);
+    update_game_texts(keyboard);  // the PC wording of the game's texts follows the same device
     {  // --debug: which glyphs the prompts show, when that changes (reports of prompts that do not follow the pad)
         static int logged = -1;
         const int now = keyboard ? 0 : game::client_pc_hooks().native_actions && g_pad_prompts ? 1 : 2;
@@ -657,6 +659,13 @@ void force_calls(const compare::TitleRegisters* saved, bool scene) {
 }
 
 }  // namespace
+
+bool set_sprint_now(bool on) {
+    if (!(client_c(0x002abec0) && client_c(0x002abeb0))) return false;
+    game::client_pc_hooks().sprint = on;
+    return true;
+}
+
 
 int32_t campaign_level() { return g_campaign ? title<int32_t>(g_start_sites.campaign_level) : -1; }
 
@@ -2739,6 +2748,15 @@ void install_title_patches(const TitleInfo& title, const TitlePatchConfig& confi
         if (!config.letterbox && campaign && client_c(0x0027c3f0) && client_c(0x0027f040)) {
             game::client_pc_hooks().letterbox_bars = false;
             LOG_INFO("patches", "cutscene bars off");
+        }
+        // Skip Intro: read by our start-up movie list and TitleMenu_Update only (where the original runs, nothing changes).
+        if (config.skip_intro && campaign) {
+            game::client_pc_hooks().skip_intro = true;
+            LOG_INFO("patches", "intro skipped");
+        }
+        if (config.hit_markers && campaign && client_c(0x00250340) && client_c(0x00285f80)) {
+            game::client_pc_hooks().hit_markers = true;
+            LOG_INFO("patches", "hit markers on");
         }
         if (config.more_bodies && campaign && client_c(0x00273790) && client_c(0x0024fe60)) {
             game::client_pc_hooks().more_bodies = true;

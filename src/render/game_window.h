@@ -98,6 +98,7 @@ private:
     void (*pc_menu_shown_)(bool) = nullptr;
     bool (*pc_menu_event_)(const void*) = nullptr;
     std::string menu_font_;
+    SDL_Cursor* cursor_ = nullptr;  // our pointer (BackendConfig::game_cursor), or null: the system's
     std::function<bool()> init_menu_renderer_;
     std::function<void()> shutdown_menu_renderer_;
     bool menu_ready_ = false;

@@ -51,6 +51,8 @@ struct ThreadEnv {
     // host thread's own handlers in the TEB (Windows).
     uint32_t seh_chain_end;
     uint32_t host_stack[2];  // Windows: the TEB's StackBase/StackLimit outside Xbox code
+    uint32_t host_seh_chain;  // Windows: the TEB's ExceptionList outside Xbox code
+    uint32_t seh_tail;        // Windows: the two records that end the chain on the Xbox stack (0 = not placed yet)
 };
 
 // Creates the Xbox-side state for one thread: its stack and, as the Xbox kernel

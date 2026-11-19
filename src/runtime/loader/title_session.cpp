@@ -18,6 +18,7 @@
 #include <thread>
 #include <utility>
 #include <vector>
+#include "system_info.h"
 #include "title_crt.h"
 #include "settings_schema.h"
 #include "replay.h"
@@ -166,6 +167,7 @@ void apply_game_options(Options& options, bool replaying, const std::string& rec
         {"sprint", "--sprint", &Options::sprint, false},
         {"letterbox", "--letterbox", &Options::letterbox, true},
         {"more_bodies", "--more-bodies", &Options::more_bodies, false},
+        {"skip_intro", "--skip-intro", &Options::skip_intro, false},
     };
     for (const GameOption& option : kGameOptions) {
         const std::string key = std::string("#game ") + option.name + "=";
@@ -328,6 +330,7 @@ int load_options(int argc, char** argv, std::optional<Options>& parsed_out) {
         parsed->sprint = false;
         parsed->letterbox = true;
         parsed->more_bodies = false;
+        parsed->skip_intro = false;
         parsed->sprint_duration = "1.5";
     }
     apply_game_options(*parsed, replaying, recorded_command_line);
@@ -407,6 +410,7 @@ std::optional<fs::path> find_assets(const Options& options, int argc, char** arg
         return std::nullopt;
     }
     LOG_INFO("loader", "assets: %s", assets->string().c_str());
+    platform::log_system_info();
     return assets;
 }
 

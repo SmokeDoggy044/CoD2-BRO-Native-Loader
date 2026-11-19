@@ -93,7 +93,15 @@ struct TitlePatchConfig {
     bool letterbox = true;
     // The corpse limit at the game's maximum (ClientPcHooks::more_bodies). Needs G_InitGame and G_TrimCorpseQueue as C.
     bool more_bodies = false;
+    // No start-up movies after the copyright screen, past the title screen at once (ClientPcHooks::skip_intro; our TitleMenu_Update reads it).
+    bool skip_intro = false;
+    // Hit markers (ClientPcHooks::hit_markers). Needs G_Damage and CG_Draw2D as C.
+    bool hit_markers = false;
 };
+
+// Sprint on or off from now on (the sprint question): true when the running campaign can (its +sprint handlers are
+// our C), else it waits for the next start.
+bool set_sprint_now(bool on);
 
 // Redirects the title's functions that cannot run on a PC (privileged instructions,
 // direct kernel/hardware access) to replacements, and adds PC features (mouse look).

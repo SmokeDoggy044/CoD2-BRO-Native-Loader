@@ -59,6 +59,7 @@ const char* native_key_command(int32_t key) {
                                     // unless aiming)
         "toggle cl_run",            // toggled aim: flips the walking bit +speed holds (CL_KeyMove), as the default R3
         "+activatereload", "raisestance", "weapprev",  // use / reload on one button, raise stance, previous weapon
+        "toggle cg_draw2D",  // hide HUD: everything the game draws over the view (HUD, prompts, subtitles)
     };
     const char* command = kCommands[key - kNativeKeyFirst];
     // The toggled-aim option: Key_Bind_f turns a binding with "+speed" into "toggle cl_run" while 0x008dce70 is set.

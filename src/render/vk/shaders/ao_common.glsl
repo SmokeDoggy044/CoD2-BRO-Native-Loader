@@ -17,7 +17,12 @@ layout(location = 0) out vec4 color;
 const float kSkyDepth = 0.999999;  // cleared / sky
 const float kNearCut = 24.0;       // closer than this: the view model (left out)
 float distance_at(vec2 at) {
-    const float depth = textureLod(depth_map, at, 0.0).r;
+    // An explicit texel, not a nearest-filtered lookup: the half-size passes sample exactly on the border between
+    // two depth texels (pixel centre (i + 0.5) / w lands on full-size texel 2i + 1), where GPUs round either way,
+    // differently per row, which showed as horizontal lines on some (#29). A quarter texel puts it inside one.
+    const ivec2 size = textureSize(depth_map, 0);
+    const ivec2 texel = clamp(ivec2(at * vec2(size) + 0.25), ivec2(0), size - 1);
+    const float depth = texelFetch(depth_map, texel, 0).r;
     if (depth >= kSkyDepth) return 1e9;
     const float z = depth * 16777215.0;
     return (params.p0.y - z * params.p0.w) / (z * params.p0.z - params.p0.x);

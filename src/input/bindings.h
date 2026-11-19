@@ -29,6 +29,7 @@ enum class Action : uint8_t {
     Fire, Aim, Use, Reload, Jump, Crouch, Sprint, Melee, Grenade,
     NextWeapon, LeanLeft, LeanRight, AimToggle,
     UseReload, RaiseStance, PrevWeapon,  // 1.0.6: commands only the game's own pad layouts had
+    HideHud,                             // 1.0.7: the HUD off and on again (the game's cg_draw2D)
     Count
 };
 constexpr size_t kActionCount = static_cast<size_t>(Action::Count);

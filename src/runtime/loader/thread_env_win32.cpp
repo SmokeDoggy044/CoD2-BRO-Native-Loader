@@ -2,7 +2,12 @@
 // the KPCR's layout, and that is all title code uses of it besides a few KPCR fields:
 // - the title's SEH records link into the thread's own chain at FS:[0];
 // - FS:[4] (StackBase) finds TLS, so StackBase/StackLimit are switched to the Xbox
-//   stack while title code runs, as a fiber switch does;
+//   stack while title code runs, as a fiber switch does. Windows then accepts only
+//   an SEH chain that stays on that stack (SEHOP, on by default since Windows 10,
+//   checks the whole chain before any handler runs), so the chain ends there in two
+//   records of ours instead of the host thread's own: our crash report, then
+//   Windows' final handler. Without them, any exception in host code called from
+//   the title (a driver catching its own fault) ended the game without a word;
 // - reads of KPCR fields past the NT_TIB (Prcb, Irql, CurrentThread, ...) are
 //   patched to read TEB TLS slots that hold the same values.
 
@@ -15,6 +20,7 @@
 #include <mutex>
 #include <string>
 
+#include "crash.h"
 #include "log.h"
 #include "xbe.h"
 
@@ -39,6 +45,24 @@ uint32_t addr(T* pointer) {
 }
 
 NT_TIB& teb_tib() { return *reinterpret_cast<NT_TIB*>(NtCurrentTeb()); }
+
+constexpr uint32_t kChainEnd = 0xFFFFFFFF;
+
+// The handler of the host chain's last record (Windows' final exception handler, which SEHOP looks for at the
+// end), or 0 if the chain cannot be followed within the host stack.
+uint32_t final_handler(const NT_TIB& tib) {
+    const uintptr_t low = reinterpret_cast<uintptr_t>(tib.StackLimit);
+    const uintptr_t high = reinterpret_cast<uintptr_t>(tib.StackBase);
+    auto* record = tib.ExceptionList;
+    for (int i = 0; i < 256; ++i) {
+        const uintptr_t at = reinterpret_cast<uintptr_t>(record);
+        if (at == kChainEnd || at < low || at + sizeof(*record) > high || (at & 3)) return 0;
+        if (reinterpret_cast<uintptr_t>(record->Next) == kChainEnd)
+            return static_cast<uint32_t>(reinterpret_cast<uintptr_t>(record->Handler));
+        record = record->Next;
+    }
+    return 0;
+}
 
 bool allocate_slots() {
     static std::once_flag once;
@@ -78,11 +102,31 @@ bool detail::activate_fs(ThreadEnv& env) {
 
 void detail::enter_xbox_stack(ThreadEnv& env) {
     NT_TIB& tib = teb_tib();
+    // The two records sit just below the TLS block, above everything the title pushes (SEHOP wants the chain to
+    // run up the stack): the title's stack starts 16 bytes lower, once per thread.
+    if (!env.seh_tail) {
+        env.initial_esp -= 16;
+        env.seh_tail = env.initial_esp;
+    }
+    const uint32_t final = final_handler(tib);
+    auto* tail = reinterpret_cast<uint32_t*>(uintptr_t{env.seh_tail});
+    tail[0] = final ? env.seh_tail + 8 : kChainEnd;  // ours
+    tail[1] = xbox_stack_seh_handler();
+    tail[2] = kChainEnd;                             // Windows' final handler, where SEHOP expects it
+    tail[3] = final;
+    static std::once_flag logged;
+    std::call_once(logged, [final] {
+        if (!final) LOG_WARN("thread", "the thread's exception chain does not end as expected; crashes in drivers "
+                                       "may end the game without a report");
+    });
+
     env.host_stack[0] = addr(tib.StackBase);
     env.host_stack[1] = addr(tib.StackLimit);
+    env.host_seh_chain = addr(tib.ExceptionList);
     tib.StackBase = reinterpret_cast<void*>(uintptr_t{env.stack_base});
     tib.StackLimit = reinterpret_cast<void*>(uintptr_t{env.stack_limit});
-    env.seh_chain_end = addr(tib.ExceptionList);
+    tib.ExceptionList = reinterpret_cast<EXCEPTION_REGISTRATION_RECORD*>(uintptr_t{env.seh_tail});
+    env.seh_chain_end = env.seh_tail;  // title_seh.cpp: the title's part ends at our records
 }
 
 void detail::leave_xbox_stack(ThreadEnv& env) {
@@ -90,7 +134,7 @@ void detail::leave_xbox_stack(ThreadEnv& env) {
     tib.StackBase = reinterpret_cast<void*>(uintptr_t{env.host_stack[0]});
     tib.StackLimit = reinterpret_cast<void*>(uintptr_t{env.host_stack[1]});
     // After exit_xbox_thread the title's records are abandoned with its stack.
-    tib.ExceptionList = reinterpret_cast<EXCEPTION_REGISTRATION_RECORD*>(uintptr_t{env.seh_chain_end});
+    tib.ExceptionList = reinterpret_cast<EXCEPTION_REGISTRATION_RECORD*>(uintptr_t{env.host_seh_chain});
 }
 
 NtTib& xbox_tib() { return *reinterpret_cast<NtTib*>(NtCurrentTeb()); }

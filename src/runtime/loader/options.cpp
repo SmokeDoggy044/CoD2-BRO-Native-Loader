@@ -129,10 +129,14 @@ bool apply_setting(Options& o, Combined& combined, const platform::SettingDef& d
         o.xbe = fs::path(v);
     } else if (key == "data") {
         o.data = fs::path(v);
+    } else if (key == "game-text-template") {
+        o.game_text_template = fs::path(v);
     } else if (key == "symbols") {
         o.symbols = fs::path(v);
     } else if (key == "multiplayer") {
         o.multiplayer = on;
+    } else if (key == "text-language") {
+        o.text_language = v;
     } else if (key == "language") {
         static constexpr std::pair<std::string_view, uint32_t> kLanguages[] = {
             {"english", 1}, {"german", 3}, {"french", 4}, {"spanish", 5}, {"italian", 6}};
@@ -142,6 +146,8 @@ bool apply_setting(Options& o, Combined& combined, const platform::SettingDef& d
         o.memory_mb = u();
     } else if (key == "fullscreen") {
         o.fullscreen = on;
+    } else if (key == "game-cursor") {
+        o.game_cursor = on;
     } else if (key == "windowed") {
         if (on) o.fullscreen = false;
     } else if (key == "scale") {
@@ -224,6 +230,10 @@ bool apply_setting(Options& o, Combined& combined, const platform::SettingDef& d
         o.letterbox = on;
     } else if (key == "more-bodies") {
         o.more_bodies = on;
+    } else if (key == "hit-markers") {
+        o.hit_markers = on;
+    } else if (key == "skip-intro") {
+        o.skip_intro = on;
     } else if (key == "sprint-duration") {
         o.sprint_duration = v;
     } else if (key == "net-port") {

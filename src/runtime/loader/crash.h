@@ -37,6 +37,11 @@ std::string describe_address(uint32_t address);
 // For the platform parts: "libfoo.so: symbol" or "libfoo.so +0xoffset"; empty if unknown.
 std::string describe_host_address(uint32_t address);
 
+// Windows: the SEH handler (cdecl, EXCEPTION_ROUTINE) that ends the chain while Xbox code runs on a thread. The
+// TEB's stack limits then cover the Xbox stack, so Windows (and SEHOP) only accept a chain that stays on it; this
+// handler reports what nothing above it handled, as the unhandled-exception filter does on host stacks.
+uint32_t xbox_stack_seh_handler();
+
 // Remembers what describe_address uses (install_crash_handler).
 void set_crash_context(const XbeImage& image, const SymbolTable& symbols);
 

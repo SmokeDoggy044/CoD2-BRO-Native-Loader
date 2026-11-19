@@ -114,6 +114,7 @@ struct BackendConfig {
     // ` opens and closes it (developers, --dev). Off: only request_pc_menu opens it (the one-time notice).
     bool pc_menu_key = true;
     std::string menu_font;  // a TTF for the menu; empty: Dear ImGui's own
+    bool game_cursor = false;  // our pointer (game_cursor.h) instead of the system's
     // Vulkan: where compiled pipelines are kept between runs (loaded at start, saved while playing and at
     // exit); empty: none kept. Data for another GPU or driver is ignored.
     std::string pipeline_cache_path;

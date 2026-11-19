@@ -20,6 +20,9 @@ msgstr "Verbesserte Grafik"
 msgid "Quit Game"
 msgstr "Spiel beenden"
 
+msgid "Quit the game? Progress since the last checkpoint will be lost."
+msgstr "Spiel beenden? Der Fortschritt seit dem letzten Kontrollpunkt geht verloren."
+
 msgid "Press ENTER or START"
 msgstr "ENTER oder START drücken"
 
@@ -296,6 +299,9 @@ msgstr "Mausempfindlichkeit"
 msgid "Aim assist"
 msgstr "Zielhilfe"
 
+msgid "Skip intro"
+msgstr "Intro überspringen"
+
 msgid "Button prompts"
 msgstr "Tastensymbole"
 
@@ -451,6 +457,9 @@ msgstr "Benutzen / nachladen"
 msgid "Previous weapon"
 msgstr "Vorherige Waffe"
 
+msgid "Hide HUD"
+msgstr "HUD ausblenden"
+
 msgid "Press a button"
 msgstr "Taste drücken"
 
@@ -507,3 +516,48 @@ msgstr "Die Originalbelegungen des Spiels, jede einzelne Taste, Invertierung, Vi
 
 msgid "A, B or Start on the controller, Enter or a click"
 msgstr "A, B oder Start am Controller, Enter oder ein Klick"
+
+msgid "The campaign has the game's own sprint (faster running with stamina), but the original game never lets you use it. Do you want to sprint in the campaign?"
+msgstr "Die Kampagne hat das eigene Sprinten des Spiels (schnelleres Laufen mit Ausdauer), doch das Originalspiel lässt es dich nie benutzen. Möchtest du in der Kampagne sprinten?"
+
+msgid "Off is the original game. You can change this at any time under Options > Controls > Sprint, or in the launcher."
+msgstr "Aus entspricht dem Originalspiel. Du kannst das jederzeit unter Optionen > Steuerung > Sprinten oder im Launcher ändern."
+
+msgid "Keep it off (original)"
+msgstr "Aus lassen (Original)"
+
+msgid "Turn sprint on"
+msgstr "Sprinten einschalten"
+
+msgid "Left / right to choose, A or Enter to confirm, B or Escape keeps it off"
+msgstr "Links / rechts zum Wählen, A oder Enter zum Bestätigen, B oder Escape lässt es aus"
+
+msgid "Game cursor"
+msgstr "Spiel-Mauszeiger"
+
+msgid "Hit markers"
+msgstr "Treffermarker"
+
+msgid "Use {move}"
+msgstr "Benutze {move}"
+
+msgid "Move the mouse"
+msgstr "Bewege die Maus"
+
+msgid "Press and hold {sprint}"
+msgstr "Halte {sprint} gedrückt"
+
+msgid "Press {aim-toggle}"
+msgstr "Drücke {aim-toggle}"
+
+msgid "Press and hold [AIM] to setup your weapon"
+msgstr "Halte [AIM] gedrückt, um deine Waffe aufzustellen"
+
+msgid "Text language"
+msgstr "Textsprache"
+
+msgid "Game"
+msgstr "Spiel"
+
+msgid "Polski"
+msgstr "Polski"

@@ -39,12 +39,12 @@ const char* exception_name(DWORD code) {
     }
 }
 
-// A title address as describe_address gives it; anything else as module+offset (empty when in no module).
-std::string module_address(uint32_t address) {
-    if (g_image && g_image->contains(address)) return describe_address(address);
+// "module.dll+offset" for an address in a loaded module, empty when in none.
+std::string module_offset(uint32_t address) {
     HMODULE module = nullptr;
     if (!GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
-                            reinterpret_cast<LPCSTR>(uintptr_t{address}), &module))
+                            reinterpret_cast<LPCSTR>(uintptr_t{address}), &module) ||
+        module == GetModuleHandleA(nullptr))  // the launcher stub's image spans the Xbox memory: no code of ours
         return {};
     char path[MAX_PATH] = {};
     GetModuleFileNameA(module, path, MAX_PATH);
@@ -55,6 +55,12 @@ std::string module_address(uint32_t address) {
     std::snprintf(text, sizeof(text), "%s+%lx", name,
                   static_cast<unsigned long>(address - reinterpret_cast<uintptr_t>(module)));
     return text;
+}
+
+// A title address as describe_address gives it; anything else as module+offset (empty when in no module).
+std::string module_address(uint32_t address) {
+    if (g_image && g_image->contains(address)) return describe_address(address);
+    return module_offset(address);
 }
 
 [[noreturn]] void report(const EXCEPTION_POINTERS& pointers) {
@@ -102,6 +108,14 @@ LONG CALLBACK title_fault_handler(EXCEPTION_POINTERS* pointers) {
 
 LONG WINAPI unhandled_filter(EXCEPTION_POINTERS* pointers) { report(*pointers); }
 
+// The last handler before Windows' final one while Xbox code runs (thread_env_win32.cpp): what reaches it is
+// unhandled. Unwinds pass through.
+EXCEPTION_DISPOSITION __cdecl xbox_stack_handler(EXCEPTION_RECORD* record, void*, CONTEXT* context, void*) {
+    if (record->ExceptionFlags & (EXCEPTION_UNWINDING | EXCEPTION_EXIT_UNWIND)) return ExceptionContinueSearch;
+    EXCEPTION_POINTERS pointers{record, context};
+    report(pointers);
+}
+
 // Ctrl+C, Ctrl+Break, closing the console: runs on a thread of its own.
 BOOL WINAPI console_handler(DWORD event) {
     const char* name = event == CTRL_C_EVENT       ? "Ctrl+C"
@@ -124,6 +138,10 @@ void install_crash_handler(const XbeImage& image, const SymbolTable& symbols) {
     SetConsoleCtrlHandler(console_handler, TRUE);
 }
 
-std::string describe_host_address(uint32_t) { return {}; }
+std::string describe_host_address(uint32_t address) { return module_offset(address); }
+
+uint32_t xbox_stack_seh_handler() {
+    return static_cast<uint32_t>(reinterpret_cast<uintptr_t>(&xbox_stack_handler));
+}
 
 }  // namespace loader

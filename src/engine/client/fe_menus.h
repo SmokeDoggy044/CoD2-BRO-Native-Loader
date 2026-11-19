@@ -61,6 +61,9 @@ extern "C" PLATFORM_HIDDEN void XB_CDECL PauseMenu_ShowRestartDialog(uint32_t en
 extern "C" void PauseMenu_ShowRestartDialog_entry(void);
 extern "C" PLATFORM_HIDDEN void XB_CDECL PauseMenu_ShowQuitDialog(uint32_t entry_esp);
 extern "C" void PauseMenu_ShowQuitDialog_entry(void);
+extern "C" PLATFORM_HIDDEN void XB_CDECL PauseMenu_ShowQuitGameDialog(uint32_t entry_esp);
+extern "C" void PauseMenu_ShowQuitGameDialog_entry(void);
+uint8_t XB_THISCALL PauseMenu_QuitGameYes(uint8_t* dialog);
 // 0x00224060 / 0x00224160: as the pause dialogs with MEM_CONFIRM_FRIEND_JOIN (YES 0x0002bd10, NO 0x00224220) /
 // MEM_BOOT_DASH (YES 0x002226c0, NO 0x00223a20) and INGAME_DIALOG_YES / _NO; the dialog manager's +0x1c +0x45
 // set; the dashboard one clears g_liveMgr +0x44cb after.

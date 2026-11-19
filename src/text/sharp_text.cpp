@@ -9,6 +9,9 @@
 #include <fstream>
 #include <iterator>
 #include <map>
+#include <cctype>
+#include <sstream>
+#include <set>
 #include <mutex>
 #include <string>
 #include <unordered_map>
@@ -55,11 +58,14 @@ struct Font {
     const FontSpec* spec = nullptr;
     uint32_t width = 0, height = 0;  // the original atlas
     std::vector<Glyph> glyphs;
+    std::set<int> borrowed;      // Polish: codes whose atlas box a Polish letter took (not drawn)
+    std::string polish_table;    // Polish: the rewritten .fdf the title reads
     std::vector<uint8_t> ttf;
     std::map<int, std::shared_ptr<const render::TextureReplacement>> by_scale;
 };
 
 std::mutex g_mutex;
+bool g_polish = false;
 std::vector<std::unique_ptr<Font>> g_fonts;
 std::unordered_map<uint64_t, Font*> g_by_content;
 
@@ -89,6 +95,181 @@ int unicode_of(int code) {
     return code >= 0x80 && code < 0xA0 ? k80[code - 0x80] : code;
 }
 
+// Polish letters on their Windows-1250 codes: the letter and the base letter whose metrics it grows from.
+struct PolishLetter {
+    int code;
+    int unicode;
+    char base;
+};
+constexpr PolishLetter kPolish[] = {
+    {0xB9, 0x0105, 'a'}, {0xE6, 0x0107, 'c'}, {0xEA, 0x0119, 'e'}, {0xB3, 0x0142, 'l'},
+    {0xF1, 0x0144, 'n'}, {0x9C, 0x015B, 's'}, {0x9F, 0x017A, 'z'}, {0xBF, 0x017C, 'z'},
+    {0xA5, 0x0104, 'A'}, {0xC6, 0x0106, 'C'}, {0xCA, 0x0118, 'E'}, {0xA3, 0x0141, 'L'},
+    {0xD1, 0x0143, 'N'}, {0x8C, 0x015A, 'S'}, {0x8F, 0x0179, 'Z'}, {0xAF, 0x017B, 'Z'},
+};
+// Letters Polish (and English) text does not use, whose atlas boxes a Polish letter may take.
+constexpr int kDonors[] = {0xC3, 0xD5, 0xD0, 0xDE, 0xD8, 0xC5, 0xCC, 0xCD, 0xCE, 0xCF, 0xD2, 0xD4, 0xD9, 0xDB,
+                           0xDD, 0xCB, 0xC2, 0xE3, 0xF5, 0xF0, 0xFE, 0xF8, 0xE5, 0xEC, 0xED, 0xEE, 0xEF, 0xF2,
+                           0xF4, 0xF9, 0xFB, 0xFD, 0xFF, 0xEB, 0xE2, 0xB6, 0xA7, 0xA4, 0xA9, 0xAE};
+
+int polish_unicode(int code) {
+    for (const PolishLetter& p : kPolish)
+        if (p.code == code) return p.unicode;
+    return 0;
+}
+
+void mark_used(const Font& font, std::vector<uint8_t>& used, int x, int y, int w, int h) {
+    for (int yy = std::max(0, y); yy < std::min<int>(font.height, y + h); ++yy)
+        for (int xx = std::max(0, x); xx < std::min<int>(font.width, x + w); ++xx)
+            used[static_cast<size_t>(yy) * font.width + xx] = 1;
+}
+
+// A free w x h rectangle (plus a gap of one texel) in the atlas: its top-left in x, y.
+bool find_free(const Font& font, const std::vector<uint8_t>& used, int w, int h, int& x, int& y) {
+    const int W = static_cast<int>(font.width), H = static_cast<int>(font.height);
+    std::vector<int> sum(static_cast<size_t>(W + 1) * (H + 1), 0);  // prefix sums of `used`
+    for (int yy = 0; yy < H; ++yy)
+        for (int xx = 0; xx < W; ++xx)
+            sum[(yy + 1) * (W + 1) + xx + 1] = used[static_cast<size_t>(yy) * W + xx] + sum[yy * (W + 1) + xx + 1] +
+                                               sum[(yy + 1) * (W + 1) + xx] - sum[yy * (W + 1) + xx];
+    const int ww = w + 1, hh = h + 1;
+    for (int yy = 0; yy + hh <= H; ++yy)
+        for (int xx = 0; xx + ww <= W; ++xx) {
+            const int taken = sum[(yy + hh) * (W + 1) + xx + ww] - sum[yy * (W + 1) + xx + ww] -
+                              sum[(yy + hh) * (W + 1) + xx] + sum[yy * (W + 1) + xx];
+            if (!taken) {
+                x = xx;
+                y = yy;
+                return true;
+            }
+        }
+    return false;
+}
+
+// The font's table rewritten for the Polish letters (font.glyphs changed in place, the borrowed codes noted) and
+// as .fdf text from `original`.
+void make_polish(Font& font, const std::string& original) {
+    stbtt_fontinfo info;
+    if (!stbtt_InitFont(&info, font.ttf.data(), stbtt_GetFontOffsetForIndex(font.ttf.data(), 0))) return;
+    const int shadow = font.spec->shadow ? 1 : 0;
+    auto entry = [&](int code) -> Glyph* {
+        for (Glyph& g : font.glyphs)
+            if (g.code == code) return &g;
+        return nullptr;
+    };
+    struct Box {
+        int code, x, y, w, h;
+        bool free = true;
+    };
+    std::vector<Box> pool;
+    for (const PolishLetter& p : kPolish)
+        if (const Glyph* g = entry(p.code)) pool.push_back({p.code, g->x, g->y, g->width, g->height});
+    for (const int code : kDonors)
+        if (const Glyph* g = entry(code)) pool.push_back({code, g->x, g->y, g->width, g->height});
+    struct Need {
+        const PolishLetter* letter;
+        Glyph glyph;
+    };
+    std::vector<Need> needs;
+    for (const PolishLetter& p : kPolish) {
+        const Glyph* base = entry(static_cast<unsigned char>(p.base));
+        const int pi = stbtt_FindGlyphIndex(&info, p.unicode), bi = stbtt_FindGlyphIndex(&info, p.base);
+        int px0, py0, px1, py1, bx0, by0, bx1, by1;
+        if (!base || !entry(p.code) || !pi || !bi || !stbtt_GetGlyphBox(&info, pi, &px0, &py0, &px1, &py1) ||
+            !stbtt_GetGlyphBox(&info, bi, &bx0, &by0, &bx1, &by1) || bx1 <= bx0 || by1 <= by0)
+            continue;
+        int p_advance, b_advance, lsb;
+        stbtt_GetGlyphHMetrics(&info, pi, &p_advance, &lsb);
+        stbtt_GetGlyphHMetrics(&info, bi, &b_advance, &lsb);
+        // Font units to the game's pixels, from the base letter's ink box.
+        const float sx = static_cast<float>(base->width - shadow) / static_cast<float>(bx1 - bx0);
+        const float sy = static_cast<float>(base->height - shadow) / static_cast<float>(by1 - by0);
+        Glyph g = *base;
+        g.code = p.code;
+        g.width = std::max(1, static_cast<int>(std::lround((px1 - px0) * sx))) + shadow;
+        g.height = std::max(1, static_cast<int>(std::lround((py1 - py0) * sy))) + shadow;
+        g.offset_x = base->offset_x + static_cast<int>(std::lround((px0 - bx0) * sx));
+        g.offset_y = base->offset_y + static_cast<int>(std::lround((by1 - py1) * sy));  // y down; the tops differ
+        g.advance = base->advance + static_cast<int>(std::lround((p_advance - b_advance) * sx));
+        needs.push_back({&p, g});
+    }
+    std::sort(needs.begin(), needs.end(), [](const Need& a, const Need& b) {
+        return a.glyph.width * a.glyph.height > b.glyph.width * b.glyph.height;
+    });
+    // The atlas's texels in use by any box (for free rectangles).
+    std::vector<uint8_t> used(static_cast<size_t>(font.width) * font.height, 0);
+    for (const Glyph& g : font.glyphs) mark_used(font, used, g.x, g.y, g.width + 1, g.height + 1);  // a gap of 1
+    int placed = 0;
+    for (Need& need : needs) {
+        Box* best = nullptr;
+        for (Box& box : pool) {
+            if (!box.free || box.w < need.glyph.width || box.h < need.glyph.height) continue;
+            const bool own = box.code == need.letter->code;
+            if (!best || own || (best->code != need.letter->code && box.w * box.h < best->w * best->h)) best = &box;
+            if (own) break;
+        }
+        if (!best) {
+            // Unused atlas space (a free rectangle among all the boxes), else the largest box with the letter
+            // shrunk to fit (its offsets scaled alike, so it sits as before).
+            int fx = -1, fy = -1;
+            if (find_free(font, used, need.glyph.width, need.glyph.height, fx, fy)) {
+                mark_used(font, used, fx, fy, need.glyph.width, need.glyph.height);
+                need.glyph.x = fx;
+                need.glyph.y = fy;
+                *entry(need.letter->code) = need.glyph;
+                ++placed;
+                continue;
+            }
+            float best_fit = 0.0f;
+            for (Box& box : pool) {
+                if (!box.free) continue;
+                const float fit = std::min(static_cast<float>(box.w - shadow) / (need.glyph.width - shadow),
+                                           static_cast<float>(box.h - shadow) / (need.glyph.height - shadow));
+                if (fit > best_fit) best_fit = fit, best = &box;
+            }
+            if (!best || best_fit < 0.6f) {
+                LOG_WARN("text", "%s: no atlas room for Polish letter 0x%02X (drawn in its own box)", font.spec->name,
+                         need.letter->code);
+                continue;
+            }
+            Glyph& g = need.glyph;
+            const int w = std::max(1, static_cast<int>((g.width - shadow) * best_fit)) + shadow;
+            const int h = std::max(1, static_cast<int>((g.height - shadow) * best_fit)) + shadow;
+            g.offset_x += (g.width - w) / 2;  // centred where the full-size letter would be, bottom kept
+            g.offset_y += g.height - h;
+            g.width = w;
+            g.height = h;
+            LOG_INFO("text", "%s: Polish letter 0x%02X at %.0f%% of its size", font.spec->name, need.letter->code,
+                     best_fit * 100.0f);
+        }
+        best->free = false;
+        need.glyph.x = best->x;
+        need.glyph.y = best->y;
+        *entry(need.letter->code) = need.glyph;
+        if (best->code != need.letter->code && !polish_unicode(best->code)) font.borrowed.insert(best->code);
+        ++placed;
+    }
+    // A Polish code whose own box another Polish letter took is drawn there (its entry points elsewhere now).
+    // The .fdf text: the Polish codes' lines replaced.
+    std::istringstream in(original);
+    std::string out;
+    for (std::string line; std::getline(in, line);) {
+        int code = -1;
+        if (std::sscanf(line.c_str(), " %d x", &code) == 1 && polish_unicode(code)) {
+            if (const Glyph* g = entry(code)) {
+                char text[128];
+                std::snprintf(text, sizeof(text), " %d x %d y %d w %d gx %d gy %d gw %d gh %d", g->code, g->x, g->y,
+                              g->advance, g->offset_x, g->offset_y, g->width, g->height);
+                line = text;
+            }
+        }
+        out += line;
+        out += '\n';
+    }
+    font.polish_table = std::move(out);
+    LOG_INFO("text", "%s: %d of %zu Polish letters placed", font.spec->name, placed, std::size(kPolish));
+}
+
 std::shared_ptr<const render::TextureReplacement> draw_atlas(const Font& font, int scale) {
     stbtt_fontinfo info;
     if (!stbtt_InitFont(&info, font.ttf.data(), stbtt_GetFontOffsetForIndex(font.ttf.data(), 0))) {
@@ -100,12 +281,14 @@ std::shared_ptr<const render::TextureReplacement> draw_atlas(const Font& font, i
     std::vector<uint8_t> bitmap;
     int missing = 0;
     for (const Glyph& g : font.glyphs) {
+        if (font.borrowed.count(g.code)) continue;  // its box holds a Polish letter now
         // The ink: the box without the shadow's extra pixel.
         const int ink_w = g.width - (font.spec->shadow ? 1 : 0), ink_h = g.height - (font.spec->shadow ? 1 : 0);
         if (ink_w <= 0 || ink_h <= 0 || g.x < 0 || g.y < 0 || static_cast<uint32_t>(g.x + g.width) > font.width ||
             static_cast<uint32_t>(g.y + g.height) > font.height)
             continue;
-        const int index = stbtt_FindGlyphIndex(&info, unicode_of(g.code));
+        const int unicode = g_polish && polish_unicode(g.code) ? polish_unicode(g.code) : unicode_of(g.code);
+        const int index = stbtt_FindGlyphIndex(&info, unicode);
         int x0, y0, x1, y1;
         if (!index || !stbtt_GetGlyphBox(&info, index, &x0, &y0, &x1, &y1) || x1 <= x0 || y1 <= y0) {
             ++missing;
@@ -202,6 +385,7 @@ size_t prepare_sharp_text(const fs::path& assets, const fs::path& fonts_dir) {
             if (font->glyphs.empty() || !font->width || !font->height || font->width > 1024 || font->height > 1024)
                 continue;
             font->ttf = ttf;
+            if (g_polish) make_polish(*font, std::string(fdf->begin(), fdf->end()));
             g_by_content[content] = font.get();
             g_fonts.push_back(std::move(font));
             found = true;
@@ -222,6 +406,29 @@ std::shared_ptr<const render::TextureReplacement> sharp_text_replacement(uint64_
     auto& cached = it->second->by_scale[scale];
     if (!cached) cached = draw_atlas(*it->second, scale);
     return cached;
+}
+
+void set_sharp_text_polish(bool on) {
+    std::lock_guard lock(g_mutex);
+    g_polish = on;
+}
+
+char* polish_font_table(const char* name) {
+    std::lock_guard lock(g_mutex);
+    if (!g_polish || !name) return nullptr;
+    std::string stem = fs::path(name).stem().string();
+    for (auto& c : stem) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+    for (const auto& font : g_fonts) {
+        std::string spec = font->spec->name;
+        for (auto& c : spec) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+        if (spec != stem || font->polish_table.empty()) continue;
+        static std::vector<std::unique_ptr<char[]>> copies;  // the title keeps its fonts for the program's life
+        auto copy = std::make_unique<char[]>(font->polish_table.size() + 1);
+        std::memcpy(copy.get(), font->polish_table.c_str(), font->polish_table.size() + 1);
+        copies.push_back(std::move(copy));
+        return copies.back().get();
+    }
+    return nullptr;
 }
 
 }  // namespace text

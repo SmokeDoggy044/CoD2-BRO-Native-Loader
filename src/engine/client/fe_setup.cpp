@@ -457,7 +457,9 @@ void XB_CDECL FE_SetupPauseMenu(uint8_t* menu, uint8_t* panel, uint32_t entry_es
         const uint32_t args[1] = {entry.index == 2 && pc_pages() ? address_of(pc_text(kPcTextSettings)) : entry.text};
         method_at(top, regs, item(menu, entry.index), 0x30, 1, args);
     }
-    for (uint32_t i = 0; i < 5; ++i) call(item(menu, i), 0x5c, 0x3f333333);  // 0.7
+    if (pc_quit_row()) pc_add_pause_quit_row(menu);  // a sixth row of our own (fe_pc.h)
+    const uint32_t rows = static_cast<uint32_t>(field<int16_t>(menu, 0x26));
+    for (uint32_t i = 0; i < rows; ++i) call(item(menu, i), 0x5c, 0x3f333333);  // 0.7
     setup_help(top, regs, menu, 0x34, 0x38, 0x0082c8f4, 0x0082c910);  // "FEMENU_HELPBAR_UNPAUSE_FULL", "Helpbar1"
     setup_help(top, regs, menu, 0x34, 0x3c, 0x0082ca0c, 0x0082c8e8);  // "FEMENU_HELPBAR_SELECT", "Helpbar2"
     // PauseBackground and whitelines 10 lower (+0xa0 y, +0x9c x, +0x8c (x, y)), then both help texts (+0xcc y,
@@ -471,9 +473,27 @@ void XB_CDECL FE_SetupPauseMenu(uint8_t* menu, uint8_t* panel, uint32_t entry_es
         method<PairMethod>(picture, 0x8c)(picture, x, y);
     }
     static constexpr uint32_t kHelps[2] = {0x38, 0x3c};
+    // Our Quit Game (fe_pc.h) needs one more row: the background and the white lines one row spacing taller (the
+    // top kept), the help texts one row lower.
+    float extra = 0.0f;
+    if (field<int16_t>(menu, 0x26) >= 6) {
+        uint8_t* const quit = field<uint8_t*>(item(menu, 4), 0x10);
+        uint8_t* const restart = field<uint8_t*>(item(menu, 3), 0x10);
+        if (quit && restart) extra = field<float>(quit, 0x30) - field<float>(restart, 0x30);
+    }
+    if (extra > 0.0f) {
+        for (const uint32_t name : kPictures) {
+            uint8_t* const picture = find_picture(menu, name);
+            if (!picture) continue;
+            const float height = static_cast<float>(UIPicture_GetHeight(picture));
+            if (height <= 0.0f) continue;
+            UIPicture_SetScale(picture, bits(1.0f), bits((height + extra) / height), 1);
+            UIPicture_SetPosition(picture, field<float>(picture, 0x14), field<float>(picture, 0x18) + extra * 0.5f);
+        }
+    }
     for (const uint32_t offset : kHelps) {
         uint8_t* const text = field<uint8_t*>(menu, offset);
-        const float y = static_cast<float>(get(text, 0xcc) + 10.0f);
+        const float y = static_cast<float>(get(text, 0xcc) + 10.0f + extra);
         const float x = static_cast<float>(get(text, 0xc8));
         method<PairMethod>(text, 0x7c)(text, x, y);
     }

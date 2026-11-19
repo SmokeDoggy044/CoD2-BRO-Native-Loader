@@ -1,3 +1,4 @@
+#include "loc_overrides.h"
 #include "qcommon_fs.h"
 
 #include <cstdarg>
@@ -7068,6 +7069,7 @@ void XB_STDCALL StringTable_Load(uint8_t** tables, uint8_t* table, int32_t index
     pk<uint32_t>(table, 0x18) += u32(table);
     Pack_RelocateTable(reinterpret_cast<PackRelocTable*>(pk_ptr(table, 0x18)), u32(table));
     tables[index + 1] = table;
+    loc_table_loaded(table);  // our text overrides (loc_overrides.h)
 }
 
 // ---- Push 8, batch 3: boot.

@@ -1841,7 +1841,7 @@ uint8_t* XB_STDCALL InGameScreens_Construct(uint8_t* mgr) {
     field<uint32_t>(mgr, 0) = 0x008286cc;  // InGameScreens vtable
     uint8_t* pause = z_malloc(0x44);
     if (pause) {
-        init_screen_menu(pause, 5, mgr);
+        init_screen_menu(pause, pc_quit_row() ? 6 : 5, mgr);  // our Quit Game: a sixth row (fe_pc.h)
         field<uint16_t>(pause, 0x2a) |= 0x180;
         field<uint32_t>(pause, 0) = 0x008289f8;  // PauseMenu vtable
         pause[0x33] = 0;
@@ -2163,12 +2163,22 @@ PLATFORM_ASM_ENTRY(UIRoot_DrawHud_entry,
                    "pushl %esi\n" PLATFORM_ASM_CALL(UIRoot_DrawHud) "addl $4, %esp\n"
                    "ret")
 
+namespace {
+// The game's cg_draw2D at 0: cgame leaves out what it draws over the view (crosshair, hints, letterbox), and the HUD
+// panels (compass, stance, ammo, health) go too - our Hide HUD key (input::Action::HideHud) toggles it.
+bool hud_hidden() {
+    static uint8_t* draw_2d = nullptr;
+    if (!draw_2d) draw_2d = Cvar_FindVar(text_at(0x008398a8));  // "cg_draw2D" (cgame registers it)
+    return draw_2d && field<int32_t>(draw_2d, 0x20) == 0;
+}
+}  // namespace
+
 void XB_CDECL UIRoot_DrawHud(uint8_t* root) {
     if (!root[0x49]) call(field<uint8_t*>(root, 0x20), 0x18);
     if (root[0x4f]) return;
     push_ui_scene();
     uint8_t* const active_dialogs = field<uint8_t*>(root, 0x30);
-    if (!active_dialogs || (field<int32_t>(active_dialogs, 0xc) < 0 && !root[0x49])) {
+    if ((!active_dialogs || (field<int32_t>(active_dialogs, 0xc) < 0 && !root[0x49])) && !hud_hidden()) {
         const ClientPcHooks& hooks = client_pc_hooks();
         if (hooks.hud_draw_begin) hooks.hud_draw_begin();
         call(field<uint8_t*>(root, 0x20), 0x14);  // HudManager_Draw
@@ -2883,6 +2893,15 @@ void XB_THISCALL FrontEndMenu_OnButtonDown(uint8_t* mgr, int32_t bit, int32_t pa
 void XB_THISCALL TitleMenu_Update(uint8_t* menu, float) {
     menu[0x3c] = 0;
     if (title_global<uint8_t>(0x0095f91e)) return;
+    // Skip Intro (ClientPcHooks::skip_intro): once the screen shows (TitleMenu_Draw's condition), port 0 is
+    // the active pad, as UIScreenMgr_HandleInput makes the first pad that presses a button, and START is accepted.
+    if (client_pc_hooks().skip_intro && title_global<uint8_t>(0x0095f91b) == 1 && field<int32_t>(menu, 0x40) == 0) {
+        title_global<int32_t>(0x008dcf18) = 0;
+        title_global<int32_t>(0x008d50d8) = 0;
+        field<int32_t>(title_global<uint8_t*>(0x0095f6fc), 0x44d0) = 0;  // g_liveMgr
+        TitleMenu_Accept(menu);
+        return;
+    }
     const int32_t count = field<int32_t>(menu, 0x40);
     if (count > 0) {
         field<int32_t>(menu, 0x40) = count - 1;

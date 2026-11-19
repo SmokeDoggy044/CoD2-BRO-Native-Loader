@@ -56,10 +56,15 @@ const SettingDef kSettings[] = {
      "loader, or tools/data)"},
     {"language", "L", T::Choice, G::Files, 0, 0, 0, "english|german|french|spanish|italian", "english",
      "the console language; the game uses it where its disc has that language"},
+    {"text-language", "game|polish", T::Choice, G::Files, 0, 0, 0, "game|polish", "game",
+     "the language of the texts on screen (menus, hints, subtitles): the game's own, or Polish (our translation, "
+     "lang/game/pl.po; the voices stay in the game's language)"},
     {"memory", "MB", T::Int, G::Files, 0, 16, 1024, nullptr, "64",
      "Xbox memory budget (default 64, like a retail Xbox; devkit: 128)"},
 
     // --- Display
+    {"game-cursor", "on|off", T::Switch, G::Display, 0, 0, 0, nullptr, "on",
+     "the menus' mouse pointer: an arrow in the game's colours (on, default) or the system's (off)"},
     {"fullscreen", "", T::Flag, G::Display, 0, 0, 0, nullptr, "false",
      "borderless fullscreen (Alt+Enter switches while playing)"},
     {"windowed", "", T::Flag, G::Display, kCli, 0, 0, nullptr, "false",
@@ -255,6 +260,7 @@ const SettingDef kSettings[] = {
     {"key-use-reload", "KEYS", T::Text, G::Controls, kLive | kHidden, 0, 0, nullptr, "", "", "keys", "use-reload"},
     {"key-raise-stance", "KEYS", T::Text, G::Controls, kLive | kHidden, 0, 0, nullptr, "", "", "keys", "raise-stance"},
     {"key-previous-weapon", "KEYS", T::Text, G::Controls, kLive | kHidden, 0, 0, nullptr, "", "", "keys", "previous-weapon"},
+    {"key-hide-hud", "KEYS", T::Text, G::Controls, kLive | kHidden, 0, 0, nullptr, "", "", "keys", "hide-hud"},
     {"pad", "LIST", T::Text, G::Controls, 0, 0, 0, nullptr, "",
      "gamepad bindings that differ from the Modern preset, e.g. \"jump=pad-a crouch=pad-b grenade=pad-lb\" "
      "(src/input/bindings.h); settings.ini keeps them as one pad-<action> line each"},
@@ -278,6 +284,7 @@ const SettingDef kSettings[] = {
     {"pad-use-reload", "BUTTONS", T::Text, G::Controls, kLive | kHidden, 0, 0, nullptr, "", "", "pad", "use-reload"},
     {"pad-raise-stance", "BUTTONS", T::Text, G::Controls, kLive | kHidden, 0, 0, nullptr, "", "", "pad", "raise-stance"},
     {"pad-previous-weapon", "BUTTONS", T::Text, G::Controls, kLive | kHidden, 0, 0, nullptr, "", "", "pad", "previous-weapon"},
+    {"pad-hide-hud", "BUTTONS", T::Text, G::Controls, kLive | kHidden, 0, 0, nullptr, "", "", "pad", "hide-hud"},
     // kLauncher: never passed to the game as an option (the game reads it from settings.ini itself).
     {"show-notice", "", T::Flag, G::Controls, kCommandLine | kHidden, 0, 0, nullptr, "",
      "show the one-time notice at the first menu even when it was seen, also in scripted runs (testing)"},
@@ -298,9 +305,15 @@ const SettingDef kSettings[] = {
     {"letterbox", "on|off", T::Switch, G::Graphics, 0, 0, 0, nullptr, "on",
      "the black bars at the top and bottom during the campaign's cutscenes (default on = as in the game; off: the "
      "full picture, the cutscene otherwise unchanged)"},
+    {"hit-markers", "on|off", T::Switch, G::Graphics, 0, 0, 0, nullptr, "off",
+     "short strokes round the crosshair when your shot hits (white) or kills (red) (default off = as in the game; "
+     "campaign only)"},
     {"more-bodies", "on|off", T::Switch, G::Graphics, 0, 0, 0, nullptr, "off",
      "keep up to 16 fallen soldiers instead of the game's 10 before the farthest one is removed (16 is the game's "
      "own maximum; default off; campaign only)"},
+    {"skip-intro", "on|off", T::Switch, G::Controls, 0, 0, 0, nullptr, "off",
+     "at start-up, after the copyright screen, go straight to the profiles: no ATVI, Treyarch and intro movies and no "
+     "\"Press START\" title screen (default off = as on the Xbox)"},
     {"sprint", "on|off", T::Switch, G::Controls, 0, 0, 0, nullptr, "off",
      "sprint while the Sprint key (Shift; L3 on a controller) is held: the game's own sprint (speed, stamina, "
      "weapon pose), which its campaign leaves unbound (default off = as on the Xbox; campaign only)"},
@@ -351,6 +364,9 @@ const SettingDef kSettings[] = {
     {"lang-template", "FILE", T::Path, G::Testing, kCli, 0, 0, nullptr, "",
      "write every text of our own that the game's menus show (the settings pages, our menu rows) to FILE as a "
      "gettext template (lang/template.pot, for translations) and end"},
+    {"game-text-template", "FILE", T::Path, G::Testing, kCli, 0, 0, nullptr, "",
+     "write every text of the game's own string tables this session loads (menus, hints, subtitles, by key hash) "
+     "to FILE as a gettext template; entries copied to text_overrides.po in the data folder replace those texts"},
     {"menu-walk", "SCRIPT DIR", T::Custom, G::Testing, kCli, 0, 0, nullptr, "",
      "unattended menu walk (testing): steps or @FILE (src/runtime/loader/menu_walk.h) that wait for menu screens, "
      "press pad buttons, move and click a scripted mouse and take pictures with the menu state into DIR"},
@@ -449,6 +465,9 @@ const SettingUi kUi[] = {
      "log lists the disc's languages.",
      "English|German|French|Spanish|Italian"},
     // Renderer first: the launcher's Graphics tab starts with it
+    {"text-language", nullptr, "Text language",
+     "The language of the texts on screen: menus, hints and subtitles. Polish is our own translation (lang/game/pl.po, "
+     "corrections welcome); the voices stay in the game's language.", "Game|Polski"},
     {"renderer", "Renderer", "Renderer",
      "Vulkan is the renderer of our own engine (needs a Vulkan 1.3 graphics driver; without one the game uses "
      "Direct3D 9 by itself). Choose Direct3D 9 if the picture or the speed is wrong with Vulkan.",
@@ -460,6 +479,8 @@ const SettingUi kUi[] = {
     // Display
     {"aspect", "Window", "Aspect ratio", nullptr},
     {"fullscreen", nullptr, "Fullscreen", "Alt+Enter switches between window and fullscreen while playing."},
+    {"game-cursor", nullptr, "Game cursor",
+     "The mouse pointer in the menus: an arrow in the game's paper and ink colours. Off: your system's pointer."},
     {"scale", nullptr, "Window size", nullptr, nullptr, "x%d", "fullscreen=false"},
     {"render-scale", "Picture", "Render scale", nullptr},
     {"fps", nullptr, "Frame rate", nullptr},
@@ -613,9 +634,15 @@ const SettingUi kUi[] = {
     {"letterbox", nullptr, "Cutscene bars",
      "The black bars at the top and bottom of the screen during cutscenes. Off: the full picture; the cutscenes are "
      "otherwise unchanged."},
+    {"hit-markers", nullptr, "Hit markers",
+     "Four short strokes round the crosshair when your shot hits an enemy: white for a hit, red for a kill. Off: as in "
+     "the game. Campaign only."},
     {"more-bodies", nullptr, "More bodies",
      "The game keeps 10 fallen soldiers and removes the farthest one when another falls. On: 16, the most the game "
      "can hold. Campaign only."},
+    {"skip-intro", nullptr, "Skip intro",
+     "At start-up, after the copyright screen, go straight to the profiles: the ATVI, Treyarch and intro movies and "
+     "the \"Press START\" screen are left out. Off: as on the Xbox."},
     {"sprint", nullptr, "Sprint",
      "Hold the Sprint key (Shift, or L3 on a controller) while moving to sprint. The campaign has the game's own "
      "sprint (faster running, stamina, the weapon lowered, no firing) but never lets you use it; this turns it on. "

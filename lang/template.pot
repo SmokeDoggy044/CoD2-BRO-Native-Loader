@@ -19,6 +19,9 @@ msgstr ""
 msgid "Quit Game"
 msgstr ""
 
+msgid "Quit the game? Progress since the last checkpoint will be lost."
+msgstr ""
+
 msgid "Press ENTER or START"
 msgstr ""
 
@@ -47,6 +50,9 @@ msgid "DISPLAY"
 msgstr ""
 
 msgid "Fullscreen"
+msgstr ""
+
+msgid "Game cursor"
 msgstr ""
 
 msgid "Window size"
@@ -79,6 +85,9 @@ msgstr ""
 msgid "Cutscene bars"
 msgstr ""
 
+msgid "Hit markers"
+msgstr ""
+
 msgid "Language"
 msgstr ""
 
@@ -95,6 +104,15 @@ msgid "Spanish"
 msgstr ""
 
 msgid "Italian"
+msgstr ""
+
+msgid "Text language"
+msgstr ""
+
+msgid "Game"
+msgstr ""
+
+msgid "Polski"
 msgstr ""
 
 msgid "IMAGE QUALITY"
@@ -295,6 +313,9 @@ msgstr ""
 msgid "Aim assist"
 msgstr ""
 
+msgid "Skip intro"
+msgstr ""
+
 msgid "Sprint"
 msgstr ""
 
@@ -427,6 +448,9 @@ msgstr ""
 msgid "Lean right"
 msgstr ""
 
+msgid "Hide HUD"
+msgstr ""
+
 msgid "KEYBOARD"
 msgstr ""
 
@@ -527,4 +551,34 @@ msgid "OK"
 msgstr ""
 
 msgid "A, B or Start on the controller, Enter or a click"
+msgstr ""
+
+msgid "The campaign has the game's own sprint (faster running with stamina), but the original game never lets you use it. Do you want to sprint in the campaign?"
+msgstr ""
+
+msgid "Off is the original game. You can change this at any time under Options > Controls > Sprint, or in the launcher."
+msgstr ""
+
+msgid "Keep it off (original)"
+msgstr ""
+
+msgid "Turn sprint on"
+msgstr ""
+
+msgid "Left / right to choose, A or Enter to confirm, B or Escape keeps it off"
+msgstr ""
+
+msgid "Use {move}"
+msgstr ""
+
+msgid "Move the mouse"
+msgstr ""
+
+msgid "Press and hold {sprint}"
+msgstr ""
+
+msgid "Press {aim-toggle}"
+msgstr ""
+
+msgid "Press and hold [AIM] to setup your weapon"
 msgstr ""

@@ -56,10 +56,12 @@ struct Options {
     loader::TitlePatchConfig::ButtonPrompts button_prompts = loader::TitlePatchConfig::ButtonPrompts::Auto;
     float render_scale = 0;  // 0: the window's (fullscreen: the screen's) height
     bool fullscreen = false;
+    bool game_cursor = true;  // --game-cursor (render::BackendConfig::game_cursor)
     bool widescreen = true;
     float field_of_view = 0;      // cg_fov; 0: the game's own (70)
     float aspect = 16.0f / 9.0f;  // with widescreen: the picture's shape (wider than 16:9: experimental)
     uint32_t language = 1;  // XC_LANGUAGE
+    std::string text_language = "game";  // --text-language game|polish (game_texts.h, ui_text.h)
     uint32_t screenshot_interval = 0;
     std::optional<fs::path> screenshot_dir;
     bool silent = false;
@@ -89,6 +91,8 @@ struct Options {
     bool sprint = false;          // --sprint (loader::TitlePatchConfig::sprint)
     bool letterbox = true;        // --letterbox (loader::TitlePatchConfig::letterbox)
     bool more_bodies = false;     // --more-bodies (loader::TitlePatchConfig::more_bodies)
+    bool hit_markers = false;     // --hit-markers (loader::TitlePatchConfig::hit_markers)
+    bool skip_intro = false;      // --skip-intro (loader::TitlePatchConfig::skip_intro)
     std::string sprint_duration = "1.5";  // --sprint-duration: seconds, or "unlimited"
     bool glow = false;            // --glow (loader::TitlePatchConfig::glow)
     int32_t frame_rate = 0;  // --fps: 0 = the display's rate (loader::TitlePatchConfig::frame_rate)
@@ -116,6 +120,7 @@ struct Options {
     bool dev = false;  // --dev: developer overlay and keys
     std::vector<std::string> viewer_models;  // --viewer M1,M2: the object viewer (implies --dev)
     std::string debug_view;                  // --debug-view NAME
+    std::filesystem::path game_text_template;   // --game-text-template FILE (game_texts.h)
     std::string menu_walk, menu_walk_dir;   // --menu-walk SCRIPT DIR (menu_walk.h)
     std::string orbit_file;                  // --orbit FILE: the lab's camera orbit (implies --dev)
     std::optional<std::string> profile;  // --profile, else XB_PROFILE
