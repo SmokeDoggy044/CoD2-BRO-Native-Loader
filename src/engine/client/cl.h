@@ -20,6 +20,9 @@ struct ClientPcHooks {
     // (kNativeKeyFirst + n) and CL_KeyEvent runs the action's command - the engine's binding table is not used, so
     // the pad's bindings and the game's button prompts stay as they are.
     uint32_t (XB_CDECL* native_actions)() = nullptr;
+    // True while replaying a recording older than format 5, which had the keyboard in the pad state: the pad's own
+    // keys then run their layout bindings as when it was recorded (null: never).
+    bool (XB_CDECL* pad_keys_run_layout)() = nullptr;
     // Around the menu render calls (vtable +0x1c) of UIRoot_DrawInGameScreens/DrawFrontEnd/DrawHud: a screen's
     // begin also takes the scene its caller pushed for it (widescreen narrowing of the menus' scenes).
     void (XB_CDECL* menu_render_begin)() = nullptr;

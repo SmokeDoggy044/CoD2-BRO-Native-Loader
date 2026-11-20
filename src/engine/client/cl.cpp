@@ -38,9 +38,12 @@ ClientPcHooks& client_pc_hooks() {
 }
 
 namespace {
-// With native actions the pad's own keys run nothing (native_key_command's callers).
+// With native actions the pad's own keys run nothing (native_key_command's callers), except while replaying a
+// recording from before format 5 (its keyboard actions are in the pad state).
 bool pad_key_silenced(int32_t key) {
-    return client_pc_hooks().native_actions && ((key >= 0x9a && key <= 0x9d) || (key >= 0xd3 && key <= 0xdc));
+    const ClientPcHooks& hooks = client_pc_hooks();
+    if (hooks.pad_keys_run_layout && hooks.pad_keys_run_layout()) return false;
+    return hooks.native_actions && ((key >= 0x9a && key <= 0x9d) || (key >= 0xd3 && key <= 0xdc));
 }
 constexpr const char* kSilenced = "";
 }  // namespace
