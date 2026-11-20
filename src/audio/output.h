@@ -65,6 +65,9 @@ public:
     // Sources are created for a voice and follow its format (call reformat() after
     // changing it, with the voice stopped).
     Source* add_source(Voice& voice);
+    // The source's OpenAL objects deleted (stopped and its callback buffer detached first) and the source gone. The
+    // voice it played must outlive this call; nothing may use `source` afterwards.
+    void remove_source(Source* source);
     void reformat(Source* source);
     void update(Source* source, const SourceParams& params);
     // Starts, pauses or stops the OpenAL source to match the voice's state.
