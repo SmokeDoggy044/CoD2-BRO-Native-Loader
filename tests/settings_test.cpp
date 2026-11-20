@@ -113,6 +113,11 @@ int main() {
     parts.set("fxaa", "off");
     parts.set("check-updates", "true");
     CHECK((parts.as_args() == std::vector<std::string>{"--fxaa", "off"}));
+    // The game's own bookkeeping lines and lines another version wrote never reach the options (1.0.7 refused to
+    // start once the sprint question had written `sprint-asked`).
+    parts.set("sprint-asked", "1");
+    parts.set("no-such-setting-yet", "on");
+    CHECK((parts.as_args() == std::vector<std::string>{"--fxaa", "off"}));
     CHECK(platform::settings_help("cod_bro").find("--lod-bias X") != std::string::npos);
 
     // The UI table: every row names a setting once, its parents exist, choice labels match the choices.
