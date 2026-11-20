@@ -11,6 +11,7 @@
 #include "levels_twins.h"
 #include "bro_scr_death_watch.h"
 #include "bro_scr_util.h"
+#include "scr_unwind_guard.h"
 
 namespace game {
 
@@ -241,14 +242,15 @@ void XB_CDECL BroScr_SpawnConcreteGibs(uint32_t ent, ScrVec3 from) {
     const int32_t count = random_int(3) + 1;
     for (int32_t i = 0; i < count; ++i) {
         {
-            ScriptString classname;
+            ScriptString classname{};
+            ScrStringGuard guard_classname(&classname);
             ScriptString_FromCString(&classname, pointer<const char>(0x0083ab98));  // "script_model"
             uint32_t buffer[3];
             const uint32_t* const o = slot<GetVec>(0x00922b20)(buffer, ent);  // ScrEnt_GetOrigin
             const uint32_t at[3] = {o[0], o[1], o[2]};
             const uint32_t gib = slot<Spawn>(0x009222f0)(&classname, at, 0);  // GScr_Spawn
             *element(&gibs, i) = gib;
-            ScriptString_Release(&classname);
+            scr_drop(&classname);
         }
         jitter_gib(&gibs, i);
         if (random_int(100) > 50)
@@ -268,7 +270,8 @@ void XB_CDECL BroScr_SpawnWoodGibsSmall(uint32_t ent, ScrVec3 from) {
     for (int32_t i = 0; i < count; ++i) {
         if (*spawned_count() > title_global<int32_t>(0x008cd190)) continue;  // level gib limit
         {
-            ScriptString classname;
+            ScriptString classname{};
+            ScrStringGuard guard_classname(&classname);
             ScriptString_FromCString(&classname, pointer<const char>(0x0083ab98));  // "script_model"
             uint32_t buffer[3];
             const uint32_t* const o = slot<GetVec>(0x00922b20)(buffer, ent);  // ScrEnt_GetOrigin
@@ -276,7 +279,7 @@ void XB_CDECL BroScr_SpawnWoodGibsSmall(uint32_t ent, ScrVec3 from) {
             const uint32_t zone = slot<uint32_t XB_CDECL(uint32_t)>(0x00922498)(ent);  // GScr_GetEntZone
             const uint32_t gib = slot<Spawn>(0x009222f0)(&classname, at, zone);       // GScr_Spawn
             *element(&gibs, i) = gib;
-            ScriptString_Release(&classname);
+            scr_drop(&classname);
         }
         ++*spawned_count();
         jitter_gib(&gibs, i);

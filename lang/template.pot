@@ -115,6 +115,12 @@ msgstr ""
 msgid "Polski"
 msgstr ""
 
+msgid "Russian"
+msgstr ""
+
+msgid "Ukrainian"
+msgstr ""
+
 msgid "IMAGE QUALITY"
 msgstr ""
 

@@ -10,6 +10,7 @@
 #include "scr_field.h"
 #include "title_data.h"
 #include "bro_scr_level_threads.h"
+#include "scr_unwind_guard.h"
 
 namespace game {
 
@@ -174,15 +175,17 @@ uint32_t* XB_CDECL BroScr_WallHopMove(uint32_t* out, uint32_t skip, ScrVec3 to) 
 
 void XB_CDECL BroScr_WallHopGetScriptOrigins(uint32_t ent) {
     DynArray targets = {};
-    ScriptString target;
+    ScriptString target{};
+    ScrStringGuard guard_target(&target);
     Scr_GetEntArray(address_of(ScrCall_ScrEnt_GetTarget(&ent, &target)), 0x0d786b4c, reinterpret_cast<uint8_t*>(&targets), 0);
-    ScriptString_Release(&target);
+    scr_drop(&target);
     for (uint32_t i = 0; static_cast<int32_t>(i) < static_cast<int32_t>(targets.size); ++i) {
-        ScriptString classname;
+        ScriptString classname{};
+        ScrStringGuard guard_classname(&classname);
         const uint32_t* const element = BroScr_ArrayElement(reinterpret_cast<uint32_t*>(&targets), i);
         const bool origin = ScriptString_Equals(ScrCall_ScrEnt_GetClassname(element, &classname),
                                                 pointer<const char>(0x0083ab88));  // "script_origin"
-        ScriptString_Release(&classname);
+        scr_drop(&classname);
         if (!origin) continue;
         uint32_t buffer[3];
         const uint32_t* const o = origin_of(buffer, *BroScr_ArrayElement(reinterpret_cast<uint32_t*>(&targets), i));
@@ -370,33 +373,36 @@ void XB_CDECL BroScr_PlayerHopOverWall(uint32_t level_ent, DynArray points, ScrV
     using Spawn = uint32_t XB_CDECL(ScriptString*, const uint32_t*, uint32_t);
     uint32_t mover;
     {
-        ScriptString classname;
+        ScriptString classname{};
+        ScrStringGuard guard_classname(&classname);
         ScriptString_FromCString(&classname, pointer<const char>(0x0083ab88));  // "script_origin"
         uint32_t buffer[3];
         const uint32_t* const o = origin_of(buffer, player());
         const uint32_t at[3] = {o[0], o[1], o[2]};
         mover = slot<Spawn>(0x009222f0)(&classname, at, 0);  // GScr_Spawn
-        ScriptString_Release(&classname);
+        scr_drop(&classname);
     }
     uint32_t anchor;
     {
-        ScriptString classname;
+        ScriptString classname{};
+        ScrStringGuard guard_classname(&classname);
         ScriptString_FromCString(&classname, pointer<const char>(0x0083ab88));  // "script_origin"
         uint32_t buffer[3];
         const uint32_t* const o = origin_of(buffer, player());
         const uint32_t at[3] = {o[0], o[1], bits_of(as_float(o[2]) + title_global<float>(0x0083eb3c))};  // + 60
         anchor = slot<Spawn>(0x009222f0)(&classname, at, 0);
-        ScriptString_Release(&classname);
+        scr_drop(&classname);
     }
     slot<void XB_CDECL(uint32_t, uint32_t)>(0x009224fc)(mover, anchor);  // GScr_LinkTo
     {
-        ScriptString tag;
+        ScriptString tag{};
+        ScrStringGuard guard_tag(&tag);
         ScriptString_FromCString(&tag, pointer<const char>(0x0082dfeb));  // ""
         const float one = title_global<float>(0x0083eb20);
         const float limits[3] = {one, one, one};
         using PlayerLinkTo = void XB_CDECL(uint32_t, uint32_t, ScriptString*, const float*);
         slot<PlayerLinkTo>(0x00922500)(player(), mover, &tag, limits);  // GScr_PlayerLinkTo
-        ScriptString_Release(&tag);
+        scr_drop(&tag);
     }
     {
         uint32_t buffer[3];

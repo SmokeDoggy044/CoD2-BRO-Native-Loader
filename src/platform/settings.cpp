@@ -69,7 +69,14 @@ std::vector<std::string> Settings::as_args() const {
     std::vector<std::string> args;
     for (const auto& [key, value] : entries_) {
         if (value == "false") continue;
-        if (const SettingDef* def = find_setting(key); def && (def->flags & kLauncher)) continue;  // not the game's
+        const SettingDef* def = find_setting(key);
+        if (!def) {
+            // A line this version does not know (one a newer or older version wrote) must not stop the game from
+            // starting: every game option has a schema entry, so the line cannot be one.
+            LOG_WARN("settings", "settings.ini: unknown setting \"%s\" ignored", key.c_str());
+            continue;
+        }
+        if (def->flags & kLauncher) continue;  // not the game's
         args.push_back("--" + key);
         if (value != "true") args.push_back(value);
     }

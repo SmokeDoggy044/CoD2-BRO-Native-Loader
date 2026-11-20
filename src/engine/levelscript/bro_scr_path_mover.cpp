@@ -9,6 +9,7 @@
 #include "title_data.h"
 #include "bro_scr_mortar_loops.h"
 #include "g_script.h"
+#include "scr_unwind_guard.h"
 
 namespace game {
 
@@ -156,14 +157,16 @@ void XB_CDECL BroScr_PathMoverFromTargetChain(uint32_t, uint32_t ent, uint32_t t
             title_function<void XB_THISCALL(DynArray*, const uint32_t*)>(0x005b4cd0)(pointer<DynArray>(*value),
                                                                                     origin);  // DynArray_PushBackVec3
             uint32_t self = current;
-            ScriptString target;
+            ScriptString target{};
+            ScrStringGuard guard_target(&target);
             const bool none = ScrCall_ScrEnt_GetTarget(&self, &target)->rep == nullptr;
-            scr_release(&target);
+            scr_drop(&target);
             if (none) break;
-            ScriptString name;
+            ScriptString name{};
+            ScrStringGuard guard_name(&name);
             current = slot<uint32_t XB_CDECL(ScriptString*, uint32_t, uint32_t, uint32_t, uint32_t)>(0x009221c4)(
                 ScrCall_ScrEnt_GetTarget(&self, &name), 0x0d786b4c, 0, 0, 0);  // GScr_GetEntArray
-            scr_release(&name);
+            scr_drop(&name);
             if (!entity_handle_is_valid(current)) break;
         }
     }

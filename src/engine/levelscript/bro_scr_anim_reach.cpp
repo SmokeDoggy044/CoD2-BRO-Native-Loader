@@ -12,6 +12,7 @@
 #include "levels_twins.h"
 #include "qcommon_fs.h"
 #include "bro_scr_wait_misc.h"
+#include "scr_unwind_guard.h"
 
 namespace game {
 
@@ -85,6 +86,7 @@ inline void reach(uint32_t core_ent, DynArray* guys, uint32_t anime, ScriptStrin
 
 void XB_CDECL BroScr_AnimReachCore(uint32_t ent, DynArray guys, uint32_t anime, ScriptString tag, ScrVec3 origin,
                                    uint32_t tag_ent, ScrVec3 angles) {
+    ScrStringGuard guard_tag(&tag);
     if (tag.rep) {
         const uint32_t holder = entity_handle_is_valid(tag_ent) ? tag_ent : ent;
         origin = tag_vector(0x0092261c, holder, &tag);  // GScr_GetTagOrigin
@@ -92,20 +94,22 @@ void XB_CDECL BroScr_AnimReachCore(uint32_t ent, DynArray guys, uint32_t anime, 
     }
     uint32_t spawned;
     {
-        ScriptString classname;
+        ScriptString classname{};
+        ScrStringGuard guard_classname(&classname);
         scr_string_from(&classname, 0x0083ab88);  // "script_origin"
         ScrVec3 at = get_vector(0x00922b20, *pointer<uint32_t>(title_global<uint32_t>(0x00922ee0) + 0x7f8));  // ScrEnt_GetOrigin(player)
         spawned = slot<uint32_t XB_CDECL(ScriptString*, ScrVec3*, uint32_t)>(0x009222f0)(&classname, &at, 0);  // GScr_Spawn
-        scr_release(&classname);
+        scr_drop(&classname);
     }
     int32_t started = 0;
     ScrVec3 goal = lane_vector();
     for (uint32_t i = 0; static_cast<int32_t>(i) < static_cast<int32_t>(guys.size); ++i) {
-        ScriptString animname;
+        ScriptString animname{};
+        ScrStringGuard guard_animname(&animname);
         const uint32_t anim = anim_of(guy_at(&guys, i), &anime, &animname);
         slot<void XB_CDECL(uint32_t*, ScrVec3*, ScrVec3*, uint32_t)>(0x009223fc)(goal.v, &origin, &angles,
                                                                                anim);  // GScr_TransformLocalOffset
-        scr_release(&animname);
+        scr_drop(&animname);
         slot<void XB_CDECL(uint32_t, ScrVec3*)>(0x00922684)(*guy_at(&guys, i), &goal);  // GScr_SetGoalPos
         ++started;
         const uint32_t guy = *guy_at(&guys, i);
@@ -126,11 +130,12 @@ void XB_CDECL BroScr_AnimReachCore(uint32_t ent, DynArray guys, uint32_t anime, 
     }
     slot<void XB_CDECL(uint32_t)>(0x00922540)(spawned);  // GScr_Delete
     if (guys.data) Scr_Free(guys.data);
-    scr_release(&tag);
+    scr_drop(&tag);
 }
 
 void XB_CDECL BroScr_AnimReach(uint32_t ent, DynArray guys, uint32_t anime, ScriptString tag, uint32_t node,
                                uint32_t tag_ent) {
+    ScrStringGuard guard_tag(&tag);
     ScrVec3 origin;
     ScrVec3 angles;
     if (node != 0 && node != 0xffffffff) {
@@ -145,6 +150,7 @@ void XB_CDECL BroScr_AnimReach(uint32_t ent, DynArray guys, uint32_t anime, Scri
 
 void XB_CDECL BroScr_AnimReachEnt(uint32_t ent, DynArray guys, uint32_t anime, ScriptString tag, uint32_t node,
                                   uint32_t tag_ent) {
+    ScrStringGuard guard_tag(&tag);
     ScrVec3 origin;
     ScrVec3 angles;
     if (entity_handle_is_valid(node)) {
@@ -158,6 +164,7 @@ void XB_CDECL BroScr_AnimReachEnt(uint32_t ent, DynArray guys, uint32_t anime, S
 }
 
 void XB_CDECL BroScr_AnimScriptedRestoreAnimname(uint32_t ent, uint32_t guy, ScriptString tag) {
+    ScrStringGuard guard_tag(&tag);
     end_on(guy, 0x78dbe561);
     end_on(guy, kDeath);
     end_on(ent, kDeath);
@@ -166,13 +173,14 @@ void XB_CDECL BroScr_AnimScriptedRestoreAnimname(uint32_t ent, uint32_t guy, Scr
     slot<void XB_CDECL(uint32_t)>(0x009224c8)(guy);  // GScr_StopAnimScripted
     slot<void XB_CDECL(uint32_t)>(0x0092250c)(guy);  // GScr_Unlink
     const uint32_t key = 0x140aaa8f;
-    ScriptString animname;
+    ScriptString animname{};
+    ScrStringGuard guard_animname(&animname);
     const uint32_t anim = anim_of(&guy, &key, &animname);
     ScrVec3 angles = tag_vector(0x00922620, ent, &tag);  // GScr_GetTagAngles
     ScrVec3 origin = tag_vector(0x0092261c, ent, &tag);  // GScr_GetTagOrigin
     slot<void XB_CDECL(uint32_t, uint32_t, ScrVec3*, ScrVec3*, uint32_t)>(0x009224c0)(guy, 0x54e3b2b6, &origin, &angles,
                                                                                      anim);  // GScr_AnimScriptedNoNotify
-    scr_release(&animname);
+    scr_drop(&animname);
     Scr_WaitTill(guy, 0x54e3b2b6);
     bool defined;
     if (*ScrField_oldanimname_IsDefined(&defined, guy)) {
@@ -182,7 +190,7 @@ void XB_CDECL BroScr_AnimScriptedRestoreAnimname(uint32_t ent, uint32_t guy, Scr
         slot<void XB_CDECL(uint32_t, ScriptString)>(0x00922c44)(guy, name);  // ScrEnt_SetAnimname
     }
     queue_notify(guy, 0x996a3647);
-    scr_release(&tag);
+    scr_drop(&tag);
 }
 
 }  // namespace game

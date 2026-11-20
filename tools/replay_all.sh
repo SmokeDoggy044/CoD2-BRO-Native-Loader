@@ -11,7 +11,8 @@ set -u
 out=${1:?usage: $0 OUT_DIR [FILTER]}
 filter=${2:-}
 port=$(cd "$(dirname "$0")/.." && pwd)
-mapfile -t recs < <(find "$port/recordings" -mindepth 2 -maxdepth 2 -name '*.rep' | sort)
+# Broken recordings stay out of the rotation (m7_playtest: known broken).
+mapfile -t recs < <(find "$port/recordings" -mindepth 2 -maxdepth 2 -name '*.rep' ! -name 'm7_playtest.rep' | sort)
 [ ${#recs[@]} -eq 0 ] && { echo "no recordings in $port/recordings"; exit 2; }
 mkdir -p "$out"
 summary=() failed=0

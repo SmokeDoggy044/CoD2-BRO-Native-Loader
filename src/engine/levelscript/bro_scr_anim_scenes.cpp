@@ -23,6 +23,7 @@
 #include "bro_scr_wait_notify.h"
 #include "g_script.h"
 #include "g_scr_builtins.h"
+#include "scr_unwind_guard.h"
 
 namespace game {
 
@@ -135,10 +136,11 @@ inline void sherman_tank_anim(uint32_t* tank, uint32_t id, ScriptString* anime) 
                 BroScr_AnimSingleSoloAtNode(guy, guy, a3, anim, title_global<uint32_t>(0x00922ea0), *tank);
             }
             {
-                ScriptString name;
+                ScriptString name{};
+                ScrStringGuard guard_name(&name);
                 scr_string_from(&name, 0x0082557c);  // "sherman_tank"
                 set_animname(guy, &name);
-                scr_release(&name);
+                scr_drop(&name);
             }
             ScriptString idle;
             ScriptString* const idle_name =
@@ -668,7 +670,8 @@ void XB_CDECL BroScr_AnimNotetrackCommands(uint32_t owner, uint32_t guy, uint32_
     uint32_t* const wait = key_slot(guy, 0xd850f89e, 0);
     *wait = slot<uint32_t XB_CDECL()>(0x0092219c)();  // Scr_GetCurrentThreadHandle
     const uint32_t holder = entity_handle_is_valid(tag_ent) ? tag_ent : owner;
-    ScriptString note;
+    ScriptString note{};
+    ScrStringGuard guard_note(&note);
     ScriptString_FromRep(&note, nullptr);
     for (;;) {
         title_function<void XB_CDECL(uint32_t, uint32_t, ScriptString*)>(0x004b14f0)(guy, notify,
@@ -679,9 +682,10 @@ void XB_CDECL BroScr_AnimNotetrackCommands(uint32_t owner, uint32_t guy, uint32_
         if (note_hash == 0x199a4) break;  // "end"
         uint32_t animhash;
         {
-            ScriptString animname;
+            ScriptString animname{};
+            ScrStringGuard guard_animname(&animname);
             Scr_HashScriptString(&animhash, reinterpret_cast<const uint8_t* const*>(ScrCall_ScrEnt_GetAnimname(&guy, &animname)));
-            scr_release(&animname);
+            scr_drop(&animname);
         }
         // Every entry of the scene's notetrack table.
         for (uint32_t j = 0; static_cast<int32_t>(j) < static_cast<int32_t>(note_entries(&animhash, &anime)->size); ++j) {
@@ -730,9 +734,11 @@ void XB_CDECL BroScr_AnimNotetrackCommands(uint32_t owner, uint32_t guy, uint32_
                         }
                     }
                     if (field_at(&animhash, &anime, j, 0x008254d8)->rep) {  // "sound"
-                        ScriptString none;
+                        ScriptString none{};
+                        ScrStringGuard guard_none(&none);
                         ScriptString_FromRep(&none, nullptr);
-                        ScriptString animname;
+                        ScriptString animname{};
+                        ScrStringGuard guard_animname(&animname);
                         const ScriptString* const name = ScrCall_ScrEnt_GetAnimname(&guy, &animname);
                         const uint32_t key = 0x070659a4;
                         uint32_t hash;
@@ -740,8 +746,8 @@ void XB_CDECL BroScr_AnimNotetrackCommands(uint32_t owner, uint32_t guy, uint32_
                             entry_at(Scr_HashScriptString(&hash, reinterpret_cast<const uint8_t* const*>(name)), &anime, j), &key);
                         own_function<StartThread>(&Scr_StartThread_ent_str_str_PROLOGUE_entry)(0, 0, 0, 0, own_address(&BroScr_PlaySoundOnTag), guy, alias,
                                                                 &none);  // Scr_StartThread_ent_str_str(BroScr_PlaySoundOnTag)
-                        scr_release(&animname);
-                        scr_release(&none);
+                        scr_drop(&animname);
+                        scr_drop(&none);
                     }
                     if (!faced) {
                         if (field_key(&animhash, &anime, j, 0x84f611ff)->rep) {
@@ -780,7 +786,7 @@ void XB_CDECL BroScr_AnimNotetrackCommands(uint32_t owner, uint32_t guy, uint32_
             }
         }
     }
-    scr_release(&note);
+    scr_drop(&note);
 }
 
 namespace {
@@ -789,6 +795,7 @@ namespace {
 
 void XB_CDECL BroScr_AnimLoopAtEnt(const uint32_t* ref, uint32_t guys, uint32_t a3, ScriptString anime, uint32_t p5,
                                    uint32_t place, uint32_t p7, uint32_t p8) {
+    ScrStringGuard guard_anime(&anime);
     if (static_cast<uint8_t>(p8)) {
         loop_guys(ref, guys, a3, &anime, p5, vector_ec4(), p7, p8, vector_ec4());
     } else if (entity_handle_is_valid(place)) {
@@ -806,11 +813,12 @@ void XB_CDECL BroScr_AnimLoopAtEnt(const uint32_t* ref, uint32_t guys, uint32_t 
         const ScrVec3 angles = {{a[0], a[1], a[2]}};
         loop_guys(ref, guys, a3, &anime, p5, origin, p7, p8, angles);
     }
-    scr_release(&anime);
+    scr_drop(&anime);
 }
 
 void XB_CDECL BroScr_AnimLoopAtNode(const uint32_t* ref, uint32_t guys, uint32_t a3, ScriptString anime, uint32_t p5,
                                     uint32_t place, uint32_t p7, uint32_t p8) {
+    ScrStringGuard guard_anime(&anime);
     if (static_cast<uint8_t>(p8)) {
         loop_guys(ref, guys, a3, &anime, p5, lanes(), p7, p8, lanes());
     } else if (node_valid(place)) {
@@ -828,11 +836,12 @@ void XB_CDECL BroScr_AnimLoopAtNode(const uint32_t* ref, uint32_t guys, uint32_t
         const ScrVec3 angles = {{a[0], a[1], a[2]}};
         loop_guys(ref, guys, a3, &anime, p5, origin, p7, p8, angles);
     }
-    scr_release(&anime);
+    scr_drop(&anime);
 }
 
 void XB_CDECL BroScr_AnimSingleAtNode(uint32_t ent, uint32_t guys, uint32_t a3, ScriptString anime, uint32_t place,
                                       uint32_t tag_ent, uint32_t flag) {
+    ScrStringGuard guard_anime(&anime);
     if (static_cast<uint8_t>(flag)) {
         single_guys(ent, guys, a3, &anime, lanes(), tag_ent, flag, lanes());
     } else if (node_valid(place)) {
@@ -850,11 +859,12 @@ void XB_CDECL BroScr_AnimSingleAtNode(uint32_t ent, uint32_t guys, uint32_t a3, 
         const ScrVec3 angles = {{a[0], a[1], a[2]}};
         single_guys(ent, guys, a3, &anime, origin, tag_ent, flag, angles);
     }
-    scr_release(&anime);
+    scr_drop(&anime);
 }
 
 void XB_CDECL BroScr_AnimSingleAtEnt(uint32_t ent, uint32_t guys, uint32_t a3, ScriptString anime, uint32_t place,
                                      uint32_t tag_ent, uint32_t flag) {
+    ScrStringGuard guard_anime(&anime);
     if (static_cast<uint8_t>(flag)) {
         single_guys(ent, guys, a3, &anime, lanes(), tag_ent, flag, lanes());
     } else if (entity_handle_is_valid(place)) {
@@ -872,30 +882,33 @@ void XB_CDECL BroScr_AnimSingleAtEnt(uint32_t ent, uint32_t guys, uint32_t a3, S
         const ScrVec3 angles = {{a[0], a[1], a[2]}};
         single_guys(ent, guys, a3, &anime, origin, tag_ent, flag, angles);
     }
-    scr_release(&anime);
+    scr_drop(&anime);
 }
 
 void XB_CDECL BroScr_AnimSingleAtNode_2(uint32_t ent, const void* guys, uint32_t a3, ScriptString tag, uint32_t node,
                                         uint32_t tag_ent) {
+    ScrStringGuard guard_tag(&tag);
     place_checks(static_cast<const DynArray*>(guys), ent, &tag, node, tag_ent);
     ScriptString copy;
     ScriptString_Copy(&copy, &tag);
     BroScr_AnimSingleAtNode(ent, static_cast<uint32_t>(reinterpret_cast<uintptr_t>(guys)), a3, copy, node, tag_ent, 0);
-    scr_release(&tag);
+    scr_drop(&tag);
 }
 
 void XB_CDECL BroScr_AnimLoopAtNode_2(uint32_t ent, const void* guys, uint32_t a3, ScriptString tag, uint32_t p5,
                                       uint32_t node, uint32_t tag_ent) {
+    ScrStringGuard guard_tag(&tag);
     place_checks(static_cast<const DynArray*>(guys), ent, &tag, node, tag_ent);
     ScriptString copy;
     ScriptString_Copy(&copy, &tag);
     BroScr_AnimLoopAtNodeCall_2(static_cast<uint32_t>(reinterpret_cast<uintptr_t>(&ent)),
                                 static_cast<uint32_t>(reinterpret_cast<uintptr_t>(guys)), a3, copy, p5, node, tag_ent);
-    scr_release(&tag);
+    scr_drop(&tag);
 }
 
 void XB_CDECL BroScr_WaitAnimSoloFinished(uint32_t node, uint32_t guy, uint32_t a3, ScriptString tag, uint32_t p5,
                                           uint32_t p6) {
+    ScrStringGuard guard_tag(&tag);
     const int32_t start = get_time();
     for (;;) {
         if (!entity_handle_is_valid(node)) break;
@@ -906,7 +919,7 @@ void XB_CDECL BroScr_WaitAnimSoloFinished(uint32_t node, uint32_t guy, uint32_t 
         if ((value ? *value : undefined) == undefined) break;
         Scr_WaitTillString(node, pointer<const char>(0x00825568));  // "finished anim solo"
         if (get_time() > start + 5000) {
-            scr_release(&tag);
+            scr_drop(&tag);
             return;
         }
     }
@@ -919,13 +932,13 @@ void XB_CDECL BroScr_WaitAnimSoloFinished(uint32_t node, uint32_t guy, uint32_t 
     BroScr_AnimSingleAtNode(node, static_cast<uint32_t>(reinterpret_cast<uintptr_t>(&guys)), a3, copy, p5, p6, 0);
     queue_notify(node, 0x2079d925);
     if (guys.data) Scr_Free(guys.data);
-    scr_release(&tag);
+    scr_drop(&tag);
 }
 
-void XB_CDECL BroScr_ShermanTankAnim(uint32_t tank, uint32_t id, ScriptString anime) { sherman_tank_anim(&tank, id, &anime); }
+void XB_CDECL BroScr_ShermanTankAnim(uint32_t tank, uint32_t id, ScriptString anime) { ScrStringGuard guard_anime(&anime); sherman_tank_anim(&tank, id, &anime); }
 
-void XB_CDECL BroScr_ShermanTankAnim_2(uint32_t tank, uint32_t id, ScriptString anime) { sherman_tank_anim(&tank, id, &anime); }
+void XB_CDECL BroScr_ShermanTankAnim_2(uint32_t tank, uint32_t id, ScriptString anime) { ScrStringGuard guard_anime(&anime); sherman_tank_anim(&tank, id, &anime); }
 
-void XB_CDECL BroScr_ShermanTankAnim_3(uint32_t tank, uint32_t id, ScriptString anime) { sherman_tank_anim(&tank, id, &anime); }
+void XB_CDECL BroScr_ShermanTankAnim_3(uint32_t tank, uint32_t id, ScriptString anime) { ScrStringGuard guard_anime(&anime); sherman_tank_anim(&tank, id, &anime); }
 
 }  // namespace game

@@ -82,6 +82,29 @@ int main() {
     check(std::string(platform::ui_text(0, "Back")) == "Back", "English stays");
     const char* unknown = "No such text";
     check(platform::ui_text(2, unknown) == unknown, "an unknown text is handed back as it is");
+    // Text languages: our texts in Polish, Russian and Ukrainian, on the game's codes for their letters.
+    for (const char* code : {"pl", "ru", "uk"}) {
+        std::map<std::string, std::string> texts;
+        const std::string file = std::string(code) + ".po";
+        check(platform::parse_po(read(dir / file), texts, &error), file + " reads: " + error);
+        platform::set_text_language(code);
+        for (const auto& [english, translated] : texts) {
+            check(known.count(english) != 0, file + ": \"" + english + "\" is not in template.pot");
+            const std::string shown = platform::utf8_to_game_text(translated);
+            check(shown.find('?') == std::string::npos || translated.find('?') != std::string::npos,
+                  file + ": \"" + translated + "\" has characters the game's text cannot show");
+        }
+        // A lookup while a text language is set (ui_text holds its lock while it converts: this hung once).
+        check(std::string(platform::ui_text(0, "Back")) != "Back", file + ": Back translated");
+    }
+    platform::set_text_language("uk");
+    check(platform::text_script() == platform::TextScript::Cyrillic, "Ukrainian is Cyrillic");
+    check(platform::utf8_to_game_text("\u0407\u0436\u0430\u043a \u0491 \u2116 \u00ab\u2026\u00bb") ==
+              "\xAF\xE6\xE0\xEA \xB4 \xB9 \xAB\x85\xBB",
+          "Ukrainian letters, numero sign and shared punctuation on their Windows-1251 codes");
+    platform::set_text_language("pl");
+    check(platform::utf8_to_game_text("\u0141\u00f3d\u017a") == "\xA3\xF3" "d\x9F", "Polish on Windows-1250 codes");
+    platform::set_text_language("");
     if (g_failures) return 1;
     std::printf("ui_text_test: all passed\n");
     return 0;

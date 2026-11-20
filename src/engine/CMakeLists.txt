@@ -164,6 +164,7 @@ set(game_code_sources
     sound/snd_paths.cpp
     sound/acoustic_scene.cpp
     script/scr_fiber.cpp
+    script/scr_unwind_guard.cpp
     shared/stack_guard.cpp
     streaming/stream.cpp
     server/sv.cpp

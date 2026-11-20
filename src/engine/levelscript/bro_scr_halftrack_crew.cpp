@@ -11,6 +11,7 @@
 #include "script_string.h"
 #include "title_data.h"
 #include "levels_twins.h"
+#include "scr_unwind_guard.h"
 
 namespace game {
 
@@ -56,11 +57,12 @@ void XB_CDECL BroScr_HalftrackSpawnGuys(uint32_t halftrack, uint32_t spawner) {
     for (int32_t n = 1; n <= 5; ++n) {
         uint32_t guy = slot<uint32_t XB_CDECL(uint32_t, uint32_t)>(0x00922520)(spawner, 0);  // GScr_ForceSpawn
         {
-            ScriptString name;
+            ScriptString name{};
+            ScrStringGuard guard_name(&name);
             ScriptString copy;
             ScriptString_Copy(&copy, ScriptString_FromCStringPlusInt(&name, pointer<const char>(0x00825460), n));  // "halftrackguy_"
             slot<void XB_CDECL(uint32_t, ScriptString)>(0x00922b54)(guy, copy);  // ScrEnt_SetTargetname
-            scr_release(&name);
+            scr_drop(&name);
         }
         slot<void XB_CDECL(uint32_t)>(0x00922568)(guy);  // GScr_SetEntFlag400
         DynArray_PushBack(level() + 0x4f8, &guy);
@@ -73,6 +75,7 @@ void XB_CDECL BroScr_HalftrackSpawnGuys(uint32_t halftrack, uint32_t spawner) {
 }
 
 void XB_CDECL BroScr_HalftrackSeatGuy(uint32_t halftrack, uint32_t guy, ScriptString tag, int32_t seat) {
+    ScrStringGuard guard_tag(&tag);
     uint32_t found = undefined_int();
     uint32_t i = 0;
     DynArray* const list = reinterpret_cast<DynArray*>(level() + 0x4ec);  // the level's passengers
@@ -115,7 +118,7 @@ void XB_CDECL BroScr_HalftrackSeatGuy(uint32_t halftrack, uint32_t guy, ScriptSt
         erase_at(reinterpret_cast<DynArray*>(level() + 0x4ec), found);
     }
     if (i != undefined_int() && i != 0) erase_at(found_array(halftrack, kPassengers), i);
-    scr_release(&tag);
+    scr_drop(&tag);
 }
 
 }  // namespace game

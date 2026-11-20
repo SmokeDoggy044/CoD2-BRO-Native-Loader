@@ -5,6 +5,7 @@
 #include "bro_scr_fx_threads.h"
 #include "bro_scr_level_threads_2.h"
 #include "g_script.h"
+#include "scr_unwind_guard.h"
 
 namespace game {
 
@@ -27,6 +28,7 @@ void RandomSoundBursts(uint32_t entity, const uint32_t* const (&values)[8]) {
 }  // namespace
 
 void XB_CDECL BroScr_PlaySoundOn(uint32_t entity, ScriptString key) {
+    ScrStringGuard guard_key(&key);
     using Index = uint32_t XB_THISCALL(uint32_t, const ScriptString*);
     const uint32_t alias = title_function<Index>(0x00461120)(title_global<uint32_t>(0x00922ee0) + 0x458, &key);  // HashMap_Index
     scr_slot<void XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t)>(0x009221dc)(entity, alias, 0, 0, 0);  // GScr_PlaySound

@@ -15,6 +15,7 @@
 #include "bro_scr_notify_threads.h"
 #include "g_script.h"
 #include "g_scr_builtins.h"
+#include "scr_unwind_guard.h"
 
 namespace game {
 
@@ -165,9 +166,10 @@ void handle_note_tracks_forever_pass(ScriptString* note, uint32_t ent, uint32_t 
                                      const ScriptString* text) {
     ScriptString copy;
     ScriptString_Copy(&copy, text);
-    ScriptString result;
+    ScriptString result{};
+    ScrStringGuard guard_result(&result);
     ScriptString_Assign(note, BroScr_HandleNoteTracks(&result, ent, notify, callback, copy));
-    scr_release(&result);
+    scr_drop(&result);
 }
 
 }  // namespace
@@ -208,12 +210,13 @@ void XB_CDECL FUN_001ac9f0(uint32_t ent) {
 }
 
 void XB_CDECL BroScr_ForwardNotifyString(uint32_t ent, uint32_t notify) {
-    ScriptString note;
+    ScriptString note{};
+    ScrStringGuard guard_note(&note);
     ScriptString_FromRep(&note, nullptr);
     title_function<WaitTillOutputStr>(0x004b14f0)(ent, notify, &note);  // Scr_WaitTillOutputStr_ORAN
     slot<void XB_CDECL(uint32_t, uint32_t, ScriptString*)>(0x009221ac)(ent, 0x71445fee,
                                                                       &note);  // Scr_QueueNotifyWithString
-    scr_release(&note);
+    scr_drop(&note);
 }
 
 void XB_CDECL BroScr_StandCombatRun(uint32_t ent) {
@@ -301,12 +304,13 @@ void XB_CDECL BroScr_DropWeapon(uint32_t ent) {
     if (slot<GetInt>(0x00922d90)(ent) && slot<GetInt>(0x00922d30)(ent)) {  // ScrActor_GetInt_1378, ScrActor_GetInt_f0
         const int32_t ammo = random_int(50) + 75;
         const uint32_t name = slot<uint32_t XB_CDECL(uint32_t)>(0x00922a28)(slot<GetInt>(0x00922d30)(ent));  // the weapon's name
-        ScriptString weapon_name;
+        ScriptString weapon_name{};
+        ScrStringGuard guard_weapon_name(&weapon_name);
         scr_string_from(&weapon_name, name);
         const uint32_t hand = *ScrField_anim_gunhand(ent);
         const uint32_t weapon = slot<uint32_t XB_CDECL(uint32_t, ScriptString*, uint32_t, float)>(0x009226f0)(
             ent, &weapon_name, hand, static_cast<float>(ammo));  // GScr_DropWeapon
-        scr_release(&weapon_name);
+        scr_drop(&weapon_name);
         if (entity_handle_is_valid(weapon))
             own_function<BeginThreadFunctor1>(&Scr_BeginThreadFunctor1_entry)(0, 0, 0, 0, own_address(&BroScr_DeleteAfter300), weapon);  // BroScr_DeleteAfter300
     }
@@ -315,7 +319,9 @@ void XB_CDECL BroScr_DropWeapon(uint32_t ent) {
 
 ScriptString* XB_CDECL BroScr_HandleNoteTracks(ScriptString* out, uint32_t ent, uint32_t notify, uint32_t callback,
                                               ScriptString text) {
-    ScriptString note;
+    ScrStringGuard guard_text(&text);
+    ScriptString note{};
+    ScrStringGuard guard_note(&note);
     ScriptString_FromRep(&note, nullptr);
     for (;;) {
         ScriptString_AssignCString(&note, pointer<const char>(0x007f9e88));  // "undefined"
@@ -324,13 +330,15 @@ ScriptString* XB_CDECL BroScr_HandleNoteTracks(ScriptString* out, uint32_t ent, 
         const uint32_t h = *Scr_HashScriptString(&hash_out, reinterpret_cast<const uint8_t* const*>(&note));
         if (h == 0x000199a4 || h == 0x9aa82fee || h == 0xcc5542ad) break;
         if (h == 0x19785ffb || h == 0x00385cd0) {
-            ScriptString sound;
+            ScriptString sound{};
+            ScrStringGuard guard_sound(&sound);
             scr_string_from(&sound, 0x00826144);  // "step_run_"
             bool defined_9e8b;
             if (has_string_2c0(&ent)) {
-                ScriptString kind;
+                ScriptString kind{};
+                ScrStringGuard guard_kind(&kind);
                 ScriptString_AppendString(&sound, ScrCall_ScrActor_GetString_2c0(&ent, &kind));
-                scr_release(&kind);
+                scr_drop(&kind);
             } else if (*ScrField_h9e8b61c4_IsDefined(&defined_9e8b, ent)) {
                 ScriptString_AppendString(&sound, title_function<ScriptString* XB_THISCALL(ScriptKeyTable*, uint32_t)>(
                                                       0x00458da0)(ent_script_object(ent), 0x9e8b61c4));  // ScriptKeyTable_GetString
@@ -338,17 +346,20 @@ ScriptString* XB_CDECL BroScr_HandleNoteTracks(ScriptString* out, uint32_t ent, 
                 ScriptString_AppendCString(&sound, pointer<const char>(0x008331d4));  // "dirt"
             }
             play_sound(ent, &sound);
-            scr_release(&sound);
+            scr_drop(&sound);
         } else if (h == 0xe0042600) {
             if (has_string_2c0(&ent)) {
-                ScriptString prefix;
+                ScriptString prefix{};
+                ScrStringGuard guard_prefix(&prefix);
                 scr_string_from(&prefix, 0x008263a8);  // "step_scrape_"
-                ScriptString kind;
-                ScriptString sound;
+                ScriptString kind{};
+                ScrStringGuard guard_kind(&kind);
+                ScriptString sound{};
+                ScrStringGuard guard_sound(&sound);
                 play_sound(ent, ScriptString_Concat(&sound, &prefix, ScrCall_ScrActor_GetString_2c0(&ent, &kind)));
-                scr_release(&sound);
-                scr_release(&kind);
-                scr_release(&prefix);
+                scr_drop(&sound);
+                scr_drop(&kind);
+                scr_drop(&prefix);
             } else {
                 play_sound_text(ent, 0x00826394);  // "step_scrape_dirt"
             }
@@ -416,19 +427,22 @@ ScriptString* XB_CDECL BroScr_HandleNoteTracks(ScriptString* out, uint32_t ent, 
             bool defined;
             if (!*ScrField_haee61f94_IsDefined(&defined, ent)) continue;
             if (*ScrField_h3bfcf651_IsDefined(&defined, ent)) {
-                ScriptString helmet_tag;
+                ScriptString helmet_tag{};
+                ScrStringGuard guard_helmet_tag(&helmet_tag);
                 scr_string_from(&helmet_tag, 0x00825e98);  // "TAG_HELMETSIDE"
                 attach_with(ent, ScrField_h3bfcf651(ent), &helmet_tag);
                 remove_key(&ent, 0x3bfcf651);
             }
-            ScriptString no_tag;
+            ScriptString no_tag{};
+            ScrStringGuard guard_no_tag(&no_tag);
             scr_string_from(&no_tag, 0x0082dfeb);  // ""
             attach_with(ent, ScrField_haee61f94(ent), &no_tag);
-            ScriptString tag;
+            ScriptString tag{};
+            ScrStringGuard guard_tag(&tag);
             scr_string_from(&tag, 0x007f644c);  // "TAG_WEAPON_LEFT"
             slot<void XB_CDECL(uint32_t, ScriptString*, ScriptString*, uint32_t)>(0x009224d0)(ent, ScrField_haee61f94(ent),
                                                                                              &tag, 0);  // GScr_AttachWithOwner
-            scr_release(&tag);
+            scr_drop(&tag);
             remove_key(&ent, 0xaee61f94);
         } else if (callback) {
             title_function<void XB_CDECL(uint32_t, uint32_t)>(callback)(ent, h);
@@ -436,16 +450,18 @@ ScriptString* XB_CDECL BroScr_HandleNoteTracks(ScriptString* out, uint32_t ent, 
     }
     if (is_ai(ent) && get_pose(ent) == kBack) set_pose(ent, kCrouch);
     ScriptString_Copy(out, &note);
-    scr_release(&note);
-    scr_release(&text);
+    scr_drop(&note);
+    scr_drop(&text);
     return out;
 }
 
 void XB_CDECL BroScr_HandleNoteTracksForever(uint32_t ent, uint32_t notify, uint32_t end, uint32_t callback,
                                              ScriptString text) {
+    ScrStringGuard guard_text(&text);
     end_on(ent, end);
     end_on(ent, 0x07b4e7f7);
-    ScriptString note;
+    ScriptString note{};
+    ScrStringGuard guard_note(&note);
     ScriptString_FromRep(&note, nullptr);
     const float min_time = title_global<float>(0x0083edc8);  // 0.05
     for (;;) {
@@ -465,12 +481,13 @@ void XB_CDECL BroScr_HandleNoteTracksForever(uint32_t ent, uint32_t notify, uint
 
 void XB_CDECL BroScr_HandleNoteTracksForTime(uint32_t ent, float time, uint32_t notify, uint32_t callback,
                                              ScriptString text) {
+    ScrStringGuard guard_text(&text);
     const uint32_t end = 0x6cd0168f;
     own_function<CallVt00825c50>(&Scr_CallThread_vt00825c50_entry)(0, 0, 0, 0, own_address(&BroScr_HandleNoteTracksForever), ent, &notify, &end, &callback,
                                                &text);  // BroScr_HandleNoteTracksForever
     Scr_Wait(time);
     queue_notify(ent, 0x6cd0168f);
-    scr_release(&text);
+    scr_drop(&text);
 }
 
 void XB_CDECL BroScr_UnarmedCrouchIdle(uint32_t ent) {
@@ -480,18 +497,20 @@ void XB_CDECL BroScr_UnarmedCrouchIdle(uint32_t ent) {
                                          0);  // GScr_SetFlaggedAnimKnobAll(unarmed_crouch_idle1)
     ScriptString empty;
     ScriptString_Copy(&empty, pointer<ScriptString>(0x00922e90));
-    ScriptString result;
+    ScriptString result{};
+    ScrStringGuard guard_result(&result);
     BroScr_HandleNoteTracks(&result, ent, 0x80bd2428, 0, empty);
-    scr_release(&result);
+    scr_drop(&result);
     if (random_int(100) >= 60) return;
     const uint32_t twitch_rate = *ScrField_h6937c3b9(ent);
     slot<FlaggedKnobAllRate>(0x009225e4)(ent, 0x80bd2428, title_global<uint32_t>(0x008cf69c), body(), 1.0f, 0.1f,
                                          twitch_rate, 0);  // unarmed_crouch_twitch1
     ScriptString empty2;
     ScriptString_Copy(&empty2, pointer<ScriptString>(0x00922e90));
-    ScriptString result2;
+    ScriptString result2{};
+    ScrStringGuard guard_result2(&result2);
     BroScr_HandleNoteTracks(&result2, ent, 0x80bd2428, 0, empty2);
-    scr_release(&result2);
+    scr_drop(&result2);
 }
 
 }  // namespace game

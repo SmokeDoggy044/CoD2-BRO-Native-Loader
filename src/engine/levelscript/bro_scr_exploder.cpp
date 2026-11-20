@@ -18,6 +18,7 @@
 #include "bro_scr_entity_threads.h"
 #include "bro_scr_notify_threads.h"
 #include "g_scr_builtins.h"
+#include "scr_unwind_guard.h"
 
 namespace game {
 
@@ -206,6 +207,7 @@ void XB_CDECL BroScr_SetFriendlyWaveTrigger(uint32_t, uint32_t trigger) {
 }
 
 void XB_CDECL BroScr_FallbackerJoinFallback(uint32_t ent, uint32_t index, uint32_t node, ScriptString name) {
+    ScrStringGuard guard_name(&name);
     auto table = [](uint32_t e) {
         ScriptKeyTable* t = own_function<ScriptKeyTable* XB_CDECL(uint32_t)>(&ScrCall_GScr_GetEntScriptObject)(e);
         return t ? t : pointer<ScriptKeyTable>(0x00922e94);
@@ -218,7 +220,7 @@ void XB_CDECL BroScr_FallbackerJoinFallback(uint32_t ent, uint32_t index, uint32
     if (*ScrField_fallback_IsDefined(&defined, ent)) {
         DynArray* const joined = pointer<DynArray>(ScriptKeyTable_GetOrAddArray_7(table(ent), 0x9ef08b23));
         if (*int_at(joined, index) != undefined_int()) {
-            ScriptString_Release(&name);
+            scr_drop(&name);
             return;
         }
     }
@@ -246,7 +248,7 @@ void XB_CDECL BroScr_FallbackerJoinFallback(uint32_t ent, uint32_t index, uint32
         functor[4] = index;
     }
     slot<CreateThread>(0x0092216c)(0, 0, 0, self, functor, 0);  // Scr_CreateThread
-    ScriptString_Release(&name);
+    scr_drop(&name);
 }
 
 uint32_t* XB_CDECL BroScr_PickWeightedChoice(uint32_t* out, uint32_t current, uint32_t keep_bits, uint32_t choice1,
@@ -371,6 +373,7 @@ void XB_CDECL BroScr_DropHealth(uint32_t ent) {
 }
 
 void XB_CDECL BroScr_SpawnGlobalAmbient(ScriptString name) {
+    ScrStringGuard guard_name(&name);
     ScriptKeyTable* table = own_function<ScriptKeyTable* XB_CDECL(uint32_t)>(&ScrCall_GScr_GetEntScriptObject)(
         *reinterpret_cast<const uint32_t*>(title_global<uint8_t*>(0x00922ef8) + 4));
     if (!table) table = pointer<ScriptKeyTable>(0x00922e94);
@@ -380,10 +383,12 @@ void XB_CDECL BroScr_SpawnGlobalAmbient(ScriptString name) {
     const uint32_t* const key = Scr_HashScriptString(&hash, reinterpret_cast<const uint8_t* const*>(&name));
     const ScriptString* const alias = title_function<const ScriptString* XB_THISCALL(uint8_t*, const uint32_t*)>(0x00461120)(
         title_global<uint8_t*>(0x00922ef8) + 0x28, key);  // HashMap_Index_PROLOGUE_11
-    ScriptString copy;
+    ScriptString copy{};
+    ScrStringGuard guard_copy(&copy);
     ScriptString_Copy(&copy, alias);
     if (at<uint32_t>(title_global<uint8_t*>(0x00922ef8), 0x1c) != 0) {
-        ScriptString classname;
+        ScriptString classname{};
+        ScrStringGuard guard_classname(&classname);
         ScriptString_FromCString(&classname, pointer<const char>(0x0083ab88));  // "script_origin"
         uint32_t buffer[3];
         const uint32_t* const o =
@@ -392,17 +397,18 @@ void XB_CDECL BroScr_SpawnGlobalAmbient(ScriptString name) {
         const uint32_t spawned =
             slot<uint32_t XB_CDECL(ScriptString*, const uint32_t*, uint32_t)>(0x009222f0)(&classname, origin, 0);  // GScr_Spawn
         at<uint32_t>(title_global<uint8_t*>(0x00922ef8), 0x1d4) = spawned;
-        ScriptString_Release(&classname);
-        ScriptString targetname;
+        scr_drop(&classname);
+        ScriptString targetname{};
+        ScrStringGuard guard_targetname(&targetname);
         ScriptString_FromCString(&targetname, pointer<const char>(0x00826ec4));  // "global_ambient"
         const uint32_t* const ambient = reinterpret_cast<const uint32_t*>(title_global<uint8_t*>(0x00922ef8) + 0x1d4);
         ScriptString argument;
         ScriptString_Copy(&argument, &targetname);
         slot<void XB_CDECL(uint32_t, ScriptString)>(0x00922b54)(*ambient, argument);  // ScrEnt_SetTargetname (releases)
-        ScriptString_Release(&targetname);
+        scr_drop(&targetname);
     }
-    ScriptString_Release(&copy);
-    ScriptString_Release(&name);
+    scr_drop(&copy);
+    scr_drop(&name);
 }
 
 void XB_CDECL BroScr_InitMg42CoverSpots() {

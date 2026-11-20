@@ -43,6 +43,7 @@
 #include "bro_scr_wait_notify.h"
 #include "scr_class.h"
 #include "g_scr_builtins.h"
+#include "scr_unwind_guard.h"
 
 namespace game {
 
@@ -305,22 +306,24 @@ void XB_CDECL BroScr_SpawnTankDeadGuys(uint32_t self, uint32_t unused, TankDeadG
             return;
         }
     }
-    ScriptString classname;
+    ScriptString classname{};
+    ScrStringGuard guard_classname(&classname);
     ScriptString_FromCString(&classname, pointer<const char>(0x0083ab88));  // "script_origin"
     uint32_t model = slot<Spawn>(0x009222f0)(&classname, pos.v, 0);    // GScr_Spawn
-    ScriptString_Release(&classname);
+    scr_drop(&classname);
     slot<SetVec>(0x00922ba4)(model, angles);  // ScrEnt_SetAngles
     ScriptString_FromCString(&classname, pointer<const char>(0x0083ab98));  // "script_model"
     float below[3];
     std::memcpy(below, pos.v, 12);
     below[2] = below[2] - title_global<float>(0x0083ebe8);  // 128
     model = slot<uint32_t XB_CDECL(ScriptString*, const float*, uint32_t)>(0x009222f0)(&classname, below, 0);
-    ScriptString_Release(&classname);
+    scr_drop(&classname);
     slot<SetVec>(0x00922ba4)(model, angles);
-    ScriptString tree;
+    ScriptString tree{};
+    ScrStringGuard guard_tree(&tree);
     ScriptString_FromCString(&tree, pointer<const char>(0x007f4960));  // "tankdeadguys"
     slot<void XB_CDECL(uint32_t, ScriptString*)>(0x009225f0)(model, &tree);  // GScr_UseAnimTree
-    ScriptString_Release(&tree);
+    scr_drop(&tree);
     table.record[0].model_anim = title_global<uint32_t>(0x008cd1ac);
     table.record[1].model_anim = title_global<uint32_t>(0x008cd1a0);
     table.record[2].model_anim = title_global<uint32_t>(0x008cd194);
@@ -363,19 +366,21 @@ inline void tag_origin(ScrVec3* at, uint32_t ent, ScriptString* tag) {
 }  // namespace
 
 void XB_CDECL BroScr_DeathPhysicsLaunch_2FromTag(uint32_t ent, ScrVec3 angles, uint32_t launch_arg, ScriptString tag) {
+    ScrStringGuard guard_tag(&tag);
     ScrVec3 force;
     tag_origin(&force, ent, &tag);
     BroScr_DeathPhysicsLaunch_2(ent, angles, launch_arg, force, title_global<float>(0x00922ea4));
-    ScriptString_Release(&tag);
+    scr_drop(&tag);
 }
 
 void XB_CDECL BroScr_DeathPhysicsLaunch_2FromTag_2(uint32_t ent, ScrVec3 angles, uint32_t launch_arg,
                                                    ScriptString tag, ScrVec3 unused, float delay) {
+    ScrStringGuard guard_tag(&tag);
     (void)unused;
     ScrVec3 force;
     tag_origin(&force, ent, &tag);
     BroScr_DeathPhysicsLaunch_2(ent, angles, launch_arg, force, delay);
-    ScriptString_Release(&tag);
+    scr_drop(&tag);
 }
 
 void XB_CDECL BroScr_DeathPhysicsLaunch_2Call(uint32_t ent, ScrVec3 angles, uint32_t launch_arg, ScrVec3 force) {
@@ -383,11 +388,13 @@ void XB_CDECL BroScr_DeathPhysicsLaunch_2Call(uint32_t ent, ScrVec3 angles, uint
 }
 
 void XB_CDECL BroScr_FlakSoundBlend(uint32_t ent, ScriptString name, int32_t flaknum) {
-    ScriptString text;
+    ScrStringGuard guard_name(&name);
+    ScriptString text{};
+    ScrStringGuard guard_text(&text);
     ScriptString_FromCString(&text, pointer<const char>(0x0083abbc));  // "sound_blend"
     const uint32_t zero[3] = {0, 0, 0};
     const uint32_t blend = slot<Spawn>(0x009222f0)(&text, zero, 0);  // GScr_Spawn
-    ScriptString_Release(&text);
+    scr_drop(&text);
     ScrVec3 origin;
     origin_of(&origin, ent);
     slot<SetVec>(0x00922b24)(blend, origin);  // ScrEnt_SetOrigin
@@ -400,7 +407,8 @@ void XB_CDECL BroScr_FlakSoundBlend(uint32_t ent, ScriptString name, int32_t fla
                                           int32_t*);
     title_function<StartThread>(0x004b0950)(0, 0, 0, 0, own_address(&BroScr_FlakWaitDeath_2), blend, &name,
                                             &flaknum);  // Scr_StartThread_ent_str_i(BroScr_FlakWaitDeath_2)
-    ScriptString on, null_name, off;
+    ScriptString on, null_name{}, off;
+    ScrStringGuard guard_null_name(&null_name);
     ScriptString_ConcatCString(&on, &name, pointer<const char>(0x008243a8));         // "on"
     ScriptString_ConcatCString(&null_name, &name, pointer<const char>(0x00824374));  // "_null"
     ScriptString_ConcatCString(&off, &name, pointer<const char>(0x0080da58));        // "off"
@@ -420,15 +428,16 @@ void XB_CDECL BroScr_EngineSmokeTrail(uint32_t ent) {
     const float step = title_global<float>(0x0083ecd8);  // 48
     float moved = title_global<float>(0x0083eb4c);       // 0.001
     const int32_t end = get_time() + 10000;
-    ScriptString tag, classname;
+    ScriptString tag{}, classname{};
+    ScrStringGuard guard_tag(&tag, &classname);
     ScriptString_FromCString(&tag, pointer<const char>(0x007fcf20));        // "tag_engine"
     ScriptString_FromCString(&classname, pointer<const char>(0x0083ab88));  // "script_origin"
     ScrVec3 at;
     tag_origin(&at, ent, &tag);
     const uint32_t trail = slot<Spawn>(0x009222f0)(&classname, at.v, 0);  // GScr_Spawn
     *key_slot(ent, kTrail, 0) = trail;
-    ScriptString_Release(&classname);
-    ScriptString_Release(&tag);
+    scr_drop(&classname);
+    scr_drop(&tag);
     slot<EntHash>(0x009224fc)(*key_slot(ent, kTrail, 0), ent);  // GScr_LinkTo
     while (vehicle_speed(ent) > title_global<float>(0x0083eb90) && end > get_time()) {  // 100
         ScrVec3 previous;
@@ -440,18 +449,20 @@ void XB_CDECL BroScr_EngineSmokeTrail(uint32_t ent) {
         if (!(vehicle_speed(ent) > title_global<float>(0x0083eb20))) continue;  // 1
         if (!(moved > step)) continue;
         vehicle_speed(ent);
-        ScriptString smoke;
+        ScriptString smoke{};
+        ScrStringGuard guard_smoke(&smoke);
         ScriptString_FromCString(&smoke, pointer<const char>(0x007fcf04));  // "smk_trail_thick_lg_black_a"
         slot<PlaySound>(0x009221dc)(*key_slot(ent, kTrail, 0), &smoke, 0, 0, 0);  // GScr_PlaySound
-        ScriptString_Release(&smoke);
+        scr_drop(&smoke);
         moved = moved - title_global<float>(0x0083ecd8);
     }
     if (!(end > get_time())) return;
     do {
-        ScriptString smoke;
+        ScriptString smoke{};
+        ScrStringGuard guard_smoke(&smoke);
         ScriptString_FromCString(&smoke, pointer<const char>(0x007fcf04));
         slot<PlaySound>(0x009221dc)(*key_slot(ent, kTrail, 0), &smoke, 0, 0, 0);
-        ScriptString_Release(&smoke);
+        scr_drop(&smoke);
         const long double r = slot<long double XB_CDECL(float)>(0x00922230)(float_bits(0x3e99999a));  // Scr_RandomFloat(0.3)
         Scr_Wait(static_cast<float>(r + title_global<float>(0x0083ebf8)));                            // + 0.1
     } while (end > get_time());
@@ -635,9 +646,10 @@ void XB_CDECL BroScr_RespawnerApplyAttribs(uint32_t ent, RespawnerAttributes a) 
     if (a.actor_184 != undefined_handle()) set_word(0x00922dc4, ent, a.actor_184);  // ScrActor_SetInt_184
     if (a.sentient_30 != undefined_int()) set_word(0x00922e0c, ent, a.sentient_30);  // ScrSentient_SetInt_30
     if (a.sentient_28 != undefined_int()) set_word(0x00922dd4, ent, a.sentient_28);  // ScrSentient_SetInt_28
-    ScriptString value;
+    ScriptString value{};
+    ScrStringGuard guard_value(&value);
     const bool debug = ScriptString_EqualsInt(ScrCall_GScr_GetCvar(&value, 0x008245f4), 1) != 0;  // "debug_attrib"
-    ScriptString_Release(&value);
+    scr_drop(&value);
     if (debug) {
         uint32_t* const functor = slot<uint32_t* XB_CDECL(uint32_t)>(0x00922928)(0xc);  // ScrIface_Alloc
         if (functor) {
@@ -670,7 +682,8 @@ void XB_CDECL BroScr_TurretStutter(uint32_t ent, float on_min, float on_max, flo
 }
 
 void XB_CDECL BroScr_WaitTillFinished(uint32_t ent, uint32_t notify, uint32_t done) {
-    ScriptString text;
+    ScriptString text{};
+    ScrStringGuard guard_text(&text);
     ScriptString_FromRep(&text, nullptr);
     for (;;) {
         title_function<void XB_CDECL(uint32_t, uint32_t, ScriptString*)>(0x004b14f0)(ent, notify,
@@ -680,7 +693,7 @@ void XB_CDECL BroScr_WaitTillFinished(uint32_t ent, uint32_t notify, uint32_t do
         const uint32_t h = *Scr_HashScriptString(&hash, reinterpret_cast<const uint8_t* const*>(&text));
         if (h == 0x000199a4 || h == 0x9aa82fee || h == 0xcc5542ad || h == done) break;
     }
-    ScriptString_Release(&text);
+    scr_drop(&text);
 }
 
 namespace {
@@ -713,6 +726,7 @@ void XB_CDECL BroScr_WallHopRotate(uint32_t unused, uint32_t ent, DynArray times
 
 void XB_CDECL BroScr_WaitForNotifyForever(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t,
                                           ScriptString notify, ScriptString end_on) {
+    ScrStringGuard guard_notify(&notify, &end_on);
     if (end_on.rep) Scr_EndOnString(level_handle(), end_on.rep->text);
     if (notify.rep) {
         const uint32_t level = title_global<uint32_t>(0x00922ee0);
@@ -745,12 +759,13 @@ void XB_CDECL BroScr_VehicleDeath_Flak88(uint32_t ent) {
 }
 
 void XB_CDECL BroScr_WaitTillVehicleByName(ScriptString name) {
+    ScrStringGuard guard_name(&name);
     ScriptString copy;
     ScriptString_Copy(&copy, &name);
     uint32_t vehicle;
     BroScr_FindLevelVehicleByTargetname(&vehicle, copy);
     if (entity_handle_is_valid(vehicle)) Scr_WaitTill(vehicle, 0x08d272e5);
-    ScriptString_Release(&name);
+    scr_drop(&name);
 }
 
 void XB_CDECL BroScr_TryThrowGrenadeRightHand(uint32_t ent, ScrVec3 target, float time, float fuse) {
@@ -791,10 +806,11 @@ void XB_CDECL BroScr_SetIntroScreenCvars() {
     using SetCvarInt = void XB_CDECL(const char*, uint32_t);
     const uint32_t none = undefined_handle();
     slot<SetCvarInt>(0x009222e8)(pointer<const char>(0x008344f4), 1);  // GScr_SetCvarInt "introScreen"
-    ScriptString value;
+    ScriptString value{};
+    ScrStringGuard guard_value(&value);
     const bool from_checkpoint =
         !ScriptString_Equals(ScrCall_GScr_GetCvar(&value, 0x008353b8), pointer<const char>(0x0082e098));  // "checkpoint" != "0"
-    ScriptString_Release(&value);
+    scr_drop(&value);
     if (from_checkpoint) {
         BroScr_SetIntroScreenLine(none, none, none, none);
     } else {
@@ -832,7 +848,8 @@ void XB_CDECL BroScr_SetIntroScreenCvars() {
 }
 
 void XB_CDECL BroScr_PlayerWeaponSounds(uint32_t ent) {
-    ScriptString note;
+    ScriptString note{};
+    ScrStringGuard guard_note(&note);
     ScriptString_FromRep(&note, nullptr);
     using WeaponSound = void XB_CDECL(uint32_t, uint32_t);
     for (;;) {
@@ -928,10 +945,11 @@ void XB_CDECL BroScr_VehicleRiderUnload_3(uint32_t vehicle, uint32_t rider) { ri
 
 void XB_CDECL BroScr_VehicleDeath_Halftrack(uint32_t ent) {
     Scr_EndOnString(ent, pointer<const char>(0x008007bc));  // "nokill"
-    ScriptString tree;
+    ScriptString tree{};
+    ScrStringGuard guard_tree(&tree);
     ScriptString_FromCString(&tree, pointer<const char>(0x00803cc4));  // "halftrack"
     slot<void XB_CDECL(uint32_t, ScriptString*)>(0x009225f0)(ent, &tree);  // GScr_UseAnimTree
-    ScriptString_Release(&tree);
+    scr_drop(&tree);
     ScriptString_AssignCString(string_key(ent, 0xd6eafad9),
                                pointer<const char>(0x007fa2a0));  // "v_M3A1_Halftrack_troop_d1_desert"
     ScriptString_AssignCString(string_key(ent, 0xd70abfb1), pointer<const char>(0x008007a8));  // "explo_metal_rand"
@@ -945,7 +963,8 @@ void XB_CDECL BroScr_VehicleDeath_Halftrack(uint32_t ent) {
 }
 
 ScriptString* XB_CDECL BroScr_DroneShoot(ScriptString* out, uint32_t ent, uint32_t notify) {
-    ScriptString note;
+    ScriptString note{};
+    ScrStringGuard guard_note(&note);
     ScriptString_FromRep(&note, nullptr);
     for (;;) {
         title_function<void XB_CDECL(uint32_t, uint32_t, ScriptString*)>(0x004b14f0)(ent, notify,
@@ -956,11 +975,12 @@ ScriptString* XB_CDECL BroScr_DroneShoot(ScriptString* out, uint32_t ent, uint32
             ScriptString_Equals(&note, pointer<const char>(0x007f9e88)))    // "undefined"
             break;
         if (!ScriptString_Equals(&note, pointer<const char>(0x0082c09c))) continue;  // "fire"
-        ScriptString tag;
+        ScriptString tag{};
+        ScrStringGuard guard_tag(&tag);
         ScriptString_FromCString(&tag, pointer<const char>(0x008389c0));  // "tag_flash"
         ScrVec3 origin;
         tag_origin(&origin, ent, &tag);
-        ScriptString_Release(&tag);
+        scr_drop(&tag);
         ScriptString_FromCString(&tag, pointer<const char>(0x008389c0));
         const uint32_t lane = undefined_lane();
         ScrVec3 angles;
@@ -971,12 +991,13 @@ ScriptString* XB_CDECL BroScr_DroneShoot(ScriptString* out, uint32_t ent, uint32
         float forward[3] = {title_global<float>(0x00922eb8), title_global<float>(0x00922eb8),
                             title_global<float>(0x00922eb8)};
         slot<void XB_CDECL(float*, const ScrVec3*)>(0x00922290)(forward, &angles);  // Scr_AnglesToForward
-        ScriptString_Release(&tag);
-        ScriptString sound;
+        scr_drop(&tag);
+        ScriptString sound{};
+        ScrStringGuard guard_sound(&sound);
         ScriptString_FromCString(&sound, pointer<const char>(0x007fa2e4));  // "drone_muzzleflash"
         const uint32_t at[3] = {origin.v[0], origin.v[1], origin.v[2]};
         slot<PlaySoundAt>(0x009221e0)(ent, &sound, at, 0, 0);  // GScr_PlaySoundAtPosition
-        ScriptString_Release(&sound);
+        scr_drop(&sound);
         const float range = title_global<float>(0x0083ecc8);  // 2000
         float o[3];
         std::memcpy(o, origin.v, 12);
@@ -984,7 +1005,7 @@ ScriptString* XB_CDECL BroScr_DroneShoot(ScriptString* out, uint32_t ent, uint32
         slot<void XB_CDECL(const ScrVec3*, const float*)>(0x00922454)(&origin, end);  // GScr_RandomTracer
     }
     ScriptString_Copy(out, &note);
-    ScriptString_Release(&note);
+    scr_drop(&note);
     return out;
 }
 
@@ -1022,17 +1043,19 @@ void XB_CDECL BroScr_WingTurretDamageWatch(uint32_t ent) { wing_turret_damage_wa
 void XB_CDECL BroScr_WingTurretDamageWatch_2(uint32_t ent) { wing_turret_damage_watch(ent); }
 
 void XB_CDECL BroScr_VehicleDeath_PanzerIV(uint32_t ent) {
-    ScriptString text;
+    ScriptString text{};
+    ScrStringGuard guard_text(&text);
     ScriptString_FromCString(&text, pointer<const char>(0x007f499c));  // "panzerIV"
     slot<void XB_CDECL(uint32_t, ScriptString*)>(0x009225f0)(ent, &text);  // GScr_UseAnimTree
-    ScriptString_Release(&text);
+    scr_drop(&text);
     {
-        ScriptString model, dead;
+        ScriptString model{}, dead{};
+        ScrStringGuard guard_model(&model, &dead);
         ScriptString_ConcatCString(&dead, ScrCall_ScrEnt_GetModel(&ent, &model), pointer<const char>(0x00800180));  // + "_d1"
         own_function<void XB_THISCALL(ScriptString*, const ScriptString*)>(&ScriptString_Assign_entry)(string_key(ent, 0xd6eafad9),
                                                                                         &dead);  // ScriptString_Assign
-        ScriptString_Release(&dead);
-        ScriptString_Release(&model);
+        scr_drop(&dead);
+        scr_drop(&model);
     }
     ScriptString_AssignCString(string_key(ent, 0xcc2baca1), pointer<const char>(0x007f4e40));  // "vehicle_explode"
     const uint32_t self = ent;
@@ -1082,7 +1105,8 @@ void XB_CDECL BroScr_RandomRotateLoop(uint32_t ent) {
 }
 
 void XB_CDECL BroScr_FlakDied(uint32_t ent, int32_t flaknum) {
-    ScriptString text;
+    ScriptString text{};
+    ScrStringGuard guard_text(&text);
     ScriptString_FromCString(&text, pointer<const char>(0x00824344));  // "flak died with flaknum "
     ScriptString_AppendInt(&text, flaknum);
     const uint32_t level = title_global<uint32_t>(0x00922ee0);
@@ -1096,7 +1120,7 @@ void XB_CDECL BroScr_FlakDied(uint32_t ent, int32_t flaknum) {
         using SetAnimKnob = void XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
         slot<SetAnimKnob>(0x009225d8)(flak, *key_slot(flak, 0x9af3e4c4, 0), 0x3f800000, 0, 0, 0);  // GScr_SetAnimKnob(1)
     }
-    ScriptString_Release(&text);
+    scr_drop(&text);
 }
 
 void XB_CDECL BroScr_WaitTriggerClearFlag(uint32_t trigger, uint32_t index) {
@@ -1174,11 +1198,12 @@ void XB_CDECL BroScr_SetupPlayerWeapons() {
     using SlotSet = void XB_CDECL(uint32_t, const uint32_t*, uint32_t);
     int32_t grenades = 0;
     {
-        ScriptString name;
+        ScriptString name{};
+        ScrStringGuard guard_name(&name);
         ScriptString_FromCString(&name, pointer<const char>(0x0082466c));  // "stielhandgranate"
         slot<void XB_CDECL(uint32_t, ScriptString*, int32_t*)>(0x009227dc)(player(), &name,
                                                                            &grenades);  // GScr_PlayerGetWeaponTotalAmmo
-        ScriptString_Release(&name);
+        scr_drop(&name);
     }
     DynArray slots = {nullptr, 0, 0};
     title_function<Reserve>(kReserveString)(&slots, 4, 7);
@@ -1218,11 +1243,12 @@ void XB_CDECL BroScr_SetupPlayerWeapons() {
         slot<SlotSet>(0x00922874)(player(), s, *c);  // GScr_PlayerSetWeaponSlotClipAmmo
     }
     if (grenades > 0) {
-        ScriptString name;
+        ScriptString name{};
+        ScrStringGuard guard_name(&name);
         ScriptString_FromCString(&name, pointer<const char>(0x0082466c));
         slot<void XB_CDECL(uint32_t, ScriptString*, int32_t)>(0x009227c8)(player(), &name,
                                                                           grenades);  // GScr_PlayerGiveWeaponWithAmmo
-        ScriptString_Release(&name);
+        scr_drop(&name);
     }
     slot<EntHash>(0x009221a4)(level_handle(), 0x88c7e941);  // Scr_QueueNotify
     if (clip.data) Scr_Free(clip.data);
@@ -1240,38 +1266,42 @@ void XB_CDECL BroScr_InitFriendlyChainNodes() {
     for (uint32_t i = 0; static_cast<int32_t>(i) < static_cast<int32_t>(nodes.size); ++i) {
         using Spawnflags = uint32_t XB_CDECL(uint32_t);
         if (slot<Spawnflags>(0x00922ad0)(*element_at(&nodes, i, kReserveInt0)) & 2) continue;  // ScrPathNode_GetSpawnflags
-        ScriptString text;
+        ScriptString text{};
+        ScrStringGuard guard_text(&text);
         const bool has_target = ScrCall_ScrPathNode_GetTarget(element_at(&nodes, i, kReserveInt0), &text)->rep != nullptr;
-        ScriptString_Release(&text);
+        scr_drop(&text);
         if (!has_target) continue;
         {
-            ScriptString key, target;
+            ScriptString key{}, target;
+            ScrStringGuard guard_key(&key);
             ScriptString_FromCString(&key, pointer<const char>(0x0082dda8));  // "targetname"
             ScriptString* const t = ScrCall_ScrPathNode_GetTarget(element_at(&nodes, i, kReserveInt0), &target);
             Scr_GetNodeArray(static_cast<uint32_t>(reinterpret_cast<uintptr_t>(t)),
                              static_cast<uint32_t>(reinterpret_cast<uintptr_t>(&key)),
                              reinterpret_cast<uint32_t*>(&by_target));
             ScriptString_Release(&target);
-            ScriptString_Release(&key);
+            scr_drop(&key);
         }
         {
-            ScriptString key, name;
+            ScriptString key{}, name{};
+            ScrStringGuard guard_key(&key, &name);
             ScriptString_FromCString(&key, pointer<const char>(0x00833ad0));  // "target"
             ScriptString* const n = ScrCall_ScrPathNode_GetTargetname(element_at(&nodes, i, kReserveInt0), &name);
             Scr_GetNodeArray(static_cast<uint32_t>(reinterpret_cast<uintptr_t>(n)),
                              static_cast<uint32_t>(reinterpret_cast<uintptr_t>(&key)),
                              reinterpret_cast<uint32_t*>(&by_targetname));
-            ScriptString_Release(&name);
-            ScriptString_Release(&key);
+            scr_drop(&name);
+            scr_drop(&key);
         }
         if (static_cast<int32_t>(by_target.size) > 0 || static_cast<int32_t>(by_targetname.size) > 0)
             ScrPtrArray_Append(reinterpret_cast<uint32_t*>(&chain), element_at(&nodes, i, kReserveInt0));
     }
     DynArray allies = {nullptr, 0, 0};
     for (;;) {
-        ScriptString value;
+        ScriptString value{};
+        ScrStringGuard guard_value(&value);
         const bool debug = ScriptString_Equals(ScrCall_GScr_GetCvar(&value, 0x0082355c), pointer<const char>(0x0082e058));  // "chain" == "1"
-        ScriptString_Release(&value);
+        scr_drop(&value);
         if (debug) {
             for (uint32_t i = 0; static_cast<int32_t>(i) < static_cast<int32_t>(chain.size); ++i) {
                 uint32_t buffer[3];
@@ -1289,10 +1319,11 @@ void XB_CDECL BroScr_InitFriendlyChainNodes() {
                 const ScrVec3 from = at;
                 distance(&from, &node);
             }
-            ScriptString team;
+            ScriptString team{};
+            ScrStringGuard guard_team(&team);
             ScriptString_FromCString(&team, pointer<const char>(0x00832084));  // "allies"
             slot<void XB_CDECL(DynArray*, ScriptString*)>(0x009223d0)(&allies, &team);  // GScr_GetAI
-            ScriptString_Release(&team);
+            scr_drop(&team);
             for (uint32_t i = 0; static_cast<int32_t>(i) < static_cast<int32_t>(allies.size); ++i) {
                 if (i >= allies.size) DynArray_Resize(reinterpret_cast<uint8_t*>(&allies), i + 1, i + 4);
                 uint32_t ref;
@@ -1306,7 +1337,8 @@ void XB_CDECL BroScr_InitFriendlyChainNodes() {
 void XB_CDECL BroScr_FriendlyChatTriggers(uint32_t unused, uint32_t ent) {
     (void)unused;
     DynArray triggers = {nullptr, 0, 0};
-    ScriptString name, type;
+    ScriptString name{}, type{};
+    ScrStringGuard guard_name(&name, &type);
     ScrCall_ScrEnt_GetTargetname(&ent, &name);
     ScriptString_FromRep(&type, nullptr);
     Scr_WaitTillString(ent, pointer<const char>(0x00831f60));  // "death"
@@ -1321,25 +1353,26 @@ void XB_CDECL BroScr_FriendlyChatTriggers(uint32_t unused, uint32_t ent) {
         using GetEntArray = uint32_t XB_CDECL(const ScriptString*, uint32_t, DynArray*, uint32_t);
         own_function<GetEntArray>(&Scr_GetEntArray)(&type, 0xa106e9bd, &triggers, 0);  // Scr_GetEntArray (classname)
         for (uint32_t i = 0; static_cast<int32_t>(i) < static_cast<int32_t>(triggers.size); ++i) {
-            ScriptString text;
+            ScriptString text{};
+            ScrStringGuard guard_text(&text);
             bool skip = ScrCall_ScrEnt_GetTargetname(element_at(&triggers, i, own_address(&DynArray_Resize)), &text)->rep == nullptr;
-            ScriptString_Release(&text);
+            scr_drop(&text);
             if (skip) continue;
             skip = !ScriptString_Equals(ScrCall_ScrEnt_GetTargetname(element_at(&triggers, i, own_address(&DynArray_Resize)), &text),
                                         pointer<const char>(0x00824724));  // "friendly_chat"
-            ScriptString_Release(&text);
+            scr_drop(&text);
             if (skip) continue;
             skip = ScrCall_ScrEnt_GetTarget(element_at(&triggers, i, own_address(&DynArray_Resize)), &text)->rep == nullptr;
-            ScriptString_Release(&text);
+            scr_drop(&text);
             if (skip) continue;
             const bool ours = ScriptString_EqualsString(ScrCall_ScrEnt_GetTarget(element_at(&triggers, i, own_address(&DynArray_Resize)), &text),
                                                         &name);
-            ScriptString_Release(&text);
+            scr_drop(&text);
             if (ours) slot<Ent>(0x00922540)(*element_at(&triggers, i, own_address(&DynArray_Resize)));  // GScr_Delete
         }
     }
-    ScriptString_Release(&type);
-    ScriptString_Release(&name);
+    scr_drop(&type);
+    scr_drop(&name);
     if (triggers.data) Scr_Free(triggers.data);
 }
 
@@ -1369,7 +1402,8 @@ void XB_CDECL BroScr_FlakStopMovingOnDeath(uint32_t flak, uint32_t ai, uint32_t 
     const uint32_t victim = ai;
     Scr_WaitTillString(victim, pointer<const char>(0x00831f60));  // "death"
     clear_flak_flag(flaknum);
-    ScriptString text;
+    ScriptString text{};
+    ScrStringGuard guard_text(&text);
     notify_flak_died(&text, flaknum);
     // The IsDefined byte goes to the ai argument slot, as the original.
     if (*ScrField_h1ccaaaf3_IsDefined(reinterpret_cast<bool*>(&ai), flak) && *int_slot(flak, 0x1ccaaaf3) != 0) {
@@ -1389,7 +1423,7 @@ void XB_CDECL BroScr_FlakStopMovingOnDeath(uint32_t flak, uint32_t ai, uint32_t 
     angles_of(&angles, victim);
     slot<void XB_CDECL(uint32_t, const float*, const ScrVec3*, uint32_t)>(0x009226f8)(victim, to, &angles,
                                                                                     1);  // GScr_ActorTryTeleport
-    ScriptString_Release(&text);
+    scr_drop(&text);
 }
 
 void XB_CDECL BroScr_FlakDeathTrigger(uint32_t flak, uint32_t trigger, uint32_t flaknum) {
@@ -1400,31 +1434,36 @@ void XB_CDECL BroScr_FlakDeathTrigger(uint32_t flak, uint32_t trigger, uint32_t 
                                                                                 &attacker);  // Scr_WaitTillOutputEnt_ORAN
         bool hit = false;
         {
-            ScriptString classname;
+            ScriptString classname{};
+            ScrStringGuard guard_classname(&classname);
             if (ScriptString_Equals(ScrCall_ScrEnt_GetClassname(&trigger, &classname),
                                     pointer<const char>(0x0083aa3c))) {  // "trigger_damage"
-                ScriptString noteworthy;
+                ScriptString noteworthy{};
+                ScrStringGuard guard_noteworthy(&noteworthy);
                 if (ScrCall_ScrEnt_GetScriptNoteworthy(&trigger, &noteworthy)->rep != nullptr) {
-                    ScriptString again;
+                    ScriptString again{};
+                    ScrStringGuard guard_again(&again);
                     hit = ScriptString_Equals(ScrCall_ScrEnt_GetScriptNoteworthy(&trigger, &again),
                                               pointer<const char>(0x00824854));  // "deathtrig"
-                    ScriptString_Release(&again);
+                    scr_drop(&again);
                 }
-                ScriptString_Release(&noteworthy);
+                scr_drop(&noteworthy);
             }
-            ScriptString_Release(&classname);
+            scr_drop(&classname);
         }
         if (!hit) break;
         bool by_tank = false;
         if (entity_handle_is_valid(attacker)) {
-            ScriptString name;
+            ScriptString name{};
+            ScrStringGuard guard_name(&name);
             if (ScrCall_ScrEnt_GetTargetname(&attacker, &name)->rep != nullptr) {
-                ScriptString again;
+                ScriptString again{};
+                ScrStringGuard guard_again(&again);
                 by_tank = ScriptString_Equals(ScrCall_ScrEnt_GetTargetname(&attacker, &again),
                                               pointer<const char>(0x0082dd9c));  // "player_tank"
-                ScriptString_Release(&again);
+                scr_drop(&again);
             }
-            ScriptString_Release(&name);
+            scr_drop(&name);
         }
         if (by_tank) {
             uint32_t* const functor = slot<uint32_t* XB_CDECL(uint32_t)>(0x00922928)(0xc);  // ScrIface_Alloc
@@ -1461,9 +1500,10 @@ void XB_CDECL BroScr_FlakDeathTrigger(uint32_t flak, uint32_t trigger, uint32_t 
         Scr_Wait(float_bits(0x3f800000));  // 1
     }
     clear_flak_flag(flaknum);
-    ScriptString text;
+    ScriptString text{};
+    ScrStringGuard guard_text(&text);
     notify_flak_died(&text, flaknum);
-    ScriptString_Release(&text);
+    scr_drop(&text);
 }
 
 void XB_CDECL BroScr_FlakDeathThink(uint32_t ent, uint32_t flaknum, uint8_t on_death) {
@@ -1478,16 +1518,18 @@ void XB_CDECL BroScr_FlakDeathThink(uint32_t ent, uint32_t flaknum, uint8_t on_d
         const uint32_t h = *Scr_HashName(&hash, pointer<const char>(0x0082435c));  // "broken"
         slot<EntHash>(0x009221a4)(*self, h);                                      // Scr_QueueNotify
     }
-    ScriptString sound;
+    ScriptString sound{};
+    ScrStringGuard guard_sound(&sound);
     ScriptString_FromCString(&sound, pointer<const char>(0x008007a8));  // "explo_metal_rand"
     slot<PlaySound>(0x009221dc)(ent, &sound, 0, 0, 0);                  // GScr_PlaySound
-    ScriptString_Release(&sound);
+    scr_drop(&sound);
     ScrVec3 origin;
     origin_of(&origin, ent);
     slot<void XB_CDECL(uint32_t, uint32_t, const ScrVec3*, uint32_t)>(0x00922444)(0x3f400000, 0x40400000, &origin,
                                                                                   0x448fc000);  // GScr_Earthquake(0.75, 3, 1150)
     clear_flak_flag(flaknum);
-    ScriptString text;
+    ScriptString text{};
+    ScrStringGuard guard_text(&text);
     notify_flak_died(&text, flaknum);
     const uint32_t self_ent = ent;
     // The IsDefined byte goes to the ent argument slot, as the original.
@@ -1502,7 +1544,7 @@ void XB_CDECL BroScr_FlakDeathThink(uint32_t ent, uint32_t flaknum, uint8_t on_d
     Scr_Wait(float_bits(0x3e6147ae));  // 0.22
     slot<void XB_CDECL(uint32_t, ScriptString*, uint32_t)>(0x00922548)(self_ent, string_key(self_ent, 0xb8eafadd),
                                                                        0);  // GScr_SetModel
-    ScriptString_Release(&text);
+    scr_drop(&text);
 }
 
 void XB_CDECL BroScr_FlakLoaderAmmoAnim(uint32_t flak, DynArray crew) {
@@ -1529,13 +1571,14 @@ void XB_CDECL BroScr_FlakLoaderAmmoAnim(uint32_t flak, DynArray crew) {
         slot<void XB_CDECL(uint32_t, int32_t)>(0x00922b94)(*element_at(&crew, i, own_address(&DynArray_Resize)), 250);  // ScrEnt_SetHealth
         if (!*bool_slot(*element_at(&crew, i, own_address(&DynArray_Resize)), 0x1ea97196)) continue;
         *bool_slot(*element_at(&crew, i, own_address(&DynArray_Resize)), 0x1ea97196) = 0;
-        ScriptString tag, model;
+        ScriptString tag{}, model{};
+        ScrStringGuard guard_tag(&tag, &model);
         ScriptString_FromCString(&tag, pointer<const char>(0x00831e28));    // "tag_weapon_left"
         ScriptString_FromCString(&model, pointer<const char>(0x00824860));  // "xmodel/panzerflak_ammo"
         slot<void XB_CDECL(uint32_t, ScriptString*, ScriptString*)>(0x009224d8)(*element_at(&crew, i, own_address(&DynArray_Resize)), &model,
                                                                                 &tag);  // GScr_Attach
-        ScriptString_Release(&model);
-        ScriptString_Release(&tag);
+        scr_drop(&model);
+        scr_drop(&tag);
     }
     if (crew.data) Scr_Free(crew.data);
 }
@@ -1557,18 +1600,20 @@ void XB_CDECL BroScr_VehicleDeath_Sdkfz222(uint32_t ent) {
     if (level_is(0x0082bcb8)) {  // mons1
         ScriptString_AssignCString(string_key(ent, 0xd6eafad9), pointer<const char>(0x00824880));  // "v_sdkfz222_mons_d1"
     } else {
-        ScriptString model, dead;
+        ScriptString model{}, dead{};
+        ScrStringGuard guard_model(&model, &dead);
         ScriptString_ConcatCString(&dead, ScrCall_ScrEnt_GetModel(&ent, &model), pointer<const char>(0x00800180));  // + "_d1"
         own_function<void XB_THISCALL(ScriptString*, const ScriptString*)>(&ScriptString_Assign_entry)(string_key(ent, 0xd6eafad9),
                                                                                         &dead);  // ScriptString_Assign
-        ScriptString_Release(&dead);
-        ScriptString_Release(&model);
+        scr_drop(&dead);
+        scr_drop(&model);
     }
     slot<void XB_CDECL(uint32_t, ScriptString*, uint32_t)>(0x00922548)(ent, string_key(ent, 0xd6eafad9), 0);  // GScr_SetModel
-    ScriptString sound;
+    ScriptString sound{};
+    ScrStringGuard guard_sound(&sound);
     ScriptString_FromCString(&sound, pointer<const char>(0x007f4e40));  // "vehicle_explode"
     slot<PlaySound>(0x009221dc)(ent, &sound, 0, 0, 0);                  // GScr_PlaySound
-    ScriptString_Release(&sound);
+    scr_drop(&sound);
     ScrVec3 origin;
     origin_of(&origin, ent);
     slot<void XB_CDECL(uint32_t, uint32_t, const ScrVec3*, uint32_t)>(0x00922444)(0x3e800000, 0x40400000, &origin,
@@ -1590,11 +1635,12 @@ void XB_CDECL BroScr_TankSpawnerThink(uint32_t self, uint32_t tank) {
     BroScr_TankSpawnerSlots_Init(&guys.count);
     DynArray ents = {nullptr, 0, 0};
     {
-        ScriptString name;
+        ScriptString name{};
+        ScrStringGuard guard_name(&name);
         ScriptString_FromCString(&name, pointer<const char>(0x008007d0));  // "tankspawner"
         using GetEntArray = uint32_t XB_CDECL(const ScriptString*, uint32_t, DynArray*, uint32_t);
         own_function<GetEntArray>(&Scr_GetEntArray)(&name, 0x0d786b4c, &ents, 0);  // Scr_GetEntArray (by target)
-        ScriptString_Release(&name);
+        scr_drop(&name);
     }
     TankDeadGuyRecord* const r = guys.table.record;
     r[0].spawner = *element_at(&ents, 0, own_address(&DynArray_Resize));  // DynArray_Resize
@@ -1622,25 +1668,27 @@ void XB_CDECL BroScr_TankSpawnerThink(uint32_t self, uint32_t tank) {
     }
     ScrVec3 origin, angles;
     {
-        ScriptString tag;
+        ScriptString tag{};
+        ScrStringGuard guard_tag(&tag);
         ScriptString_FromCString(&tag, pointer<const char>(0x008007c4));  // "tag_hatch"
         tag_origin(&origin, tank, &tag);
-        ScriptString_Release(&tag);
+        scr_drop(&tag);
         ScriptString_FromCString(&tag, pointer<const char>(0x008007c4));
         const uint32_t lane = undefined_lane();
         angles.v[0] = lane;
         angles.v[1] = lane;
         angles.v[2] = lane;
         slot<void XB_CDECL(uint32_t, ScrVec3*, ScriptString*)>(0x00922620)(tank, &angles, &tag);  // GScr_GetTagAngles
-        ScriptString_Release(&tag);
+        scr_drop(&tag);
     }
     DynArray axis = {nullptr, 0, 0};
     const int32_t count = static_cast<int32_t>(guys.count);
     for (int32_t i = 0; i < count; ++i) {
-        ScriptString team;
+        ScriptString team{};
+        ScrStringGuard guard_team(&team);
         ScriptString_FromCString(&team, pointer<const char>(0x0083208c));  // "axis"
         slot<void XB_CDECL(DynArray*, ScriptString*)>(0x009223d0)(&axis, &team);  // GScr_GetAI
-        ScriptString_Release(&team);
+        scr_drop(&team);
         if (static_cast<int32_t>(axis.size) > 10)
             r[0].model_only = 1;
         else
@@ -1684,6 +1732,7 @@ void XB_CDECL BroScr_TankSpawnerThink(uint32_t self, uint32_t tank) {
 }
 
 void XB_CDECL BroScr_FollowNodeChain(uint32_t ai, uint32_t node, ScriptString mode) {
+    ScrStringGuard guard_mode(&mode);
     using SetFloat = void XB_CDECL(uint32_t, uint32_t);
     using GetFloat = long double XB_CDECL(uint32_t);
     using RandomInt = int32_t XB_CDECL(int32_t);
@@ -1700,25 +1749,28 @@ void XB_CDECL BroScr_FollowNodeChain(uint32_t ai, uint32_t node, ScriptString mo
             std::memcpy(&r_bits, &r, 4);
             slot<SetFloat>(0x00922df4)(self, r_bits);  // ScrSentient_SetFloat_18 (goal radius)
         }
-        ScriptString text;
+        ScriptString text{};
+        ScrStringGuard guard_text(&text);
         bool has_target = ScrCall_ScrPathNode_GetTarget(&node, &text)->rep != nullptr;
-        ScriptString_Release(&text);
+        scr_drop(&text);
         if (has_target) {
             using GetEnt = uint32_t XB_CDECL(ScriptString*, uint32_t, uint32_t, uint32_t, uint32_t);
             turret = slot<GetEnt>(0x009221c4)(ScrCall_ScrPathNode_GetTarget(&node, &text), 0x0d786b4c, 0, 0, 1);  // GScr_GetEntArray
-            ScriptString_Release(&text);
+            scr_drop(&text);
             bool is_turret = false;
             if (entity_handle_is_valid(turret)) {
-                ScriptString classname;
+                ScriptString classname{};
+                ScrStringGuard guard_classname(&classname);
                 if (ScriptString_Equals(ScrCall_ScrEnt_GetClassname(&turret, &classname), pointer<const char>(0x00839e80))) {  // "misc_mg42"
                     is_turret = true;
                 } else {
-                    ScriptString again;
+                    ScriptString again{};
+                    ScrStringGuard guard_again(&again);
                     is_turret = ScriptString_Equals(ScrCall_ScrEnt_GetClassname(&turret, &again),
                                                     pointer<const char>(0x00839e8c));  // "misc_turret"
-                    ScriptString_Release(&again);
+                    scr_drop(&again);
                 }
-                ScriptString_Release(&classname);
+                scr_drop(&classname);
             }
             if (is_turret) {
                 uint32_t* const functor = slot<uint32_t* XB_CDECL(uint32_t)>(0x00922928)(0x10);  // ScrIface_Alloc
@@ -1744,17 +1796,18 @@ void XB_CDECL BroScr_FollowNodeChain(uint32_t ai, uint32_t node, ScriptString mo
             Scr_Wait(*own_function<float* XB_CDECL(float*, uint32_t)>(ScrPathNodeField_script_delay)(&delay, node));  // ScrPathNodeField_script_delay
         }
         has_target = ScrCall_ScrPathNode_GetTarget(&node, &text)->rep != nullptr;
-        ScriptString_Release(&text);
+        scr_drop(&text);
         if (!has_target) break;
         DynArray next = {nullptr, 0, 0};
         {
-            ScriptString key;
+            ScriptString key{};
+            ScrStringGuard guard_key(&key);
             ScriptString_FromCString(&key, pointer<const char>(0x0082dda8));  // "targetname"
             ScriptString* const t = ScrCall_ScrPathNode_GetTarget(&node, &text);
             Scr_GetNodeArray(static_cast<uint32_t>(reinterpret_cast<uintptr_t>(t)),
                              static_cast<uint32_t>(reinterpret_cast<uintptr_t>(&key)), reinterpret_cast<uint32_t*>(&next));
-            ScriptString_Release(&text);
-            ScriptString_Release(&key);
+            scr_drop(&text);
+            scr_drop(&key);
         }
         if (static_cast<int32_t>(next.size) > 1) {
             const uint32_t pick = static_cast<uint32_t>(slot<RandomInt>(0x0092222c)(static_cast<int32_t>(next.size)));
@@ -1774,13 +1827,14 @@ void XB_CDECL BroScr_FollowNodeChain(uint32_t ai, uint32_t node, ScriptString mo
     }
     bool no_last_goal = false;
     if (node != 0 && node != 0xffffffffu) {
-        ScriptString noteworthy;
+        ScriptString noteworthy{};
+        ScrStringGuard guard_noteworthy(&noteworthy);
         if (ScrCall_ScrPathNode_GetScriptNoteworthy(&node, &noteworthy)->rep != nullptr) {
-            ScriptString_Release(&noteworthy);
+            scr_drop(&noteworthy);
             no_last_goal = ScriptString_Equals(ScrCall_ScrPathNode_GetScriptNoteworthy(&node, &noteworthy),
                                                pointer<const char>(0x00824838));  // "no_last_goal"
         }
-        ScriptString_Release(&noteworthy);
+        scr_drop(&noteworthy);
     }
     if (!no_last_goal) {
         bool done = false;
@@ -1804,7 +1858,7 @@ void XB_CDECL BroScr_FollowNodeChain(uint32_t ai, uint32_t node, ScriptString mo
             slot<SetFloat>(0x00922df4)(self, 0x44000000);  // radius 512
         }
     }
-    ScriptString_Release(&mode);
+    scr_drop(&mode);
 }
 
 namespace {
@@ -1846,35 +1900,39 @@ void XB_CDECL BroScr_PanzerfaustAmmoBox(uint32_t trigger) {
     DynArray targets = {nullptr, 0, 0};
     DynArray others = {nullptr, 0, 0};
     {
-        ScriptString target;
+        ScriptString target{};
+        ScrStringGuard guard_target(&target);
         using GetEntArray = uint32_t XB_CDECL(const ScriptString*, uint32_t, DynArray*, uint32_t);
         own_function<GetEntArray>(&Scr_GetEntArray)(ScrCall_ScrEnt_GetTarget(&trigger, &target), 0x0d786b4c, &targets,
                                                 0);  // Scr_GetEntArray (by targetname)
-        ScriptString_Release(&target);
+        scr_drop(&target);
     }
     uint32_t weapon = 0, box = 0;
     for (uint32_t i = 0; static_cast<int32_t>(i) < static_cast<int32_t>(targets.size); ++i) {
-        ScriptString model;
+        ScriptString model{};
+        ScrStringGuard guard_model(&model);
         bool match = ScriptString_Equals(ScrCall_ScrEnt_GetModel(element_at(&targets, i, own_address(&DynArray_Resize)), &model),
                                          pointer<const char>(0x00823670));  // "xmodel/weapon_panzerfaust_objective"
-        ScriptString_Release(&model);
+        scr_drop(&model);
         if (match) {
             weapon = *element_at(&targets, i, own_address(&DynArray_Resize));
-            ScriptString name;
+            ScriptString name{};
+            ScrStringGuard guard_name(&name);
             ScriptString_FromCString(&name, pointer<const char>(0x00823608));  // "xmodel/weapon_panzerfaust"
             slot<void XB_CDECL(uint32_t, ScriptString*, uint32_t)>(0x00922548)(weapon, &name, 0);  // GScr_SetModel
-            ScriptString_Release(&name);
+            scr_drop(&name);
             continue;
         }
         match = ScriptString_Equals(ScrCall_ScrEnt_GetModel(element_at(&targets, i, own_address(&DynArray_Resize)), &model),
                                     pointer<const char>(0x00823648));  // "xmodel/ammo_panzerfaust_box2_objective"
-        ScriptString_Release(&model);
+        scr_drop(&model);
         if (match) {
             box = *element_at(&targets, i, own_address(&DynArray_Resize));
-            ScriptString name;
+            ScriptString name{};
+            ScrStringGuard guard_name(&name);
             ScriptString_FromCString(&name, pointer<const char>(0x008235e8));  // "xmodel/ammo_panzerfaust_box2"
             slot<void XB_CDECL(uint32_t, ScriptString*, uint32_t)>(0x00922548)(box, &name, 0);
-            ScriptString_Release(&name);
+            scr_drop(&name);
             continue;
         }
         DynArray_PushBack(reinterpret_cast<uint8_t*>(&others), element_at(&targets, i, own_address(&DynArray_Resize)));
@@ -1883,11 +1941,12 @@ void XB_CDECL BroScr_PanzerfaustAmmoBox(uint32_t trigger) {
     entity_handle_is_valid(box);
     DynArray spots = {nullptr, 0, 0};
     for (uint32_t i = 0; static_cast<int32_t>(i) < static_cast<int32_t>(others.size); ++i) {
-        ScriptString classname;
+        ScriptString classname{};
+        ScrStringGuard guard_classname(&classname);
         ScriptString_FromCString(&classname, pointer<const char>(0x0083ab88));  // "script_origin"
         const uint32_t zero[3] = {0, 0, 0};
         const uint32_t spot = slot<Spawn>(0x009222f0)(&classname, zero, 0);  // GScr_Spawn
-        ScriptString_Release(&classname);
+        scr_drop(&classname);
         ScrVec3 v;
         origin_of(&v, *element_at(&others, i, own_address(&DynArray_Resize)));
         slot<SetVec>(0x00922b24)(spot, v);  // ScrEnt_SetOrigin
@@ -1903,10 +1962,11 @@ void XB_CDECL BroScr_PanzerfaustAmmoBox(uint32_t trigger) {
         *element_at(&spots, i, own_address(&DynArray_Resize)) = spot;
     }
     {
-        ScriptString hint;
+        ScriptString hint{};
+        ScrStringGuard guard_hint(&hint);
         ScriptString_FromCString(&hint, pointer<const char>(0x0082477c));  // "DAWNVILLE_PANZER"
         slot<void XB_CDECL(uint32_t, ScriptString*)>(0x009225b8)(trigger, &hint);  // GScr_ResetHintCache
-        ScriptString_Release(&hint);
+        scr_drop(&hint);
     }
     const uint32_t level = level_handle();
     uint32_t* const functor = slot<uint32_t* XB_CDECL(uint32_t)>(0x00922928)(0x18);  // ScrIface_Alloc
@@ -1949,7 +2009,8 @@ void XB_CDECL BroScr_PanzerfaustAmmoBox(uint32_t trigger) {
             free_strings(&held);
             continue;
         }
-        ScriptString slot_name, current;
+        ScriptString slot_name{}, current{};
+        ScrStringGuard guard_slot_name(&slot_name, &current);
         ScriptString_FromRep(&slot_name, nullptr);
         ScriptString_FromRep(&current, nullptr);
         slot<void XB_CDECL(uint32_t, ScriptString*)>(0x009227d4)(player(), &current);  // GScr_PlayerGetCurrentWeapon
@@ -1966,12 +2027,14 @@ void XB_CDECL BroScr_PanzerfaustAmmoBox(uint32_t trigger) {
             which = 0x00836824;
         }
         ScriptString_AssignCString(&slot_name, pointer<const char>(which));
-        ScriptString dropped;
+        ScriptString dropped{};
+        ScrStringGuard guard_dropped(&dropped);
         ScriptString_FromRep(&dropped, nullptr);
         slot<void XB_CDECL(uint32_t, ScriptString*, ScriptString*)>(0x00922860)(player(), &slot_name,
                                                                                &dropped);  // GScr_PlayerGetWeaponSlotWeapon
         if (!ScriptString_Equals(&dropped, pointer<const char>(0x00832430))) {
-            ScriptString classname;
+            ScriptString classname{};
+            ScrStringGuard guard_classname(&classname);
             ScriptString_FromRep(&classname, nullptr);
             for (uint32_t i = 0; static_cast<int32_t>(i) < static_cast<int32_t>(spots.size); ++i) {
                 if (i >= spots.size) DynArray_Resize(reinterpret_cast<uint8_t*>(&spots), i + 1, i + 4);
@@ -1985,11 +2048,12 @@ void XB_CDECL BroScr_PanzerfaustAmmoBox(uint32_t trigger) {
                     }
                 }
                 if (taken) continue;
-                ScriptString model;
+                ScriptString model{};
+                ScrStringGuard guard_model(&model);
                 const uint32_t id = *Scr_HashScriptString(&hash, reinterpret_cast<const uint8_t* const*>(&dropped));
                 own_function<void XB_THISCALL(ScriptString*, const ScriptString*)>(&ScriptString_Assign_entry)(
                     &classname, ScrCall_GScr_GetWeaponClassname(&model, id));  // ScriptString_Assign
-                ScriptString_Release(&model);
+                scr_drop(&model);
                 const uint32_t zero[3] = {0, 0, 0};
                 const uint32_t item = slot<Spawn>(0x009222f0)(&classname, zero, 0);  // GScr_Spawn
                 ScrVec3 v;
@@ -2001,13 +2065,13 @@ void XB_CDECL BroScr_PanzerfaustAmmoBox(uint32_t trigger) {
                 *key_slot(*element_at(&spots, i, own_address(&DynArray_Resize)), 0xda24dbe7, 0) = item;
                 break;
             }
-            ScriptString_Release(&classname);
+            scr_drop(&classname);
         }
         take_weapon(&dropped);
         give_and_switch_panzerfaust();
-        ScriptString_Release(&dropped);
-        ScriptString_Release(&current);
-        ScriptString_Release(&slot_name);
+        scr_drop(&dropped);
+        scr_drop(&current);
+        scr_drop(&slot_name);
         free_strings(&held);
     }
 }
@@ -2048,7 +2112,9 @@ inline void rocket_shock(uint32_t ent, int32_t shock_time, uint32_t no_wait_thre
 
 void XB_CDECL BroScr_RocketExplosion(uint32_t ent, int32_t shock_time, int32_t base_damage, int32_t damage_range,
                                      int32_t min_damage, uint32_t no_wait_thread, ScriptString shock) {
-    ScriptString name;
+    ScrStringGuard guard_shock(&shock);
+    ScriptString name{};
+    ScrStringGuard guard_name(&name);
     ScriptString_FromRep(&name, nullptr);
     const uint32_t undefined = undefined_int();
     if (static_cast<uint32_t>(shock_time) == undefined) shock_time = 12;
@@ -2079,10 +2145,11 @@ void XB_CDECL BroScr_RocketExplosion(uint32_t ent, int32_t shock_time, int32_t b
     const float max_damage = static_cast<float>(slot<int32_t XB_CDECL(int32_t)>(0x0092222c)(damage_range) + base_damage);  // Scr_RandomInt
     const float min_f = static_cast<float>(min_damage);
     {
-        ScriptString sound;
+        ScriptString sound{};
+        ScrStringGuard guard_sound(&sound);
         ScriptString_FromCString(&sound, pointer<const char>(0x007fff50));  // "weapons_rocket_explosion"
         slot<PlaySound>(0x009221dc)(player(), &sound, 0, 0, 0);            // GScr_PlaySound
-        ScriptString_Release(&sound);
+        scr_drop(&sound);
     }
     Scr_Wait(float_bits(0x3e800000));  // 0.25
     slot<void XB_CDECL(const float*, uint32_t, float, float)>(0x00922428)(pos, 0x43a00000, max_damage,
@@ -2093,27 +2160,29 @@ void XB_CDECL BroScr_RocketExplosion(uint32_t ent, int32_t shock_time, int32_t b
     if (slot<uint32_t XB_CDECL(uint32_t)>(0x00922210)(player())) {  // GScr_IsAlive
         rocket_shock(ent, shock_time, no_wait_thread, &name);
     }
-    ScriptString_Release(&name);
-    ScriptString_Release(&shock);
+    scr_drop(&name);
+    scr_drop(&shock);
 }
 
 void XB_CDECL BroScr_WingTurretDamageWatch_3(uint32_t ent) { wing_turret_damage_watch(ent); }
 
 void XB_CDECL BroScr_VehicleDeath_Tank(uint32_t ent) {
     {
-        ScriptString tree;
+        ScriptString tree{};
+        ScrStringGuard guard_tree(&tree);
         ScriptString_FromCString(&tree, pointer<const char>(0x007f499c));  // "panzerIV"
         slot<void XB_CDECL(uint32_t, ScriptString*)>(0x009225f0)(ent, &tree);  // GScr_UseAnimTree
-        ScriptString_Release(&tree);
+        scr_drop(&tree);
     }
-    ScriptString model;
+    ScriptString model{};
+    ScrStringGuard guard_model(&model);
     uint32_t dead = 0;
     if (ScriptString_Equals(ScrCall_ScrEnt_GetModel(&ent, &model), pointer<const char>(0x007f790c))) dead = 0x007f790c;  // "v_sherman"
-    ScriptString_Release(&model);
+    scr_drop(&model);
     if (!dead) {
         if (ScriptString_Equals(ScrCall_ScrEnt_GetModel(&ent, &model), pointer<const char>(0x00821090)))  // "v_sherman_snow"
             dead = 0x00821f50;                                                                          // "v_sherman_snow_d1"
-        ScriptString_Release(&model);
+        scr_drop(&model);
     }
     if (dead) {
         ScriptString_AssignCString(string_key(ent, 0xd6eafad9), pointer<const char>(dead));
@@ -2121,7 +2190,7 @@ void XB_CDECL BroScr_VehicleDeath_Tank(uint32_t ent) {
         ScriptString* const m = ScrCall_ScrEnt_GetModel(&ent, &model);
         own_function<void XB_THISCALL(ScriptString*, const ScriptString*)>(&ScriptString_Assign_entry)(string_key(ent, 0xd6eafad9),
                                                                                         m);  // ScriptString_Assign
-        ScriptString_Release(&model);
+        scr_drop(&model);
     }
     ScriptString_AssignCString(string_key(ent, 0xcc2baca1), pointer<const char>(0x007f4e40));  // "vehicle_explode"
     ScriptString_AssignCString(string_key(ent, 0xd70abfb1), pointer<const char>(0x008007a8));  // "explo_metal_rand"
@@ -2185,10 +2254,11 @@ namespace {
 
 // The jeep's anim tree, dead model and sound (BroScr_VehicleDeath_Jeep / BroScr_VehicleInit_Jeep).
 inline void jeep_setup(uint32_t ent) {
-    ScriptString tree;
+    ScriptString tree{};
+    ScrStringGuard guard_tree(&tree);
     ScriptString_FromCString(&tree, pointer<const char>(0x007f4948));  // "willyjeep"
     slot<void XB_CDECL(uint32_t, ScriptString*)>(0x009225f0)(ent, &tree);  // GScr_UseAnimTree
-    ScriptString_Release(&tree);
+    scr_drop(&tree);
     ScriptString_AssignCString(string_key(ent, 0xd6eafad9),
                                pointer<const char>(level_is(0x0082bcb8) ? 0x008248f4 : 0x008248e4));  // mons1: "v_willysjeep_d1_mons"
     ScriptString_AssignCString(string_key(ent, 0xd70abfb1), pointer<const char>(0x008007a8));  // "explo_metal_rand"
@@ -2331,10 +2401,11 @@ void XB_CDECL BroScr_HalftrackGunnerGrenadeHint(uint32_t, uint32_t trigger) {
     using GetEntArray = uint32_t XB_CDECL(const ScriptString*, uint32_t, uint32_t, uint32_t, uint32_t);
     uint32_t halftrack;
     {
-        ScriptString target;
+        ScriptString target{};
+        ScrStringGuard guard_target(&target);
         const ScriptString* const name = ScrCall_ScrEnt_GetTarget(&trigger, &target);
         halftrack = slot<GetEntArray>(0x009221c4)(name, 0x0d786b4c, 0, 0, 0);  // GScr_GetEntArray (by targetname)
-        ScriptString_Release(&target);
+        scr_drop(&target);
     }
     if (entity_handle_is_valid(halftrack)) {
         bool defined;
@@ -2402,25 +2473,28 @@ void XB_CDECL BroScr_HalftrackGunnerGrenadeHint(uint32_t, uint32_t trigger) {
     for (uint32_t i = 0; i < axis.size; ++i) {
         if (i >= axis.size) DynArray_Resize(reinterpret_cast<uint8_t*>(&axis), i + 1, i + 4);
         if (!slot<uint8_t XB_CDECL(uint32_t, uint32_t)>(0x00922530)(trigger, axis.data[i])) continue;  // GScr_IsTouching
-        ScriptString noteworthy;
+        ScriptString noteworthy{};
+        ScrStringGuard guard_noteworthy(&noteworthy);
         bool match = ScriptString_Equals(ScrCall_ScrEnt_GetScriptNoteworthy(&trigger, &noteworthy), pointer<const char>(0x008249b0));
-        ScriptString_Release(&noteworthy);
+        scr_drop(&noteworthy);
         if (match) {  // "grenades"
             Scr_WaitTillString(halftrack, pointer<const char>(0x008249b0));
             Scr_Wait(float_bits(0x3f99999a));  // 1.2
-            ScriptString command;
+            ScriptString command{};
+            ScrStringGuard guard_command(&command);
             ScriptString_FromCString(&command, pointer<const char>(0x0082499c));  // "weaponslot grenade"
             slot<void XB_CDECL(DynArray*, ScriptString*)>(0x009223f0)(&keys, &command);  // GScr_GetKeyBinding
-            ScriptString_Release(&command);
+            scr_drop(&command);
             ScriptString hint;
             ScriptString_FromCString(&hint, pointer<const char>(0x00824980));  // "SCRIPT_HINT_SWITCHTOGRENADE"
             // BroScr_EmptyFuncStrArg_8 (0x00182480): releases the string; the key array is passed unread.
             own_function<void XB_CDECL(ScriptString, DynArray*)>(&BroScr_Stub_ReleaseArg1)(hint, &keys);
             break;
         }
-        ScriptString noteworthy_2;
+        ScriptString noteworthy_2{};
+        ScrStringGuard guard_noteworthy_2(&noteworthy_2);
         match = ScriptString_Equals(ScrCall_ScrEnt_GetScriptNoteworthy(&trigger, &noteworthy_2), pointer<const char>(0x00824968));
-        ScriptString_Release(&noteworthy_2);
+        scr_drop(&noteworthy_2);
         if (match) {  // "get halftrack gunner"
             Scr_WaitTillString(halftrack, pointer<const char>(0x00824968));
             Scr_Wait(1.0f);
@@ -2479,10 +2553,11 @@ void XB_CDECL BroScr_VehicleInit_M13(uint32_t ent) {
 
 void XB_CDECL BroScr_VehicleInit_Halftrack(uint32_t ent) {
     {
-        ScriptString tree;
+        ScriptString tree{};
+        ScrStringGuard guard_tree(&tree);
         ScriptString_FromCString(&tree, pointer<const char>(0x00803cc4));  // "halftrack"
         slot<void XB_CDECL(uint32_t, ScriptString*)>(0x009225f0)(ent, &tree);  // GScr_UseAnimTree
-        ScriptString_Release(&tree);
+        scr_drop(&tree);
     }
     ScriptString_AssignCString(string_key(ent, 0xd6eafad9), pointer<const char>(0x007fa2a0));  // "v_M3A1_Halftrack_troop_d1_desert"
     ScriptString_AssignCString(string_key(ent, 0xd70abfb1), pointer<const char>(0x008007a8));  // "explo_metal_rand"
@@ -2492,19 +2567,22 @@ void XB_CDECL BroScr_VehicleInit_Halftrack(uint32_t ent) {
 
 void XB_CDECL BroScr_VehicleInit_PanzerIV(uint32_t ent) {
     {
-        ScriptString tree;
+        ScriptString tree{};
+        ScrStringGuard guard_tree(&tree);
         ScriptString_FromCString(&tree, pointer<const char>(0x007f499c));  // "panzerIV"
         slot<void XB_CDECL(uint32_t, ScriptString*)>(0x009225f0)(ent, &tree);  // GScr_UseAnimTree
-        ScriptString_Release(&tree);
+        scr_drop(&tree);
     }
     bool defined;
     if (!*ScrField_deathmodel_IsDefined(&defined, ent)) {
-        ScriptString model;
-        ScriptString dead;
+        ScriptString model{};
+        ScrStringGuard guard_model(&model);
+        ScriptString dead{};
+        ScrStringGuard guard_dead(&dead);
         ScriptString_ConcatCString(&dead, ScrCall_ScrEnt_GetModel(&ent, &model), pointer<const char>(0x00800180));  // "_d1"
         ScriptString_Assign(string_key(ent, 0xd6eafad9), &dead);
-        ScriptString_Release(&dead);
-        ScriptString_Release(&model);
+        scr_drop(&dead);
+        scr_drop(&model);
     }
     ScriptString_AssignCString(string_key(ent, 0xd70abfb1), pointer<const char>(0x008007a8));  // "explo_metal_rand"
     thread_1(ent, 0x007f5ba0, own_address(&BroScr_VehicleDeathThink), ent);                                               // BroScr_VehicleDeathThink
@@ -2516,37 +2594,42 @@ void XB_CDECL BroScr_VehicleInit_PanzerIV(uint32_t ent) {
 void XB_CDECL BroScr_VehicleInit_Sherman(uint32_t ent) {
     bool match;
     {
-        ScriptString model;
+        ScriptString model{};
+        ScrStringGuard guard_model(&model);
         match = ScriptString_Equals(ScrCall_ScrEnt_GetModel(&ent, &model), pointer<const char>(0x007f790c));  // "v_sherman"
-        ScriptString_Release(&model);
+        scr_drop(&model);
     }
     if (match) {
         ScriptString_AssignCString(string_key(ent, 0xd6eafad9), pointer<const char>(0x007f4e50));  // "v_sherman_d1"
     } else {
         {
-            ScriptString model;
+            ScriptString model{};
+            ScrStringGuard guard_model(&model);
             match = ScriptString_Equals(ScrCall_ScrEnt_GetModel(&ent, &model), pointer<const char>(0x00821090));  // "v_sherman_snow"
-            ScriptString_Release(&model);
+            scr_drop(&model);
         }
         if (!match) {
-            ScriptString model;
+            ScriptString model{};
+            ScrStringGuard guard_model(&model);
             match = ScriptString_Equals(ScrCall_ScrEnt_GetModel(&ent, &model), pointer<const char>(0x0082106c));  // "v_sherman_buchholz"
-            ScriptString_Release(&model);
+            scr_drop(&model);
         }
         if (match) {
             ScriptString_AssignCString(string_key(ent, 0xd6eafad9), pointer<const char>(0x00821f50));  // "v_sherman_snow_d1"
         } else {
             {
-                ScriptString model;
+                ScriptString model{};
+                ScrStringGuard guard_model(&model);
                 match = ScriptString_Equals(ScrCall_ScrEnt_GetModel(&ent, &model), pointer<const char>(0x00816acc));  // "v_sherman_bulldozer"
-                ScriptString_Release(&model);
+                scr_drop(&model);
             }
             bool defined;
             if (!match && !*ScrField_deathmodel_IsDefined(&defined, ent)) {
-                ScriptString model;
+                ScriptString model{};
+                ScrStringGuard guard_model(&model);
                 const ScriptString* const current = ScrCall_ScrEnt_GetModel(&ent, &model);
                 ScriptString_Assign(ScrField_deathmodel(ent), current);
-                ScriptString_Release(&model);
+                scr_drop(&model);
             }
         }
     }
@@ -2646,20 +2729,22 @@ void XB_CDECL BroScr_SpawnGuyDiedThink(uint32_t, uint32_t trigger) {
     DynArray guys = {};  // the axis AI touching the trigger
     DynArray ai = {};
     {
-        ScriptString team;
+        ScriptString team{};
+        ScrStringGuard guard_team(&team);
         ScriptString_FromCString(&team, pointer<const char>(0x0083208c));  // "axis"
         slot<void XB_CDECL(DynArray*, ScriptString*)>(0x009223d0)(&ai, &team);  // GScr_GetAI
-        ScriptString_Release(&team);
+        scr_drop(&team);
     }
     for (uint32_t i = 0; i < ai.size; ++i) {
         if (slot<uint8_t XB_CDECL(uint32_t, uint32_t)>(0x00922530)(element(&ai, i), trigger))  // GScr_IsTouching
             DynArray_PushBack(reinterpret_cast<uint8_t*>(&guys), &element(&ai, i));
     }
     {
-        ScriptString team;
+        ScriptString team{};
+        ScrStringGuard guard_team(&team);
         ScriptString_FromCString(&team, pointer<const char>(0x0083208c));  // "axis"
         slot<void XB_CDECL(DynArray*, ScriptString*)>(0x009223dc)(&ai, &team);  // GScr_GetSpawnerTeamArray
-        ScriptString_Release(&team);
+        scr_drop(&team);
     }
     DynArray spawners = {};  // the axis spawners with a count left touching the trigger
     for (uint32_t i = 0; i < ai.size; ++i) {
@@ -2700,17 +2785,20 @@ void XB_CDECL BroScr_SpawnGuyDiedThink(uint32_t, uint32_t trigger) {
     {
         // Notify the level "<halftrack animname> <trigger script_noteworthy>".
         uint32_t* const level = title_global<uint32_t>(0x00922ee0) ? reinterpret_cast<uint32_t*>(title_global<uint32_t>(0x00922ee0) + 4) : nullptr;
-        ScriptString noteworthy;
+        ScriptString noteworthy{};
+        ScrStringGuard guard_noteworthy(&noteworthy);
         const ScriptString* const note = ScrCall_ScrEnt_GetScriptNoteworthy(&trigger, &noteworthy);
-        ScriptString spaced;
+        ScriptString spaced{};
+        ScrStringGuard guard_spaced(&spaced);
         ScriptString_ConcatCString(&spaced, &animname, pointer<const char>(0x0082d6e4));  // " "
-        ScriptString text;
+        ScriptString text{};
+        ScrStringGuard guard_text(&text);
         ScriptString_Concat(&text, &spaced, note);
         uint32_t hash;
         slot<EntHash>(0x009221a4)(*level, *Scr_HashScriptString(&hash, reinterpret_cast<const uint8_t* const*>(&text)));  // Scr_QueueNotify
-        ScriptString_Release(&text);
-        ScriptString_Release(&spaced);
-        ScriptString_Release(&noteworthy);
+        scr_drop(&text);
+        scr_drop(&spaced);
+        scr_drop(&noteworthy);
     }
     slot<Ent>(0x00922540)(trigger);  // GScr_Delete
     ScriptString_Release(&animname);
@@ -2745,14 +2833,15 @@ void XB_CDECL BroScr_InfinitePanzerfaust() {
             element(&points, i) = point;
             ScriptString_Release(&target);
         } else {
-            ScriptString classname;
+            ScriptString classname{};
+            ScrStringGuard guard_classname(&classname);
             ScriptString_FromCString(&classname, pointer<const char>(0x0083ab88));  // "script_origin"
             ScrVec3 o;
             origin_of(&o, element(&respawns, i));
             const uint32_t at[3] = {o.v[0], o.v[1], o.v[2]};
             const uint32_t point = slot<Spawn>(0x009222f0)(&classname, at, 0);  // GScr_Spawn
             element(&points, i) = point;
-            ScriptString_Release(&classname);
+            scr_drop(&classname);
         }
         ScrVec3 a;
         angles_of(&a, element(&respawns, i));
@@ -2768,13 +2857,14 @@ void XB_CDECL BroScr_InfinitePanzerfaust() {
         uint32_t hash;
         slot<EntHash>(0x009221a4)(level_handle(), *Scr_HashName(&hash, pointer<const char>(0x0082475c)));  // Scr_QueueNotify("picked up infinite panzerfaust")
         for (uint32_t i = 0; static_cast<int32_t>(i) < static_cast<int32_t>(points.size); ++i) {
-            ScriptString weapon;
+            ScriptString weapon{};
+            ScrStringGuard guard_weapon(&weapon);
             ScriptString_FromCString(&weapon, pointer<const char>(0x0082473c));  // "weapon_panzerfaust"
             ScrVec3 o;
             origin_of(&o, element(&points, i));
             const uint32_t at[3] = {o.v[0], o.v[1], o.v[2]};
             const uint32_t fresh = slot<Spawn>(0x009222f0)(&weapon, at, 0);  // GScr_Spawn
-            ScriptString_Release(&weapon);
+            scr_drop(&weapon);
             ScrVec3 a;
             angles_of(&a, element(&points, i));
             slot<SetVec>(0x00922ba4)(fresh, a);  // ScrEnt_SetAngles
@@ -2809,10 +2899,11 @@ inline void plane_crash(uint32_t ent, uint32_t dead, void XB_CDECL delete_turret
     title_function<void XB_CDECL(uint32_t, uint32_t, uint32_t*)>(0x004b1590)(ent, kDeath, &attacker);  // Scr_WaitTillOutputEnt_ORAN
     delete_turrets(ent);
     {
-        ScriptString sound;
+        ScriptString sound{};
+        ScrStringGuard guard_sound(&sound);
         ScriptString_FromCString(&sound, pointer<const char>(0x008007a8));  // "explo_metal_rand"
         slot<PlaySound>(0x009221dc)(ent, &sound, 0, 0, 0);  // GScr_PlaySound
-        ScriptString_Release(&sound);
+        scr_drop(&sound);
     }
     thread_1(ent, 0x007f5ba0, think, ent);
     ScrVec3 origin;
@@ -2820,31 +2911,34 @@ inline void plane_crash(uint32_t ent, uint32_t dead, void XB_CDECL delete_turret
     slot<void XB_CDECL(uint32_t, uint32_t, const ScrVec3*, uint32_t)>(0x00922444)(0x3e800000, 0x40400000, &origin,
                                                                                   0x44834000);  // GScr_Earthquake(0.25, 3, 1050)
     {
-        ScriptString classname;
+        ScriptString classname{};
+        ScrStringGuard guard_classname(&classname);
         ScriptString_FromCString(&classname, pointer<const char>(0x0083ab88));  // "script_origin"
         const uint32_t at[3] = {bits(0.0f), bits(0.0f), bits(0.0f)};
         const uint32_t engine = slot<Spawn>(0x009222f0)(&classname, at, 0);  // GScr_Spawn
         *key_slot(ent, 0x5553515d, 0) = engine;
-        ScriptString_Release(&classname);
+        scr_drop(&classname);
     }
     {
-        ScriptString tag;
+        ScriptString tag{};
+        ScrStringGuard guard_tag(&tag);
         ScriptString_FromCString(&tag, pointer<const char>(0x008249dc));  // "tag_engine_left"
         const uint32_t angles_offset[3] = {bits(0.0f), bits(0.0f), bits(0.0f)};
         const uint32_t origin_offset[3] = {bits(0.0f), bits(0.0f), bits(0.0f)};
         using Link = void XB_CDECL(uint32_t, uint32_t, const ScriptString*, const uint32_t*, const uint32_t*, uint32_t);
         slot<Link>(0x009224f4)(*key_slot(ent, 0x5553515d, 0), ent, &tag, origin_offset, angles_offset, 0);  // GScr_LinkToTagWithOffset
-        ScriptString_Release(&tag);
+        scr_drop(&tag);
     }
     thread_1(ent, 0x007f5ba0, move, ent);
     using SetModel = void XB_CDECL(uint32_t, ScriptString*, uint32_t);
     bool defined;
     if (!*ScrField_script_vehiclegroup_IsDefined(&defined, ent) || *ScrField_script_vehiclegroup(ent) == 4 ||
         *ScrField_script_vehiclegroup(ent) == 5) {
-        ScriptString model;
+        ScriptString model{};
+        ScrStringGuard guard_model(&model);
         ScriptString_FromCString(&model, pointer<const char>(shot));
         slot<SetModel>(0x00922548)(ent, &model, 0);  // GScr_SetModel
-        ScriptString_Release(&model);
+        scr_drop(&model);
     } else {
         slot<SetModel>(0x00922548)(ent, string_key(ent, 0xd6eafad9), 0);  // GScr_SetModel
     }
@@ -2885,17 +2979,19 @@ void XB_CDECL BroScr_FlakWaitStartTrigger(uint32_t flak, uint32_t trigger, uint3
     DynArray deaths = {};
     bool targeted;
     {
-        ScriptString target;
+        ScriptString target{};
+        ScrStringGuard guard_target(&target);
         targeted = ScrCall_ScrEnt_GetTarget(&trigger, &target)->rep != nullptr;
-        ScriptString_Release(&target);
+        scr_drop(&target);
     }
     if (targeted) {
         // A BroScr_FlakDeathTrigger thread per trigger the start trigger targets.
-        ScriptString target;
+        ScriptString target{};
+        ScrStringGuard guard_target(&target);
         const ScriptString* const name = ScrCall_ScrEnt_GetTarget(&trigger, &target);
         Scr_GetEntArray(static_cast<uint32_t>(reinterpret_cast<uintptr_t>(name)), 0x0d786b4c,
                         reinterpret_cast<uint8_t*>(&deaths), 0);  // by targetname
-        ScriptString_Release(&target);
+        scr_drop(&target);
         for (uint32_t i = 0; static_cast<int32_t>(i) < static_cast<int32_t>(deaths.size); ++i) {
             const uint32_t* const death = &element(&deaths, i);
             uint32_t* const functor = slot<uint32_t* XB_CDECL(uint32_t)>(0x00922928)(0x14);  // ScrIface_Alloc
@@ -2986,11 +3082,12 @@ void XB_CDECL BroScr_FlakCrewAnim(uint32_t ent, uint32_t flak, uint32_t flaknum,
     }
     --flak_anim_count(flaknum);
     if (flak_anim_count(flaknum) == 0) {
-        ScriptString done;
+        ScriptString done{};
+        ScrStringGuard guard_done(&done);
         ScriptString_FromCString(&done, pointer<const char>(0x00824a44));  // "flak_anim_done"
         ScriptString_AppendInt(&done, static_cast<int32_t>(flaknum));
         slot<EntHash>(0x009221a4)(level_handle(), *Scr_HashScriptString(&hash, reinterpret_cast<const uint8_t* const*>(&done)));  // Scr_QueueNotify
-        ScriptString_Release(&done);
+        scr_drop(&done);
     }
     ScriptString_Release(&note);
     ScriptString_Release(&animname);
@@ -3035,6 +3132,7 @@ inline void flak_sound(uint32_t ent, uint32_t text) {
 }  // namespace
 
 void XB_CDECL BroScr_FlakCrewAnims(uint32_t ent, ScriptString animname, uint32_t flaknum, ScriptString type) {
+    ScrStringGuard guard_type(&type);
     using Knob = void XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
     uint32_t anim = 0;
     uint32_t hash;
@@ -3113,7 +3211,7 @@ void XB_CDECL BroScr_FlakCrewAnims(uint32_t ent, ScriptString animname, uint32_t
     }
     ScriptString_Release(&note);
     ScriptString_Release(&animname);
-    ScriptString_Release(&type);
+    scr_drop(&type);
 }
 
 
@@ -3123,9 +3221,10 @@ void XB_CDECL BroScr_SquadMemberThink(uint32_t ent) {
     if (!*ScrField_h05374cc6_IsDefined(&defined, ent)) return;
     bool none;
     {
-        ScriptString target;
+        ScriptString target{};
+        ScrStringGuard guard_target(&target);
         none = ScrCall_ScrPathNode_GetTarget(key_slot(ent, 0x05374cc6, 0), &target)->rep == nullptr;  // the node
-        ScriptString_Release(&target);
+        scr_drop(&target);
     }
     if (none) return;
     if (!*ScrField_h7212d405_IsDefined(&defined, ent)) *ScrField_h7212d405(ent) = 5;
@@ -3139,14 +3238,16 @@ void XB_CDECL BroScr_SquadMemberThink(uint32_t ent) {
 }
 
 void XB_CDECL BroScr_SquadMemberThinkOnNotify(uint32_t ent, ScriptString notify) {
+    ScrStringGuard guard_notify(&notify);
     Scr_EndOnString(ent, pointer<const char>(0x00831f60));  // "death"
     bool defined;
     if (*ScrField_h05374cc6_IsDefined(&defined, ent)) {
         bool none;
         {
-            ScriptString target;
+            ScriptString target{};
+            ScrStringGuard guard_target(&target);
             none = ScrCall_ScrPathNode_GetTarget(key_slot(ent, 0x05374cc6, 0), &target)->rep == nullptr;  // the node
-            ScriptString_Release(&target);
+            scr_drop(&target);
         }
         if (!none) {
             Scr_WaitTillString(ent, notify.rep ? notify.rep->text : nullptr);
@@ -3157,18 +3258,20 @@ void XB_CDECL BroScr_SquadMemberThinkOnNotify(uint32_t ent, ScriptString notify)
             }
         }
     }
-    ScriptString_Release(&notify);
+    scr_drop(&notify);
 }
 
 void XB_CDECL BroScr_VehicleExplodeSound(uint32_t ent) {
     bool defined;
     if (!*ScrField_deathmodel_IsDefined(&defined, ent)) {
-        ScriptString model;
-        ScriptString dead;
+        ScriptString model{};
+        ScrStringGuard guard_model(&model);
+        ScriptString dead{};
+        ScrStringGuard guard_dead(&dead);
         ScriptString_ConcatCString(&dead, ScrCall_ScrEnt_GetModel(&ent, &model), pointer<const char>(0x00800180));  // "_d1"
         ScriptString_Assign(string_key(ent, 0xd6eafad9), &dead);
-        ScriptString_Release(&dead);
-        ScriptString_Release(&model);
+        scr_drop(&dead);
+        scr_drop(&model);
     }
     ScriptString_AssignCString(string_key(ent, 0xd70abfb1), pointer<const char>(0x008007a8));  // "explo_metal_rand"
     thread_1(ent, 0x007f5ba0, own_address(&BroScr_VehicleDeathThink), ent);                                               // BroScr_VehicleDeathThink
@@ -3323,6 +3426,7 @@ void XB_CDECL BroScr_VehicleRiderAttach(uint32_t vehicle, uint32_t rider, Script
 
 
 void XB_CDECL BroScr_VehicleRiderMount(uint32_t vehicle, uint32_t rider, ScriptString tag) {
+    ScrStringGuard guard_tag(&tag);
     slot<EntHash>(0x00922188)(rider, kDeath);  // Scr_EndOn
     Scr_WaitTill(rider, 0xa0e65a8e);
     ++*int_slot(vehicle, 0xb330b301);
@@ -3348,7 +3452,8 @@ void XB_CDECL BroScr_VehicleRiderMount(uint32_t vehicle, uint32_t rider, ScriptS
     first[0] = gunner[0];
     first[1] = gunner[1];
     *reinterpret_cast<uint8_t*>(rider_slot_inline(vehicle, 0) + 1) = 1;
-    ScriptString gun_tag;
+    ScriptString gun_tag{};
+    ScrStringGuard guard_gun_tag(&gun_tag);
     ScriptString_FromCString(&gun_tag, pointer<const char>(0x007fa47c));  // "tag_gunner"
     Scr_WaitFrames(0);
     {
@@ -3373,8 +3478,8 @@ void XB_CDECL BroScr_VehicleRiderMount(uint32_t vehicle, uint32_t rider, ScriptS
     using Start = uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, const uint32_t*,
                                     const ScriptString*);
     own_function<Start>(&Scr_StartThread_ent_ent_str_PROLOGUE_entry)(0, 0, 0, 0, own_address(&BroScr_VehicleRiderWait), vehicle, &rider, &gun_tag);  // Scr_StartThread_ent_ent_str(BroScr_VehicleRiderWait)
-    ScriptString_Release(&gun_tag);
-    ScriptString_Release(&tag);
+    scr_drop(&gun_tag);
+    scr_drop(&tag);
 }
 
 
@@ -3407,18 +3512,20 @@ void XB_CDECL BroScr_FlakvierlingThink(uint32_t ent) {
     int32_t shots = 0;
     bool full;
     {
-        ScriptString model;
+        ScriptString model{};
+        ScrStringGuard guard_model(&model);
         full = ScriptString_Equals(ScrCall_ScrEnt_GetModel(&ent, &model), pointer<const char>(0x00824c44));  // "v_flakvierling"
-        ScriptString_Release(&model);
+        scr_drop(&model);
     }
     {
-        ScriptString tree;
+        ScriptString tree{};
+        ScrStringGuard guard_tree(&tree);
         if (full)
             ScriptString_FromCString(&tree, pointer<const char>(0x007f49c4));  // "flakvierling"
         else
             ScriptString_FromCString(&tree, pointer<const char>(0x007f49b0));  // "flakvierling_base"
         slot<void XB_CDECL(uint32_t, ScriptString*)>(0x009225f0)(ent, &tree);  // GScr_UseAnimTree
-        ScriptString_Release(&tree);
+        scr_drop(&tree);
     }
     for (;;) {
         Scr_WaitTill(ent, 0xac1c7bac);  // a shot
@@ -3485,7 +3592,8 @@ void XB_CDECL Bro__load_gmi__main() {
     *bool_slot(level_field(0x7f8), 0x2eecefb8) = 0;
     thread_1(player(), 0x007f5ba0, own_address(&BroScr_PlayerWeaponSounds), player());  // BroScr_PlayerWeaponSounds
     *reinterpret_cast<uint8_t*>(&level_field(0x354)) = 1;
-    ScriptString difficulty;
+    ScriptString difficulty{};
+    ScrStringGuard guard_difficulty(&difficulty);
     ScriptString_FromRep(&difficulty, nullptr);
     slot<void XB_CDECL(ScriptString*)>(0x009223cc)(&difficulty);  // GScr_GetDifficulty
     uint32_t hash;
@@ -3525,7 +3633,7 @@ void XB_CDECL Bro__load_gmi__main() {
     level_thread(0x0092216c, own_address(&BroScr_ReattachAlliesGuns));  // BroScr_ReattachAlliesGuns
     if (chains.data) Scr_Free(chains.data);
     if (ai.data) Scr_Free(ai.data);
-    ScriptString_Release(&difficulty);
+    scr_drop(&difficulty);
 }
 
 
@@ -3891,19 +3999,21 @@ void XB_CDECL BroScr_FlakPanzerThink(uint32_t ent, uint32_t flaknum) {
         // "start_turret"), script models (BroScr_PlantBombObjective threads), the rest the crew spawners.
         DynArray targets = {nullptr, 0, 0};
         {
-            ScriptString target;
+            ScriptString target{};
+            ScrStringGuard guard_target(&target);
             Scr_GetEntArray(static_cast<uint32_t>(reinterpret_cast<uintptr_t>(ScrCall_ScrEnt_GetTarget(&ent, &target))),
                             0x0d786b4c, reinterpret_cast<uint8_t*>(&targets), 0);  // by targetname
-            ScriptString_Release(&target);
+            scr_drop(&target);
         }
         bool start_trigger = false;
         DynArray spawners = {nullptr, 0, 0};
         for (uint32_t i = 0; static_cast<int32_t>(i) < static_cast<int32_t>(targets.size); ++i) {
             bool is;
             {
-                ScriptString classname;
+                ScriptString classname{};
+                ScrStringGuard guard_classname(&classname);
                 is = string_is(ScrCall_ScrEnt_GetClassname(&element(&targets, i), &classname), 0x00832270);  // "trigger_multiple"
-                ScriptString_Release(&classname);
+                scr_drop(&classname);
             }
             if (is) {
                 thread_3(ent, own_address(&BroScr_FlakWaitStartTrigger), ent, element(&targets, i), flaknum);  // BroScr_FlakWaitStartTrigger
@@ -3911,9 +4021,10 @@ void XB_CDECL BroScr_FlakPanzerThink(uint32_t ent, uint32_t flaknum) {
                 continue;
             }
             {
-                ScriptString classname;
+                ScriptString classname{};
+                ScrStringGuard guard_classname(&classname);
                 is = string_is(ScrCall_ScrEnt_GetClassname(&element(&targets, i), &classname), 0x0083ab98);  // "script_model"
-                ScriptString_Release(&classname);
+                scr_drop(&classname);
             }
             if (is)
                 thread_3(ent, own_address(&BroScr_PlantBombObjective), ent, element(&targets, i), flaknum);  // BroScr_PlantBombObjective
@@ -4028,7 +4139,8 @@ void XB_CDECL BroScr_FlakPanzerThink(uint32_t ent, uint32_t flaknum) {
                 }
                 // While manned: with the level flag clear, the crew anims (guns in hand) and a wait for
                 // them ("flak_anim_done<n>" on the level; 2 s for flakairlow); else guns on the back, 1 s.
-                ScriptString anim, done;
+                ScriptString anim, done{};
+                ScrStringGuard guard_done(&done);
                 ScriptString_FromRep(&anim, nullptr);
                 ScriptString_FromRep(&done, nullptr);
                 const ScriptString* const empty = pointer<const ScriptString>(0x00922e90);
@@ -4098,7 +4210,7 @@ void XB_CDECL BroScr_FlakPanzerThink(uint32_t ent, uint32_t flaknum) {
                         wait_flak_anim_done(&done, flaknum);
                     }
                 }
-                ScriptString_Release(&done);
+                scr_drop(&done);
                 ScriptString_Release(&anim);
             }
         }
@@ -4190,7 +4302,8 @@ void XB_CDECL BroScr_FlakGunnerFireAnim(uint32_t ent, uint32_t flaknum) {
     using Start = uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, ScriptString*, uint32_t*,
                                     const ScriptString*);
     Scr_EndOnString(ent, pointer<const char>(0x00824c90));  // "fire_turret"
-    ScriptString anim, done;
+    ScriptString anim{}, done{};
+    ScrStringGuard guard_anim(&anim, &done);
     ScriptString_FromRep(&anim, nullptr);
     ScriptString_FromRep(&done, nullptr);
     while (level_byte(0x684, flaknum)) {
@@ -4204,12 +4317,13 @@ void XB_CDECL BroScr_FlakGunnerFireAnim(uint32_t ent, uint32_t flaknum) {
         }
         wait_flak_anim_done(&done, flaknum);
     }
-    ScriptString_Release(&done);
-    ScriptString_Release(&anim);
+    scr_drop(&done);
+    scr_drop(&anim);
 }
 
 void XB_CDECL BroScr_SquadManagerSpawnSquad(uint32_t ent, ScriptString group, int32_t max_alive, int32_t max_total,
                                             ScriptString endon, float interval, uint32_t think) {
+    ScrStringGuard guard_endon(&endon);
     using Spawn = uint32_t XB_CDECL(uint32_t, uint32_t);
     using SetGoal = void XB_CDECL(uint32_t, const uint32_t*);
     Scr_EndOnString(ent, endon.rep ? endon.rep->text : nullptr);
@@ -4243,7 +4357,7 @@ void XB_CDECL BroScr_SquadManagerSpawnSquad(uint32_t ent, ScriptString group, in
         if (spawners.data) Scr_Free(spawners.data);
         if (nodes.data) Scr_Free(nodes.data);
         ScriptString_Release(&group);
-        ScriptString_Release(&endon);
+        scr_drop(&endon);
         return;
     }
     if (interval == title_global<float>(0x00922eac)) interval = title_global<float>(0x0083edc8);  // 0.05
@@ -4438,9 +4552,10 @@ void XB_CDECL BroScr_SetupStackers_2(uint32_t ent) {
     } else {
         bool targeted;
         {
-            ScriptString target;
+            ScriptString target{};
+            ScrStringGuard guard_target(&target);
             targeted = ScrCall_ScrEnt_GetTarget(&ent, &target)->rep != nullptr;
-            ScriptString_Release(&target);
+            scr_drop(&target);
         }
         if (targeted) flag_stacked(&ent, &targets, &stacked);
     }
@@ -4459,9 +4574,10 @@ void XB_CDECL BroScr_SetupStackers_2(uint32_t ent) {
         if (entity_handle_is_valid(*pointer<uint32_t>(title_global<uint32_t>(0x00922ee0) + 0x7f0)) &&
             slot<uint32_t XB_CDECL(uint32_t)>(0x00922588)(*pointer<uint32_t>(title_global<uint32_t>(0x00922ee0) + 0x7f0)) !=
                 attacker) {  // GScr_Turret_GetUser
-            ScriptString classname;
+            ScriptString classname{};
+            ScrStringGuard guard_classname(&classname);
             counts = string_is(ScrCall_ScrEnt_GetClassname(&attacker, &classname), 0x0083a984);  // "worldspawn"
-            ScriptString_Release(&classname);
+            scr_drop(&classname);
         }
         if (counts) left -= static_cast<int32_t>(damage);
     }
@@ -4623,9 +4739,10 @@ void XB_CDECL BroScr_WallHopTrigger(uint32_t ent) {
 void XB_CDECL BroScr_VehicleDeath_Flakvierling(uint32_t ent) {
     bool full;
     {
-        ScriptString model;
+        ScriptString model{};
+        ScrStringGuard guard_model(&model);
         full = string_is(ScrCall_ScrEnt_GetModel(&ent, &model), 0x00824c44);  // "v_flakvierling"
-        ScriptString_Release(&model);
+        scr_drop(&model);
     }
     uint32_t text;
     if (full)
@@ -4672,6 +4789,7 @@ inline void rider_fire_loop(uint32_t vehicle, uint32_t rider, ScriptString* tag,
 }  // namespace
 
 void XB_CDECL BroScr_VehicleRiderWait(uint32_t vehicle, uint32_t rider, ScriptString tag) {
+    ScrStringGuard guard_tag(&tag);
     using Call = void XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t*, ScriptString*);
     slot<EntHash>(0x00922188)(rider, kDeath);     // Scr_EndOn
     slot<EntHash>(0x00922188)(rider, 0xa0e65a8e);  // Scr_EndOn
@@ -4679,7 +4797,7 @@ void XB_CDECL BroScr_VehicleRiderWait(uint32_t vehicle, uint32_t rider, ScriptSt
     if (string_is(&tag, 0x007fa47c)) rider_fire_loop(vehicle, rider, &tag, 0x008cd38c);  // "tag_gunner", g_anim_flakpanzer_gunner_fire_a
     if (string_is(&tag, 0x007fc0bc)) rider_fire_loop(vehicle, rider, &tag, 0x008cd398);  // "tag_passenger1", g_anim_flakpanzer_leftloader_fire_b
     if (string_is(&tag, 0x007f5c08)) rider_fire_loop(vehicle, rider, &tag, 0x008cd3a4);  // "tag_passenger2", g_anim_flakpanzer_rightloader_fire_a
-    ScriptString_Release(&tag);
+    scr_drop(&tag);
 }
 
 namespace {
@@ -4906,6 +5024,7 @@ inline void wait_while_stunned(float end, float step, uint32_t ent) {
 }  // namespace
 
 void XB_CDECL BroScr_TankHullGunnerThink(uint32_t ent, ScriptString weapon, ScriptString tag) {
+    ScrStringGuard guard_weapon(&weapon, &tag);
     using StartThread = uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, ScriptString*, ScriptString*);
     using RandomFloat = long double XB_CDECL(float);
     own_function<StartThread>(&Scr_StartThread_ent_str_str_PROLOGUE_entry)(0, 0, 0, 0, own_address(&BroScr_TankAttachMgTurret), ent, &weapon, &tag);  // Scr_StartThread_ent_str_str(BroScr_TankAttachMgTurret)
@@ -5134,10 +5253,11 @@ void XB_CDECL BroScr_VehicleMountRiders(uint32_t vehicle, uint32_t rider, uint32
 
 void XB_CDECL BroScr_PanzerIVSetup_3(uint32_t ent) {
     {
-        ScriptString tree;
+        ScriptString tree{};
+        ScrStringGuard guard_tree(&tree);
         ScriptString_FromCString(&tree, pointer<const char>(0x007f499c));  // "panzerIV"
         slot<void XB_CDECL(uint32_t, ScriptString*)>(0x009225f0)(ent, &tree);  // GScr_UseAnimTree
-        ScriptString_Release(&tree);
+        scr_drop(&tree);
     }
     slot<EntHash>(0x00922b94)(ent, static_cast<uint32_t>(random_int(1000) + 500));  // ScrEnt_SetHealth
     uint32_t* functor = new_functor(0xc);
@@ -5164,14 +5284,16 @@ namespace {
 inline void wait_targetname_notify(uint32_t* ent, uint32_t suffix) {
     const uint32_t object = title_global<uint32_t>(0x00922ee0);
     const uint32_t* const level = pointer<uint32_t>(object ? object + 4 : 0);
-    ScriptString name;
-    ScriptString text;
+    ScriptString name{};
+    ScrStringGuard guard_name(&name);
+    ScriptString text{};
+    ScrStringGuard guard_text(&text);
     ScriptString_ConcatCString(&text, ScrCall_ScrEnt_GetTargetname(ent, &name), pointer<const char>(suffix));
     uint32_t hash;
     const uint32_t h = *Scr_HashScriptString(&hash, reinterpret_cast<const uint8_t* const*>(&text));
     Scr_WaitTill(*level, h);
-    ScriptString_Release(&text);
-    ScriptString_Release(&name);
+    scr_drop(&text);
+    scr_drop(&name);
 }
 
 // The follower array (key 0xdeca7f50, set empty when missing).
@@ -5232,6 +5354,7 @@ void XB_CDECL BroScr_PauseUnpauseThink(uint32_t ent) {
 
 void XB_CDECL BroScr_RespawnerThink(uint32_t ent, uint32_t respawner, RespawnerAttributes attribs, uint32_t limit,
                                     ScriptString mode) {
+    ScrStringGuard guard_mode(&mode);
     using Count = uint32_t XB_CDECL(uint32_t);
     using SetCount = void XB_CDECL(uint32_t, uint32_t);
     using Spawn = uint32_t XB_CDECL(uint32_t, uint32_t);
@@ -5316,14 +5439,16 @@ void XB_CDECL BroScr_RespawnerThink(uint32_t ent, uint32_t respawner, RespawnerA
             Scr_WaitTillString(guy, pointer<const char>(0x007f6000));  // "finished spawning"
             if (entity_handle_is_valid(respawner)) ++*int_slot(respawner, 0xaa7e54b7);
             if (!*ScrField_h0c4d3fa0_IsDefined(&defined, guy)) {
-                ScriptString group;
-                ScriptString name;
+                ScriptString group{};
+                ScrStringGuard guard_group(&group);
+                ScriptString name{};
+                ScrStringGuard guard_name(&name);
                 ScriptString_ConcatCString(&name, ScrCall_ScrEnt_GetGroupname(&ent, &group), pointer<const char>(0x00824ea4));  // "_ai"
                 ScriptString copy;
                 ScriptString_Copy(&copy, &name);
                 slot<void XB_CDECL(uint32_t, ScriptString)>(0x00922b54)(guy, copy);  // ScrEnt_SetTargetname (releases its copy)
-                ScriptString_Release(&name);
-                ScriptString_Release(&group);
+                scr_drop(&name);
+                scr_drop(&group);
             } else {
                 ScriptString copy;
                 ScriptString_Copy(&copy, ScrField_h0c4d3fa0(guy));
@@ -5370,10 +5495,11 @@ void XB_CDECL BroScr_RespawnerThink(uint32_t ent, uint32_t respawner, RespawnerA
         Scr_Wait(0.5f);
     }
     title_function<void XB_THISCALL(RespawnerAttributes*)>(0x0052b970)(&attribs);  // RespawnerAttributes_Dtor
-    ScriptString_Release(&mode);
+    scr_drop(&mode);
 }
 
 void XB_CDECL BroScr_TankHullGunnerAtGunhull(uint32_t ent, ScriptString weapon) {
+    ScrStringGuard guard_weapon(&weapon);
     ScriptString tag;
     ScriptString_FromCString(&tag, pointer<const char>(0x007f77f4));  // "tag_gunhull"
     ScriptString copy;
@@ -5506,6 +5632,7 @@ void XB_CDECL BroScr_FlakGunnerRespawnLoop(uint32_t vehicle) {
 
 void XB_CDECL BroScr_SpawnerGroupManager(uint32_t, ScriptString group, ScriptString name, RespawnerAttributes attribs,
                                          uint32_t limit, ScriptString start_notify, ScriptString mode) {
+    ScrStringGuard guard_start_notify(&start_notify, &mode);
     using StartRespawner = uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, const uint32_t*,
                                              const RespawnerAttributes*, const uint32_t*, const ScriptString*);
     // The group's spawners (groupname == `group`).
@@ -5514,13 +5641,15 @@ void XB_CDECL BroScr_SpawnerGroupManager(uint32_t, ScriptString group, ScriptStr
     DynArray list = {nullptr, 0, 0};
     for (uint32_t i = 0; static_cast<int32_t>(i) < static_cast<int32_t>(spawners.size); ++i) {
         bool match = false;
-        ScriptString first;
+        ScriptString first{};
+        ScrStringGuard guard_first(&first);
         if (ScrCall_ScrEnt_GetGroupname(element_at(&spawners, i, own_address(&DynArray_Resize)), &first)->rep) {
-            ScriptString again;
+            ScriptString again{};
+            ScrStringGuard guard_again(&again);
             match = ScriptString_EqualsString(ScrCall_ScrEnt_GetGroupname(element_at(&spawners, i, own_address(&DynArray_Resize)), &again), &group);
-            ScriptString_Release(&again);
+            scr_drop(&again);
         }
-        ScriptString_Release(&first);
+        scr_drop(&first);
         if (match) DynArray_PushBack(reinterpret_cast<uint8_t*>(&list), element_at(&spawners, i, own_address(&DynArray_Resize)));
     }
     if (start_notify.rep) {
@@ -5536,11 +5665,12 @@ void XB_CDECL BroScr_SpawnerGroupManager(uint32_t, ScriptString group, ScriptStr
     uint32_t manager = 0;
     if (name.rep) {
         {
-            ScriptString kind;
+            ScriptString kind{};
+            ScrStringGuard guard_kind(&kind);
             ScriptString_FromCString(&kind, pointer<const char>(0x0083ab88));  // "script_origin"
             const uint32_t origin[3] = {bits(0.0f), bits(0.0f), bits(0.0f)};
             manager = slot<Spawn>(0x009222f0)(&kind, origin, 0);  // GScr_Spawn
-            ScriptString_Release(&kind);
+            scr_drop(&kind);
         }
         {
             ScriptString text;
@@ -5588,8 +5718,8 @@ void XB_CDECL BroScr_SpawnerGroupManager(uint32_t, ScriptString group, ScriptStr
     ScriptString_Release(&group);
     ScriptString_Release(&name);
     title_function<void XB_THISCALL(RespawnerAttributes*)>(0x0052b970)(&attribs);  // RespawnerAttributes_Dtor
-    ScriptString_Release(&start_notify);
-    ScriptString_Release(&mode);
+    scr_drop(&start_notify);
+    scr_drop(&mode);
 }
 
 namespace {
@@ -5622,36 +5752,40 @@ inline const ScriptString* empty_string() { return pointer<const ScriptString>(0
 }  // namespace
 
 void XB_CDECL BroScr_SpawnerGroupManagerCall(uint32_t ent, ScriptString group) {
+    ScrStringGuard guard_group(&group);
     RespawnerAttributes a;
     attribs_default(&a);
     group_manager(ent, &group, empty_string(), &a, title_global<uint32_t>(0x00922ebc), empty_string(), empty_string());
     attribs_free(&a);
-    ScriptString_Release(&group);
+    scr_drop(&group);
 }
 
 void XB_CDECL BroScr_SpawnerGroupManagerCall_2(uint32_t ent, ScriptString group, uint32_t limit) {
+    ScrStringGuard guard_group(&group);
     RespawnerAttributes a;
     attribs_default(&a);
     group_manager(ent, &group, empty_string(), &a, limit, empty_string(), empty_string());
     attribs_free(&a);
-    ScriptString_Release(&group);
+    scr_drop(&group);
 }
 
 void XB_CDECL BroScr_SpawnerGroupManagerCall_3(uint32_t ent, ScriptString group, ScriptString name, uint32_t limit,
                                                ScriptString notify, ScriptString mode) {
+    ScrStringGuard guard_group(&group, &name, &notify, &mode);
     RespawnerAttributes a;
     attribs_default(&a);
     group_manager(ent, &group, &name, &a, limit, &notify, &mode);
     attribs_free(&a);
-    ScriptString_Release(&group);
-    ScriptString_Release(&name);
-    ScriptString_Release(&notify);
-    ScriptString_Release(&mode);
+    scr_drop(&group);
+    scr_drop(&name);
+    scr_drop(&notify);
+    scr_drop(&mode);
 }
 
 void XB_CDECL BroScr_SpawnerGroupManagerCall_4(uint32_t ent, ScriptString group, RespawnerAttributes attribs) {
+    ScrStringGuard guard_group(&group);
     group_manager(ent, &group, empty_string(), &attribs, title_global<uint32_t>(0x00922ebc), empty_string(), empty_string());
-    ScriptString_Release(&group);
+    scr_drop(&group);
     attribs_free(&attribs);
 }
 
@@ -5676,14 +5810,16 @@ void XB_CDECL BroScr_RunSpawnerGroupsByGroupname(DynArray names, float delay, Sc
             for (uint32_t j = 0; static_cast<int32_t>(j) < static_cast<int32_t>(spawners.size); ++j) {
                 if (!*element_at(&names, j, kReserveString)) continue;
                 bool match = false;
-                ScriptString first;
+                ScriptString first{};
+                ScrStringGuard guard_first(&first);
                 if (ScrCall_ScrEnt_GetGroupname(element_at(&spawners, j, own_address(&DynArray_Resize)), &first)->rep) {
-                    ScriptString again;
+                    ScriptString again{};
+                    ScrStringGuard guard_again(&again);
                     const ScriptString* const group = ScrCall_ScrEnt_GetGroupname(element_at(&spawners, j, own_address(&DynArray_Resize)), &again);
                     match = ScriptString_EqualsString(group, reinterpret_cast<const ScriptString*>(element_at(&names, j, kReserveString)));
-                    ScriptString_Release(&again);
+                    scr_drop(&again);
                 }
-                ScriptString_Release(&first);
+                scr_drop(&first);
                 if (match) DynArray_PushBack(reinterpret_cast<uint8_t*>(&list), element_at(&spawners, j, own_address(&DynArray_Resize)));
             }
             if (static_cast<int32_t>(list.size) < 1) {
@@ -5808,10 +5944,11 @@ void XB_CDECL BroScr_FlakAutomatedThink(uint32_t flak) {
             dist = flak_target_distance(flak);
             bool convoy;
             {
-                ScriptString name;
+                ScriptString name{};
+                ScrStringGuard guard_name(&name);
                 convoy = ScriptString_Equals(ScrCall_ScrEnt_GetTargetname(flak_target(flak), &name),
                                              pointer<const char>(0x007fa63c));  // "convoy3"
-                ScriptString_Release(&name);
+                scr_drop(&name);
             }
             if (convoy) {
                 const uint32_t target = *flak_target(flak);
@@ -5837,16 +5974,18 @@ void XB_CDECL BroScr_FlakAutomatedThink(uint32_t flak) {
                 script_true(static_cast<float>(static_cast<int32_t>(*int_slot(flak, 0x93c3cf6c))) > dist)) {
                 ScrVec3 origin;
                 {
-                    ScriptString tag;
+                    ScriptString tag{};
+                    ScrStringGuard guard_tag(&tag);
                     ScriptString_FromCString(&tag, pointer<const char>(0x008389c0));  // "tag_flash"
                     ScrVec3 at;
                     tag_origin(&at, flak, &tag);
                     origin = at;
-                    ScriptString_Release(&tag);
+                    scr_drop(&tag);
                 }
                 ScrVec3 angles;
                 {
-                    ScriptString tag;
+                    ScriptString tag{};
+                    ScrStringGuard guard_tag(&tag);
                     ScriptString_FromCString(&tag, pointer<const char>(0x008389c0));  // "tag_flash"
                     const uint32_t lane = undefined_lane();
                     ScrVec3 at;
@@ -5855,7 +5994,7 @@ void XB_CDECL BroScr_FlakAutomatedThink(uint32_t flak) {
                     at.v[2] = lane;
                     slot<void XB_CDECL(uint32_t, ScrVec3*, ScriptString*)>(0x00922620)(flak, &at, &tag);  // GScr_GetTagAngles
                     angles = at;
-                    ScriptString_Release(&tag);
+                    scr_drop(&tag);
                 }
                 float forward[3];
                 {
@@ -5921,6 +6060,7 @@ void XB_CDECL BroScr_SetFlakAutomated(uint32_t flak, bool automated) {
 }
 
 void XB_CDECL BroScr_SetFlakMannedByName(ScriptString name, bool manned) {
+    ScrStringGuard guard_name(&name);
     uint32_t flak;
     {
         ScriptString copy;
@@ -5928,10 +6068,11 @@ void XB_CDECL BroScr_SetFlakMannedByName(ScriptString name, bool manned) {
         BroScr_FindLevelVehicleByTargetname(&flak, copy);
     }
     if (entity_handle_is_valid(flak)) BroScr_SetFlakManned(flak, manned);
-    ScriptString_Release(&name);
+    scr_drop(&name);
 }
 
 void XB_CDECL BroScr_SetFlakAutomatedByName(ScriptString name, bool automated) {
+    ScrStringGuard guard_name(&name);
     uint32_t flak;
     {
         ScriptString copy;
@@ -5939,7 +6080,7 @@ void XB_CDECL BroScr_SetFlakAutomatedByName(ScriptString name, bool automated) {
         BroScr_FindLevelVehicleByTargetname(&flak, copy);
     }
     if (entity_handle_is_valid(flak)) BroScr_SetFlakAutomated(flak, automated);
-    ScriptString_Release(&name);
+    scr_drop(&name);
 }
 
 }  // namespace game

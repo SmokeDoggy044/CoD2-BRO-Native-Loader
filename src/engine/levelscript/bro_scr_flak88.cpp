@@ -17,6 +17,7 @@
 #include "bro_scr_death_watch.h"
 #include "bro_scr_level_threads.h"
 #include "bro_scr_level_threads_2.h"
+#include "scr_unwind_guard.h"
 
 namespace game {
 
@@ -223,9 +224,10 @@ void XB_CDECL BroScr_Flak88Think(uint32_t ent, uint32_t flaknum) {
         for (uint32_t i = 0; static_cast<int32_t>(i) < static_cast<int32_t>(targets.size); ++i) {
             bool is;
             {
-                ScriptString classname;
+                ScriptString classname{};
+                ScrStringGuard guard_classname(&classname);
                 is = string_is(ScrCall_ScrEnt_GetClassname(&element(&targets, i), &classname), 0x00832270);  // "trigger_multiple"
-                ScriptString_Release(&classname);
+                scr_drop(&classname);
             }
             if (is) {
                 thread_3(ent, own_address(&BroScr_FlakWaitStartTrigger), ent, element(&targets, i), flaknum);  // BroScr_FlakWaitStartTrigger
@@ -233,9 +235,10 @@ void XB_CDECL BroScr_Flak88Think(uint32_t ent, uint32_t flaknum) {
                 continue;
             }
             {
-                ScriptString classname;
+                ScriptString classname{};
+                ScrStringGuard guard_classname(&classname);
                 is = string_is(ScrCall_ScrEnt_GetClassname(&element(&targets, i), &classname), 0x0083ab98);  // "script_model"
-                ScriptString_Release(&classname);
+                scr_drop(&classname);
             }
             if (is)
                 title_function<StartThread>(0x0045ad90)(0, 0, 0, 0, own_address(&BroScr_PlantBombObjective), ent, &element(&targets, i),
@@ -332,7 +335,8 @@ void XB_CDECL BroScr_Flak88Think(uint32_t ent, uint32_t flaknum) {
         // While manned: with the level flag clear, guns in hand and the round's anim ("preidle" while
         // level byte +0x548 is set, "turn" once, else a BroScr_FlakGunnerFireAnim thread), a wait for
         // "fire_turret", then "fire" for the crew; else guns on the back and 1 s.
-        ScriptString anim, done;
+        ScriptString anim, done{};
+        ScrStringGuard guard_done(&done);
         ScriptString_FromRep(&anim, nullptr);
         ScriptString_FromRep(&done, nullptr);
         while (level_byte(0x684, flaknum)) {
@@ -355,15 +359,17 @@ void XB_CDECL BroScr_Flak88Think(uint32_t ent, uint32_t flaknum) {
             // A "fake" flak (script_noteworthy) only plays the sound; a real one fires.
             bool fake;
             {
-                ScriptString noteworthy;
+                ScriptString noteworthy{};
+                ScrStringGuard guard_noteworthy(&noteworthy);
                 if (ScrCall_ScrEnt_GetScriptNoteworthy(&ent, &noteworthy)->rep) {
-                    ScriptString again;
+                    ScriptString again{};
+                    ScrStringGuard guard_again(&again);
                     fake = string_is(ScrCall_ScrEnt_GetScriptNoteworthy(&ent, &again), 0x00825378);  // "fake"
-                    ScriptString_Release(&again);
+                    scr_drop(&again);
                 } else {
                     fake = false;
                 }
-                ScriptString_Release(&noteworthy);
+                scr_drop(&noteworthy);
             }
             if (fake) {
                 if (string_is(&anim, 0x0082c09c)) flak_sound(ent, 0x0082536c);  // "flak88_fire"
@@ -373,7 +379,7 @@ void XB_CDECL BroScr_Flak88Think(uint32_t ent, uint32_t flaknum) {
             crew_anim_threads(&guys, ent, flaknum, &anim);
             wait_flak_anim_done(&done, flaknum);
         }
-        ScriptString_Release(&done);
+        scr_drop(&done);
         ScriptString_Release(&anim);
     }
     if (guys.data) Scr_Free(guys.data);

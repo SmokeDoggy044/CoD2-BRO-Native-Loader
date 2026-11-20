@@ -15,6 +15,7 @@
 #include "bro_scr_level_threads_2.h"
 #include "levels_templates.h"
 #include "levels_twins.h"
+#include "scr_unwind_guard.h"
 
 namespace game {
 
@@ -100,9 +101,10 @@ void XB_CDECL BroScr_TreadFx(uint32_t vehicle, uint32_t tread, uint32_t wheel) {
     using EndOn = void XB_CDECL(uint32_t, uint32_t);
     slot<EndOn>(0x00922188)(tread, 0x06730ae8);    // Scr_EndOn "death"
     slot<EndOn>(0x00922188)(vehicle, 0x06730ae8);
-    ScriptString fast;
+    ScriptString fast{};
+    ScrStringGuard guard_fast(&fast);
     const bool skip = !ScriptString_Equals(ScrCall_GScr_GetCvar(&fast, 0x008253e4), pointer<const char>(0x0082e098));  // "scr_gmi_fast", "0"
-    scr_release(&fast);
+    scr_drop(&fast);
     if (skip) return;
     alignas(4) uint8_t map[0x28];
     own_function<void XB_THISCALL(uint8_t*, uint32_t)>(&HashMap_CopyCtor_PROLOGUE_6)(map, title_global<uint32_t>(0x00922ee0) + 0x57c);  // HashMap_CopyCtor
@@ -114,7 +116,8 @@ void XB_CDECL BroScr_TreadFx(uint32_t vehicle, uint32_t tread, uint32_t wheel) {
         scr_string_from(&message, 0x008253a0);  // "Tread effects are undefined. Add _treadfx::main(); to this level"
         ScrLocal_ReleaseString_2(message);
     }
-    ScriptString surface;
+    ScriptString surface{};
+    ScrStringGuard guard_surface(&surface);
     BroScr_TreadFxSurfaceThink(&surface, vehicle, wheel);
     float travelled = title_global<float>(0x0083eb4c);  // 0.001
     bool defined;
@@ -146,29 +149,32 @@ void XB_CDECL BroScr_TreadFx(uint32_t vehicle, uint32_t tread, uint32_t wheel) {
         const float* s = BroScr_VectorScale(scaled_buffer, as_float(forward[0]), as_float(forward[1]),
                                             as_float(forward[2]), scale);
         float scaled[3] = {s[0], s[1], s[2]};
-        ScriptString last_surface;
+        ScriptString last_surface{};
+        ScrStringGuard guard_last_surface(&last_surface);
         ScriptString_Copy(&last_surface, &surface);
-        ScriptString next;
+        ScriptString next{};
+        ScrStringGuard guard_next(&next);
         ScriptString_Assign(&surface, BroScr_TreadFxSurfaceThink(&next, vehicle, wheel));
-        scr_release(&next);
+        scr_drop(&next);
         if (!ScriptString_EqualsString(&surface, &last_surface))
             slot<void XB_CDECL(uint32_t, uint32_t)>(0x009221a4)(vehicle, 0xd33dc7a9);  // Scr_QueueNotify
         if (!ScriptString_Equals(&surface, pointer<const char>(0x00824fb0)))  // "nofx"
             slot<void XB_CDECL(uint32_t, ScriptString*, float*, uint32_t, uint32_t)>(0x009221e0)(tread, &surface, scaled, 0,
                                                                                                0);  // GScr_PlaySoundAtPosition
         travelled -= static_cast<float>(static_cast<int32_t>(*int_slot(vehicle, 0x8473dd9d)));
-        scr_release(&last_surface);
+        scr_drop(&last_surface);
     }
-    scr_release(&surface);
+    scr_drop(&surface);
 }
 
 void XB_CDECL BroScr_TreeBurstTriggerThink(uint32_t ent, uint8_t wait_trigger) {
     bool targets = false;
     if (wait_trigger) {
         Scr_WaitTill(ent, 0xe2a210cf);
-        ScriptString target;
+        ScriptString target{};
+        ScrStringGuard guard_target(&target);
         targets = ScrCall_ScrEnt_GetTarget(&ent, &target)->rep != nullptr;
-        scr_release(&target);
+        scr_drop(&target);
     } else {
         bool defined;
         if (!*ScrField_burst_notify_IsDefined(&defined, ent)) return;
@@ -181,9 +187,10 @@ void XB_CDECL BroScr_TreeBurstTriggerThink(uint32_t ent, uint8_t wait_trigger) {
     }
     if (targets) {
         DynArray ents = {nullptr, 0, 0};
-        ScriptString target;  // built in the wait_trigger argument slot
+        ScriptString target{};  // built in the wait_trigger argument slot
+        ScrStringGuard guard_target(&target);
         Scr_GetEntArray(address_of(ScrCall_ScrEnt_GetTarget(&ent, &target)), 0x0d786b4c, reinterpret_cast<uint8_t*>(&ents), 0);
-        scr_release(&target);
+        scr_drop(&target);
         for (uint32_t i = 0; static_cast<int32_t>(i) < static_cast<int32_t>(ents.size); ++i)
             play_burst(*BroScr_ArrayElement(reinterpret_cast<uint32_t*>(&ents), i));
         if (ents.data) Scr_Free(ents.data);
@@ -198,10 +205,11 @@ void XB_CDECL BroScr_StartLoopingFx() {
     DynArray ents = {nullptr, 0, 0};
     uint32_t* const array = reinterpret_cast<uint32_t*>(&ents);
     Scr_WaitFrames(0);
-    ScriptString name;
+    ScriptString name{};
+    ScrStringGuard guard_name(&name);
     scr_string_from(&name, 0x008253f4);  // "_fx_looping"
     Scr_GetEntArray(address_of(&name), 0x0d786b4c, reinterpret_cast<uint8_t*>(&ents), 0);
-    scr_release(&name);
+    scr_drop(&name);
     using StartThread = uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t*, const uint32_t*,
                                           const uint32_t*, const uint32_t*, const uint32_t*, const uint32_t*);
     for (uint32_t i = 0; static_cast<int32_t>(i) < static_cast<int32_t>(ents.size); ++i) {

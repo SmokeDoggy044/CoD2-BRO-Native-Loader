@@ -7,6 +7,7 @@
 #include "qcommon_fs.h"
 #include "title_data.h"
 #include "levels_twins.h"
+#include "scr_unwind_guard.h"
 
 namespace game {
 
@@ -84,6 +85,7 @@ void XB_CDECL BroScr_AnimCmd_SetFlaggedAnimKnobAll(uint32_t a1, uint32_t, uint32
 }
 
 void XB_CDECL BroScr_AddToNamedEntList(ScriptString name, uint32_t ent) {
+    ScrStringGuard guard_name(&name);
     uint32_t hash;
     own_function<uint32_t* XB_CDECL(uint32_t*, const ScriptString*)>(&Scr_HashScriptString)(&hash, &name);  // Scr_HashScriptString
     alignas(4) uint8_t copy[0x30];
@@ -103,7 +105,7 @@ void XB_CDECL BroScr_AddToNamedEntList(ScriptString name, uint32_t ent) {
         index = 0;
         for (int32_t count = *reinterpret_cast<int32_t*>(list() + 0xc); index < count;) {
             if (*at(list(), &index) == ent) {
-                scr_release(&name);
+                scr_drop(&name);
                 return;
             }
             ++index;
@@ -123,7 +125,7 @@ void XB_CDECL BroScr_AddToNamedEntList(ScriptString name, uint32_t ent) {
         }
         *reinterpret_cast<uint32_t*>(found + 0xc) = ent;
     }
-    scr_release(&name);
+    scr_drop(&name);
 }
 
 namespace {

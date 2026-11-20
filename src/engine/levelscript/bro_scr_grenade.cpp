@@ -8,6 +8,7 @@
 #include "title_data.h"
 #include "bro_scr_ai_anim_threads.h"
 #include "bro_scr_note_handlers.h"
+#include "scr_unwind_guard.h"
 
 namespace game {
 
@@ -122,7 +123,8 @@ void XB_CDECL BroScr_ThrowGrenadeAtTarget_2(uint32_t ent, ScrVec3 target, float 
 
     const uint32_t* const v = reinterpret_cast<const uint32_t*>(velocity);
     if (hand == title_global<uint32_t>(0x00922eb4) || hand == 0x07151174) {  // g_scrUndefinedHandle / right
-        ScriptString tag;
+        ScriptString tag{};
+        ScrStringGuard guard_tag(&tag);
         uint32_t start_bits[3];
         if (!(fuse == undefined_float() || static_cast<float>(0.0f > fuse ? 1 : 0) != 0.0f ||
               static_cast<float>(fuse > as_float(title_global<uint32_t>(0x0083ece8)) ? 1 : 0) != 0.0f)) {  // defined, inside [0, 5]
@@ -138,9 +140,10 @@ void XB_CDECL BroScr_ThrowGrenadeAtTarget_2(uint32_t ent, ScrVec3 target, float 
             const uint32_t start[3] = {at[0], at[1], at[2]};
             slot<MagicGrenadeDefault>(0x00922610)(ent, start, v);  // GScr_MagicGrenadeManualDefaultFuse
         }
-        ScriptString_Release(&tag);
+        scr_drop(&tag);
     } else if (hand == 0x003798b4) {  // left
-        ScriptString tag;
+        ScriptString tag{};
+        ScrStringGuard guard_tag(&tag);
         uint32_t start_bits[3];
         if (!(fuse == undefined_float() || static_cast<float>(0.0f > fuse ? 1 : 0) != 0.0f ||
               static_cast<float>(fuse > as_float(title_global<uint32_t>(0x0083ece8)) ? 1 : 0) != 0.0f)) {  // defined, inside [0, 5]
@@ -152,15 +155,16 @@ void XB_CDECL BroScr_ThrowGrenadeAtTarget_2(uint32_t ent, ScrVec3 target, float 
             const uint32_t* at = ScrCall_GScr_GetTagOrigin(start_bits, &ent, address_of(&tag));
             slot<MagicGrenadeDefault>(0x00922610)(ent, at, v);
         }
-        ScriptString_Release(&tag);
+        scr_drop(&tag);
     }
     *ScrField_he5f891d2(ent) = 0;
     queue_notify(ent, 0x3d8cf578);
     ScriptString none;
     ScriptString_Copy(&none, &title_global<ScriptString>(0x00922e90));
-    ScriptString result;
+    ScriptString result{};
+    ScrStringGuard guard_result(&result);
     own_function<HandleNoteTracks>(&BroScr_HandleNoteTracks)(&result, ent, kThrowNotify, 0, none);  // BroScr_HandleNoteTracks
-    ScriptString_Release(&result);
+    scr_drop(&result);
 }
 
 void XB_CDECL BroScr_ThrowGrenadeAtTarget(uint32_t ent, ScrVec3 target, uint32_t anim, ScrVec3 offset, float fuse) {
@@ -199,7 +203,8 @@ void XB_CDECL BroScr_ThrowGrenadeAtTarget(uint32_t ent, ScrVec3 target, uint32_t
     *ScrField_he5f891d2(ent) = 1;
     Scr_WaitTillArgs(ent, kThrowNotify, 0x0032aa25, 0, 0);  // the release note
 
-    ScriptString tag;
+    ScriptString tag{};
+    ScrStringGuard guard_tag(&tag);
     if (!(fuse == undefined_float() || static_cast<float>(0.0f > fuse ? 1 : 0) != 0.0f ||
               static_cast<float>(fuse > as_float(title_global<uint32_t>(0x0083ece8)) ? 1 : 0) != 0.0f)) {  // defined, inside [0, 5]
         scr_string_from(&tag, 0x0083c66c);  // "Bip01 R Hand"
@@ -216,14 +221,15 @@ void XB_CDECL BroScr_ThrowGrenadeAtTarget(uint32_t ent, ScrVec3 target, uint32_t
         const uint32_t start[3] = {at[0], at[1], at[2]};
         slot<MagicGrenadeDefault>(0x00922610)(ent, start, reinterpret_cast<const uint32_t*>(velocity));  // ..DefaultFuse
     }
-    ScriptString_Release(&tag);
+    scr_drop(&tag);
     *ScrField_he5f891d2(ent) = 0;
     queue_notify(ent, 0x3d8cf578);
     ScriptString none;
     ScriptString_Copy(&none, &title_global<ScriptString>(0x00922e90));
-    ScriptString result;
+    ScriptString result{};
+    ScrStringGuard guard_result(&result);
     own_function<HandleNoteTracks>(&BroScr_HandleNoteTracks)(&result, ent, kThrowNotify, 0, none);  // BroScr_HandleNoteTracks
-    ScriptString_Release(&result);
+    scr_drop(&result);
 }
 
 void XB_CDECL BroScr_ThrowGrenadeRightHand(uint32_t ent, ScrVec3 target, float time, uint32_t anim, ScrVec3 offset,

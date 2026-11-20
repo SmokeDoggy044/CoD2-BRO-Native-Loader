@@ -14,6 +14,7 @@
 #include "qcommon_fs.h"
 #include "script_string.h"
 #include "bro_scr_level_threads.h"
+#include "scr_unwind_guard.h"
 
 namespace game {
 
@@ -98,38 +99,42 @@ uint32_t* XB_CDECL BroScr_FindInLevelList798ByTargetname(uint32_t* out, ScriptSt
 }
 
 void XB_CDECL BroScr_SetVehicleTargetsGroupByName(ScriptString name, ScriptString group) {
+    ScrStringGuard guard_name(&name, &group);
     const uint32_t vehicle = find_vehicle(&name);
     if (valid(vehicle)) {
         ScriptString copy;
         ScriptString_Copy(&copy, &group);
         ScrField_targets_groupname_2(vehicle, copy);
     }
-    ScriptString_Release(&name);
-    ScriptString_Release(&group);
+    scr_drop(&name);
+    scr_drop(&group);
 }
 
 void XB_CDECL BroScr_SetVehicleTargetsByName(ScriptString name, uint32_t target) {
+    ScrStringGuard guard_name(&name);
     const uint32_t vehicle = find_vehicle(&name);
     if (valid(vehicle)) BroScr_SetTargetsGroupAndEnt(vehicle, target);
-    ScriptString_Release(&name);
+    scr_drop(&name);
 }
 
 void XB_CDECL BroScr_SetTargetsByTargetname(uint32_t ent, ScriptString name) {
+    ScrStringGuard guard_name(&name);
     using GetEnt = uint32_t XB_CDECL(ScriptString*, uint32_t, uint32_t, uint32_t, uint32_t);
     const uint32_t found = slot<GetEnt>(0x009221c4)(&name, 0x0d786b4c, 0, 0, 0);  // GScr_GetEntArray
     if (valid(found)) BroScr_SetTargetsGroupAndEnt(ent, found);
-    ScriptString_Release(&name);
+    scr_drop(&name);
 }
 
 void XB_CDECL BroScr_SetVehicleTargetsByTargetname(ScriptString vehicle_name, ScriptString target_name) {
+    ScrStringGuard guard_vehicle_name(&vehicle_name, &target_name);
     const uint32_t vehicle = find_vehicle(&vehicle_name);
     if (valid(vehicle)) {
         ScriptString copy;
         ScriptString_Copy(&copy, &target_name);
         BroScr_SetTargetsByTargetname(vehicle, copy);
     }
-    ScriptString_Release(&vehicle_name);
-    ScriptString_Release(&target_name);
+    scr_drop(&vehicle_name);
+    scr_drop(&target_name);
 }
 
 void XB_CDECL BroScr_SetVehicleUsableByName(ScriptString name, uint32_t unusable) {
@@ -213,9 +218,10 @@ void XB_CDECL BroScr_StopManagerEntsByName_3(uint32_t, ScriptString name) {
 }
 
 void XB_CDECL BroScr_InList798ByNameCall(ScriptString name, uint32_t value) {
+    ScrStringGuard guard_name(&name);
     const uint32_t found = find_in_798(&name);
     if (valid(found)) BroScr_EntArrayRemove_he104fd5c(found, value);
-    ScriptString_Release(&name);
+    scr_drop(&name);
 }
 
 void XB_CDECL BroScr_AddToLevelList798EntArray(ScriptString name, uint32_t value) {
@@ -229,6 +235,7 @@ void XB_CDECL BroScr_AddToLevelList798EntArray(ScriptString name, uint32_t value
 }
 
 void XB_CDECL BroScr_DeleteFromLevelList784ByTargetname(ScriptString name) {
+    ScrStringGuard guard_name(&name);
     for (uint32_t i = 0; static_cast<int32_t>(i) < static_cast<int32_t>(level_list(0x784)[2]); ++i) {
         if (!valid(*BroScr_ArrayElement(level_list(0x784), i))) continue;
         if (!targetname_equals(BroScr_ArrayElement(level_list(0x784), i), &name)) continue;
@@ -236,7 +243,7 @@ void XB_CDECL BroScr_DeleteFromLevelList784ByTargetname(ScriptString name) {
         BroScr_ArrayEraseAt(level_list(0x784), i);
         break;
     }
-    ScriptString_Release(&name);
+    scr_drop(&name);
 }
 
 void XB_CDECL BroScr_VehicleGunnersByName(ScriptString name) {

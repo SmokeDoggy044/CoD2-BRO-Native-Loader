@@ -18,6 +18,7 @@
 #include "bro_scr_mortar_loops.h"
 #include "bro_scr_thread_misc.h"
 #include "g_scr_builtins.h"
+#include "scr_unwind_guard.h"
 
 namespace game {
 
@@ -163,13 +164,14 @@ bool debug_mortars() {
 // &origin, &"Boom!", &red): the debug print.
 void print_boom(ScrVec3* origin) {
     const uint32_t level = level_entity();
-    ScriptString text;
+    ScriptString text{};
+    ScrStringGuard guard_text(&text);
     scr_string_from(&text, 0x00818b8c);  // "Boom!"
     const uint32_t red[3] = {title_global<uint32_t>(0x0083eb20), 0, 0};
     using StartThread = uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, ScrVec3*, ScriptString*,
                                           const uint32_t*);
     title_function<StartThread>(0x006d1370)(0, 0, 0, 0, own_address(&BroScr_WaitForNotifyOrTimeoutCall_2), level, origin, &text, red);
-    scr_release(&text);
+    scr_drop(&text);
 }
 
 }  // namespace
@@ -187,17 +189,19 @@ void XB_CDECL BroScr_MortarThink(uint32_t ent, ScrVec3 origin, uint32_t scale, u
         scale = mortar_value(scale, 0x3e0, &type, 0x0083f034);
     duration = mortar_value(duration, 0x554, &type, 0x0083eba8);
     radius = mortar_value(radius, 0x51c, &type, 0x0081ddd0);
-    ScriptString fx;
+    ScriptString fx{};
+    ScrStringGuard guard_fx(&fx);
     own_function<void XB_THISCALL(ScriptString*, uint32_t)>(&ScriptString_FromRep)(&fx, 0);  // ScriptString_FromRep(null)
     uint32_t target = 0;
     {
-        ScriptString temp;
+        ScriptString temp{};
+        ScrStringGuard guard_temp(&temp);
         const bool has_target = ScrCall_ScrEnt_GetTarget(&ent, &temp)->rep != nullptr;
-        scr_release(&temp);
+        scr_drop(&temp);
         if (has_target) {
             using GetEnt = uint32_t XB_CDECL(ScriptString*, uint32_t, uint32_t, uint32_t, uint32_t);
             target = scr_slot<GetEnt>(0x009221c4)(ScrCall_ScrEnt_GetTarget(&ent, &temp), 0x0d786b4c, 0, 0, 0);  // GScr_GetEntArray
-            scr_release(&temp);
+            scr_drop(&temp);
         }
     }
     using Assign = void XB_THISCALL(ScriptString*, const ScriptString*);
@@ -216,14 +220,15 @@ void XB_CDECL BroScr_MortarThink(uint32_t ent, ScrVec3 origin, uint32_t scale, u
         // Scr_StartThread_ent_vec_str_vec_f_3(.., BroScr_WaitForNotifyOrTimeoutCall_4, level entity,
         // &origin, &"No FX!", &red, &3.0)
         const uint32_t level = level_entity();
-        ScriptString text;
+        ScriptString text{};
+        ScrStringGuard guard_text(&text);
         scr_string_from(&text, 0x00818b84);  // "No FX!"
         const uint32_t red[3] = {title_global<uint32_t>(0x0083eb20), 0, 0};
         const uint32_t time = title_global<uint32_t>(0x0083ec9c);  // 3.0
         using StartThread = uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, ScrVec3*,
                                               ScriptString*, const uint32_t*, const uint32_t*);
         own_function<StartThread>(&Scr_StartThread_ent_vec_str_vec_f_3_entry)(0, 0, 0, 0, own_address(&BroScr_WaitForNotifyOrTimeoutCall_4), level, &origin, &text, red, &time);
-        scr_release(&text);
+        scr_drop(&text);
     } else if (scr_slot<uint32_t XB_CDECL(uint32_t)>(0x00922214)(target)) {  // Scr_EntityHandleIsValid
         using GetOrigin = const uint32_t* XB_CDECL(uint32_t*, uint32_t);
         uint32_t buffer[3];
@@ -296,7 +301,7 @@ void XB_CDECL BroScr_MortarThink(uint32_t ent, ScrVec3 origin, uint32_t scale, u
     using CreateThread = uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t*, uint32_t);
     scr_slot<CreateThread>(0x0092216c)(0, 0, 0, vehicle, functor, 0);
     scr_slot<void XB_CDECL(uint32_t, uint32_t, const ScrVec3*, uint32_t)>(0x00922444)(scale, duration, &origin, radius);  // GScr_Earthquake
-    scr_release(&fx);
+    scr_drop(&fx);
 }
 
 }  // namespace game

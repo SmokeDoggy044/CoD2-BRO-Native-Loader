@@ -9,6 +9,7 @@
 #include "levels_templates.h"
 #include "levels_twins.h"
 #include "script_string.h"
+#include "scr_unwind_guard.h"
 
 namespace game {
 
@@ -140,17 +141,20 @@ void XB_CDECL BroScr_SpawnLoopSoundOriginCall_4(uint32_t a0, uint32_t a1, uint32
 }
 
 void XB_CDECL BroScr_DroneVehicleRidersCall(uint32_t vehicle, uint32_t a1, ScriptString name) {
+    ScrStringGuard guard_name(&name);
     const uint32_t v = undefined_lane();
     drone_vehicle_riders(vehicle, a1, &name, {undefined_int(), v, v, v, v, v, v});
 }
 
 void XB_CDECL BroScr_DroneVehicleRidersCall_2(uint32_t vehicle, uint32_t a1, ScriptString name, uint32_t a3) {
+    ScrStringGuard guard_name(&name);
     const uint32_t v = undefined_lane();
     drone_vehicle_riders(vehicle, a1, &name, {a3, v, v, v, v, v, v});
 }
 
 void XB_CDECL BroScr_DroneVehicleRidersCall_3(uint32_t vehicle, uint32_t a1, ScriptString name, uint32_t a3,
                                               uint32_t a4, uint32_t a5, uint32_t a6, uint32_t a7, uint32_t a8) {
+    ScrStringGuard guard_name(&name);
     drone_vehicle_riders(vehicle, a1, &name, {undefined_int(), a3, a4, a5, a6, a7, a8});
 }
 

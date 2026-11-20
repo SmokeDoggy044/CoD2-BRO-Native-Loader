@@ -258,6 +258,11 @@ void XB_CDECL mouse_look() {
 
 bool client_c(uint32_t campaign_address);
 
+// ClientPcHooks::pad_keys_run_layout: a recording older than format 5 is being replayed.
+bool XB_CDECL pad_keys_run_layout() {
+    return xbox::replay::on_stream() && xbox::replay::replaying() && xbox::replay::version() < 5;
+}
+
 // ClientPcHooks::native_actions: the held actions, recorded and replayed once per IN_Frame ('Y'). Recordings
 // older than format 5 had the keyboard in the pad state: none while replaying one.
 static_assert(game::kNativeActionCount == static_cast<int32_t>(input::kActionCount));
@@ -2765,6 +2770,7 @@ void install_title_patches(const TitleInfo& title, const TitlePatchConfig& confi
         // Native keyboard and mouse (0.6c): IN_Frame, CL_KeyEvent and Key_ClearStates as C.
         if (client_c(0x002bdf10) && client_c(0x002cd0c0) && client_c(0x002d57c0)) {
             game::client_pc_hooks().native_actions = &native_actions;
+            game::client_pc_hooks().pad_keys_run_layout = &pad_keys_run_layout;
             input::set_native_actions(true);
         }
         // The levels' glow pass not drawn (TitlePatchConfig::glow).

@@ -8,6 +8,7 @@
 #include "scr_field.h"
 #include "script_string.h"
 #include "title_data.h"
+#include "scr_unwind_guard.h"
 
 namespace game {
 
@@ -50,12 +51,13 @@ void XB_CDECL Bro__treefall_callbacked__treefall(uint32_t trigger, uint32_t othe
     uint32_t facing = other;
     uint32_t buffer[3];
     if (!slot<IsValid>(0x00922214)(other)) {
-        ScriptString classname;
+        ScriptString classname{};
+        ScrStringGuard guard_classname(&classname);
         ScriptString_FromCString(&classname, pointer<const char>(0x0083ab88));  // "script_origin"
         const uint32_t* p = slot<GetVec>(0x00922b20)(buffer, title_global<uint32_t>(0x00922eec));  // ScrEnt_GetOrigin (player)
         const uint32_t at[3] = {p[0], p[1], p[2]};
         facing = slot<Spawn>(0x009222f0)(&classname, at, 0);  // GScr_Spawn
-        ScriptString_Release(&classname);
+        scr_drop(&classname);
         const uint32_t* a = slot<GetVec>(0x00922ba0)(buffer, title_global<uint32_t>(0x00922eec));  // ScrEnt_GetAngles
         ScrVec3 angles;
         angles.v[0] = a[0];
@@ -68,30 +70,33 @@ void XB_CDECL Bro__treefall_callbacked__treefall(uint32_t trigger, uint32_t othe
         const uint32_t name = *Scr_HashName(&hash, pointer<const char>(0x00824570));  // "_treefall_callbacked::treefall"
         slot<void XB_CDECL(uint32_t, uint32_t, uint32_t)>(0x009221c0)(trigger, 0xe2a210cf, name);  // GScr_GetEntVar
     }
-    ScriptString temp;
+    ScriptString temp{};
+    ScrStringGuard guard_temp(&temp);
     {
         const bool none = ScrCall_ScrEnt_GetTarget(&trigger, &temp)->rep == nullptr;
-        ScriptString_Release(&temp);
+        scr_drop(&temp);
         if (none) return;
     }
     uint32_t tree = slot<GetEnt>(0x009221c4)(ScrCall_ScrEnt_GetTarget(&trigger, &temp), kTargetname, 0, 0, 0);  // GScr_GetEntArray
-    ScriptString_Release(&temp);
+    scr_drop(&temp);
     if (!slot<IsValid>(0x00922214)(tree)) return;
     {
-        ScriptString target;
+        ScriptString target{};
+        ScrStringGuard guard_target(&target);
         const bool any = ScrCall_ScrEnt_GetTarget(&tree, &target)->rep != nullptr;
-        ScriptString_Release(&target);
+        scr_drop(&target);
         if (any) {
             const uint32_t below = slot<GetEnt>(0x009221c4)(ScrCall_ScrEnt_GetTarget(&tree, &temp), kTargetname, 0, 0, 0);
-            ScriptString_Release(&temp);
+            scr_drop(&temp);
             if (slot<IsValid>(0x00922214)(below)) slot<Ent>(0x00922540)(below);  // GScr_Delete
         }
     }
     {
-        ScriptString classname;
+        ScriptString classname{};
+        ScrStringGuard guard_classname(&classname);
         const bool vehicle = ScriptString_Equals(ScrCall_ScrEnt_GetClassname(&tree, &classname),
                                                  pointer<const char>(0x0083ab78));  // "script_vehicle"
-        ScriptString_Release(&classname);
+        scr_drop(&classname);
         if (vehicle) {
             const float* o = reinterpret_cast<const float*>(ScrCall_ScrEnt_GetOrigin(&tree, buffer));
             const float point[3] = {o[0], o[1], o[2] + as_float(title_global<uint32_t>(0x007e5bf0))};  // + 64
@@ -107,22 +112,24 @@ void XB_CDECL Bro__treefall_callbacked__treefall(uint32_t trigger, uint32_t othe
         const long double distance =
             slot<long double XB_CDECL(const uint32_t*, const uint32_t*)>(0x00922268)(player_origin, tree_origin);  // Scr_Distance
         if (platform_x87_ld(as_float(title_global<uint32_t>(0x0083ebe8))) > distance) {  // 128 (FCOMIP)
-            ScriptString effect, rumble;
+            ScriptString effect{}, rumble{};
+            ScrStringGuard guard_effect(&effect, &rumble);
             ScriptString_FromCString(&effect, pointer<const char>(0x00824568));  // "zmaaaga"
             ScriptString_FromCString(&rumble, pointer<const char>(0x007f9190));  // "aaaa"
             ScriptString copy;
             ScriptString_Copy(&copy, &rumble);
             ScrCall_GScr_ShakeRumbleNamed(address_of(&effect), 0x3f99999a, copy, 0);  // 1.2
-            ScriptString_Release(&rumble);
-            ScriptString_Release(&effect);
+            scr_drop(&rumble);
+            scr_drop(&effect);
         }
     }
     uint32_t pivot;
     {
-        ScriptString classname;
+        ScriptString classname{};
+        ScrStringGuard guard_classname(&classname);
         ScriptString_FromCString(&classname, pointer<const char>(0x0083ab88));  // "script_origin"
         pivot = slot<Spawn>(0x009222f0)(&classname, ScrCall_ScrEnt_GetOrigin(&tree, buffer), 0);
-        ScriptString_Release(&classname);
+        scr_drop(&classname);
     }
     uint32_t vec[3];
     ScrCall_ScrEnt_SetOrigin(&pivot, reinterpret_cast<const ScrVec3*>(ScrCall_ScrEnt_GetOrigin(&tree, vec)));
@@ -132,10 +139,11 @@ void XB_CDECL Bro__treefall_callbacked__treefall(uint32_t trigger, uint32_t othe
     if (*ScrField_script_fxid_IsDefined(&defined, trigger)) {
         slot<PlaySound>(0x009221dc)(pivot, ScrField_script_fxid(trigger), 0, 0, 0);  // GScr_PlaySound
     } else {
-        ScriptString sound;
+        ScriptString sound{};
+        ScrStringGuard guard_sound(&sound);
         ScriptString_FromCString(&sound, pointer<const char>(0x0082455c));  // "treefall"
         slot<PlaySound>(0x009221dc)(pivot, &sound, 0, 0, 0);
-        ScriptString_Release(&sound);
+        scr_drop(&sound);
     }
     ScrCall_ScrEnt_GetAngles(&tree, angles);  // read and dropped
     ScrCall_ScrEnt_GetAngles(&pivot, angles);

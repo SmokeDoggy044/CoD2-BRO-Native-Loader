@@ -11,6 +11,7 @@
 #include "script_string.h"
 #include "bro_scr_fx_threads.h"
 #include "bro_scr_level_threads_2.h"
+#include "scr_unwind_guard.h"
 
 #include <cstring>
 
@@ -68,11 +69,12 @@ uint32_t* hash_name(uint32_t* out, uint32_t name) {
 // array's growing accessor (DynArray_Resize past the count).
 void threads_on_targetname(uint32_t name, bool signed_gate, uint32_t fx_key, uint32_t fx, uint32_t function) {
     DynArray ents{nullptr, 0, 0};
-    ScriptString targetname;
+    ScriptString targetname{};
+    ScrStringGuard guard_targetname(&targetname);
     scr_string_from(&targetname, name);
     Scr_GetEntArray(static_cast<uint32_t>(reinterpret_cast<uintptr_t>(&targetname)), 0x0d786b4c,
                     reinterpret_cast<uint8_t*>(&ents), 0);
-    scr_release(&targetname);
+    scr_drop(&targetname);
     const bool any = signed_gate ? static_cast<int32_t>(ents.size) > 0 : ents.size != 0;
     if (any) {
         if (fx) {
@@ -133,20 +135,24 @@ void XB_CDECL BroScr_MinefieldTriggers() {
 }
 
 ScriptString* XB_CDECL Bro__treeburst_gmi__tree_burst_getUndamagedModel(ScriptString* out, ScriptString name) {
+    ScrStringGuard guard_name(&name);
     using StringOp = ScriptString* XB_THISCALL(ScriptString*, const ScriptString*);
     ScriptString model;
     scr_string_from(&model, 0x00824fb8);  // "p_env_oak_grn_med_b"
-    ScriptString value;
+    ScriptString value{};
+    ScrStringGuard guard_value(&value);
     own_function<void XB_THISCALL(ScriptString*, uint32_t)>(&ScriptString_FromRep)(&value, 0);  // ScriptString_FromRep(null)
     ScriptString text;
     scr_string_from(&text, 0x00824ff8);  // "..._getUndamagedModel(): modelname is undefined!  ret..."
-    ScriptString joined;
-    ScriptString warning;
+    ScriptString joined{};
+    ScrStringGuard guard_joined(&joined);
+    ScriptString warning{};
+    ScrStringGuard guard_warning(&warning);
     using Concat = ScriptString* XB_CDECL(ScriptString*, const ScriptString*, const ScriptString*);
     using ConcatC = ScriptString* XB_CDECL(ScriptString*, const ScriptString*, uint32_t);
     own_function<ConcatC>(&ScriptString_ConcatCString)(&warning, own_function<Concat>(&ScriptString_Concat)(&joined, &text, &model),
                                         0x00824ff0);  // ScriptString_ConcatCString(ScriptString_Concat(text, model), ..)
-    scr_release(&joined);
+    scr_drop(&joined);
     scr_release(&text);
     if (name.rep == nullptr) {
         own_function<StringOp>(&ScriptString_Copy)(out, &model);  // ScriptString_Copy
@@ -158,10 +164,10 @@ ScriptString* XB_CDECL Bro__treeburst_gmi__tree_burst_getUndamagedModel(ScriptSt
         own_function<StringOp>(&ScriptString_Assign_entry)(&value, found);  // ScriptString_Assign
         own_function<StringOp>(&ScriptString_Copy)(out, value.rep ? &value : &model);  // ScriptString_Copy
     }
-    scr_release(&warning);
-    scr_release(&value);
+    scr_drop(&warning);
+    scr_drop(&value);
     scr_release(&model);
-    scr_release(&name);
+    scr_drop(&name);
     return out;
 }
 
@@ -392,28 +398,34 @@ void XB_CDECL BroScr_TreeBurstSetup(uint32_t tree, uint32_t per_target) {
                 scr_slot<void XB_CDECL(uint32_t, ScriptString*, uint32_t)>(0x00922548)(spawned, &model, 0);  // GScr_SetModel
                 ScriptString number;
                 from_int(&number, *BroScr_FieldSlot(tree, 0x4c7e3571));
-                ScriptString index;
+                ScriptString index{};
+                ScrStringGuard guard_index(&index);
                 from_int(&index, i);
-                ScriptString prefix;
+                ScriptString prefix{};
+                ScrStringGuard guard_prefix(&prefix);
                 ScriptString_ConcatCString(&prefix, &number, reinterpret_cast<const char*>(static_cast<uintptr_t>(0x00825060)));  // "tree_to_die_"
-                ScriptString name;
+                ScriptString name{};
+                ScrStringGuard guard_name(&name);
                 ScriptString_Concat(&name, &prefix, &index);
                 set_string(0x00922b54, spawned, &name);  // ScrEnt_SetTargetname
-                scr_release(&name);
-                scr_release(&prefix);
+                scr_drop(&name);
+                scr_drop(&prefix);
                 copy_angles(spawned, *array_at(&targets, i));
-                ScriptString targetname;
+                ScriptString targetname{};
+                ScrStringGuard guard_targetname(&targetname);
                 const ScriptString* target = ScrCall_ScrEnt_GetTargetname(&spawned, &targetname);
                 set_string(0x00922b4c, *array_at(&targets, i), target);  // ScrEnt_SetTarget
-                scr_release(&targetname);
-                ScriptString anim;
+                scr_drop(&targetname);
+                ScriptString anim{};
+                ScrStringGuard guard_anim(&anim);
                 scr_string_from(&anim, 0x007f4954);  // "treeburst"
                 set_string(0x00922c44, *array_at(&targets, i), &anim);  // ScrEnt_SetAnimname
-                scr_release(&anim);
-                ScriptString animname;
+                scr_drop(&anim);
+                ScriptString animname{};
+                ScrStringGuard guard_animname(&animname);
                 use_animname_tree(array_at(&targets, i), &animname);
                 scr_slot<void XB_CDECL(uint32_t)>(0x00922568)(*array_at(&targets, i));  // GScr_SetEntFlag400
-                scr_release(&index);
+                scr_drop(&index);
                 scr_release(&number);
             }
         }
@@ -425,12 +437,13 @@ void XB_CDECL BroScr_TreeBurstSetup(uint32_t tree, uint32_t per_target) {
         scr_slot<void XB_CDECL(uint32_t, ScriptString*, uint32_t)>(0x00922548)(spawned, &model, 0);
         ScriptString number;
         from_int(&number, *BroScr_FieldSlot(tree, 0x4c7e3571));
-        ScriptString prefix;
+        ScriptString prefix{};
+        ScrStringGuard guard_prefix(&prefix);
         ScriptString_ConcatCString(&prefix, &number, reinterpret_cast<const char*>(static_cast<uintptr_t>(0x00825060)));
         set_string(0x00922b54, spawned,
                    own_function<ScriptString* XB_CDECL(ScriptString*, const ScriptString*, uint32_t)>(&ScriptString_PlusInt)(temp, &prefix, 0));  // ScriptString_PlusInt
         scr_release(temp);
-        scr_release(&prefix);
+        scr_drop(&prefix);
         copy_angles(spawned, tree);
         set_string(0x00922b4c, tree, ScrCall_ScrEnt_GetTargetname(&spawned, temp));
         scr_release(temp);

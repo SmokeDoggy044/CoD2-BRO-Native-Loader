@@ -13,6 +13,7 @@
 #include "levels_twins.h"
 #include "script_string.h"
 #include "g_scr_builtins.h"
+#include "scr_unwind_guard.h"
 
 namespace game {
 
@@ -125,10 +126,11 @@ bool* XB_CDECL ScrField_StringIsDefined(bool* out, uint32_t entity) {
         return out;
     }
     using GetStringCopy = ScriptString* XB_THISCALL(ScriptKeyTable*, ScriptString*, uint32_t);
-    ScriptString copy;
+    ScriptString copy{};
+    ScrStringGuard guard_copy(&copy);
     const ScriptString* got = title_function<GetStringCopy>(0x0052bd10)(table, &copy, Hash);  // ScriptKeyTable_GetStringCopy
     *out = got->rep != nullptr;
-    own_function<void XB_THISCALL(ScriptString*)>(&ScriptString_Release_entry)(&copy);  // ScriptString_Release
+    scr_drop(&copy);  // ScriptString_Release
     return out;
 }
 
@@ -487,11 +489,12 @@ uint32_t* XB_THISCALL ScrField_onfire(uint8_t* self) {
 }
 
 void XB_CDECL ScrField_targets_groupname_2(uint32_t entity, ScriptString value) {
+    ScrStringGuard guard_value(&value);
     ScriptKeyTable* table = script_object_or_empty(entity);
     using GetString = ScriptString* XB_THISCALL(ScriptKeyTable*, uint32_t);
     ScriptString* field = title_function<GetString>(0x00458da0)(table, 0x46861906);  // ScriptKeyTable_GetString
     own_function<void XB_THISCALL(ScriptString*, const ScriptString*)>(&ScriptString_Assign_entry)(field, &value);  // ScriptString_Assign
-    own_function<void XB_THISCALL(ScriptString*)>(&ScriptString_Release_entry)(&value);  // ScriptString_Release
+    scr_drop(&value);  // ScriptString_Release
 }
 
 uint32_t* XB_CDECL ScrField_follow_ent_Set(uint32_t entity, uint32_t value) {

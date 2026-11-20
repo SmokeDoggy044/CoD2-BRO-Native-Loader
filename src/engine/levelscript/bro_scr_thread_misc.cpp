@@ -11,6 +11,7 @@
 #include "bro_scr_friendly_threads.h"
 #include "bro_scr_wait_notify.h"
 #include "g_scr_builtins.h"
+#include "scr_unwind_guard.h"
 
 namespace game {
 
@@ -53,30 +54,33 @@ ScriptKeyTable* script_object_or_empty(uint32_t ent) {
 }  // namespace
 
 void XB_CDECL BroScr_AttachDroneGun(uint32_t, uint32_t ent, ScriptString model, ScrVec3 velocity) {
-    ScriptString tag;
+    ScrStringGuard guard_model(&model);
+    ScriptString tag{};
+    ScrStringGuard guard_tag(&tag);
     ScriptString_FromCString(&tag, pointer<const char>(0x00831e14));  // "tag_weapon_right"
     using GetString = ScriptString* XB_THISCALL(ScriptKeyTable*, uint32_t);
     ScriptString* const held = title_function<GetString>(0x00458da0)(script_object_or_empty(ent), 0x1a7e7545);  // ScriptKeyTable_GetString
     slot<void XB_CDECL(uint32_t, ScriptString*, ScriptString*)>(0x009224d8)(ent, held, &tag);  // GScr_Detach
-    ScriptString_Release(&tag);
+    scr_drop(&tag);
 
     ScriptString_FromCString(&tag, pointer<const char>(0x00831e14));
-    ScriptString classname;
+    ScriptString classname{};
+    ScrStringGuard guard_classname(&classname);
     ScriptString_FromCString(&classname, pointer<const char>(0x0083ab98));  // "script_model"
     const uint32_t lane = title_global<uint32_t>(0x00922eb8);  // g_scrUndefinedVecLane
     uint32_t at[3] = {lane, lane, lane};
     slot<void XB_CDECL(uint32_t, uint32_t*, ScriptString*)>(0x0092261c)(ent, at, &tag);  // GScr_GetTagOrigin
     const uint32_t origin[3] = {at[0], at[1], at[2]};
     const uint32_t gun = slot<uint32_t XB_CDECL(ScriptString*, const uint32_t*, uint32_t)>(0x009222f0)(&classname, origin, 0);  // GScr_Spawn
-    ScriptString_Release(&classname);
-    ScriptString_Release(&tag);
+    scr_drop(&classname);
+    scr_drop(&tag);
     slot<void XB_CDECL(uint32_t, ScriptString*, uint32_t)>(0x00922548)(gun, &model, 0);  // GScr_SetModel
     slot<void XB_CDECL(uint32_t, const ScrVec3*, uint32_t, uint32_t, uint32_t)>(0x009227b8)(gun, &velocity, 0x40a00000, 0,
                                                                                            0);  // GScr_RotateVelocity 5 s
     slot<void XB_CDECL(uint32_t, const ScrVec3*, uint32_t)>(0x009227a4)(gun, &velocity, 0x40a00000);  // GScr_MoverMoveGravity 5 s
     Scr_Wait(as_float(0x40c00000));  // 6
     slot<Ent>(0x00922540)(gun);      // GScr_Delete
-    ScriptString_Release(&model);
+    scr_drop(&model);
 }
 
 void XB_CDECL BroScr_FlakFireAndReload(uint32_t ent) {
@@ -88,10 +92,11 @@ void XB_CDECL BroScr_FlakFireAndReload(uint32_t ent) {
         Scr_WaitTillString(ent, pointer<const char>(0x0083aa04));  // "turret_fire"
         slot<Ent>(0x009228d4)(ent);                                // GScr_Vehicle_FireWeapon
         Scr_Wait(as_float(0x3f800000));                            // 1
-        ScriptString sound;
+        ScriptString sound{};
+        ScrStringGuard guard_sound(&sound);
         ScriptString_FromCString(&sound, pointer<const char>(0x007ff3dc));  // "flak_reload"
         slot<PlaySound>(0x009221dc)(ent, &sound, 0, 0, 0);                  // GScr_PlaySound
-        ScriptString_Release(&sound);
+        scr_drop(&sound);
     }
 }
 
@@ -136,11 +141,12 @@ void XB_CDECL BroScr_TriggerSpawnerThink(uint32_t trigger, uint32_t spawner) {
     using Count = int32_t XB_CDECL(uint32_t);
     if (!slot<Count>(0x00922b88)(spawner)) return;  // the spawner's count left
     {
-        ScriptString name, target;
+        ScriptString name{}, target{};
+        ScrStringGuard guard_name(&name, &target);
         const ScriptString* const own = ScrCall_ScrEnt_GetTargetname(&spawner, &name);
         const bool differ = !ScriptString_EqualsString(ScrCall_ScrEnt_GetTarget(&trigger, &target), own);
-        ScriptString_Release(&target);
-        ScriptString_Release(&name);
+        scr_drop(&target);
+        scr_drop(&name);
         if (differ) return;
     }
     if (*ScrField_h02d62a20(spawner) == 1)
@@ -161,13 +167,14 @@ void XB_CDECL BroScr_TriggerSpawnerThink(uint32_t trigger, uint32_t spawner) {
 
 void XB_CDECL BroScr_StrafeImpacts(uint32_t ent) {
     using GetTagVec = void XB_CDECL(uint32_t, uint32_t*, ScriptString*);
-    ScriptString tag;
+    ScriptString tag{};
+    ScrStringGuard guard_tag(&tag);
     ScriptString_FromCString(&tag, pointer<const char>(0x008389c0));  // "tag_flash"
     uint32_t lane = title_global<uint32_t>(0x00922eb8);                // g_scrUndefinedVecLane
     uint32_t vec[3] = {lane, lane, lane};
     slot<GetTagVec>(0x0092261c)(ent, vec, &tag);  // GScr_GetTagOrigin
     const uint32_t origin[3] = {vec[0], vec[1], vec[2]};
-    ScriptString_Release(&tag);
+    scr_drop(&tag);
     ScriptString_FromCString(&tag, pointer<const char>(0x008389c0));
     lane = title_global<uint32_t>(0x00922eb8);
     vec[0] = lane;
@@ -175,7 +182,7 @@ void XB_CDECL BroScr_StrafeImpacts(uint32_t ent) {
     vec[2] = lane;
     slot<GetTagVec>(0x00922620)(ent, vec, &tag);  // GScr_GetTagAngles
     const uint32_t angles[3] = {vec[0], vec[1], vec[2]};
-    ScriptString_Release(&tag);
+    scr_drop(&tag);
     lane = title_global<uint32_t>(0x00922eb8);
     vec[0] = lane;
     vec[1] = lane;
@@ -273,19 +280,21 @@ void XB_CDECL BroScr_StrafeImpacts(uint32_t ent) {
         }
         if (sound_text) {
             const uint32_t level = level_handle();
-            ScriptString sound;
+            ScriptString sound{};
+            ScrStringGuard guard_sound(&sound);
             ScriptString_FromCString(&sound, pointer<const char>(sound_text));
             using StartThread = void XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, const uint32_t*,
                                               ScriptString*, const uint32_t*);
             title_function<StartThread>(0x006d1370)(0, 0, 0, 0, own_address(&BroScr_PlaySoundAtTempOrigin), level, impact, &sound,
                                                     facing);  // Scr_StartThread_ent_vec_str_vec (BroScr_PlaySoundAtTempOrigin)
-            ScriptString_Release(&sound);
+            scr_drop(&sound);
         }
     }
     ScriptString_Release(&trace.surface);
 }
 
 void XB_CDECL BroScr_WaitForNotifyOrTimeoutCall(uint32_t a, ScrVec3 v1, ScriptString s, ScrVec3 v2, ScriptString notify) {
+    ScrStringGuard guard_s(&s, &notify);
     // The arguments are built in place, last first.
     const float timeout = as_float(title_global<uint32_t>(0x00922eac));  // g_scrUndefinedFloat
     ScriptString endon, notify_copy, s_copy;
@@ -293,21 +302,23 @@ void XB_CDECL BroScr_WaitForNotifyOrTimeoutCall(uint32_t a, ScrVec3 v1, ScriptSt
     ScriptString_Copy(&notify_copy, &notify);
     ScriptString_Copy(&s_copy, &s);
     BroScr_WaitForNotifyOrTimeout(a, v1, s_copy, v2, notify_copy, endon, timeout);
-    ScriptString_Release(&s);
-    ScriptString_Release(&notify);
+    scr_drop(&s);
+    scr_drop(&notify);
 }
 
 void XB_CDECL BroScr_WaitForNotifyOrTimeoutCall_2(uint32_t a, ScrVec3 v1, ScriptString s, ScrVec3 v2) {
+    ScrStringGuard guard_s(&s);
     const float timeout = as_float(title_global<uint32_t>(0x00922eac));
     ScriptString endon, notify, s_copy;
     ScriptString_FromRep(&endon, nullptr);
     ScriptString_FromRep(&notify, nullptr);
     ScriptString_Copy(&s_copy, &s);
     BroScr_WaitForNotifyOrTimeout(a, v1, s_copy, v2, notify, endon, timeout);
-    ScriptString_Release(&s);
+    scr_drop(&s);
 }
 
 void XB_CDECL BroScr_WaitForNotifyOrTimeoutCall_3(uint32_t a, ScrVec3 v1, ScriptString s) {
+    ScrStringGuard guard_s(&s);
     const float timeout = as_float(title_global<uint32_t>(0x00922eac));
     ScriptString endon, notify, s_copy;
     ScriptString_FromRep(&endon, nullptr);
@@ -319,16 +330,17 @@ void XB_CDECL BroScr_WaitForNotifyOrTimeoutCall_3(uint32_t a, ScrVec3 v1, Script
     v2.v[2] = lane;
     ScriptString_Copy(&s_copy, &s);
     BroScr_WaitForNotifyOrTimeout(a, v1, s_copy, v2, notify, endon, timeout);
-    ScriptString_Release(&s);
+    scr_drop(&s);
 }
 
 void XB_CDECL BroScr_WaitForNotifyOrTimeoutCall_4(uint32_t a, ScrVec3 v1, ScriptString s, ScrVec3 v2, float timeout) {
+    ScrStringGuard guard_s(&s);
     ScriptString endon, notify, s_copy;
     ScriptString_FromRep(&endon, nullptr);
     ScriptString_FromRep(&notify, nullptr);
     ScriptString_Copy(&s_copy, &s);
     BroScr_WaitForNotifyOrTimeout(a, v1, s_copy, v2, notify, endon, timeout);
-    ScriptString_Release(&s);
+    scr_drop(&s);
 }
 
 }  // namespace game

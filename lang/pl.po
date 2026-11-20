@@ -582,3 +582,9 @@ msgstr "Gra"
 
 msgid "Polski"
 msgstr "Polski"
+
+msgid "Russian"
+msgstr "Rosyjski"
+
+msgid "Ukrainian"
+msgstr "Ukraiński"

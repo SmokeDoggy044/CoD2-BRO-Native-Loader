@@ -6,6 +6,7 @@
 #include "g_scr_runtime.h"
 #include "title_data.h"
 #include "g_scr_builtins.h"
+#include "scr_unwind_guard.h"
 
 namespace game {
 
@@ -171,16 +172,19 @@ void XB_CDECL BroScr_SetDeadQuote() {
 
 void XB_CDECL BroScr_ObjectiveTrackerManager(ScriptString name, int32_t index, ScriptString text, int32_t count,
                                              ScriptString endon) {
+    ScrStringGuard guard_name(&name, &endon);
     if (endon.rep) Scr_EndOnString(*level_handle_word(), endon.rep->text);
-    ScriptString temp;
+    ScriptString temp{};
+    ScrStringGuard guard_temp(&temp);
     using GetEnt = uint32_t XB_CDECL(ScriptString*, uint32_t, uint32_t, uint32_t, uint32_t);
     const uint32_t manager = slot<GetEnt>(0x009221c4)(
         ScriptString_ConcatCString(&temp, &name, pointer<const char>(0x00824304)), 0x2d36ed4e, 0, 0, 0);  // "_manager"
-    ScriptString_Release(&temp);
-    ScriptString state;
+    scr_drop(&temp);
+    ScriptString state{};
+    ScrStringGuard guard_state(&state);
     ScriptString_FromCString(&state, pointer<const char>(0x0083aecc));  // "active"
     slot<void XB_CDECL(int32_t, ScriptString*, ScriptString*)>(0x009222a4)(index, &state, &text);  // GScr_ObjectiveAdd
-    ScriptString_Release(&state);
+    scr_drop(&state);
     using SetString = void XB_CDECL(int32_t, ScriptString*, int32_t);
     int32_t left = count;
     slot<SetString>(0x009222c0)(index, &text, left);             // GScr_ObjectiveStringLocalized
@@ -194,7 +198,8 @@ void XB_CDECL BroScr_ObjectiveTrackerManager(ScriptString name, int32_t index, S
     *pointer<uint8_t>(title_global<uint32_t>(0x00922ee0) + 0x2d0) = 1;
     // The original builds "objective<index>" in its second argument's slot.
     ScriptString objective;
-    ScriptString done;
+    ScriptString done{};
+    ScrStringGuard guard_done(&done);
     ScriptString_ConcatCString(&done,
                                ScriptString_FromCStringPlusInt(&objective, pointer<const char>(0x0082dc78), index),
                                pointer<const char>(0x008242f0));  // "objective" .. "_tracker_complete"
@@ -202,21 +207,22 @@ void XB_CDECL BroScr_ObjectiveTrackerManager(ScriptString name, int32_t index, S
     const uint32_t* level = level_handle_word();
     const uint32_t notify = hash_string(&done);
     queue_notify(*level, notify);
-    ScriptString_Release(&done);
-    ScriptString_Release(&name);
+    scr_drop(&done);
+    scr_drop(&name);
     ScriptString_Release(&text);
-    ScriptString_Release(&endon);
+    scr_drop(&endon);
 }
 
 void XB_CDECL BroScr_FlakPanzerStopLoopSounds(uint32_t ent, int32_t flaknum) {
-    ScriptString died;
+    ScriptString died{};
+    ScrStringGuard guard_died(&died);
     flak_died_name(&died, flaknum);
     const uint32_t* level = level_handle_word();
     const uint32_t notify = hash_string(&died);
     Scr_WaitTill(*level, notify);
     queue_notify(ent, hash_name(0x00824330));  // "flakpanzer_loopoff"
     queue_notify(ent, hash_name(0x00824318));  // "flakpanzer_loop_fastoff"
-    ScriptString_Release(&died);
+    scr_drop(&died);
 }
 
 void XB_CDECL BroScr_EarthquakeUntilBroken(uint32_t ent) {
@@ -243,23 +249,27 @@ void XB_CDECL BroScr_FlakWaitDeath(uint32_t ent, ScrVec3 pos, int32_t flaknum) {
     Scr_Wait(1.0f);
     slot<void XB_CDECL(uint32_t, ScrVec3*)>(0x00922684)(ent, &pos);  // GScr_SetGoalPos
     set_goal_radius(ent, 0x43480000);                                // 200
-    ScriptString target;
+    ScriptString target{};
+    ScrStringGuard guard_target(&target);
     const bool none = ScrCall_ScrEnt_GetTarget(&ent, &target)->rep == nullptr;
-    ScriptString_Release(&target);
+    scr_drop(&target);
     if (none) return;
-    ScriptString died;
+    ScriptString died{};
+    ScrStringGuard guard_died(&died);
     flak_died_name(&died, flaknum);
     const uint32_t* level = level_handle_word();
     const uint32_t notify = hash_string(&died);
     Scr_WaitTill(*level, notify);
-    ScriptString key;
+    ScriptString key{};
+    ScrStringGuard guard_key(&key);
     ScriptString_FromCString(&key, pointer<const char>(0x0082dda8));  // "targetname"
-    ScriptString value;
+    ScriptString value{};
+    ScrStringGuard guard_value(&value);
     using GetNode = uint32_t XB_CDECL(ScriptString*, ScriptString*, uint32_t, uint32_t);
     uint32_t node = slot<GetNode>(0x009221cc)(ScrCall_ScrEnt_GetTarget(&ent, &value), &key, 0, 0);  // GScr_GetNode
     if (node == 0xffffffff) node = 0;
-    ScriptString_Release(&value);
-    ScriptString_Release(&key);
+    scr_drop(&value);
+    scr_drop(&key);
     slot<void XB_CDECL(uint32_t, uint32_t*)>(0x00922688)(ent, &node);  // GScr_SetGoalPosFromNode
     uint8_t valid;
     if (*BroScr_IsValidHandle(&valid, node)) {
@@ -270,16 +280,19 @@ void XB_CDECL BroScr_FlakWaitDeath(uint32_t ent, ScrVec3 pos, int32_t flaknum) {
     } else {
         set_goal_radius(ent, 0x43000000);  // 128
     }
-    ScriptString_Release(&died);
+    scr_drop(&died);
 }
 
 void XB_CDECL BroScr_FlakWaitDeath_2(uint32_t ent, ScriptString name, int32_t flaknum) {
-    ScriptString died;
+    ScrStringGuard guard_name(&name);
+    ScriptString died{};
+    ScrStringGuard guard_died(&died);
     flak_died_name(&died, flaknum);
     const uint32_t* level = level_handle_word();
     const uint32_t notify = hash_string(&died);
     Scr_WaitTill(*level, notify);
-    ScriptString null_name;
+    ScriptString null_name{};
+    ScrStringGuard guard_null_name(&null_name);
     ScriptString_ConcatCString(&null_name, &name, pointer<const char>(0x00824374));  // "_null"
     float t = as_float(title_global<uint32_t>(0x0083eb20));  // 1.0
     // The script's `t > 0` goes through a float truth value.
@@ -288,13 +301,14 @@ void XB_CDECL BroScr_FlakWaitDeath_2(uint32_t ent, ScriptString name, int32_t fl
         t = t - as_float(title_global<uint32_t>(0x0083eb24));  // 0.5
     }
     slot<void XB_CDECL(uint32_t)>(0x00922540)(ent);  // GScr_Delete
-    ScriptString_Release(&null_name);
-    ScriptString_Release(&died);
-    ScriptString_Release(&name);
+    scr_drop(&null_name);
+    scr_drop(&died);
+    scr_drop(&name);
 }
 
 void XB_CDECL BroScr_FlakPanzerLoopSounds(uint32_t ent, int32_t flaknum) {
-    ScriptString died;
+    ScriptString died{};
+    ScrStringGuard guard_died(&died);
     flak_died_name(&died, flaknum);
     const uint32_t level = *level_handle_word();
     slot<void XB_CDECL(uint32_t, uint32_t)>(0x00922188)(level, hash_string(&died));  // Scr_EndOn
@@ -303,7 +317,7 @@ void XB_CDECL BroScr_FlakPanzerLoopSounds(uint32_t ent, int32_t flaknum) {
     Scr_Wait(as_float(0x40054fdf));            // 2.08
     queue_notify(ent, hash_name(0x00824318));  // "flakpanzer_loop_fastoff"
     queue_notify(ent, hash_name(0x0082437c));  // "flakpanzer_loopon"
-    ScriptString_Release(&died);
+    scr_drop(&died);
 }
 
 void XB_CDECL BroScr_RestoreHealthOnDamage(uint32_t ent) {
@@ -380,6 +394,7 @@ void XB_CDECL BroScr_WaitPoint15() { Scr_Wait(as_float(0x3e19999a)); }
 void XB_CDECL BroScr_WaitZero() { Scr_Wait(0.0f); }
 
 void XB_CDECL BroScr_IdleUntilEnd(uint32_t ent, ScrVec3, ScriptString endon) {
+    ScrStringGuard guard_endon(&endon);
     slot<void XB_CDECL(uint32_t, uint32_t)>(0x00922188)(ent, 0x06730ae8);  // Scr_EndOn death
     if (endon.rep) Scr_EndOnString(*level_handle_word(), endon.rep->text);
     for (;;) Scr_Wait(as_float(0x3d4ccccd));  // 0.05
@@ -395,25 +410,29 @@ void XB_CDECL BroScr_LerpPlayerAngles_2(uint32_t player, float pitch, float yaw,
 
 void XB_CDECL Bro__window_gmi__new_window_break(uint32_t ent) {
     using GetEnt = uint32_t XB_CDECL(ScriptString*, uint32_t, uint32_t, uint32_t, uint32_t);
-    ScriptString temp;
+    ScriptString temp{};
+    ScrStringGuard guard_temp(&temp);
     uint32_t window = slot<GetEnt>(0x009221c4)(ScrCall_ScrEnt_GetTarget(&ent, &temp), 0x0d786b4c, 0, 0,
                                                0);  // GScr_GetEntArray by targetname
-    ScriptString_Release(&temp);
+    scr_drop(&temp);
     const uint32_t broken = slot<GetEnt>(0x009221c4)(ScrCall_ScrEnt_GetTarget(&window, &temp), 0x0d786b4c, 0, 0, 0);
-    ScriptString_Release(&temp);
-    ScriptString noteworthy;
+    scr_drop(&temp);
+    ScriptString noteworthy{};
+    ScrStringGuard guard_noteworthy(&noteworthy);
     const bool none = ScrCall_ScrEnt_GetScriptNoteworthy(&ent, &noteworthy)->rep == nullptr;
-    ScriptString_Release(&noteworthy);
+    scr_drop(&noteworthy);
     using PlaySound = void XB_CDECL(uint32_t, ScriptString*, uint32_t, uint32_t, uint32_t);
     if (none) {
-        ScriptString sound;
+        ScriptString sound{};
+        ScrStringGuard guard_sound(&sound);
         ScriptString_FromCString(&sound, pointer<const char>(0x00824414));  // "window_break"
         slot<PlaySound>(0x009221dc)(window, &sound, 0, 0, 0);              // GScr_PlaySound
-        ScriptString_Release(&sound);
+        scr_drop(&sound);
     } else {
-        ScriptString sound;
+        ScriptString sound{};
+        ScrStringGuard guard_sound(&sound);
         slot<PlaySound>(0x009221dc)(window, ScrCall_ScrEnt_GetScriptNoteworthy(&ent, &sound), 0, 0, 0);
-        ScriptString_Release(&sound);
+        scr_drop(&sound);
     }
     slot<void XB_CDECL(uint32_t)>(0x00922568)(window);  // GScr_SetEntFlag400
     slot<void XB_CDECL(uint32_t)>(0x00922564)(broken);  // GScr_ClearEntFlag400

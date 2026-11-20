@@ -129,7 +129,10 @@ public:
     CategoryVolumes volumes;
     std::unique_ptr<Output> output;
     XbPtr vtable = 0;
-    std::vector<VoiceImpl*> voices;  // never freed: the mixer may still hold a released one
+    std::vector<VoiceImpl*> voices;  // never freed while the title runs: the mixer may still hold a released one
+    // A title restart's voices (forget_title_voices): their sources deleted at once, the voices themselves freed at
+    // the next restart, long after any mix that could still have read them.
+    std::vector<VoiceImpl*> retired;
     std::vector<std::mutex*> fork_locks;
     Listener current_listener, pending_listener;
     bool listener_pending = false;
@@ -925,6 +928,12 @@ CategoryVolumes category_volumes() {
 void forget_title_voices() {
     {
         Guard lock(g.mutex, TestLock::State);
+        // The previous restart's voices: no mix has read them since their sources went.
+        for (VoiceImpl* v : g.retired) delete v;
+        g.retired.clear();
+        // The title makes all its voices again when it starts: without this each restart added a full set of
+        // OpenAL sources until OpenAL had none left (no sound at all after a few mission changes).
+        Output* const o = g.out();
         for (VoiceImpl* v : g.voices) {
             v->synch_play = v->synch_resume = false;
             v->voice.stop();
@@ -932,7 +941,11 @@ void forget_title_voices() {
             v->refs = 0;
             v->callback = v->context = 0;
             v->header.magic = 0;  // find() no longer knows the id
+            if (v->source && o) o->remove_source(v->source);
+            v->source = nullptr;
         }
+        LOG_INFO("audio", "restart: %zu voices and their sources freed", g.voices.size());
+        g.retired.swap(g.voices);
     }
     {
         std::lock_guard lock(g.callbacks_mutex);

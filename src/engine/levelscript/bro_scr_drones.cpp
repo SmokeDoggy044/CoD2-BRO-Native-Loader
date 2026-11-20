@@ -16,6 +16,7 @@
 #include "script_string.h"
 #include "bro_scr_battle_threads.h"
 #include "bro_scr_drone_threads.h"
+#include "scr_unwind_guard.h"
 
 namespace game {
 
@@ -132,20 +133,22 @@ uint32_t* handle_field(uint32_t ent, uint32_t hash) {
 }  // namespace
 
 uint32_t* XB_CDECL BroScr_SpawnDrone(uint32_t* out, ScrVec3 origin, ScriptString type, uint32_t lod) {
+    ScrStringGuard guard_type(&type);
     if (title_global<uint32_t>(level_block() + 0x508) == title_global<uint32_t>(0x00922ec0)) title_global<uint32_t>(level_block() + 0x508) = 0;
     if (title_global<uint32_t>(level_block() + 0x5a8) == title_global<uint32_t>(0x00922ec0)) title_global<uint32_t>(level_block() + 0x5a8) = 40;
     if (static_cast<int32_t>(title_global<uint32_t>(level_block() + 0x508)) >=
         static_cast<int32_t>(title_global<uint32_t>(level_block() + 0x5a8))) {
         *out = title_global<uint32_t>(0x00922e84);  // too many drones: the empty handle
-        scr_release(&type);
+        scr_drop(&type);
         return out;
     }
-    ScriptString classname;
+    ScriptString classname{};
+    ScrStringGuard guard_classname(&classname);
     scr_string_from(&classname, 0x0083ab98);  // "script_model"
     const uint32_t zone = scr_slot<uint32_t XB_CDECL(ScrVec3)>(0x0092249c)(origin);  // GScr_GetZoneAtPoint
     const uint32_t drone =
         scr_slot<uint32_t XB_CDECL(ScriptString*, const ScrVec3*, uint32_t)>(0x009222f0)(&classname, &origin, zone);  // GScr_Spawn
-    scr_release(&classname);
+    scr_drop(&classname);
     scr_slot<void XB_CDECL(uint32_t)>(0x0092234c)(drone);  // GScr_SetEntFlag2000000
     ++title_global<uint32_t>(level_block() + 0x508);
     uint32_t hash;
@@ -153,12 +156,13 @@ uint32_t* XB_CDECL BroScr_SpawnDrone(uint32_t* out, ScrVec3 origin, ScriptString
     uint32_t hash2;
     uint32_t* model = entry_at(type_entry(0x814, type_hash(&hash2, &type)), &index);
     scr_slot<void XB_CDECL(uint32_t, uint32_t*, uint32_t)>(0x00922548)(drone, model, 0);  // GScr_SetModel
-    ScriptString group;
+    ScriptString group{};
+    ScrStringGuard guard_group(&group);
     scr_string_from(&group, 0x00810340);  // "drone"
     ScriptString copy;
     ScriptString_Copy(&copy, &group);
     scr_slot<void XB_CDECL(uint32_t, ScriptString)>(0x00922c1c)(drone, copy);  // ScrEnt_SetGroupname
-    scr_release(&group);
+    scr_drop(&group);
     if (lod != title_global<uint32_t>(0x00922ec0))
         scr_slot<void XB_CDECL(uint32_t, uint32_t)>(0x00922348)(drone, static_cast<int32_t>(lod) > 4 ? 4 : lod);  // GScr_SetForcedLod
     uint32_t gun_hash;
@@ -172,20 +176,22 @@ uint32_t* XB_CDECL BroScr_SpawnDrone(uint32_t* out, ScrVec3 origin, ScriptString
         bool defined;
         own_function<bool* XB_CDECL(bool*, uint32_t)>(ScrField_drone_gun_IsDefined)(&defined, drone);  // ScrField_drone_gun_IsDefined
         if (defined && scr_slot<uint32_t XB_CDECL(uint32_t)>(0x00922214)(drone)) {      // Scr_EntityHandleIsValid
-            ScriptString tag;
+            ScriptString tag{};
+            ScrStringGuard guard_tag(&tag);
             scr_string_from(&tag, 0x00831e14);  // "tag_weapon_right"
             uint32_t* gun_model = own_function<uint32_t* XB_CDECL(uint32_t)>(ScrField_drone_gun)(drone);  // ScrField_drone_gun
             scr_slot<void XB_CDECL(uint32_t, uint32_t*, ScriptString*, uint32_t)>(0x009224d0)(drone, gun_model, &tag, 0);  // GScr_AttachWithOwner
-            scr_release(&tag);
+            scr_drop(&tag);
         }
     }
     *out = drone;
-    scr_release(&type);
+    scr_drop(&type);
     return out;
 }
 
 void XB_CDECL BroScr_DronePathSpawnOne(uint32_t spawner, uint32_t path, ScriptString type, float delay_min, float delay_max,
                                        uint32_t flag) {
+    ScrStringGuard guard_type(&type);
     const uint32_t node = path;
     using GetArray = uint32_t* XB_THISCALL(ScriptKeyTable*, uint32_t);
     const auto spline = [node]() { return title_function<GetArray>(0x00602a40)(BroScr_ScriptObjectOrEmpty(node), 0xb89aec99); };  // ScriptKeyTable_GetOrAddArray_5
@@ -208,19 +214,21 @@ void XB_CDECL BroScr_DronePathSpawnOne(uint32_t spawner, uint32_t path, ScriptSt
             &result, {{start[0], start[1], start[2]}}, copy, lod);  // BroScr_SpawnDrone
     }
     if (!scr_slot<uint32_t XB_CDECL(uint32_t)>(0x00922214)(drone)) {  // Scr_EntityHandleIsValid
-        scr_release(&type);
+        scr_drop(&type);
         return;
     }
     {
-        ScriptString targetname;
+        ScriptString targetname{};
+        ScrStringGuard guard_targetname(&targetname);
         const ScriptString* name = ScrCall_ScrEnt_GetTargetname(&path, &targetname);
-        ScriptString joined;
+        ScriptString joined{};
+        ScrStringGuard guard_joined(&joined);
         ScriptString_ConcatCString(&joined, name, reinterpret_cast<const char*>(static_cast<uintptr_t>(0x00825470)));  // + "_drone"
         ScriptString copy;
         ScriptString_Copy(&copy, &joined);
         scr_slot<void XB_CDECL(uint32_t, ScriptString)>(0x00922b54)(drone, copy);  // ScrEnt_SetTargetname
-        scr_release(&joined);
-        scr_release(&targetname);
+        scr_drop(&joined);
+        scr_drop(&targetname);
     }
     {
         ScriptString copy;
@@ -259,7 +267,7 @@ void XB_CDECL BroScr_DronePathSpawnOne(uint32_t spawner, uint32_t path, ScriptSt
             own_function<StartThread>(&Scr_StartThread_ent_f_f_b_entry)(0, 0, 0, 0, own_address(&BroScr_DroneMainDelayed), drone, &delay_min, &delay_max, &flag);  // Scr_StartThread_ent_f_f_b(BroScr_DroneMainDelayed)
         }
     }
-    scr_release(&type);
+    scr_drop(&type);
 }
 
 }  // namespace game

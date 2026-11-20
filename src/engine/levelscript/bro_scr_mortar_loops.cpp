@@ -15,6 +15,7 @@
 #include "qcommon_fs.h"
 #include "bro_scr_battle_threads.h"
 #include "bro_scr_squad.h"
+#include "scr_unwind_guard.h"
 
 namespace game {
 
@@ -207,14 +208,15 @@ void XB_CDECL BroScr_RandomMortarsAroundEnt(uint32_t ent, uint32_t type, float s
     slot<void XB_CDECL(uint32_t, uint32_t)>(0x00922188)(ent, 0x8ff01d8d);  // Scr_EndOn
     uint32_t origin_ent;
     {
-        ScriptString classname;
+        ScriptString classname{};
+        ScrStringGuard guard_classname(&classname);
         scr_string_from(&classname, 0x0083ab88);  // "script_origin"
         ScrVec3 zero;
         zero.v[0] = bits(0.0f);
         zero.v[1] = bits(0.0f);
         zero.v[2] = bits(0.0f);
         origin_ent = slot<uint32_t XB_CDECL(ScriptString*, ScrVec3*, uint32_t)>(0x009222f0)(&classname, &zero, 0);  // GScr_Spawn
-        scr_release(&classname);
+        scr_drop(&classname);
     }
     const float back = speed * title_global<float>(0x0083eb34);  // * -1
     for (;;) {

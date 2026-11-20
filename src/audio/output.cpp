@@ -376,6 +376,18 @@ Output::Source* Output::add_source(Voice& voice) {
     return raw;
 }
 
+void Output::remove_source(Source* source) {
+    al_failed("left over before a voice's source went");
+    alSourceStop(source->source);
+    alSourcei(source->source, AL_BUFFER, 0);
+    alDeleteSources(1, &source->source);
+    alDeleteBuffers(1, &source->buffer);
+    if (source->filter) alDeleteFilters(1, &source->filter);
+    if (source->echo_filter) alDeleteFilters(1, &source->echo_filter);
+    al_failed("deleting a voice's source");
+    std::erase_if(sources_, [source](const std::unique_ptr<Source>& s) { return s.get() == source; });
+}
+
 void Output::reformat(Source* source) {
     const Format format = source->voice.format();
     al_failed("left over before a voice's new format");
