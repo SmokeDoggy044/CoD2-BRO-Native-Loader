@@ -1821,30 +1821,36 @@ private:
     }
 
     // Every title shader compiled on worker threads from the device's creation on (while the logos and movies
-    // play); create_shader waits for them.
+    // play); create_shader waits for them. The first one is compiled here before any worker starts, so a driver's
+    // lazy set-up on its first pipeline happens on one thread; AMD's driver with its own compiler gets one worker
+    // (Context::shader_build_threads).
     void start_prebuild() {
         prebuild_results_.assign(kTitleShaderCount, Shader{});
         prebuild_start_ = std::chrono::steady_clock::now();
-        const unsigned threads = std::max(1u, std::min(8u, std::thread::hardware_concurrency()));
-        auto next = std::make_shared<std::atomic<unsigned>>(0);
+        if (kTitleShaderCount) prebuild_one(0);
+        const unsigned threads =
+            std::max(1u, std::min({vk_.shader_build_threads(), 8u, std::thread::hardware_concurrency()}));
+        auto next = std::make_shared<std::atomic<unsigned>>(1);
         for (unsigned t = 0; t < threads; ++t)
             prebuild_threads_.emplace_back([this, next] {
-                for (unsigned i = (*next)++; i < kTitleShaderCount; i = (*next)++) {
-                    const TitleShader& title = kTitleShaders[i];
-                    std::string error;
-                    const std::vector<uint32_t> words =
-                        spirv_fixed_layout(title.d3d9, title.d3d9_bytes, title.spirv, title.spirv_bytes, &error);
-                    if (words.empty()) continue;
-                    VkShaderModuleCreateInfo info{VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO};
-                    info.codeSize = words.size() * 4;
-                    info.pCode = words.data();
-                    VkShaderModule module = VK_NULL_HANDLE;
-                    if (vkCreateShaderModule(vk_.device(), &info, nullptr, &module) != VK_SUCCESS) continue;
-                    const ShaderStage stage = title.stage == 'v' ? ShaderStage::Vertex : ShaderStage::Pixel;
-                    prebuild_results_[i] = {stage, module, stage == ShaderStage::Vertex ? spirv_input_mask(words) : 0,
-                                            shader_library(stage, module)};
-                }
+                for (unsigned i = (*next)++; i < kTitleShaderCount; i = (*next)++) prebuild_one(i);
             });
+    }
+
+    void prebuild_one(unsigned i) {
+        const TitleShader& title = kTitleShaders[i];
+        std::string error;
+        const std::vector<uint32_t> words =
+            spirv_fixed_layout(title.d3d9, title.d3d9_bytes, title.spirv, title.spirv_bytes, &error);
+        if (words.empty()) return;
+        VkShaderModuleCreateInfo info{VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO};
+        info.codeSize = words.size() * 4;
+        info.pCode = words.data();
+        VkShaderModule module = VK_NULL_HANDLE;
+        if (vkCreateShaderModule(vk_.device(), &info, nullptr, &module) != VK_SUCCESS) return;
+        const ShaderStage stage = title.stage == 'v' ? ShaderStage::Vertex : ShaderStage::Pixel;
+        prebuild_results_[i] = {stage, module, stage == ShaderStage::Vertex ? spirv_input_mask(words) : 0,
+                                shader_library(stage, module)};
     }
 
     void join_prebuild() {
@@ -1863,8 +1869,8 @@ private:
             }
             ++built;
         }
-        LOG_INFO("render", "Vulkan: %u title shaders compiled in %.0f ms (%zu threads)", built, ms,
-                 prebuild_threads_.size());
+        LOG_INFO("render", "Vulkan: %u title shaders compiled in %.0f ms (%zu thread%s)", built, ms,
+                 prebuild_threads_.size(), prebuild_threads_.size() == 1 ? "" : "s");
         prebuild_threads_.clear();
         prebuild_results_.clear();
         ++pipelines_new_;  // save the cache with them

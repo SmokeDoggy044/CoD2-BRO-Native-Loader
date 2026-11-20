@@ -72,7 +72,11 @@ public:
     VmaAllocator allocator() const { return allocator_; }
     VkFormat depth_format() const { return depth_format_; }
     // Graphics pipeline libraries with blend, polygon mode and vertex input set per draw (see create()).
-    bool pipeline_libraries() const { return pipeline_libraries_; }  // D24S8, or D32S8 where there is none
+    bool pipeline_libraries() const { return pipeline_libraries_; }
+    // How many threads may compile the title's shaders at once (start-up prebuild): 1 on AMD's proprietary driver
+    // with its own shader compiler (not LLPC), which crashed with several (issues #28, #33); COD_BRO_VK_SHADER_THREADS
+    // sets it.
+    unsigned shader_build_threads() const { return shader_build_threads_; }  // D24S8, or D32S8 where there is none
     const VkPhysicalDeviceLimits& limits() const { return limits_; }
     const VkPhysicalDeviceFeatures& features() const { return features_; }  // the enabled ones
     // Changes whenever the upload space starts over (a new frame, or a flush): staged bytes from an older
@@ -191,6 +195,7 @@ private:
     VkPhysicalDeviceFeatures features_{};
     uint64_t staging_epoch_ = 1;
     bool pipeline_libraries_ = false;
+    unsigned shader_build_threads_ = 8;
 };
 
 // VkResult -> its name, for logs.

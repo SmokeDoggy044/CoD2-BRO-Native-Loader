@@ -238,6 +238,22 @@ bool Context::create(SDL_Window* window, bool validation) {
         LOG_INFO("render", "Vulkan: %s", pipeline_libraries_ ? "pipeline libraries (shaders compiled once each)"
                                                              : "whole pipelines (pipeline libraries off or not supported)");
     }
+    {
+        // AMD's proprietary driver with its own shader compiler crashed in every start-up compile thread at once
+        // (amdvlk32, issues #28/#33; the same driver with LLPC did not): one thread there.
+        VkPhysicalDeviceDriverProperties driver{VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DRIVER_PROPERTIES};
+        VkPhysicalDeviceProperties2 properties2{VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2};
+        properties2.pNext = &driver;
+        vkGetPhysicalDeviceProperties2(physical_, &properties2);
+        const bool amd_own_compiler =
+            driver.driverID == VK_DRIVER_ID_AMD_PROPRIETARY && !std::strstr(driver.driverInfo, "LLPC");
+        shader_build_threads_ = amd_own_compiler ? 1 : 8;
+        if (const char* threads = std::getenv("COD_BRO_VK_SHADER_THREADS"); threads && std::atoi(threads) > 0)
+            shader_build_threads_ = static_cast<unsigned>(std::min(std::atoi(threads), 32));
+        if (shader_build_threads_ == 1)
+            LOG_INFO("render", "Vulkan: title shaders compiled on one thread%s",
+                     amd_own_compiler ? " (AMD's driver with its own shader compiler)" : "");
+    }
     VkDeviceCreateInfo device_info{VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO};
     device_info.pNext = &features;
     device_info.queueCreateInfoCount = 1;
