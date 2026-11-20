@@ -281,7 +281,7 @@ void configure_title_services(const Options& options, const fs::path& assets, co
         host.launch_data_page = &xbox::launch_data_page_word();
         host.language = options.language;
         host.widescreen = options.widescreen;
-        if (platform::polish_text()) host.font_table = &text::polish_font_table;
+        if (platform::text_script() != platform::TextScript::Latin) host.font_table = &text::script_font_table;
         host.seh_chain_end = [] {
             const loader::ThreadEnv* env = loader::current_thread_env();
             return env ? env->seh_chain_end : 0xFFFFFFFFu;
@@ -336,7 +336,7 @@ void configure_title_services(const Options& options, const fs::path& assets, co
     d3d_config.backend.vulkan_validation = options.vulkan_validation;
     d3d_config.backend.brightness = options.brightness;
     const bool sharp_text =
-        (options.sharp_text || platform::polish_text()) &&  // Polish letters need the redrawn fonts
+        (options.sharp_text || platform::text_script() != platform::TextScript::Latin) &&  // the letters need them
         text::prepare_sharp_text(assets, platform::executable_dir() / "fonts") > 0;
     // Keycaps, and with our own engine the gamepad's glyphs (its buttons give their actions directly: the game's
     // Xbox icons would name the wrong buttons) - not without the PC features (--compare).

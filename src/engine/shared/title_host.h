@@ -56,7 +56,7 @@ struct TitleHost {
     // and a 16:9 picture.
     uint32_t language = 1;
     bool widescreen = false;
-    // A font table to read instead of the pack's (Polish text: text::polish_font_table), or null for the pack's own.
+    // A font table to read instead of the pack's (a text language's letters: text::script_font_table), or null for the pack's own.
     // `name` as the pack names the font. The returned text is the title's to parse (and keep).
     char* (*font_table)(const char* name) = nullptr;
 

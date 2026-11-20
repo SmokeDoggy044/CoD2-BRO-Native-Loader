@@ -7,6 +7,7 @@
 
 #include <map>
 #include <optional>
+#include <span>
 #include <string>
 #include <string_view>
 
@@ -30,14 +31,26 @@ std::optional<std::string> ui_text_utf8(int index, std::string_view english);
 // UTF-8 to Windows-1252; characters it has no code for become '?'.
 std::string utf8_to_cp1252(std::string_view text);
 
-// The text language (the text-language setting): our texts in `code` ("pl") whatever the game's language, and the
-// game's character set with Polish letters on their Windows-1250 codes (the fonts get them: text::
-// set_sharp_text_polish). Empty: the game's language and Windows-1252. Set before any text is asked for.
+// The text language (the text-language setting): our texts in `code` ("pl", "ru", "uk") whatever the game's
+// language, and the game's character set extended for its letters, which the fonts get (text::
+// set_sharp_text_script): Polish on its Windows-1250 codes, Russian and Ukrainian on their Windows-1251 codes.
+// Empty: the game's language and Windows-1252. Set before any text is asked for.
 void set_text_language(const std::string& code);
-bool polish_text();
+std::string text_language();
+// The letters a text language adds to the game's Windows-1252 fonts.
+enum class TextScript { Latin, Polish, Cyrillic };
+TextScript text_script();
+// One such letter: its code in the game's text, the Unicode letter, and the Latin letter whose size in the game's
+// font it is measured against (src/text/sharp_text.cpp).
+struct ScriptLetter {
+    int code;
+    int unicode;
+    char base;
+};
+std::span<const ScriptLetter> script_letters(TextScript script);
 // Where the language files are (lang/ next to the program, else the source tree's).
 std::string ui_text_dir();
-// UTF-8 to the game's character set as it stands (utf8_to_cp1252, plus the Polish letters with Polish text).
+// UTF-8 to the game's character set as it stands (utf8_to_cp1252, plus the text script's letters).
 std::string utf8_to_game_text(std::string_view text);
 
 // Where the language files are (tests): `dir`/<code>.po. Default: lang/ next to the program, else the source tree's.

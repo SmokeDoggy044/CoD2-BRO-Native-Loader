@@ -5,6 +5,7 @@
 #include "game_window.h"
 
 #include <algorithm>
+#include <filesystem>
 #include <cmath>
 #include <cstdio>
 #include <cstring>
@@ -242,12 +243,24 @@ bool GameWindow::init_menu() {
     int window_width = 0, window_height = 0;
     SDL_GetWindowSize(window_, &window_width, &window_height);
     const float size = std::clamp(static_cast<float>(window_height) / 34.0f, 15.0f, 48.0f);
-    // Latin-1 and Latin Extended-A (the Polish letters of our texts), general punctuation.
-    static const ImWchar kRanges[] = {0x0020, 0x00FF, 0x0100, 0x017F, 0x2000, 0x206F, 0};
+    // Latin-1 and Latin Extended-A (the Polish letters of our texts), Cyrillic (Russian, Ukrainian), general
+    // punctuation and the numero sign.
+    static const ImWchar kRanges[] = {0x0020, 0x00FF, 0x0100, 0x017F, 0x0400, 0x045F, 0x0490, 0x0491,
+                                      0x2000, 0x206F, 0x2116, 0x2116, 0};
     if (menu_font_.empty() || !io.Fonts->AddFontFromFileTTF(menu_font_.c_str(), size, nullptr, kRanges)) {
         ImFontConfig font;
         font.SizePixels = std::round(size);
         io.Fonts->AddFontDefault(&font);
+    } else {
+        // Jost has no Ukrainian Є І Ї Ґ: those from Montserrat beside it (merging keeps Jost's own letters).
+        static const ImWchar kUkrainian[] = {0x0404, 0x0404, 0x0406, 0x0407, 0x0454, 0x0454, 0x0456, 0x0457,
+                                             0x0490, 0x0491, 0};
+        const std::filesystem::path second = std::filesystem::path(menu_font_).parent_path() / "Montserrat-Medium.ttf";
+        if (std::filesystem::exists(second)) {
+            ImFontConfig merge;
+            merge.MergeMode = true;
+            io.Fonts->AddFontFromFileTTF(second.string().c_str(), size, &merge, kUkrainian);
+        }
     }
     ImGui::GetStyle().ScaleAllSizes(size / 16.0f);
     // InitForD3D asserts outside Windows (DXVK is D3D9 there too); both only set up SDL input.

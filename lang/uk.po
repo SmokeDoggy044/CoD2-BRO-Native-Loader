@@ -1,0 +1,590 @@
+# Ukrainian translation of our own texts (the text-language setting; lang/README.md).
+# First version drafted by an AI (Claude); corrections from native speakers are welcome.
+msgid ""
+msgstr ""
+"Content-Type: text/plain; charset=UTF-8\n"
+
+msgid "GRAPHICS"
+msgstr "ГРАФІКА"
+
+msgid "CONTROLS"
+msgstr "КЕРУВАННЯ"
+
+msgid "Settings"
+msgstr "Налаштування"
+
+msgid "Enhanced Graphics"
+msgstr "Покращена графіка"
+
+msgid "Quit Game"
+msgstr "Вийти з гри"
+
+msgid "Quit the game? Progress since the last checkpoint will be lost."
+msgstr "Вийти з гри? Прогрес після останньої контрольної точки буде втрачено."
+
+msgid "Press ENTER or START"
+msgstr "Натисніть ENTER або START"
+
+msgid "on"
+msgstr "увімк."
+
+msgid "off"
+msgstr "вимк."
+
+msgid "Display"
+msgstr "Дисплей"
+
+msgid "Screen"
+msgstr "Екран"
+
+msgid "Image Quality"
+msgstr "Якість зображення"
+
+msgid "Lighting"
+msgstr "Освітлення"
+
+msgid "Detail"
+msgstr "Деталізація"
+
+msgid "DISPLAY"
+msgstr "ДИСПЛЕЙ"
+
+msgid "Fullscreen"
+msgstr "Повноекранний режим"
+
+msgid "Game cursor"
+msgstr "Ігровий курсор"
+
+msgid "Window size"
+msgstr "Розмір вікна"
+
+msgid "Aspect ratio"
+msgstr "Співвідношення сторін"
+
+msgid "Auto"
+msgstr "Авто"
+
+msgid "Render scale"
+msgstr "Масштаб рендерингу"
+
+msgid "Frame rate"
+msgstr "Частота кадрів"
+
+msgid "SCREEN"
+msgstr "ЕКРАН"
+
+msgid "Brightness"
+msgstr "Яскравість"
+
+msgid "Field of view"
+msgstr "Поле зору"
+
+msgid "Sharper text"
+msgstr "Чіткіший текст"
+
+msgid "Cutscene bars"
+msgstr "Смуги в заставках"
+
+msgid "Hit markers"
+msgstr "Маркери влучань"
+
+msgid "Language"
+msgstr "Мова"
+
+msgid "English"
+msgstr "Англійська"
+
+msgid "German"
+msgstr "Німецька"
+
+msgid "French"
+msgstr "Французька"
+
+msgid "Spanish"
+msgstr "Іспанська"
+
+msgid "Italian"
+msgstr "Італійська"
+
+msgid "IMAGE QUALITY"
+msgstr "ЯКІСТЬ ЗОБРАЖЕННЯ"
+
+msgid "Anti-aliasing"
+msgstr "Згладжування"
+
+msgid "Anisotropic filtering"
+msgstr "Анізотропна фільтрація"
+
+msgid "Filtering level"
+msgstr "Рівень фільтрації"
+
+msgid "Sharpening"
+msgstr "Підвищення різкості"
+
+msgid "Sharpness"
+msgstr "Різкість"
+
+msgid "Colour vibrance"
+msgstr "Насиченість кольорів"
+
+msgid "Vibrance"
+msgstr "Насиченість"
+
+msgid "LIGHTING"
+msgstr "ОСВІТЛЕННЯ"
+
+msgid "Original shadows"
+msgstr "Оригінальні тіні"
+
+msgid "Sun shadows"
+msgstr "Тіні від сонця"
+
+msgid "Per-pixel lighting"
+msgstr "Попіксельне освітлення"
+
+msgid "Normal maps"
+msgstr "Карти нормалей"
+
+msgid "Shine"
+msgstr "Блиск"
+
+msgid "Lit surface detail"
+msgstr "Деталі освітлених поверхонь"
+
+msgid "DETAIL"
+msgstr "ДЕТАЛІЗАЦІЯ"
+
+msgid "Ambient occlusion"
+msgstr "Фонове затінення"
+
+msgid "Cavity shading"
+msgstr "Затінення заглибин"
+
+msgid "Texture detail"
+msgstr "Деталізація текстур"
+
+msgid "Detail bias"
+msgstr "Зсув деталізації"
+
+msgid "Smooth models"
+msgstr "Згладжені моделі"
+
+msgid "More bodies"
+msgstr "Більше тіл"
+
+msgid "Texture Packs"
+msgstr "Пакети текстур"
+
+msgid "TEXTURE PACKS"
+msgstr "ПАКЕТИ ТЕКСТУР"
+
+msgid "SOUND"
+msgstr "ЗВУК"
+
+msgid "Master Volume"
+msgstr "Загальна гучність"
+
+msgid "Enhanced Sound"
+msgstr "Покращений звук"
+
+msgid "Volumes"
+msgstr "Гучність"
+
+msgid "Sound Paths"
+msgstr "Поширення звуку"
+
+msgid "Reverb"
+msgstr "Реверберація"
+
+msgid "Quality"
+msgstr "Якість"
+
+msgid "Output"
+msgstr "Виведення"
+
+msgid "VOLUMES"
+msgstr "ГУЧНІСТЬ"
+
+msgid "Effects"
+msgstr "Ефекти"
+
+msgid "Ambience"
+msgstr "Оточення"
+
+msgid "Dialogue"
+msgstr "Діалоги"
+
+msgid "Music"
+msgstr "Музика"
+
+msgid "Others' gunfire"
+msgstr "Чужі постріли"
+
+msgid "Your gunfire"
+msgstr "Ваші постріли"
+
+msgid "Bullets Nearby"
+msgstr "Кулі поруч"
+
+msgid "SOUND PATHS"
+msgstr "ПОШИРЕННЯ ЗВУКУ"
+
+msgid "Occlusion"
+msgstr "Оклюзія"
+
+msgid "Transmission"
+msgstr "Проходження крізь стіни"
+
+msgid "Partial cover"
+msgstr "Часткове укриття"
+
+msgid "Through Openings"
+msgstr "Крізь отвори"
+
+msgid "Air absorption"
+msgstr "Поглинання повітрям"
+
+msgid "REVERB"
+msgstr "РЕВЕРБЕРАЦІЯ"
+
+msgid "Room Detail"
+msgstr "Деталі приміщень"
+
+msgid "Echoes"
+msgstr "Відлуння"
+
+msgid "Amount"
+msgstr "Обсяг"
+
+msgid "Decay"
+msgstr "Згасання"
+
+msgid "Reflections"
+msgstr "Відбиття"
+
+msgid "QUALITY"
+msgstr "ЯКІСТЬ"
+
+msgid "Finer resampling"
+msgstr "Точніший ресемплінг"
+
+msgid "More voices"
+msgstr "Більше голосів"
+
+msgid "Stereo cutscenes"
+msgstr "Стерео в заставках"
+
+msgid "Room clutter"
+msgstr "Захаращеність приміщень"
+
+msgid "OUTPUT"
+msgstr "ВИВЕДЕННЯ"
+
+msgid "Speakers"
+msgstr "Динаміки"
+
+msgid "Automatic"
+msgstr "Автоматично"
+
+msgid "Stereo"
+msgstr "Стерео"
+
+msgid "Headphones"
+msgstr "Навушники"
+
+msgid "Quad"
+msgstr "Квадро"
+
+msgid "Mute sound"
+msgstr "Вимкнути звук"
+
+msgid "Mouse sensitivity"
+msgstr "Чутливість миші"
+
+msgid "Aim assist"
+msgstr "Допомога в прицілюванні"
+
+msgid "Skip intro"
+msgstr "Пропустити вступ"
+
+msgid "Sprint"
+msgstr "Спринт"
+
+msgid "Sprint duration"
+msgstr "Тривалість спринту"
+
+msgid "1.5 s"
+msgstr "1,5 с"
+
+msgid "3 s"
+msgstr "3 с"
+
+msgid "5 s"
+msgstr "5 с"
+
+msgid "8 s"
+msgstr "8 с"
+
+msgid "Unlimited"
+msgstr "Необмежено"
+
+msgid "Button prompts"
+msgstr "Підказки кнопок"
+
+msgid "Keyboard"
+msgstr "Клавіатура"
+
+msgid "Controller"
+msgstr "Контролер"
+
+msgid "CONTROLLER"
+msgstr "КОНТРОЛЕР"
+
+msgid "Layout"
+msgstr "Схема"
+
+msgid "Modern"
+msgstr "Сучасна"
+
+msgid "Original A"
+msgstr "Оригінальна A"
+
+msgid "Original B"
+msgstr "Оригінальна B"
+
+msgid "Original C"
+msgstr "Оригінальна C"
+
+msgid "Original D"
+msgstr "Оригінальна D"
+
+msgid "Custom"
+msgstr "Власна"
+
+msgid "Invert Aim"
+msgstr "Інверсія прицілу"
+
+msgid "Vibration"
+msgstr "Вібрація"
+
+msgid "Look Speed"
+msgstr "Швидкість огляду"
+
+msgid "Look Speed Vertical"
+msgstr "Швидкість огляду по вертикалі"
+
+msgid "Trigger threshold"
+msgstr "Поріг курків"
+
+msgid "Button style"
+msgstr "Стиль кнопок"
+
+msgid "Detected"
+msgstr "Визначено"
+
+msgid "Xbox"
+msgstr "Xbox"
+
+msgid "PlayStation"
+msgstr "PlayStation"
+
+msgid "Nintendo"
+msgstr "Nintendo"
+
+msgid "Steam Deck"
+msgstr "Steam Deck"
+
+msgid "Fire"
+msgstr "Вогонь"
+
+msgid "Aim down sights"
+msgstr "Прицілювання"
+
+msgid "Aim down sights (toggle)"
+msgstr "Прицілювання (перемикання)"
+
+msgid "Throw grenade"
+msgstr "Кинути гранату"
+
+msgid "Melee"
+msgstr "Удар зблизька"
+
+msgid "Jump"
+msgstr "Стрибок"
+
+msgid "Crouch / prone"
+msgstr "Присісти / лягти"
+
+msgid "Raise stance"
+msgstr "Піднятися"
+
+msgid "Use / reload"
+msgstr "Використати / перезарядити"
+
+msgid "Use"
+msgstr "Використати"
+
+msgid "Reload"
+msgstr "Перезарядити"
+
+msgid "Next weapon"
+msgstr "Наступна зброя"
+
+msgid "Previous weapon"
+msgstr "Попередня зброя"
+
+msgid "Lean left"
+msgstr "Нахил ліворуч"
+
+msgid "Lean right"
+msgstr "Нахил праворуч"
+
+msgid "Hide HUD"
+msgstr "Сховати HUD"
+
+msgid "KEYBOARD"
+msgstr "КЛАВІАТУРА"
+
+msgid "Move forward"
+msgstr "Рух уперед"
+
+msgid "Move back"
+msgstr "Рух назад"
+
+msgid "Move left"
+msgstr "Рух ліворуч"
+
+msgid "Move right"
+msgstr "Рух праворуч"
+
+msgid "SETTINGS"
+msgstr "НАЛАШТУВАННЯ"
+
+msgid "Graphics"
+msgstr "Графіка"
+
+msgid "Sound"
+msgstr "Звук"
+
+msgid "Controls"
+msgstr "Керування"
+
+msgid "Reset to Defaults"
+msgstr "Скинути до типових"
+
+msgid "Apply and Exit"
+msgstr "Застосувати й вийти"
+
+msgid "Back"
+msgstr "Назад"
+
+msgid "Press a key"
+msgstr "Натисніть клавішу"
+
+msgid "none"
+msgstr "немає"
+
+msgid "Press a button"
+msgstr "Натисніть кнопку"
+
+msgid "Left stick click"
+msgstr "Натиск лівого стіка"
+
+msgid "Right stick click"
+msgstr "Натиск правого стіка"
+
+msgid "D-pad up"
+msgstr "Хрестовина вгору"
+
+msgid "D-pad down"
+msgstr "Хрестовина вниз"
+
+msgid "D-pad left"
+msgstr "Хрестовина ліворуч"
+
+msgid "D-pad right"
+msgstr "Хрестовина праворуч"
+
+msgid "Back R4"
+msgstr "Задня R4"
+
+msgid "Back L4"
+msgstr "Задня L4"
+
+msgid "Back R5"
+msgstr "Задня R5"
+
+msgid "Back L5"
+msgstr "Задня L5"
+
+msgid "What's new"
+msgstr "Що нового"
+
+msgid "New controller support"
+msgstr "Нова підтримка контролерів"
+
+msgid "Your controller now talks to the game directly instead of pretending to be the original Xbox pad, and it starts with a modern layout:"
+msgstr "Тепер контролер працює з грою напряму, а не видає себе за оригінальний геймпад Xbox, і за замовчуванням має сучасну схему:"
+
+msgid "RT fire, LT aim, RB grenade"
+msgstr "RT вогонь, LT приціл, RB граната"
+
+msgid "A jump, B crouch, X use / reload, Y next weapon"
+msgstr "A стрибок, B присід, X дія / перезаряджання, Y наступна зброя"
+
+msgid "L3 sprint, R3 melee, D-pad left / right lean"
+msgstr "L3 спринт, R3 удар, хрестовина вліво / вправо — нахил"
+
+msgid "The game's original layouts, every single button, invert, vibration and look speed are under Options > Controls > Controller (and in the launcher). The on-screen prompts show your controller's own buttons."
+msgstr "Оригінальні схеми гри, кожна окрема кнопка, інверсія, вібрація та швидкість огляду — у розділі Налаштування > Керування > Контролер (і в лаунчері). Підказки на екрані показують кнопки саме вашого контролера."
+
+msgid "OK"
+msgstr "OK"
+
+msgid "A, B or Start on the controller, Enter or a click"
+msgstr "A, B або Start на контролері, Enter або клацання"
+
+msgid "The campaign has the game's own sprint (faster running with stamina), but the original game never lets you use it. Do you want to sprint in the campaign?"
+msgstr "У кампанії є власний спринт гри (швидший біг із витривалістю), але оригінальна гра не дає ним скористатися. Увімкнути спринт у кампанії?"
+
+msgid "Off is the original game. You can change this at any time under Options > Controls > Sprint, or in the launcher."
+msgstr "Вимкнено — як в оригінальній грі. Це можна будь-коли змінити в Налаштування > Керування > Спринт або в лаунчері."
+
+msgid "Keep it off (original)"
+msgstr "Лишити вимкненим (оригінал)"
+
+msgid "Turn sprint on"
+msgstr "Увімкнути спринт"
+
+msgid "Left / right to choose, A or Enter to confirm, B or Escape keeps it off"
+msgstr "Ліворуч / праворуч — вибір, A або Enter — підтвердити, B або Escape — лишити вимкненим"
+
+msgid "Use {move}"
+msgstr "Використовуйте {move}"
+
+msgid "Move the mouse"
+msgstr "Рухайте мишею"
+
+msgid "Press and hold {sprint}"
+msgstr "Натисніть і утримуйте {sprint}"
+
+msgid "Press {aim-toggle}"
+msgstr "Натисніть {aim-toggle}"
+
+msgid "Press and hold [AIM] to setup your weapon"
+msgstr "Утримуйте [AIM], щоб установити зброю"
+
+msgid "Text language"
+msgstr "Мова тексту"
+
+msgid "Game"
+msgstr "Гра"
+
+msgid "Polski"
+msgstr "Polski"
+
+msgid "Russian"
+msgstr "Російська"
+
+msgid "Ukrainian"
+msgstr "Українська"

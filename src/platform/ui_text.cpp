@@ -1,5 +1,10 @@
 #include "ui_text.h"
 
+#include <algorithm>
+
+#include <array>
+#include <atomic>
+
 #include <cstdint>
 #include <filesystem>
 #include <fstream>
@@ -199,12 +204,64 @@ std::string utf8_to_cp1252(std::string_view text) {
     return out;
 }
 
+namespace {
+// The text language's script, readable without g_mutex: utf8_to_game_text runs inside ui_text, which holds it.
+std::atomic<TextScript> g_text_script{TextScript::Latin};
+}  // namespace
+
 void set_text_language(const std::string& code) {
     std::lock_guard lock(g_mutex);
     g_text_language = code;
+    g_text_script = code == "pl"                   ? TextScript::Polish
+                    : code == "ru" || code == "uk" ? TextScript::Cyrillic
+                                                   : TextScript::Latin;
 }
 
-bool polish_text() { return g_text_language == "pl"; }
+std::string text_language() {
+    std::lock_guard lock(g_mutex);
+    return g_text_language;
+}
+
+TextScript text_script() { return g_text_script.load(); }
+
+namespace {
+
+constexpr ScriptLetter kPolishLetters[] = {
+    {0xB9, 0x0105, 'a'}, {0xE6, 0x0107, 'c'}, {0xEA, 0x0119, 'e'}, {0xB3, 0x0142, 'l'},
+    {0xF1, 0x0144, 'n'}, {0x9C, 0x015B, 's'}, {0x9F, 0x017A, 'z'}, {0xBF, 0x017C, 'z'},
+    {0xA5, 0x0104, 'A'}, {0xC6, 0x0106, 'C'}, {0xCA, 0x0118, 'E'}, {0xA3, 0x0141, 'L'},
+    {0xD1, 0x0143, 'N'}, {0x8C, 0x015A, 'S'}, {0x8F, 0x0179, 'Z'}, {0xAF, 0x017B, 'Z'},
+};
+
+// Windows-1251: А-я on 0xC0-0xFF, Ё ё, the Ukrainian Є є І і Ї ї Ґ ґ and №. Each is measured against its Latin
+// look-alike where there is one, else H (capitals) or n (small letters).
+std::array<ScriptLetter, 64 + 11> make_cyrillic_letters() {
+    // In alphabet order: А Б В Г Д Е Ж З И Й К Л М Н О П Р С Т У Ф Х Ц Ч Ш Щ Ъ Ы Ь Э Ю Я.
+    constexpr const char* kUpper = "AHBHHEHHHHKHMHOHPCTYHXHHHHHHHHHH";
+    constexpr const char* kLower = "annnnennnnnnnnonpcnynxnnnnnnnnnn";
+    static_assert(std::char_traits<char>::length(kUpper) == 32 && std::char_traits<char>::length(kLower) == 32);
+    std::array<ScriptLetter, 64 + 11> letters{};
+    for (int i = 0; i < 32; ++i) {
+        letters[i] = {0xC0 + i, 0x0410 + i, kUpper[i]};
+        letters[32 + i] = {0xE0 + i, 0x0430 + i, kLower[i]};
+    }
+    constexpr ScriptLetter kMore[] = {{0xA8, 0x0401, 'E'}, {0xB8, 0x0451, 'e'}, {0xAA, 0x0404, 'E'}, {0xBA, 0x0454, 'e'},
+                                      {0xB2, 0x0406, 'I'}, {0xB3, 0x0456, 'i'}, {0xAF, 0x0407, 'I'}, {0xBF, 0x0457, 'i'},
+                                      {0xA5, 0x0490, 'H'}, {0xB4, 0x0491, 'n'}, {0xB9, 0x2116, 'N'}};
+    for (size_t i = 0; i < std::size(kMore); ++i) letters[64 + i] = kMore[i];
+    return letters;
+}
+const auto kCyrillicLetters = make_cyrillic_letters();
+
+}  // namespace
+
+std::span<const ScriptLetter> script_letters(TextScript script) {
+    switch (script) {
+        case TextScript::Polish: return kPolishLetters;
+        case TextScript::Cyrillic: return kCyrillicLetters;
+        default: return {};
+    }
+}
 
 std::string ui_text_dir() {
     std::lock_guard lock(g_mutex);
@@ -212,31 +269,27 @@ std::string ui_text_dir() {
 }
 
 std::string utf8_to_game_text(std::string_view text) {
-    if (!polish_text()) return utf8_to_cp1252(text);
-    // The Polish letters' Windows-1250 codes; everything else as Windows-1252.
-    static constexpr struct {
-        const char* utf8;
-        char code;
-    } kPolish[] = {{"ą", '\xB9'}, {"ć", '\xE6'}, {"ę", '\xEA'}, {"ł", '\xB3'}, {"ń", '\xF1'}, {"ś", '\x9C'},
-                   {"ź", '\x9F'}, {"ż", '\xBF'}, {"Ą", '\xA5'}, {"Ć", '\xC6'}, {"Ę", '\xCA'}, {"Ł", '\xA3'},
-                   {"Ń", '\xD1'}, {"Ś", '\x8C'}, {"Ź", '\x8F'}, {"Ż", '\xAF'}};
+    const std::span<const ScriptLetter> letters = script_letters(text_script());
+    if (letters.empty()) return utf8_to_cp1252(text);
+    // The script's letters on their codes; everything else as Windows-1252 (the punctuation the scripts share).
     std::string out;
     for (size_t i = 0; i < text.size();) {
-        bool done = false;
-        for (const auto& p : kPolish)
-            if (text.substr(i).starts_with(p.utf8)) {
-                out += p.code;
-                i += std::string_view(p.utf8).size();
-                done = true;
-                break;
-            }
-        if (done) continue;
         size_t length = 1;
         const unsigned char c = static_cast<unsigned char>(text[i]);
         if ((c & 0xe0) == 0xc0) length = 2;
         else if ((c & 0xf0) == 0xe0) length = 3;
         else if ((c & 0xf8) == 0xf0) length = 4;
-        out += utf8_to_cp1252(text.substr(i, length));
+        length = std::min(length, text.size() - i);
+        uint32_t cp = length == 1 ? c : c & (0xff >> (length + 1));
+        for (size_t k = 1; k < length; ++k) cp = cp << 6 | (static_cast<unsigned char>(text[i + k]) & 0x3f);
+        const ScriptLetter* letter = nullptr;
+        if (cp >= 0x80)
+            for (const ScriptLetter& l : letters)
+                if (static_cast<uint32_t>(l.unicode) == cp) letter = &l;
+        if (letter)
+            out += static_cast<char>(letter->code);
+        else
+            out += utf8_to_cp1252(text.substr(i, length));
         i += length;
     }
     return out;

@@ -561,3 +561,9 @@ msgstr "Spiel"
 
 msgid "Polski"
 msgstr "Polski"
+
+msgid "Russian"
+msgstr "Russisch"
+
+msgid "Ukrainian"
+msgstr "Ukrainisch"

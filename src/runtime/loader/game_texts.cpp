@@ -244,10 +244,12 @@ void start_game_texts(const fs::path& template_path) {
             LOG_WARN("text", "cannot write the game text template %s", template_path.string().c_str());
         }
     }
-    if (platform::polish_text()) {
-        const fs::path translation = fs::path(platform::ui_text_dir()) / "game" / "pl.po";
+    if (platform::text_script() != platform::TextScript::Latin) {
+        const std::string code = platform::text_language();
+        const fs::path translation = fs::path(platform::ui_text_dir()) / "game" / (code + ".po");
         g_translation = read_corrections(translation);
-        LOG_INFO("text", "text language Polish: %zu game texts from %s", g_translation.size(),
+        const char* name = code == "pl" ? "Polish" : code == "ru" ? "Russian" : code == "uk" ? "Ukrainian" : code.c_str();
+        LOG_INFO("text", "text language %s: %zu game texts from %s", name, g_translation.size(),
                  translation.string().c_str());
     }
     const fs::path corrections = platform::user_data_dir() / "text_overrides.po";

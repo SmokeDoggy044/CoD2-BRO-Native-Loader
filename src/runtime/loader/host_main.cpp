@@ -166,9 +166,13 @@ int host_main(int argc, char** argv) {
                                            loader::sprint_seconds(options.sprint_duration), options.letterbox,
                                            options.more_bodies, options.skip_intro,
                                            options.hit_markers});
-    if (options.text_language == "polish") {  // before any text or font (ui_text.h, sharp_text.h)
-        platform::set_text_language("pl");
-        text::set_sharp_text_polish(true);
+    // Before any text or font (ui_text.h, sharp_text.h).
+    if (const char* code = options.text_language == "polish"      ? "pl"
+                           : options.text_language == "russian"   ? "ru"
+                           : options.text_language == "ukrainian" ? "uk"
+                                                                  : nullptr) {
+        platform::set_text_language(code);
+        text::set_sharp_text_script(platform::text_script());
     }
     loader::start_game_texts(options.game_text_template);
     if (!loader::prepare_fs_access(image)) return loader::startup_failed("cannot prepare the game's code");
