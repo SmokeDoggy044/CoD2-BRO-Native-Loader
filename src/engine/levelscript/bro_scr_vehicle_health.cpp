@@ -18,6 +18,7 @@
 #include "bro_scr_level_threads.h"
 #include "bro_scr_vehicle_path.h"
 #include "bro_scr_wait_notify.h"
+#include "scr_unwind_guard.h"
 
 namespace game {
 
@@ -168,6 +169,7 @@ void XB_CDECL BroScr_VehicleSetHealth_Jeep(uint32_t ent) {
 }
 
 uint32_t* XB_CDECL BroScr_SpawnVehicleFromEnt(uint32_t* out, uint32_t ent, ScriptString name, uint32_t extra) {
+    ScrStringGuard guard_name(&name);
     uint32_t buffer1[3], buffer2[3];
     const uint32_t* a = slot<GetVec>(0x00922ba0)(buffer1, ent);  // ScrEnt_GetAngles
     const uint32_t angles[3] = {a[0], a[1], a[2]};
@@ -180,26 +182,28 @@ uint32_t* XB_CDECL BroScr_SpawnVehicleFromEnt(uint32_t* out, uint32_t ent, Scrip
     ScriptString* const source = ScrField_vehicletype(ent);
     ScriptString_Assign(ScrField_vehicletype(vehicle), source);
     *out = vehicle;
-    ScriptString_Release(&name);
+    scr_drop(&name);
     return out;
 }
 
 uint32_t* XB_CDECL BroScr_SpawnScriptModelAt(uint32_t* out, uint32_t ent, ScriptString name, uint32_t extra) {
-    ScriptString classname;
+    ScrStringGuard guard_name(&name);
+    ScriptString classname{};
+    ScrStringGuard guard_classname(&classname);
     ScriptString_FromCString(&classname, pointer<const char>(0x0083ab98));  // "script_model"
     uint32_t buffer[3];
     const uint32_t* o = slot<GetVec>(0x00922b20)(buffer, ent);  // ScrEnt_GetOrigin
     const uint32_t origin[3] = {o[0], o[1], o[2]};
     const uint32_t model_ent =
         slot<uint32_t XB_CDECL(ScriptString*, const uint32_t*, uint32_t)>(0x009222f0)(&classname, origin, extra);  // GScr_Spawn
-    ScriptString_Release(&classname);
+    scr_drop(&classname);
     ScriptString copy;
     ScriptString_Copy(&copy, &name);
     slot<void XB_CDECL(uint32_t, ScriptString)>(0x00922b54)(model_ent, copy);  // ScrEnt_SetTargetname (releases its copy)
     ScriptString* const model = model_field(ent);
     slot<void XB_CDECL(uint32_t, ScriptString*, uint32_t)>(0x00922548)(model_ent, model, extra);  // GScr_SetModel
     *out = model_ent;
-    ScriptString_Release(&name);
+    scr_drop(&name);
     return out;
 }
 
@@ -296,10 +300,11 @@ void XB_CDECL BroScr_TankAttachHullMg(uint32_t ent, ScriptString tag) {
 
 void XB_CDECL BroScr_RocketExplosionThread(uint32_t ent, uint32_t a2, uint32_t a3, uint32_t a4, uint32_t a5, uint32_t a6,
                                            ScriptString a7) {
+    ScrStringGuard guard_a7(&a7);
     using Start = uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, const uint32_t*,
                                     const uint32_t*, const uint32_t*, const uint32_t*, const uint32_t*, const ScriptString*);
     title_function<Start>(0x0052cc30)(0, 0, 0, 0, own_address(&BroScr_RocketExplosion), ent, &a2, &a3, &a4, &a5, &a6, &a7);  // Scr_StartThread_ent_i_i_i_i_i_str
-    ScriptString_Release(&a7);
+    scr_drop(&a7);
 }
 
 void XB_CDECL BroScr_WillyJeepSetup(uint32_t ent) { willy_jeep_setup(ent, false); }

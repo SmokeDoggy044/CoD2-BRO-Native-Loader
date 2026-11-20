@@ -11,6 +11,7 @@
 #include "scr_field.h"
 #include "bro_scr_exploder.h"
 #include "gap_methods.h"
+#include "scr_unwind_guard.h"
 
 namespace game {
 
@@ -83,7 +84,8 @@ void XB_CDECL BroScr_CreateModel(uint32_t actor, uint32_t params) {
     const uint32_t ent = actor;
     using GetArray = uint32_t* XB_THISCALL(ScriptKeyTable*, uint32_t);
     const uint32_t index = own_function<GetArray>(&ScriptKeyTable_GetArray)(BroScr_ScriptObjectOrEmpty(ent), kModels)[2];
-    ScriptString classname;
+    ScriptString classname{};
+    ScrStringGuard guard_classname(&classname);
     scr_string_from(&classname, 0x0083ab98);  // "script_model"
     const uint32_t model = spawn(&classname);
     *model_at(ent, index) = model;
@@ -97,7 +99,7 @@ void XB_CDECL BroScr_CreateModel(uint32_t actor, uint32_t params) {
     key = 0x0cf2dc5b;
     const ScrVec3 angles = tag_vector(0x00922620, ent, param(params, &key));  // GScr_GetTagAngles
     set_vector(0x00922ba4, *model_at(ent, index), angles);                    // ScrEnt_SetAngles
-    scr_release(&classname);
+    scr_drop(&classname);
 }
 
 void XB_CDECL BroScr_DeleteModel(uint32_t actor, uint32_t params) {
@@ -105,15 +107,17 @@ void XB_CDECL BroScr_DeleteModel(uint32_t actor, uint32_t params) {
     bool defined;
     own_function<bool* XB_CDECL(bool*, uint32_t)>(ScrField_scriptmodel_IsDefined)(&defined, ent);  // ScrField_scriptmodel_IsDefined
     if (!defined) {
-        ScriptString message;
+        ScriptString message{};
+        ScrStringGuard guard_message(&message);
         scr_string_from(&message, 0x00824ed0);  // "Tried to remove a model with delete model before it was create model'd on guy: "
-        ScriptString animname;
+        ScriptString animname{};
+        ScrStringGuard guard_animname(&animname);
         const ScriptString* name = ScrCall_ScrEnt_GetAnimname(&actor, &animname);
         ScriptString text;
         ScriptString_Concat(&text, &message, name);
         ScrLocal_ReleaseString_2(text);
-        scr_release(&animname);
-        scr_release(&message);
+        scr_drop(&animname);
+        scr_drop(&message);
     }
     for (uint32_t i = 0; static_cast<int32_t>(i) < static_cast<int32_t>(model_array(ent)[2]); ++i) {
         uint32_t key = 0xdec84f52;
@@ -145,7 +149,8 @@ void XB_CDECL BroScr_NotetrackDropGun(uint32_t target, uint32_t actor, uint32_t 
     own_function<bool* XB_CDECL(bool*, uint32_t)>(ScrField_h4225d5c5_IsDefined)(&defined, actor);  // ScrField_h4225d5c5_IsDefined
     if (defined) return;
     const bool attach = target != actor;
-    ScriptString classname;
+    ScriptString classname{};
+    ScrStringGuard guard_classname(&classname);
     ScrCall_GScr_GetWeaponClassname2(&classname, scr_slot<uint32_t XB_CDECL(uint32_t)>(0x00922d30)(actor));  // ScrActor_GetInt_f0
     uint32_t gun = spawn(&classname);
     {
@@ -167,7 +172,8 @@ void XB_CDECL BroScr_NotetrackDropGun(uint32_t target, uint32_t actor, uint32_t 
         using Link = void XB_CDECL(uint32_t, uint32_t, uint32_t*, const uint32_t*, const uint32_t*, uint32_t);
         scr_slot<Link>(0x009224f4)(gun, target, param(params, &key), turn, offset, 0);  // GScr_LinkToTagWithOffset
     } else {
-        ScriptString name;
+        ScriptString name{};
+        ScrStringGuard guard_name(&name);
         scr_string_from(&name, 0x0083ab88);  // "script_origin"
         uint32_t holder = spawn(&name);
         set_vector(0x00922b24, holder, ent_vector(0x00922b20, gun));
@@ -175,11 +181,11 @@ void XB_CDECL BroScr_NotetrackDropGun(uint32_t target, uint32_t actor, uint32_t 
         using StartThread = uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t*, uint32_t*);
         title_function<StartThread>(0x0045a620)(0, 0, 0, 0, own_address(&BroScr_DeleteVictimOnNotify), level_entity(), &gun,
                                                  &holder);  // Scr_StartThread_ent_ent_ent
-        scr_release(&name);
+        scr_drop(&name);
     }
     own_function<void XB_CDECL(uint32_t, uint32_t)>(&BroScr_PutGunInHand)(actor, 0x0036b1a5);  // BroScr_PutGunInHand
     scr_slot<void XB_CDECL(uint32_t, uint32_t)>(0x00922d94)(actor, 0);                 // ScrActor_SetInt_1378
-    scr_release(&classname);
+    scr_drop(&classname);
 }
 
 }  // namespace game

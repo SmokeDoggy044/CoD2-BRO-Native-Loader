@@ -10,6 +10,7 @@
 #include "bro_scr_level_threads.h"
 #include "bro_scr_vehicle_health.h"
 #include "bro_scr_wait_notify.h"
+#include "scr_unwind_guard.h"
 
 namespace game {
 
@@ -158,11 +159,13 @@ void tank_init_gunner(uint32_t* slot, ScriptString* weapon, ScriptString* tag, c
 }  // namespace
 
 void XB_CDECL BroScr_TankInit(uint32_t tank, ScriptString weapon) {
+    ScrStringGuard guard_weapon(&weapon);
     const uint32_t vehicle = tank;
-    ScriptString model;
+    ScriptString model{};
+    ScrStringGuard guard_model(&model);
     const bool sherman = ScriptString_Equals(ScrCall_ScrEnt_GetModel(&tank, &model),
                                              reinterpret_cast<const char*>(static_cast<uintptr_t>(0x00821020)));  // "xmodel/v_us_lnd_sherman"
-    scr_release(&model);
+    scr_drop(&model);
     normalize_team(vehicle, sherman ? kAllies : kAxis);
     use_anim_tree(vehicle, kPanzerIV);
     const uint32_t level = title_global<uint32_t>(0x00922ee0);
@@ -178,31 +181,36 @@ void XB_CDECL BroScr_TankInit(uint32_t tank, ScriptString weapon) {
     start_stun_thread(vehicle);
     gunner_at_gunhull(vehicle, &weapon, 0x00801670);  // "mg34_german_tank"
     init_finish(vehicle, &tank, kDay);
-    scr_release(&weapon);
+    scr_drop(&weapon);
 }
 
 void XB_CDECL BroScr_TankInit_2(uint32_t tank, ScriptString weapon) {
+    ScrStringGuard guard_weapon(&weapon);
     const uint32_t vehicle = tank;
     // TankDefaultHealthThink_2, VehicleInit_Sherman, VehicleTurretFireLoop_5
     init_start(vehicle, {kAllies, kPanzerIV, own_address(&BroScr_TankDefaultHealthThink_2), own_address(&BroScr_VehicleInit_Sherman), own_address(&BroScr_VehicleTurretFireLoop_5), true});
     gunner_at_gunhull(vehicle, &weapon, 0x00808b50);  // "mg30cal_sherman_tank"
     init_finish(vehicle, &tank, 0);
-    scr_release(&weapon);
+    scr_drop(&weapon);
 }
 
 void XB_CDECL BroScr_TankInit_3(uint32_t tank, ScriptString weapon, ScriptString tag) {
+    ScrStringGuard guard_weapon(&weapon, &tag);
     tank_init_gunner(&tank, &weapon, &tag, kAlliesRecoil3);
 }
 
 void XB_CDECL BroScr_TankInit_4(uint32_t tank, ScriptString weapon, ScriptString tag) {
+    ScrStringGuard guard_weapon(&weapon, &tag);
     tank_init_gunner(&tank, &weapon, &tag, without_dead_stop(kAlliesRecoil3));
 }
 
 void XB_CDECL BroScr_TankInit_5(uint32_t tank, ScriptString weapon, ScriptString tag) {
+    ScrStringGuard guard_weapon(&weapon, &tag);
     tank_init_gunner(&tank, &weapon, &tag, kAxisM13);
 }
 
 void XB_CDECL BroScr_TankInit_6(uint32_t tank, ScriptString weapon, ScriptString tag) {
+    ScrStringGuard guard_weapon(&weapon, &tag);
     tank_init_gunner(&tank, &weapon, &tag, without_dead_stop(kAxisM13));
 }
 

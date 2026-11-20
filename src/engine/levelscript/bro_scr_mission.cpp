@@ -17,6 +17,7 @@
 #include "bro_scr_trigger_threads.h"
 #include "bro_scr_wait_notify.h"
 #include "scr_field.h"
+#include "scr_unwind_guard.h"
 
 namespace game {
 
@@ -136,28 +137,31 @@ void XB_CDECL BroScr_SetupSpawnerTriggers(uint32_t trigger) {
     const uint32_t ent = trigger;
     bool not_wave = true;
     {
-        ScriptString name1;
-        ScriptString name2;
+        ScriptString name1{};
+        ScrStringGuard guard_name1(&name1);
+        ScriptString name2{};
+        ScrStringGuard guard_name2(&name2);
         bool second = false;
         if (ScrCall_ScrEnt_GetTargetname(&trigger, &name1)->rep != nullptr) {
             second = true;
             not_wave = !ScriptString_Equals(ScrCall_ScrEnt_GetTargetname(&trigger, &name2),
                                             reinterpret_cast<const char*>(static_cast<uintptr_t>(0x0081351c)));  // "friendly_wave"
         }
-        if (second) scr_release(&name2);
-        scr_release(&name1);
+        if (second) scr_drop(&name2);
+        scr_drop(&name1);
     }
     if (not_wave) {
-        ScriptString target;
+        ScriptString target{};
+        ScrStringGuard guard_target(&target);
         const bool has_target = ScrCall_ScrEnt_GetTarget(&trigger, &target)->rep != nullptr;
-        scr_release(&target);
+        scr_drop(&target);
         if (has_target) {
             // Spawners (spawnflags bit 0) among the targets: BroScr_TriggerSpawnerThink(trigger, &spawner),
             // ending on 0xe2a210cf.
             DynArray targets = {nullptr, 0, 0};
             own_function<uint32_t XB_CDECL(const ScriptString*, uint32_t, DynArray*, uint32_t)>(&Scr_GetEntArray)(
                 ScrCall_ScrEnt_GetTarget(&trigger, &target), 0x0d786b4c, &targets, 0);  // Scr_GetEntArray
-            scr_release(&target);
+            scr_drop(&target);
             const auto at = [&targets](uint32_t i) {
                 if (i >= targets.size) DynArray_Resize(reinterpret_cast<uint8_t*>(&targets), i + 1, i + 4);
                 return targets.data + i;
@@ -185,16 +189,18 @@ void XB_CDECL BroScr_SetupSpawnerTriggers(uint32_t trigger) {
     if (field_defined(own_address(ScrField_h7fa1fc35_IsDefined), ent)) start_level_thread(ent, own_address(&BroScr_StartFxOnTrigger));  // 0x7fa1fc35: BroScr_StartFxOnTrigger
     if (field_defined(own_address(ScrField_h0bfd0e20_IsDefined), ent)) start_level_thread(ent, own_address(&BroScr_StopFxOnTrigger));  // 0x0bfd0e20
     {
-        ScriptString name;
+        ScriptString name{};
+        ScrStringGuard guard_name(&name);
         const bool named = ScrCall_ScrEnt_GetTargetname(&trigger, &name)->rep != nullptr;
-        scr_release(&name);
+        scr_drop(&name);
         if (!named) return;
     }
     const auto name_is = [&trigger](uint32_t text) {
-        ScriptString name;
+        ScriptString name{};
+        ScrStringGuard guard_name(&name);
         const bool same = ScriptString_Equals(ScrCall_ScrEnt_GetTargetname(&trigger, &name),
                                               reinterpret_cast<const char*>(static_cast<uintptr_t>(text)));
-        scr_release(&name);
+        scr_drop(&name);
         return same;
     };
     // The original keeps a stack address (its entry ESP - 0x40) in the argument slot on the

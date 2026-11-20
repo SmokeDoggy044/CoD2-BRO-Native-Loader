@@ -18,6 +18,7 @@
 #include "qcommon_fs.h"
 #include "bro_scr_battle_threads.h"
 #include "bro_scr_thread_misc.h"
+#include "scr_unwind_guard.h"
 
 namespace game {
 
@@ -79,10 +80,11 @@ inline ScriptString* drone_gun(uint32_t drone) {
 }
 // GScr_Attach(drone, gun, "tag_weapon_right"); `gun` is read after the tag string is built.
 inline void attach_gun_inline(uint32_t drone) {
-    ScriptString tag;
+    ScriptString tag{};
+    ScrStringGuard guard_tag(&tag);
     scr_string_from(&tag, 0x00831e14);  // "tag_weapon_right"
     slot<void XB_CDECL(uint32_t, ScriptString*, ScriptString*)>(0x009224d8)(drone, drone_gun(drone), &tag);
-    scr_release(&tag);
+    scr_drop(&tag);
 }
 // A BroScr_AttachDroneGun thread (level, drone, gun, direction): Scr_StartThread_ent_ent_str_vec.
 inline void fling_gun(uint32_t* drone, ScriptString* gun, const uint32_t* direction, uint32_t level_handle) {
@@ -213,11 +215,12 @@ void XB_CDECL BroScr_DroneMain(uint32_t drone, uint32_t hide, uint32_t explode) 
             const uint32_t* const handle = level_handle_ptr();
             fling_gun(&drone, ScrField_drone_gun(drone), direction, *handle);
         } else {
-            ScriptString tag;
+            ScriptString tag{};
+            ScrStringGuard guard_tag(&tag);
             scr_string_from(&tag, 0x00831e14);  // "tag_weapon_right"
             slot<void XB_CDECL(uint32_t, ScriptString*, ScriptString*)>(0x009224d8)(drone, ScrField_drone_gun(drone),
                                                                                   &tag);  // GScr_Attach
-            scr_release(&tag);
+            scr_drop(&tag);
         }
         key = 0x0fc1193c;
     } else {
@@ -421,6 +424,7 @@ void XB_CDECL BroScr_DroneFollowSpline(uint32_t drone, uint32_t path, uint32_t f
 
 void XB_CDECL BroScr_DronePathSpawnLoop(uint32_t spawner, uint32_t path, ScriptString type, uint32_t count,
                                         uint32_t delay_min, uint32_t delay_max, uint32_t p7, uint32_t p8, uint32_t p9) {
+    ScrStringGuard guard_type(&type);
     end_on(path, 0x78b19de2);
     if (*pointer<uint32_t>(level() + 0x4dc) == undefined_int()) {
         *pointer<uint32_t>(level() + 0x4dc) = 0;
@@ -455,10 +459,11 @@ void XB_CDECL BroScr_DronePathSpawnLoop(uint32_t spawner, uint32_t path, ScriptS
             random_delay(delay_min, delay_max, 0x40400000);
         }
     }
-    scr_release(&type);
+    scr_drop(&type);
 }
 
 void XB_CDECL BroScr_DroneDeathThink(uint32_t, ScriptString name) {
+    ScrStringGuard guard_name(&name);
     DynArray drones = {nullptr, 0, 0};
     Scr_GetEntArray(address_of(&name), 0x0d786b4c, reinterpret_cast<uint8_t*>(&drones), 0);  // by targetname
     if (drones.data && static_cast<int32_t>(drones.size) >= 1) {
@@ -480,7 +485,8 @@ void XB_CDECL BroScr_DroneDeathThink(uint32_t, ScriptString name) {
             for (uint32_t i = 0; static_cast<int32_t>(i) < static_cast<int32_t>(drones.size); ++i) {
                 if (*int_slot(*path_at(&drones, i), 0x7f3c9f90) != 0) {  // using_shrimps
                     const uint32_t* const handle = level_handle_ptr();
-                    ScriptString animname;
+                    ScriptString animname{};
+                    ScrStringGuard guard_animname(&animname);
                     ScriptString* const type = ScrCall_ScrEnt_GetAnimname(path_at(&drones, i), &animname);
                     uint32_t* const just_delete = ScrField_just_delete(*path_at(&drones, i), 0);
                     uint32_t* const max_death = ScrField_max_death_delay(*path_at(&drones, i));
@@ -494,7 +500,7 @@ void XB_CDECL BroScr_DroneDeathThink(uint32_t, ScriptString name) {
                     title_function<Start>(0x0052c7f0)(0, 0, 0, 0, own_address(&BroScr_DronePathSpawnLoop), *handle, path_at(&drones, i), type, &count,
                                                       min_delay, max_delay, min_death, max_death,
                                                       just_delete);  // (BroScr_DronePathSpawnLoop)
-                    scr_release(&animname);
+                    scr_drop(&animname);
                     const float a = as_float(*ScrField_min_delay(*path_at(&drones, i))) /
                                     static_cast<float>(static_cast<int32_t>(drones.size));
                     const float b = as_float(*ScrField_max_delay(*path_at(&drones, i))) /
@@ -509,22 +515,24 @@ void XB_CDECL BroScr_DroneDeathThink(uint32_t, ScriptString name) {
         }
     }
     if (drones.data) Scr_Free(drones.data);
-    scr_release(&name);
+    scr_drop(&name);
 }
 
 void XB_CDECL BroScr_DronePathsStartAll(uint32_t spawner, DynArray paths, ScriptString type, uint32_t p6, uint32_t p7,
                                         uint32_t p8, uint32_t p9, uint32_t p10, uint32_t p11) {
+    ScrStringGuard guard_type(&type);
     for (uint32_t i = 0; static_cast<int32_t>(i) < static_cast<int32_t>(paths.size); ++i) {
         reset_path(&paths, i);
         start_spawn_loop(spawner, path_at(&paths, i), &type, &p6, &p7, &p8, &p9, &p10, &p11);
         Scr_WaitFrames(0);
     }
     if (paths.data) Scr_Free(paths.data);
-    scr_release(&type);
+    scr_drop(&type);
 }
 
 void XB_CDECL BroScr_DronePathsStartAllStaggered(uint32_t spawner, DynArray paths, ScriptString type, uint32_t p6,
                                                  uint32_t p7, uint32_t p8, uint32_t p9, uint32_t p10, uint32_t p11) {
+    ScrStringGuard guard_type(&type);
     for (uint32_t i = 0; static_cast<int32_t>(i) < static_cast<int32_t>(paths.size); ++i) {
         if (!entity_handle_is_valid(*path_at(&paths, i))) continue;
         reset_path(&paths, i);
@@ -532,11 +540,12 @@ void XB_CDECL BroScr_DronePathsStartAllStaggered(uint32_t spawner, DynArray path
         random_delay(p7, p8, 0x3f000000);  // else 0.5 s
     }
     if (paths.data) Scr_Free(paths.data);
-    scr_release(&type);
+    scr_drop(&type);
 }
 
 void XB_CDECL BroScr_SpawnEventDrones(uint32_t, ScriptString name, ScriptString type, uint32_t min, uint32_t max,
                                       uint32_t min_death, uint32_t max_death, uint32_t just_delete) {
+    ScrStringGuard guard_name(&name, &type);
     Scr_WaitFrames(0);
     DynArray drones = {nullptr, 0, 0};
     Scr_GetEntArray(address_of(&name), 0x0d786b4c, reinterpret_cast<uint8_t*>(&drones), 0);  // by targetname
@@ -579,8 +588,8 @@ void XB_CDECL BroScr_SpawnEventDrones(uint32_t, ScriptString name, ScriptString 
         }
     }
     if (drones.data) Scr_Free(drones.data);
-    scr_release(&name);
-    scr_release(&type);
+    scr_drop(&name);
+    scr_drop(&type);
 }
 
 namespace {
@@ -602,40 +611,45 @@ inline uint32_t undefined_bool_word() { return title_global<uint8_t>(0x00922ed0)
 }  // namespace
 
 void XB_CDECL BroScr_SpawnEventDronesCall_1(uint32_t ent, ScriptString name) {
+    ScrStringGuard guard_name(&name);
     const uint32_t f = undefined_float();
     ScriptString empty;
     ScriptString_FromRep(&empty, nullptr);
     spawn_event_drones(ent, &name, empty, f, f, f, f, undefined_bool_word());
-    scr_release(&name);
+    scr_drop(&name);
 }
 
 void XB_CDECL BroScr_SpawnEventDronesCall_2(uint32_t ent, ScriptString name, ScriptString type) {
+    ScrStringGuard guard_name(&name, &type);
     const uint32_t f = undefined_float();
     spawn_event_drones(ent, &name, copy_of(&type), f, f, f, f, undefined_bool_word());
-    scr_release(&name);
-    scr_release(&type);
+    scr_drop(&name);
+    scr_drop(&type);
 }
 
 void XB_CDECL BroScr_SpawnEventDronesCall_3(uint32_t ent, ScriptString name, ScriptString type, uint32_t min, uint32_t max) {
+    ScrStringGuard guard_name(&name, &type);
     const uint32_t f = undefined_float();
     spawn_event_drones(ent, &name, copy_of(&type), min, max, f, f, undefined_bool_word());
-    scr_release(&name);
-    scr_release(&type);
+    scr_drop(&name);
+    scr_drop(&type);
 }
 
 void XB_CDECL BroScr_SpawnEventDronesCall_4(uint32_t ent, ScriptString name, ScriptString type, uint32_t min, uint32_t max,
                                             uint32_t just_delete) {
+    ScrStringGuard guard_name(&name, &type);
     const uint32_t f = undefined_float();
     spawn_event_drones(ent, &name, copy_of(&type), min, max, f, f, just_delete);
-    scr_release(&name);
-    scr_release(&type);
+    scr_drop(&name);
+    scr_drop(&type);
 }
 
 void XB_CDECL BroScr_SpawnEventDronesCall_5(uint32_t ent, ScriptString name, ScriptString type, uint32_t min, uint32_t max,
                                             uint32_t min_death, uint32_t max_death) {
+    ScrStringGuard guard_name(&name, &type);
     spawn_event_drones(ent, &name, copy_of(&type), min, max, min_death, max_death, undefined_bool_word());
-    scr_release(&name);
-    scr_release(&type);
+    scr_drop(&name);
+    scr_drop(&type);
 }
 
 }  // namespace game

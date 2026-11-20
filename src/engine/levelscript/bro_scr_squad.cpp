@@ -11,6 +11,7 @@
 #include "bro_scr_arrays.h"
 #include "levels_twins.h"
 #include "g_scr_builtins.h"
+#include "scr_unwind_guard.h"
 
 // A cdecl title call with two stack words that returns the ECX the callee leaves: the bool-field
 // accessors (ScrField_BoolSlot) build a missing field's word from their caller's ECX.
@@ -228,13 +229,15 @@ uint32_t* XB_CDECL BroScr_TakeSpawnerSaveState(uint32_t* out) {
 
 void XB_CDECL BroScr_SetRandomGoalNode(uint32_t ent) {
     DynArray nodes = {};
-    ScriptString key;
+    ScriptString key{};
+    ScrStringGuard guard_key(&key);
     ScriptString_FromCString(&key, pointer<const char>(0x0082dda8));  // "targetname"
     const uint32_t* const node = field_slot(ent, 0x05374cc6, 0);
-    ScriptString target;
+    ScriptString target{};
+    ScrStringGuard guard_target(&target);
     Scr_GetNodeArray(address_of(ScrCall_ScrPathNode_GetTarget(node, &target)), address_of(&key), as_words(&nodes));
-    ScriptString_Release(&target);
-    ScriptString_Release(&key);
+    scr_drop(&target);
+    scr_drop(&key);
     using Reserve = void XB_THISCALL(DynArray*, uint32_t, uint32_t);
     if (nodes.size == 0) {
         const uint32_t self = ent;
@@ -295,12 +298,13 @@ void XB_CDECL BroScr_StopRespawning(uint32_t spawner, uint32_t owner) {
             *reinterpret_cast<uint8_t*>(ScrField_h788065eb(spawner, notify_ecx)) = 0;
             const uint8_t* const level = pointer<uint8_t>(title_global<uint32_t>(0x00922ee0));
             const uint32_t* const level_ent = level ? reinterpret_cast<const uint32_t*>(level + 4) : nullptr;
-            ScriptString name;
+            ScriptString name{};
+            ScrStringGuard guard_name(&name);
             ScriptString_ConcatCString(&name, key_string(owner, 0xdfe2186c), pointer<const char>(0x00824824));  // "_stopped_respawning"
             uint32_t hash;
             const uint32_t notify = *Scr_HashScriptString(&hash, reinterpret_cast<const uint8_t* const*>(&name));
             queue_notify(*level_ent, notify);
-            ScriptString_Release(&name);
+            scr_drop(&name);
             free_data(group);
             return;
         }

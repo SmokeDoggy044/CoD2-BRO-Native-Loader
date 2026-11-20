@@ -16,6 +16,7 @@
 #include "levels_templates.h"
 #include "g_scr_builtins.h"
 #include "gap_methods.h"
+#include "scr_unwind_guard.h"
 
 namespace game {
 
@@ -237,12 +238,13 @@ bool tank_targets_defined(uint32_t tank) {
 }  // namespace
 
 void XB_CDECL BroLvl_prologue_StartEntArrayDefault(uint32_t self, ScriptString name) {
+    ScrStringGuard guard_name(&name);
     ScriptString empty;
     ScriptString_Copy(&empty, &title_global<ScriptString>(0x00922e90));
     ScriptString copy;
     ScriptString_Copy(&copy, &name);
     title_function<void XB_CDECL(uint32_t, ScriptString, ScriptString)>(0x00437bb0)(self, copy, empty);  // FUN_00437bb0
-    ScriptString_Release(&name);
+    scr_drop(&name);
 }
 
 void XB_CDECL BroLvl_prologue_TankFireAtTargets(uint32_t tank, float a, float b) {
@@ -491,84 +493,93 @@ void XB_CDECL BroLvl_prologue_LoopSoundAtPoints(uint32_t self, uint32_t sound, D
 
 void XB_CDECL BroLvl_prologue_TruckDrones(uint32_t self, uint32_t truck) {
     (void)self;
-    ScriptString tag;
+    ScriptString tag{};
+    ScrStringGuard guard_tag(&tag);
     ScriptString_FromRep(&tag, nullptr);
     uint32_t n = 2;
     for (int32_t count = 0; count < 6; ++count, ++n) {
         if (n == 3 || n == 8) ++n;
         uint32_t drone;
         {
-            ScriptString classname;
+            ScriptString classname{};
+            ScrStringGuard guard_classname(&classname);
             ScriptString_FromCString(&classname, pointer<const char>(0x0083ab98));  // "script_model"
             uint32_t buffer[3];
             const uint32_t* const o = slot<GetVec>(0x00922b20)(buffer, truck);  // ScrEnt_GetOrigin
             const uint32_t origin[3] = {o[0], o[1], o[2]};
             drone = slot<Spawn>(0x009222f0)(&classname, origin, 0);  // GScr_Spawn
-            ScriptString_Release(&classname);
+            scr_drop(&classname);
         }
         {
-            ScriptString anim;
+            ScriptString anim{};
+            ScrStringGuard guard_anim(&anim);
             ScriptString_FromCString(&anim, pointer<const char>(0x007f6644));  // "event1_drones"
             ScriptString copy;
             ScriptString_Copy(&copy, &anim);
             slot<void XB_CDECL(uint32_t, ScriptString)>(0x00922c44)(drone, copy);  // ScrEnt_SetAnimname
-            ScriptString_Release(&anim);
+            scr_drop(&anim);
         }
         uint32_t pick;
         {
-            ScriptString name;
+            ScriptString name{};
+            ScrStringGuard guard_name(&name);
             uint32_t hash;
             const uint32_t* const key = Scr_HashScriptString(
                 &hash, reinterpret_cast<const uint8_t* const*>(ScrCall_ScrEnt_GetAnimname(&drone, &name)));
             uint8_t* const models = HashMap_Index_PROLOGUE_9(pointer<HashMap>(level() + 0x814), key);
             pick = random_int(pointer<int32_t>(reinterpret_cast<uintptr_t>(models))[3]);
-            ScriptString_Release(&name);
+            scr_drop(&name);
         }
         {
-            ScriptString name;
+            ScriptString name{};
+            ScrStringGuard guard_name(&name);
             uint32_t hash;
             const uint32_t* const key = Scr_HashScriptString(
                 &hash, reinterpret_cast<const uint8_t* const*>(ScrCall_ScrEnt_GetAnimname(&drone, &name)));
             uint8_t* const models = HashMap_Index_PROLOGUE_9(pointer<HashMap>(level() + 0x814), key);
             ScriptString* const model = title_function<IndexString>(0x00461230)(models, &pick);  // HashMap_Index_PROLOGUE_12
             slot<void XB_CDECL(uint32_t, ScriptString*, uint32_t)>(0x00922548)(drone, model, 0);  // GScr_SetModel
-            ScriptString_Release(&name);
+            scr_drop(&name);
         }
         slot<void XB_CDECL(uint32_t, uint32_t)>(0x00922348)(drone, 4);  // GScr_SetForcedLod
         uint32_t& drones = *pointer<uint32_t>(level() + 0x508);
         if (drones == undefined_int()) drones = 0;
         ++*pointer<uint32_t>(level() + 0x508);
         {
-            ScriptString name;
+            ScriptString name{};
+            ScrStringGuard guard_name(&name);
             uint32_t hash;
             const uint32_t* const key = Scr_HashScriptString(
                 &hash, reinterpret_cast<const uint8_t* const*>(ScrCall_ScrEnt_GetAnimname(&drone, &name)));
             uint8_t* const guns = HashMap_Index_PROLOGUE_9(pointer<HashMap>(level() + 0x274), key);
             pick = random_int(pointer<int32_t>(reinterpret_cast<uintptr_t>(guns))[3]);
-            ScriptString_Release(&name);
+            scr_drop(&name);
         }
         {
-            ScriptString name;
+            ScriptString name{};
+            ScrStringGuard guard_name(&name);
             uint32_t hash;
             const uint32_t* const key = Scr_HashScriptString(
                 &hash, reinterpret_cast<const uint8_t* const*>(ScrCall_ScrEnt_GetAnimname(&drone, &name)));
             uint8_t* const guns = HashMap_Index_PROLOGUE_9(pointer<HashMap>(level() + 0x274), key);
             const ScriptString* const gun = title_function<IndexString>(0x00461230)(guns, &pick);  // HashMap_Index_PROLOGUE_12
             ScriptString_Assign(ScrField_drone_gun(drone), gun);
-            ScriptString_Release(&name);
+            scr_drop(&name);
         }
         {
-            ScriptString where;
+            ScriptString where{};
+            ScrStringGuard guard_where(&where);
             ScriptString_FromCString(&where, pointer<const char>(0x00831e14));  // "tag_weapon_right"
             using Attach = void XB_CDECL(uint32_t, ScriptString*, ScriptString*, uint32_t);
             slot<Attach>(0x009224d0)(drone, ScrField_drone_gun(drone), &where, 0);  // GScr_AttachWithOwner
-            ScriptString_Release(&where);
+            scr_drop(&where);
         }
         DynArray_PushBack(pointer<uint8_t>(level() + 0x770), &drone);
         {
-            ScriptString name;
+            ScriptString name{};
+            ScrStringGuard guard_name(&name);
             ScriptString_Assign(&tag, ScriptString_FromCStringPlusInt(&name, pointer<const char>(0x007f5c18), n));  // "tag_passenger"
-            ScriptString_Release(&name);
+            scr_drop(&name);
         }
         uint32_t offset[3] = {0, 0, 0};
         uint32_t angles[3] = {0, 0, 0};
@@ -576,7 +587,7 @@ void XB_CDECL BroLvl_prologue_TruckDrones(uint32_t self, uint32_t truck) {
         slot<Link>(0x009224f4)(drone, truck, &tag, angles, offset, 1);  // GScr_LinkToTagWithOffset
         own_function<StartThread>(&Scr_StartThread_ent_str_PROLOGUE_entry)(0, 0, 0, 0, 0x004230e0, drone, &tag);  // BroLvl_prologue_AttachPassengerDrones
     }
-    ScriptString_Release(&tag);
+    scr_drop(&tag);
 }
 
 void XB_CDECL BroLvl_prologue_InitDialogueBloomfield() {
@@ -634,16 +645,19 @@ void XB_CDECL BroLvl_prologue_SetupDrones() {
 void XB_CDECL BroLvl_prologue_SetDroneRunAnims() { drone_run_anims(); }
 
 uint32_t* XB_CDECL BroLvl_prologue_SpawnVehicleDrone3(uint32_t* out, uint32_t a2, uint32_t a3, ScriptString name) {
+    ScrStringGuard guard_name(&name);
     return spawn_vehicle_drone(out, a2, a3, &name, title_global<uint32_t>(0x00922ea4), title_global<uint32_t>(0x00922ebc));
 }
 
 uint32_t* XB_CDECL BroLvl_prologue_SpawnVehicleDrone4(uint32_t* out, uint32_t a2, uint32_t a3, ScriptString name,
                                                       uint32_t a5) {
+    ScrStringGuard guard_name(&name);
     return spawn_vehicle_drone(out, a2, a3, &name, a5, title_global<uint32_t>(0x00922ebc));
 }
 
 uint32_t* XB_CDECL BroLvl_prologue_SpawnVehicleDrone5(uint32_t* out, uint32_t a2, uint32_t a3, ScriptString name,
                                                       uint32_t a5, uint32_t a6) {
+    ScrStringGuard guard_name(&name);
     return spawn_vehicle_drone(out, a2, a3, &name, a5, a6);
 }
 

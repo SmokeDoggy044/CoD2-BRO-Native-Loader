@@ -16,6 +16,7 @@
 #include "levels_twins.h"
 #include "bro_scr_death_watch.h"
 #include "bro_scr_level_threads.h"
+#include "scr_unwind_guard.h"
 
 namespace game {
 
@@ -93,24 +94,28 @@ void XB_CDECL BroScr_StukaBombImpact(uint32_t bomb, uint32_t plane, uint32_t del
     trace.normal[2] = lane;
     ScriptString_FromRep(&trace.surface, nullptr);
     float last = title_global<float>(0x0083eba8);  // 2
-    ScriptString last_surface;
+    ScriptString last_surface{};
+    ScrStringGuard guard_last_surface(&last_surface);
     ScriptString_FromRep(&last_surface, nullptr);
     {
-        ScriptString targetname;
+        ScriptString targetname{};
+        ScrStringGuard guard_targetname(&targetname);
         scr_string_from(&targetname, 0x00825450);  // "_stuka_bomb"
         ScriptString copy;
         ScriptString_Copy(&copy, &targetname);
         slot<void XB_CDECL(uint32_t, ScriptString)>(0x00922b54)(bomb, copy);  // ScrEnt_SetTargetname
-        scr_release(&targetname);
+        scr_drop(&targetname);
     }
-    ScriptString name;
+    ScriptString name{};
+    ScrStringGuard guard_name(&name);
     {
-        ScriptString number;
+        ScriptString number{};
+        ScrStringGuard guard_number(&number);
         ScriptString_ConcatCString(&name,
                                    ScriptString_FromCStringPlusInt(&number, pointer<const char>(0x008079d4),
                                                                    static_cast<int32_t>(*int_slot(bomb, 0x380a75c4))),
                                    pointer<const char>(0x00825444));  // "bomb" n "_explosion"
-        scr_release(&number);
+        scr_drop(&number);
     }
     for (;;) {
         const ScrVec3 o = origin_of(bomb);
@@ -135,14 +140,16 @@ void XB_CDECL BroScr_StukaBombImpact(uint32_t bomb, uint32_t plane, uint32_t del
         }
         bool named = false;
         if (entity_handle_is_valid(trace.hit)) {
-            ScriptString temp;
+            ScriptString temp{};
+            ScrStringGuard guard_temp(&temp);
             named = ScrCall_ScrEnt_GetTargetname(&trace.hit, &temp)->rep != nullptr;
-            scr_release(&temp);
+            scr_drop(&temp);
         }
         if (named) {
-            ScriptString temp;
+            ScriptString temp{};
+            ScrStringGuard guard_temp(&temp);
             const bool skip = hash_of(ScrCall_ScrEnt_GetTargetname(&trace.hit, &temp)) == 0x06b2a670;
-            scr_release(&temp);
+            scr_drop(&temp);
             if (skip) {
                 Scr_Wait(as_float(0x3d4ccccd));
                 continue;
@@ -174,8 +181,8 @@ void XB_CDECL BroScr_StukaBombImpact(uint32_t bomb, uint32_t plane, uint32_t del
     const uint32_t* const handle = pointer<uint32_t>(object ? object + 4 : 0);
     BroScr_StukaBombExplode(*handle, bomb, static_cast<int32_t>(range), static_cast<int32_t>(max_damage),
                             static_cast<int32_t>(min_damage));
-    scr_release(&name);
-    scr_release(&last_surface);
+    scr_drop(&name);
+    scr_drop(&last_surface);
     scr_release(&trace.surface);
 }
 
@@ -231,13 +238,14 @@ void XB_CDECL BroScr_PlaneDropBomb(uint32_t plane, uint32_t count, uint32_t inte
         *ScrField_bomb_count(bomb_at(plane, i)) = i + 1;
         slot<void XB_CDECL(uint32_t)>(0x0092250c)(bomb_at(plane, i));  // GScr_Unlink
         if (static_cast<uint8_t>(whistle)) {
-            ScriptString sound;
+            ScriptString sound{};
+            ScrStringGuard guard_sound(&sound);
             scr_string_from(&sound, 0x007f765c);  // "Bomb_Whistle"
             const uint32_t bomb = *own_function<uint32_t* XB_THISCALL(DynArray*, uint32_t)>(&DynArray_At_PROLOGUE)(
                 static_cast<DynArray*>(ScrField_bomb(plane)), i);  // DynArray_At
             slot<void XB_CDECL(uint32_t, ScriptString*, uint32_t, uint32_t, uint32_t)>(0x009221dc)(bomb, &sound, 0, 0,
                                                                                                   0);  // GScr_PlaySound
-            scr_release(&sound);
+            scr_drop(&sound);
         }
         slot<void XB_CDECL(uint32_t, uint32_t*, uint32_t)>(0x009227a4)(bomb_at(plane, i), velocity,
                                                                      0x40a00000);  // GScr_MoverMoveGravity(5 s)
@@ -276,11 +284,12 @@ void XB_CDECL BroScr_StukaBombExplode(uint32_t, uint32_t bomb, int32_t range, in
     if (min_damage == undefined) min_damage = 0x19;
     uint32_t origin_ent;
     {
-        ScriptString classname;
+        ScriptString classname{};
+        ScrStringGuard guard_classname(&classname);
         scr_string_from(&classname, 0x0083ab88);  // "script_origin"
         ScrVec3 at = origin_of(bomb);
         origin_ent = slot<uint32_t XB_CDECL(ScriptString*, ScrVec3*, uint32_t)>(0x009222f0)(&classname, &at, 0);  // GScr_Spawn
-        scr_release(&classname);
+        scr_drop(&classname);
     }
     bool play = true;
     if (ScriptString_Equals(reinterpret_cast<ScriptString*>(level() + 0x1c4), pointer<const char>(0x0082bc28))) {  // "piano_lupo"

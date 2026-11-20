@@ -18,6 +18,7 @@
 #include "bro_scr_entity_threads.h"
 #include "bro_scr_mission.h"
 #include "bro_scr_notify_threads.h"
+#include "scr_unwind_guard.h"
 
 namespace game {
 
@@ -201,10 +202,11 @@ inline void prone_turn(uint32_t ent, uint32_t anim) {
     {
         ScriptString empty;
         ScriptString_Copy(&empty, pointer<ScriptString>(0x00922e90));
-        ScriptString result;
+        ScriptString result{};
+        ScrStringGuard guard_result(&result);
         using HandleNoteTracks = ScriptString* XB_CDECL(ScriptString*, uint32_t, uint32_t, uint32_t, ScriptString);
         own_function<HandleNoteTracks>(&BroScr_HandleNoteTracks)(&result, ent, 0x59c142f9, 0, empty);  // BroScr_HandleNoteTracks
-        scr_release(&result);
+        scr_drop(&result);
     }
     slot<Anim6>(0x009226bc)(ent, title_global<uint32_t>(0x008cf1d4), title_global<uint32_t>(0x008cf1c8), 0x3f800000, 0x3dcccccd,
                             0x3f800000);  // GScr_ActorSetAimAnimWeights(prone_shootfeet 45 up / down)
@@ -316,13 +318,15 @@ void XB_CDECL BroScr_FallbackNodeThink(uint32_t ent) {
     end_on(ent, kDeath);
     uint32_t node;
     {
-        ScriptString key;
+        ScriptString key{};
+        ScrStringGuard guard_key(&key);
         scr_string_from(&key, 0x0082dda8);  // "targetname"
-        ScriptString target;
+        ScriptString target{};
+        ScrStringGuard guard_target(&target);
         node = slot<GetNode>(0x009221cc)(ScrCall_ScrEnt_GetTarget(&ent, &target), &key, 0, 0);  // GScr_GetNode
         if (node == 0xffffffff) node = 0;
-        scr_release(&target);
-        scr_release(&key);
+        scr_drop(&target);
+        scr_drop(&key);
     }
     *key_slot(ent, 0xa33a251d, 0) = node;
     slot<void XB_CDECL(uint32_t, uint32_t*)>(0x00922688)(ent, &node);  // GScr_SetGoalPosFromNode
@@ -359,26 +363,30 @@ void XB_CDECL BroScr_FallbackNodeThink(uint32_t ent) {
         }
         bool debug;
         {
-            ScriptString value;
+            ScriptString value{};
+            ScrStringGuard guard_value(&value);
             debug = ScriptString_Equals(ScrCall_GScr_GetCvar(&value, 0x00823550), pointer<const char>(0x0082e058));  // "fallback" == "1"
-            scr_release(&value);
+            scr_drop(&value);
         }
         if (debug) create_thread(ent, ent_functor(own_address(&BroScr_FallbackClearGoalWait_2), ent));  // BroScr_FallbackClearGoalWait_2
         bool more;
         {
-            ScriptString target;
+            ScriptString target{};
+            ScrStringGuard guard_target(&target);
             more = *reinterpret_cast<uint32_t*>(ScrCall_ScrPathNode_GetTarget(&node, &target)) != 0;
-            scr_release(&target);
+            scr_drop(&target);
         }
         if (!more) break;
         {
-            ScriptString key;
+            ScriptString key{};
+            ScrStringGuard guard_key(&key);
             scr_string_from(&key, 0x0082dda8);  // "targetname"
-            ScriptString target;
+            ScriptString target{};
+            ScrStringGuard guard_target(&target);
             node = slot<GetNode>(0x009221cc)(ScrCall_ScrPathNode_GetTarget(&node, &target), &key, 0, 0);  // GScr_GetNode
             if (node == 0xffffffff) node = 0;
-            scr_release(&target);
-            scr_release(&key);
+            scr_drop(&target);
+            scr_drop(&key);
         }
         *key_slot(ent, 0xa33a251d, 0) = node;
         const float old = static_cast<float>(slot<long double XB_CDECL(uint32_t)>(0x00922d08)(ent));  // ScrActor_GetFloat_7e4
@@ -392,17 +400,19 @@ void XB_CDECL BroScr_FallbackNodeThink(uint32_t ent) {
             set_goal_radius(ent, bits(radius));
         }
     }
-    ScriptString name;
+    ScriptString name{};
+    ScrStringGuard guard_name(&name);
     scr_string_from(&name, 0x00825d68);  // "fallback_arrived"
     ScriptString_AppendInt(&name, *int_slot(ent, 0x8bbe4822));
     const uint32_t object = title_global<uint32_t>(0x00922ef8);  // g_levelScriptObject
     const uint32_t* const level = pointer<uint32_t>(object ? object + 4 : 0);
     uint32_t hash;
     queue_notify(*level, *Scr_HashScriptString(&hash, reinterpret_cast<const uint8_t* const*>(&name)));
-    scr_release(&name);
+    scr_drop(&name);
 }
 
 void XB_CDECL BroScr_SetupFriendlyFireMissionFail(uint32_t self, uint32_t ent, uint32_t mode, ScriptString team) {
+    ScrStringGuard guard_team(&team);
     end_on(level_handle(), 0xa264707f);
     uint32_t attacker = 0;
     if (mode != undefined_int() && mode == 1) {
@@ -443,7 +453,7 @@ void XB_CDECL BroScr_SetupFriendlyFireMissionFail(uint32_t self, uint32_t ent, u
         }
     }
 done:
-    scr_release(&team);
+    scr_drop(&team);
 }
 
 void XB_CDECL BroScr_FriendlyChainThink(uint32_t ent, uint32_t chain) {
@@ -488,13 +498,15 @@ void XB_CDECL BroScr_GoToBalconyNode(uint32_t ent, uint32_t node) {
     DynArray nodes = {};
     if (node == 0 || node == 0xffffffff) {
         {
-            ScriptString key;
+            ScriptString key{};
+            ScrStringGuard guard_key(&key);
             scr_string_from(&key, 0x0082dda8);  // "targetname"
-            ScriptString target;
+            ScriptString target{};
+            ScrStringGuard guard_target(&target);
             Scr_GetNodeArray(static_cast<uint32_t>(reinterpret_cast<uintptr_t>(ScrCall_ScrEnt_GetTarget(&ent, &target))),
                              static_cast<uint32_t>(reinterpret_cast<uintptr_t>(&key)), reinterpret_cast<uint32_t*>(&nodes));
-            scr_release(&target);
-            scr_release(&key);
+            scr_drop(&target);
+            scr_drop(&key);
         }
         bool defined;
         if (*ScrField_script_random_IsDefined(&defined, ent)) {
@@ -601,9 +613,10 @@ void XB_CDECL BroScr_AnimScriptEntSetDefaults(uint32_t ent) {
     }
     bool axis;
     {
-        ScriptString team;
+        ScriptString team{};
+        ScrStringGuard guard_team(&team);
         axis = ScriptString_Equals(ScrCall_ScrSentient_GetTeam(&ent, &team), pointer<const char>(0x0083208c));  // "axis"
-        scr_release(&team);
+        scr_drop(&team);
     }
     if (axis) {
         float* const value = reinterpret_cast<float*>(ScrField_h01757a0e(ent));
@@ -771,16 +784,18 @@ void XB_CDECL BroScr_FriendlyUseMg42(uint32_t ent, uint32_t turret, uint32_t nod
     use_turret(ent, turret);
     bool has_target;
     {
-        ScriptString target;
+        ScriptString target{};
+        ScrStringGuard guard_target(&target);
         has_target = *reinterpret_cast<uint32_t*>(ScrCall_ScrEnt_GetTarget(&turret, &target)) != 0;
-        scr_release(&target);
+        scr_drop(&target);
     }
     if (has_target) {
         uint32_t hint;
         {
-            ScriptString target;
+            ScriptString target{};
+            ScrStringGuard guard_target(&target);
             hint = slot<GetEntArray>(0x009221c4)(ScrCall_ScrEnt_GetTarget(&turret, &target), 0x0d786b4c, 0, 0, 0);  // GScr_GetEntArray
-            scr_release(&target);
+            scr_drop(&target);
         }
         if (entity_handle_is_valid(hint)) {
             using StartThread = uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, const uint32_t*,

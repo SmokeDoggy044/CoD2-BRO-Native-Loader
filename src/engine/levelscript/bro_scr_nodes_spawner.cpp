@@ -14,6 +14,7 @@
 #include "bro_scr_mission.h"
 #include "g_script.h"
 #include "g_scr_builtins.h"
+#include "scr_unwind_guard.h"
 
 namespace game {
 
@@ -267,9 +268,10 @@ void XB_CDECL BroScr_SetCreditsName(uint32_t actor, uint32_t value) {
         set_name(actor, copy);  // by value: the callee releases it
         return;
     }
-    ScriptString current;
+    ScriptString current{};
+    ScrStringGuard guard_current(&current);
     const bool none = ScrCall_ScrActor_GetString_ec(&actor, &current)->rep == nullptr;
-    ScriptString_Release(&current);
+    scr_drop(&current);
     if (!none) return;
     ScriptString name;
     BroScr_SetPrivateName(&name, actor);

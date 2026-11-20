@@ -23,6 +23,7 @@
 #include "script_string.h"
 #include "bro_scr_gibs.h"
 #include "bro_scr_notify_threads.h"
+#include "scr_unwind_guard.h"
 
 namespace game {
 
@@ -207,14 +208,15 @@ inline bool is_fx_creation(uint32_t ent) {
 void XB_CDECL BroScr_ArrayUseAnimTreeByAnimname(DynArray ents) {
     if (static_cast<int32_t>(ents.size) > 0) {
         for (uint32_t i = 1; static_cast<int32_t>(i - 1) < static_cast<int32_t>(ents.size); ++i) {
-            ScriptString name;
+            ScriptString name{};
+            ScrStringGuard guard_name(&name);
             const ScriptString* const animname = ScrCall_ScrEnt_GetAnimname(&element(&ents, i - 1), &name);
             uint32_t* const ent = &element(&ents, i - 1);
             uint32_t hash;
             const uint32_t* const key = Scr_HashScriptString(&hash, reinterpret_cast<const uint8_t* const*>(animname));
             const uint32_t tree = title_function<Index>(0x00461120)(level() + 0x238, key);  // HashMap_Index
             slot<void XB_CDECL(uint32_t, uint32_t)>(0x009225f0)(*ent, tree);  // GScr_UseAnimTree
-            ScriptString_Release(&name);
+            scr_drop(&name);
         }
     }
     if (ents.data) Scr_Free(ents.data);
@@ -359,23 +361,25 @@ void XB_CDECL BroScr_PlayShellIncoming(uint32_t ent, uint32_t type) {
     bool defined;
     if (*ScrField_ambient_IsDefined(&defined, level_handle())) {
         const ScriptKeyTable* const table = ent_script_object(*pointer<uint32_t>(level() + 4));
-        ScriptString ambient;
+        ScriptString ambient{};
+        ScrStringGuard guard_ambient(&ambient);
         interior = ScriptString_Equals(
             static_cast<ScriptString*>(ScrField_ambient_GetCopy(
                 const_cast<uint8_t*>(reinterpret_cast<const uint8_t*>(table) + 0xc), &ambient)),
             pointer<const char>(0x00816a4c));  // "interior"
-        ScriptString_Release(&ambient);
+        scr_drop(&ambient);
     }
     const uint32_t count = *title_function<uint32_t* XB_THISCALL(uint32_t, const uint32_t*)>(0x00460f80)(
         level() + 0x430, &type);  // HashMap_Index_14
     if (count != undefined_int()) return;
-    ScriptString sound;
+    ScriptString sound{};
+    ScrStringGuard guard_sound(&sound);
     if (interior)
         ScriptString_FromCString(&sound, pointer<const char>(0x00816a58));  // "shell_incoming_muffled"
     else
         ScriptString_FromCString(&sound, pointer<const char>(0x00816454));  // "shell_incoming"
     slot<PlayString>(0x009221dc)(ent, &sound, 0, 0, 0);  // GScr_PlaySound
-    ScriptString_Release(&sound);
+    scr_drop(&sound);
     Scr_Wait(1.5f);
 }
 
@@ -436,9 +440,10 @@ void XB_CDECL BroScr_PlayShellIncomingCall(uint32_t ent) { BroScr_PlayShellIncom
 
 void XB_CDECL BroScr_StoneBreakTriggerThink(uint32_t trigger) {
     {
-        ScriptString target;
+        ScriptString target{};
+        ScrStringGuard guard_target(&target);
         const bool none = ScrCall_ScrEnt_GetTarget(&trigger, &target)->rep == nullptr;
-        ScriptString_Release(&target);
+        scr_drop(&target);
         if (none) {
             slot<void XB_CDECL(uint32_t)>(0x00922540)(trigger);  // GScr_Delete
             return;
@@ -446,10 +451,11 @@ void XB_CDECL BroScr_StoneBreakTriggerThink(uint32_t trigger) {
     }
     DynArray stones = {nullptr, 0, 0};
     {
-        ScriptString target;
+        ScriptString target{};
+        ScrStringGuard guard_target(&target);
         Scr_GetEntArray(static_cast<uint32_t>(reinterpret_cast<uintptr_t>(ScrCall_ScrEnt_GetTarget(&trigger, &target))),
                         0x0d786b4c, reinterpret_cast<uint8_t*>(&stones), 0);
-        ScriptString_Release(&target);
+        scr_drop(&target);
     }
     uint32_t other = 0;
     title_function<void XB_CDECL(uint32_t, uint32_t, uint32_t*)>(0x004b1590)(trigger, 0xce270885, &other);  // Scr_WaitTillOutputEnt_ORAN("damage")
@@ -458,10 +464,11 @@ void XB_CDECL BroScr_StoneBreakTriggerThink(uint32_t trigger) {
         light = 0;
         if (!entity_handle_is_valid(element(&stones, i - 1))) continue;
         random_int(100);
-        ScriptString noteworthy;
+        ScriptString noteworthy{};
+        ScrStringGuard guard_noteworthy(&noteworthy);
         const bool is_light =
             ScriptString_Equals(ScrCall_ScrEnt_GetScriptNoteworthy(&trigger, &noteworthy), pointer<const char>(0x0083b07c));  // "light"
-        ScriptString_Release(&noteworthy);
+        scr_drop(&noteworthy);
         if (is_light) light = 1;
         const uint32_t key = 0xc7458393;
         const uint32_t stone = element(&stones, i - 1);
@@ -482,25 +489,31 @@ void XB_CDECL Bro__treeburst_gmi__tree_burst_playBurst(uint32_t tree) {
     using Ent = void XB_CDECL(uint32_t);
     ScriptString model;
     ScriptString_FromRep(&model, nullptr);
-    ScriptString default_text;
+    ScriptString default_text{};
+    ScrStringGuard guard_default_text(&default_text);
     ScriptString_FromCString(&default_text, pointer<const char>(0x00825150));  // "^1...Using default tree burst animation..."
     {
-        ScriptString got;
+        ScriptString got{};
+        ScrStringGuard guard_got(&got);
         own_function<void XB_THISCALL(ScriptString*, const ScriptString*)>(&ScriptString_Assign_entry)(
             &model, ScrCall_ScrEnt_GetModel(&tree, &got));  // ScriptString_Assign
-        ScriptString_Release(&got);
+        scr_drop(&got);
     }
-    ScriptString no_model;
+    ScriptString no_model{};
+    ScrStringGuard guard_no_model(&no_model);
     {
-        ScriptString text;
+        ScriptString text{};
+        ScrStringGuard guard_text(&text);
         ScriptString_FromCString(&text, pointer<const char>(0x008250d8));  // "...model type could not be retrieved fr..."
-        ScriptString name;
-        ScriptString joined;
+        ScriptString name{};
+        ScrStringGuard guard_name(&name);
+        ScriptString joined{};
+        ScrStringGuard guard_joined(&joined);
         ScriptString_Concat(&joined, &text, ScrCall_ScrEnt_GetTargetname(&tree, &name));
         ScriptString_ConcatCString(&no_model, &joined, pointer<const char>(0x008250b4));  // "!  offset will return ( 0, 0, 0 )."
-        ScriptString_Release(&joined);
-        ScriptString_Release(&name);
-        ScriptString_Release(&text);
+        scr_drop(&joined);
+        scr_drop(&name);
+        scr_drop(&text);
     }
     uint32_t offset[3];
     if (model.rep == nullptr) {
@@ -519,16 +532,18 @@ void XB_CDECL Bro__treeburst_gmi__tree_burst_playBurst(uint32_t tree) {
     uint32_t anim = 0;
     bool none;
     {
-        ScriptString note;
+        ScriptString note{};
+        ScrStringGuard guard_note(&note);
         none = ScrCall_ScrEnt_GetScriptNoteworthy(&tree, &note)->rep == nullptr;
-        ScriptString_Release(&note);
+        scr_drop(&note);
     }
     if (none) {
         anim = title_global<uint32_t>(0x008cd3f8);
     } else {
-        ScriptString note;
+        ScriptString note{};
+        ScrStringGuard guard_note(&note);
         const bool some = ScrCall_ScrEnt_GetScriptNoteworthy(&tree, &note)->rep != nullptr;
-        ScriptString_Release(&note);
+        scr_drop(&note);
         if (some) {
             ScriptString a;
             const bool is_a = ScriptString_Equals(ScrCall_ScrEnt_GetScriptNoteworthy(&tree, &a), pointer<const char>(0x00416fcc));  // "a"
@@ -554,24 +569,29 @@ void XB_CDECL Bro__treeburst_gmi__tree_burst_playBurst(uint32_t tree) {
         }
     }
     slot<Ent>(0x00922564)(tree);  // GScr_ClearEntFlag400
-    ScriptString targetname;
+    ScriptString targetname{};
+    ScrStringGuard guard_targetname(&targetname);
     ScrCall_ScrEnt_GetTargetname(&tree, &targetname);
-    ScriptString target;
+    ScriptString target{};
+    ScrStringGuard guard_target(&target);
     ScrCall_ScrEnt_GetTarget(&tree, &target);
-    ScriptString key_text;
+    ScriptString key_text{};
+    ScrStringGuard guard_key_text(&key_text);
     ScriptString_Copy(&key_text, title_function<ScriptString* XB_THISCALL(ScriptKeyTable*, uint32_t)>(0x00458da0)(
                                      ent_script_object(tree), 0x2a11980e));  // ScriptKeyTable_GetString
     uint32_t hidden;
     {
-        ScriptString name;
+        ScriptString name{};
+        ScrStringGuard guard_name(&name);
         using GetEnt = uint32_t XB_CDECL(ScriptString*, uint32_t, uint32_t, uint32_t, uint32_t);
         hidden = slot<GetEnt>(0x009221c4)(ScrCall_ScrEnt_GetTarget(&tree, &name), 0x0d786b4c, 0, 0, 0);  // GScr_GetEntArray
-        ScriptString_Release(&name);
+        scr_drop(&name);
     }
     slot<Ent>(0x00922568)(hidden);  // GScr_SetEntFlag400
     uint32_t origin_ent;
     {
-        ScriptString classname;
+        ScriptString classname{};
+        ScrStringGuard guard_classname(&classname);
         ScriptString_FromCString(&classname, pointer<const char>(0x0083ab88));  // "script_origin"
         uint32_t buffer[3];
         const uint32_t* const o = slot<const uint32_t* XB_CDECL(uint32_t*, uint32_t)>(0x00922b20)(buffer, tree);  // ScrEnt_GetOrigin
@@ -580,7 +600,7 @@ void XB_CDECL Bro__treeburst_gmi__tree_burst_playBurst(uint32_t tree) {
         at[1] = as_float(o[1]) + as_float(offset[1]);
         at[2] = as_float(o[2]) + as_float(offset[2]);
         origin_ent = slot<uint32_t XB_CDECL(ScriptString*, const float*, uint32_t)>(0x009222f0)(&classname, at, 0);  // GScr_Spawn
-        ScriptString_Release(&classname);
+        scr_drop(&classname);
     }
     play_text(origin_ent, 0x008250a0);  // "artillery_treeburst"
     play_text(origin_ent, 0x00825090);  // "tree_shatter"
@@ -605,11 +625,11 @@ void XB_CDECL Bro__treeburst_gmi__tree_burst_playBurst(uint32_t tree) {
         slot<long double XB_CDECL(float, float)>(0x00922238)(0.5f, 1.0f)));  // Scr_RandomFloatRange
     play_text(origin_ent, 0x00825070);  // "tree_fall_imp"
     slot<Ent>(0x00922540)(origin_ent);  // GScr_Delete
-    ScriptString_Release(&key_text);
-    ScriptString_Release(&target);
-    ScriptString_Release(&targetname);
-    ScriptString_Release(&no_model);
-    ScriptString_Release(&default_text);
+    scr_drop(&key_text);
+    scr_drop(&target);
+    scr_drop(&targetname);
+    scr_drop(&no_model);
+    scr_drop(&default_text);
     ScriptString_Release(&model);
 }
 
@@ -817,43 +837,49 @@ void XB_CDECL BroScr_PlantBombObjective(uint32_t self, uint32_t bomb) {
     using SetModel = void XB_CDECL(uint32_t, ScriptString*, uint32_t);
     using Set = void XB_CDECL(uint32_t, uint32_t);
     {
-        ScriptString target;
+        ScriptString target{};
+        ScrStringGuard guard_target(&target);
         ScrCall_ScrEnt_GetTarget(&bomb, &target);
-        ScriptString_Release(&target);
+        scr_drop(&target);
     }
     uint32_t trigger;
     {
-        ScriptString target;
+        ScriptString target{};
+        ScrStringGuard guard_target(&target);
         using GetEnt = uint32_t XB_CDECL(ScriptString*, uint32_t, uint32_t, uint32_t, uint32_t);
         trigger = slot<GetEnt>(0x009221c4)(ScrCall_ScrEnt_GetTarget(&bomb, &target), 0x0d786b4c, 0, 0, 0);  // GScr_GetEntArray
-        ScriptString_Release(&target);
+        scr_drop(&target);
     }
     {
-        ScriptString model;
+        ScriptString model{};
+        ScrStringGuard guard_model(&model);
         ScriptString_FromCString(&model, pointer<const char>(0x008252bc));  // "xmodel/bomb_objective_incomplete"
         slot<SetModel>(0x00922548)(bomb, &model, 0);                       // GScr_SetModel
-        ScriptString_Release(&model);
+        scr_drop(&model);
     }
     {
-        ScriptString hint;
+        ScriptString hint{};
+        ScrStringGuard guard_hint(&hint);
         ScriptString_FromCString(&hint, pointer<const char>(0x0082529c));  // "SCRIPT_HINTSTR_PLANTEXPLOSIVES"
         slot<void XB_CDECL(uint32_t, ScriptString*)>(0x009225b8)(trigger, &hint);  // GScr_ResetHintCache
-        ScriptString_Release(&hint);
+        scr_drop(&hint);
     }
     Scr_WaitTillString(trigger, pointer<const char>(0x0083aa58));  // "trigger"
     play_text(self, 0x00825288);                                    // "explo_plant_rand"
     {
-        ScriptString model;
+        ScriptString model{};
+        ScrStringGuard guard_model(&model);
         ScriptString_FromCString(&model, pointer<const char>(0x0082527c));  // "xmodel/bomb"
         slot<SetModel>(0x00922548)(bomb, &model, 0);                       // GScr_SetModel
-        ScriptString_Release(&model);
+        scr_drop(&model);
     }
     if (*pointer<uint8_t>(level() + 0x234) == title_global<uint8_t>(0x00922ed0)) {  // g_scrUndefinedBool
         title_function<void XB_CDECL(const char*)>(0x005b45b0)(pointer<const char>(0x00825260));  // ScrCall_SendGameMessageBoldCStr("SCRIPT_EXPLOSIVESPLANTED")
         *pointer<uint8_t>(level() + 0x234) = 1;
     }
     {
-        ScriptString team;
+        ScriptString team{};
+        ScrStringGuard guard_team(&team);
         ScriptString_FromCString(&team, pointer<const char>(0x00832084));  // "allies"
         uint32_t buffer[3];
         const uint32_t* const o = slot<const uint32_t* XB_CDECL(uint32_t*, uint32_t)>(0x00922b20)(buffer, self);  // ScrEnt_GetOrigin
@@ -861,17 +887,18 @@ void XB_CDECL BroScr_PlantBombObjective(uint32_t self, uint32_t bomb) {
         ScriptString* const name = ScrField_script_objective(self);
         using BadPlace = void XB_CDECL(ScriptString*, float, const uint32_t*, float, float, ScriptString*);
         slot<BadPlace>(0x00922484)(name, 6.0f, origin, 400.0f, 400.0f, &team);  // GScr_BadPlace_Cylinder
-        ScriptString_Release(&team);
+        scr_drop(&team);
     }
     slot<Ent>(0x00922540)(trigger);  // GScr_Delete
     bool defined;
     if (*ScrField_script_objective_IsDefined(&defined, self)) {
-        ScriptString flag;
+        ScriptString flag{};
+        ScrStringGuard guard_flag(&flag);
         ScriptString_ConcatCString(&flag, ScrField_script_objective(self), pointer<const char>(0x00825254));  // "bomb placed"
         ScriptString arg;
         ScriptString_Copy(&arg, &flag);
         BroScr_FlagSet(arg);
-        ScriptString_Release(&flag);
+        scr_drop(&flag);
     }
     uint32_t handle;
     const uint32_t hud = *slot<uint32_t* XB_CDECL(uint32_t*)>(0x0092248c)(&handle);  // GScr_NewHudElem (a new hud elem)
@@ -881,11 +908,12 @@ void XB_CDECL BroScr_PlantBombObjective(uint32_t self, uint32_t bomb) {
     slot<Set>(0x00922a58)(hud, 1);     // ScrHudElem_Set_14
     slot<Set>(0x00922a60)(hud, 1);     // ScrHudElem_Set_18
     {
-        ScriptString shader;
+        ScriptString shader{};
+        ScrStringGuard guard_shader(&shader);
         ScriptString_FromCString(&shader, pointer<const char>(0x00825244));  // "hudStopwatch"
         using Timer = void XB_CDECL(uint32_t*, float, float, ScriptString*, uint32_t, uint32_t);
         slot<Timer>(0x00922900)(&stopwatch, 5.0f, 60.0f, &shader, 0x40, 0x40);  // GScr_HudSetShaderTimer8
-        ScriptString_Release(&shader);
+        scr_drop(&shader);
     }
     Scr_Wait(5.0f);
     slot<void XB_CDECL(uint32_t*)>(0x0092291c)(&stopwatch);  // GScr_HudDestroy
@@ -895,6 +923,7 @@ void XB_CDECL BroScr_PlantBombObjective(uint32_t self, uint32_t bomb) {
 
 void XB_CDECL BroScr_RespawnerThink_2(uint32_t ent, uint32_t respawner, RespawnerAttributes attribs, uint32_t limit,
                                       ScriptString mode) {
+    ScrStringGuard guard_mode(&mode);
     using Count = uint32_t XB_CDECL(uint32_t);
     using SetCount = void XB_CDECL(uint32_t, uint32_t);
     using Spawn = uint32_t XB_CDECL(uint32_t, uint32_t);
@@ -974,31 +1003,34 @@ void XB_CDECL BroScr_RespawnerThink_2(uint32_t ent, uint32_t respawner, Respawne
             if (entity_handle_is_valid(respawner)) ++*ScrField_alive_num(respawner);
             {
                 ScriptString group;
-                ScriptString name;
+                ScriptString name{};
+                ScrStringGuard guard_name(&name);
                 ScriptString_ConcatCString(&name, ScrCall_ScrEnt_GetGroupname(&ent, &group), pointer<const char>(0x00824ea4));  // "_ai"
                 ScriptString copy;
                 ScriptString_Copy(&copy, &name);
                 slot<void XB_CDECL(uint32_t, ScriptString)>(0x00922b54)(guy, copy);  // ScrEnt_SetTargetname (releases its copy)
-                ScriptString_Release(&name);
+                scr_drop(&name);
                 ScriptString_Release(&group);
             }
             own_function<uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, RespawnerAttributes*)>(&Scr_StartThread_ent_RespawnerAttributes_entry)(
                 0, 0, 0, 0, own_address(&BroScr_RespawnerApplyAttribs), guy, &attribs);  // Scr_StartThread_ent_RespawnerAttributes(BroScr_RespawnerApplyAttribs)
             bool targeted;
             {
-                ScriptString target;
+                ScriptString target{};
+                ScrStringGuard guard_target(&target);
                 targeted = ScrCall_ScrEnt_GetTarget(&ent, &target)->rep != nullptr;
-                ScriptString_Release(&target);
+                scr_drop(&target);
             }
             if (targeted) {
                 DynArray nodes = {nullptr, 0, 0};
                 {
                     ScriptString key;
                     ScriptString_FromCString(&key, pointer<const char>(0x0082dda8));  // "targetname"
-                    ScriptString target;
+                    ScriptString target{};
+                    ScrStringGuard guard_target(&target);
                     Scr_GetNodeArray(static_cast<uint32_t>(reinterpret_cast<uintptr_t>(ScrCall_ScrEnt_GetTarget(&ent, &target))),
                                      static_cast<uint32_t>(reinterpret_cast<uintptr_t>(&key)), reinterpret_cast<uint32_t*>(&nodes));
-                    ScriptString_Release(&target);
+                    scr_drop(&target);
                     ScriptString_Release(&key);
                 }
                 if (static_cast<int32_t>(nodes.size) > 0) {
@@ -1026,11 +1058,12 @@ void XB_CDECL BroScr_RespawnerThink_2(uint32_t ent, uint32_t respawner, Respawne
         ScriptString_Release(&group);
     }
     title_function<void XB_THISCALL(RespawnerAttributes*)>(0x0052b970)(&attribs);  // RespawnerAttributes_Dtor
-    ScriptString_Release(&mode);
+    scr_drop(&mode);
 }
 
 void XB_CDECL BroScr_SpawnerGroupManager_2(uint32_t, ScriptString group, ScriptString name, RespawnerAttributes attribs,
                                            uint32_t limit, float start, ScriptString mode, int32_t max_alive) {
+    ScrStringGuard guard_name(&name, &mode);
     using EntHash = void XB_CDECL(uint32_t, uint32_t);
     using GetString = ScriptString* XB_THISCALL(ScriptKeyTable*, uint32_t);
     using StartRespawner = uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, const uint32_t*,
@@ -1041,39 +1074,44 @@ void XB_CDECL BroScr_SpawnerGroupManager_2(uint32_t, ScriptString group, ScriptS
     DynArray list = {nullptr, 0, 0};
     for (uint32_t i = 1; static_cast<int32_t>(i - 1) < static_cast<int32_t>(spawners.size); ++i) {
         bool match = false;
-        ScriptString first;
+        ScriptString first{};
+        ScrStringGuard guard_first(&first);
         if (ScrCall_ScrEnt_GetGroupname(&element(&spawners, i - 1), &first)->rep) {
-            ScriptString again;
+            ScriptString again{};
+            ScrStringGuard guard_again(&again);
             match = ScriptString_EqualsString(ScrCall_ScrEnt_GetGroupname(&element(&spawners, i - 1), &again), &group);
-            ScriptString_Release(&again);
+            scr_drop(&again);
         }
-        ScriptString_Release(&first);
+        scr_drop(&first);
         if (match) DynArray_PushBack(reinterpret_cast<uint8_t*>(&list), &element(&spawners, i - 1));
     }
     if (start != as_float(undefined_float())) {
         const uint32_t object = level();
         const uint32_t* const handle = pointer<uint32_t>(object ? object + 4 : 0);
-        ScriptString text;
+        ScriptString text{};
+        ScrStringGuard guard_text(&text);
         const ScriptStringRep* const rep = ScriptString_FromFloat(&text, start)->rep;
         Scr_WaitTillString(*handle, rep ? reinterpret_cast<const char*>(rep) + 6 : nullptr);
-        ScriptString_Release(&text);
+        scr_drop(&text);
     }
     uint32_t manager = 0;
     if (name.rep) {
         {
-            ScriptString kind;
+            ScriptString kind{};
+            ScrStringGuard guard_kind(&kind);
             ScriptString_FromCString(&kind, pointer<const char>(0x0083ab88));  // "script_origin"
             const uint32_t origin[3] = {bits(0.0f), bits(0.0f), bits(0.0f)};
             manager = slot<uint32_t XB_CDECL(ScriptString*, const uint32_t*, uint32_t)>(0x009222f0)(&kind, origin, 0);  // GScr_Spawn
-            ScriptString_Release(&kind);
+            scr_drop(&kind);
         }
         {
-            ScriptString text;
+            ScriptString text{};
+            ScrStringGuard guard_text(&text);
             ScriptString_ConcatCString(&text, &group, pointer<const char>(0x00824304));  // "_manager"
             ScriptString copy;
             ScriptString_Copy(&copy, &text);
             slot<void XB_CDECL(uint32_t, ScriptString)>(0x00922c1c)(manager, copy);  // ScrEnt_SetGroupname (releases its copy)
-            ScriptString_Release(&text);
+            scr_drop(&text);
         }
         own_function<void XB_THISCALL(ScriptString*, const ScriptString*)>(&ScriptString_Assign_entry)(
             title_function<GetString>(0x00458da0)(ent_script_object(manager), 0xdfe2186c), &group);  // ScriptString_Assign(ScriptKeyTable_GetString)

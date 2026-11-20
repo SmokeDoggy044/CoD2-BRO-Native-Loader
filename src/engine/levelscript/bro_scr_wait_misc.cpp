@@ -8,6 +8,7 @@
 #include "title_data.h"
 #include "bro_scr_wait_notify.h"
 #include "g_scr_builtins.h"
+#include "scr_unwind_guard.h"
 
 namespace game {
 
@@ -100,6 +101,7 @@ void XB_CDECL BroScr_DeathPhysicsLaunchNoForce(uint32_t ent, uint32_t attacker, 
 }
 
 void XB_CDECL BroScr_DeathPhysicsLaunchFromTag(uint32_t ent, uint32_t attacker, uint32_t launch_arg, ScriptString tag) {
+    ScrStringGuard guard_tag(&tag);
     const uint32_t undefined = title_global<uint32_t>(0x00922eb8);
     ScrVec3 at;
     at.v[0] = undefined;
@@ -107,7 +109,7 @@ void XB_CDECL BroScr_DeathPhysicsLaunchFromTag(uint32_t ent, uint32_t attacker, 
     at.v[2] = undefined;
     slot<void XB_CDECL(uint32_t, ScrVec3*, ScriptString*)>(0x0092261c)(ent, &at, &tag);  // GScr_GetTagOrigin
     BroScr_DeathPhysicsLaunch(ent, attacker, launch_arg, at);
-    ScriptString_Release(&tag);
+    scr_drop(&tag);
 }
 
 void XB_CDECL BroScr_LerpPlayerAnglesCall(uint32_t player, float pitch, float yaw, float roll, float time) {
@@ -120,6 +122,7 @@ void XB_CDECL BroScr_LerpPlayerAnglesCall_2(uint32_t player, float pitch, float 
 
 void XB_CDECL BroScr_WaitForNotifyOrTimeout(uint32_t, ScrVec3, ScriptString unused_string, ScrVec3, ScriptString notify,
                                             ScriptString endon, float timeout) {
+    ScrStringGuard guard_unused_string(&unused_string, &notify, &endon);
     if (endon.rep) Scr_EndOnString(*level_handle_word(), endon.rep->text);
     if (notify.rep) {
         const uint32_t* level = level_handle_word();
@@ -137,9 +140,9 @@ void XB_CDECL BroScr_WaitForNotifyOrTimeout(uint32_t, ScrVec3, ScriptString unus
     const float end = static_cast<float>(slot<GetTime>(0x009223c4)()) + ms;   // GScr_GetTime
     // The script's comparison goes through a float truth value.
     while (static_cast<float>(end > static_cast<float>(slot<GetTime>(0x009223c4)()) ? 1 : 0) != 0.0f) Scr_WaitFrames(0);
-    ScriptString_Release(&unused_string);
-    ScriptString_Release(&notify);
-    ScriptString_Release(&endon);
+    scr_drop(&unused_string);
+    scr_drop(&notify);
+    scr_drop(&endon);
 }
 
 void XB_CDECL BroScr_AnimReachGuyThread(uint32_t ent, uint32_t other) {

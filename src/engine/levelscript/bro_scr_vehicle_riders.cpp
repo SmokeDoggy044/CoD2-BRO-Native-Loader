@@ -13,6 +13,7 @@
 #include "levels_twins.h"
 #include "qcommon_fs.h"
 #include "bro_scr_anim_reach.h"
+#include "scr_unwind_guard.h"
 
 namespace game {
 
@@ -75,7 +76,8 @@ void anim_at_tag(uint32_t vehicle, const uint32_t* rider, ScriptString* tag, uin
 }
 // The rider's anim `key` there: HashMap_Index_13 lookup (first) / the inline one (rider_anim_found).
 void rider_anim_at_tag_indexed(uint32_t vehicle, const uint32_t* rider, ScriptString* tag, uint32_t key) {
-    ScriptString animname;
+    ScriptString animname{};
+    ScrStringGuard guard_animname(&animname);
     anim_at_tag(vehicle, rider, tag, rider_anim_indexed(rider, key, &animname), &animname);
 }
 void rider_anim_at_tag(uint32_t vehicle, const uint32_t* rider, ScriptString* tag, uint32_t key) {
@@ -84,7 +86,8 @@ void rider_anim_at_tag(uint32_t vehicle, const uint32_t* rider, ScriptString* ta
 }
 // The same through the ScrCall_GScr_GetTagAngles / _GetTagOrigin wrappers (HashMap_Index_13 lookup).
 void rider_anim_at_tag_call(uint32_t* vehicle, const uint32_t* rider, ScriptString* tag, uint32_t key) {
-    ScriptString animname;
+    ScriptString animname{};
+    ScrStringGuard guard_animname(&animname);
     const uint32_t anim = rider_anim_indexed(rider, key, &animname);
     const uint32_t tag_word = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(tag));
     uint32_t a[3];
@@ -93,7 +96,7 @@ void rider_anim_at_tag_call(uint32_t* vehicle, const uint32_t* rider, ScriptStri
     const uint32_t* const origin = ScrCall_GScr_GetTagOrigin(o, vehicle, tag_word);
     slot<void XB_CDECL(uint32_t, uint32_t, const uint32_t*, const uint32_t*, uint32_t)>(0x009224c0)(
         *rider, kRiderAnimDone, origin, angles, anim);  // GScr_AnimScriptedNoNotify
-    scr_release(&animname);
+    scr_drop(&animname);
 }
 void rider_wait(uint32_t rider) { Scr_WaitTill(rider, kRiderAnimDone); }
 // The vehicle speed tests (ScrEnt slot 0x00922b38), through the script's float truth values.
@@ -110,6 +113,7 @@ uint32_t vehicle_turn(uint32_t vehicle) { return *handle_slot(vehicle, 0x59cb9dd
 }  // namespace
 
 void XB_CDECL BroScr_VehicleRidersThink(uint32_t vehicle, uint32_t rider, ScriptString tag) {
+    ScrStringGuard guard_tag(&tag);
     using EndOn = void XB_CDECL(uint32_t, uint32_t);
     slot<EndOn>(0x00922188)(rider, 0x0d6e32cd);  // Scr_EndOn
     slot<EndOn>(0x00922188)(rider, 0x78dbe561);
@@ -117,7 +121,7 @@ void XB_CDECL BroScr_VehicleRidersThink(uint32_t vehicle, uint32_t rider, Script
     slot<EndOn>(0x00922188)(vehicle, 0x06730ae8);
     slot<EndOn>(0x00922188)(vehicle, 0x78dbe561);
     if (rider == *pointer<uint32_t>(title_global<uint32_t>(0x00922ee0) + 0x7f8)) {
-        scr_release(&tag);
+        scr_drop(&tag);
         return;
     }
     if (!ScriptString_Equals(&tag, pointer<const char>(0x007fa47c)) &&   // "tag_gunner"
@@ -145,7 +149,8 @@ void XB_CDECL BroScr_VehicleRidersThink(uint32_t vehicle, uint32_t rider, Script
                 const int32_t r = random_int(100);
                 if (!(r < 70) && !shot) {
                     shot = true;
-                    ScriptString out;
+                    ScriptString out{};
+                    ScrStringGuard guard_out(&out);
                     if (r < 85) {
                         rider_anim_at_tag_call(&vehicle, &rider, &tag, 0x8a8b7c57);
                         BroScr_DroneShoot(&out, rider, kRiderAnimDone);
@@ -153,7 +158,7 @@ void XB_CDECL BroScr_VehicleRidersThink(uint32_t vehicle, uint32_t rider, Script
                         rider_anim_at_tag_call(&vehicle, &rider, &tag, 0x8a8b7c54);
                         BroScr_DroneShoot(&out, rider, kRiderAnimDone);
                     }
-                    scr_release(&out);
+                    scr_drop(&out);
                 } else {
                     shot = false;
                     rider_anim_at_tag_call(&vehicle, &rider, &tag, 0xe0d0eea0);

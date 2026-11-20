@@ -11,6 +11,7 @@
 #include "title_data.h"
 #include "levels_templates.h"
 #include "levels_twins.h"
+#include "scr_unwind_guard.h"
 
 namespace game {
 
@@ -133,6 +134,7 @@ void XB_CDECL BroScr_SetRiderAnimForTag(uint32_t ent, ScriptString tag) {
 }
 
 void XB_CDECL BroScr_DeleteRiders(uint32_t ent, ScriptString name) {
+    ScrStringGuard guard_name(&name);
     const uint32_t undefined = title_global<uint32_t>(0x00922ec0);
     uint32_t level_index = undefined;
     uint32_t i = 0;
@@ -164,16 +166,17 @@ void XB_CDECL BroScr_DeleteRiders(uint32_t ent, ScriptString name) {
         }
         if (i != undefined && i != 0) BroScr_ArrayEraseAt(as_words(field_array(ent, kRiders)), i);
     }
-    ScriptString_Release(&name);
+    scr_drop(&name);
 }
 
 void XB_CDECL BroScr_HalftrackAttachPassengers(uint32_t ent, int32_t number) {
     for (uint32_t i = 0; static_cast<int32_t>(i) < static_cast<int32_t>(array_or_add(ent, kRiders)->size); ++i) {
-        ScriptString tag;
+        ScriptString tag{};
+        ScrStringGuard guard_tag(&tag);
         ScriptString_FromCStringPlusInt(&tag, pointer<const char>(0x007f5c18), number);  // "tag_passenger"
         const uint32_t rider = *element(array_or_add(ent, kRiders), i);
         const bool here = ScriptString_EqualsString(key_string(rider, 0xd91e5c5b), &tag);
-        ScriptString_Release(&tag);
+        scr_drop(&tag);
         if (!here) continue;
         queue_notify(*element(field_array(ent, kRiders), i), 0x0d6e32cd);
         BroScr_EntArrayRemove_he104fd5c(ent, *element(field_array(ent, kRiders), i));
@@ -185,14 +188,16 @@ void XB_CDECL BroScr_HalftrackAttachPassengers(uint32_t ent, int32_t number) {
 void XB_CDECL BroScr_VehicleFollowPath(uint32_t ent) {
     bool delete_turrets = true;
     {
-        ScriptString noteworthy;
+        ScriptString noteworthy{};
+        ScrStringGuard guard_noteworthy(&noteworthy);
         if (ScrCall_ScrEnt_GetScriptNoteworthy(&ent, &noteworthy)->rep) {
-            ScriptString again;
+            ScriptString again{};
+            ScrStringGuard guard_again(&again);
             delete_turrets = !ScriptString_Equals(ScrCall_ScrEnt_GetScriptNoteworthy(&ent, &again),
                                                   pointer<const char>(0x007f60b4));  // "noturrets"
-            ScriptString_Release(&again);
+            scr_drop(&again);
         }
-        ScriptString_Release(&noteworthy);
+        scr_drop(&noteworthy);
     }
     if (delete_turrets) BroScr_DeleteVehicleTurrets(ent);
     BroScr_DeleteUndroppedBombs(ent);
@@ -211,9 +216,10 @@ void XB_CDECL BroScr_VehicleFollowPath(uint32_t ent) {
         delete_ent(ent);
         return;
     }
-    ScriptString noteworthy;
+    ScriptString noteworthy{};
+    ScrStringGuard guard_noteworthy(&noteworthy);
     const bool has_noteworthy = ScrCall_ScrEnt_GetScriptNoteworthy(&ent, &noteworthy)->rep != nullptr;
-    ScriptString_Release(&noteworthy);
+    scr_drop(&noteworthy);
     if (has_noteworthy) {
         if (noteworthy_is(ent, pointer<const char>(0x00824d24))) {  // "loop"
             slot<void XB_CDECL(uint32_t, uint32_t*)>(0x0092287c)(ent, ScrField_path(ent));  // GScr_Vehicle_AttachPath

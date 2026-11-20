@@ -10,6 +10,7 @@
 #include "scr_field_instances.h"
 #include "script_string.h"
 #include "title_data.h"
+#include "scr_unwind_guard.h"
 
 namespace game {
 
@@ -62,9 +63,10 @@ void music_play(uint32_t text) {
 
 // GScr_PlaySound(ent, "FLAK_METAL_HIT"), then Scr_Wait(seconds).
 void flak_hit(uint32_t ent, float seconds) {
-    ScriptString alias;
+    ScriptString alias{};
+    ScrStringGuard guard_alias(&alias);
     slot<void XB_CDECL(uint32_t, ScriptString*, uint32_t, uint32_t, uint32_t)>(0x009221dc)(ent, from_text(&alias, 0x007f4fac), 0, 0, 0);
-    ScriptString_Release(&alias);
+    scr_drop(&alias);
     Scr_Wait(seconds);
 }
 
@@ -109,6 +111,7 @@ void XB_CDECL BroLvl_prologue_WaitLevelNotifyCount(uint32_t, int32_t count) {
 
 uint32_t* XB_CDECL BroLvl_prologue_SpawnVehicleDroneDefault(uint32_t* out, uint32_t a2, uint32_t a3, ScriptString name,
                                                             uint32_t a5, uint32_t a6) {
+    ScrStringGuard guard_name(&name);
     // BroLvl_prologue_SpawnVehicleDrone (0x0044e120, hidden out) with undefined handles and an empty string
     // for the other arguments.
     using Spawn = void XB_CDECL(uint32_t*, uint32_t, uint32_t, ScriptString, uint32_t, uint32_t, ScriptString,
@@ -120,7 +123,7 @@ uint32_t* XB_CDECL BroLvl_prologue_SpawnVehicleDroneDefault(uint32_t* out, uint3
     title_function<Spawn>(0x0044e120)(&result, a2, a3, copy, undefined, title_global<uint32_t>(0x00922ebc), empty,
                                       undefined, a5, a6);
     *out = result;
-    ScriptString_Release(&name);
+    scr_drop(&name);
     return out;
 }
 
@@ -168,10 +171,11 @@ void XB_CDECL BroLvl_prologue_TurretAimAhead(uint32_t tank) {
     spot[0] = as_float(origin.v[0]) + ahead_x;
     spot[1] = as_float(origin.v[1]) + ahead_y;
     spot[2] = as_float(origin.v[2]) + ahead_z + title_global<float>(0x0083f058);  // + 104
-    ScriptString classname;
+    ScriptString classname{};
+    ScrStringGuard guard_classname(&classname);
     using Spawn = uint32_t XB_CDECL(ScriptString*, const float*, uint32_t);
     const uint32_t target = slot<Spawn>(0x009222f0)(from_text(&classname, 0x0083ab88), spot, 0);  // GScr_Spawn("script_origin")
-    ScriptString_Release(&classname);
+    scr_drop(&classname);
     slot<void XB_CDECL(uint32_t, uint32_t)>(0x009224fc)(target, tank);  // GScr_LinkTo
     const float offset[3] = {0.0f, 0.0f, 0.0f};
     slot<void XB_CDECL(uint32_t, uint32_t, const float*)>(0x009228cc)(tank, target, offset);  // GScr_Vehicle_SetTurretTargetEnt
@@ -233,10 +237,11 @@ void XB_CDECL BroLvl_prologue_DamageOnGoal(uint32_t ent) {
 
 void XB_CDECL BroLvl_prologue_TankScrapeSound(uint32_t tank) {
     Scr_Wait(3.3f);
-    ScriptString alias;
+    ScriptString alias{};
+    ScrStringGuard guard_alias(&alias);
     slot<void XB_CDECL(uint32_t, ScriptString*, uint32_t, uint32_t, uint32_t)>(0x009221dc)(
         tank, from_text(&alias, 0x007f4e60), 0, 0, 0);  // GScr_PlaySound("PROL_Event1_Tank_Scrape")
-    ScriptString_Release(&alias);
+    scr_drop(&alias);
 }
 
 void XB_CDECL BroLvl_prologue_SetEvent1DriverAnimname(uint32_t guy) {
@@ -252,9 +257,10 @@ void XB_CDECL BroLvl_prologue_DeleteBelowFloor(uint32_t ent) {
 }
 
 void XB_CDECL BroLvl_prologue_QuakeOnTargetTrigger(uint32_t trigger) {
-    ScriptString name;
+    ScriptString name{};
+    ScrStringGuard guard_name(&name);
     const uint32_t target = get_ent(ScrCall_ScrEnt_GetTarget(&trigger, &name), 0x0d786b4c);  // by targetname
-    ScriptString_Release(&name);
+    scr_drop(&name);
     Scr_WaitTill(trigger, 0xe2a210cf);  // trigger
     const ScrVec3 angles = angles_of(target);
     const uint32_t undefined = undefined_lane();
@@ -269,9 +275,10 @@ void XB_CDECL BroLvl_prologue_QuakeOnTargetTrigger(uint32_t trigger) {
 }
 
 void XB_CDECL BroLvl_prologue_Event3Panzer1OffTime() {
-    ScriptString name;
+    ScriptString name{};
+    ScrStringGuard guard_name(&name);
     const uint32_t panzer = get_ent(from_text(&name, 0x007f4ea8), 0x0d786b4c);  // "event3_panzer1" by targetname
-    ScriptString_Release(&name);
+    scr_drop(&name);
     *ScrField_script_offtime(panzer) = 1;
     Scr_Wait(13.0f);
     *ScrField_script_offtime(panzer) = 0;
@@ -328,32 +335,35 @@ void XB_CDECL BroLvl_prologue_DriftAroundCourtyard(uint32_t ent) {
 
 void XB_CDECL BroLvl_prologue_Event4TigerThroughWall() {
     using PlaySound = void XB_CDECL(uint32_t, ScriptString*, uint32_t, uint32_t, uint32_t);
-    ScriptString text;
+    ScriptString text{};
+    ScrStringGuard guard_text(&text);
     uint32_t wall = get_ent(from_text(&text, 0x007f4f8c), 0x0d786b4c);  // "event4_tiger_through_wall_left"
-    ScriptString_Release(&text);
+    scr_drop(&text);
     slot<PlaySound>(0x009221dc)(wall, from_text(&text, 0x007f4f74), 0, 0, 0);  // GScr_PlaySound("event3_building1_exp2")
-    ScriptString_Release(&text);
+    scr_drop(&text);
     slot<PlaySound>(0x009221dc)(wall, from_text(&text, 0x007f4f68), 0, 0, 0);  // "wall_explo"
-    ScriptString_Release(&text);
+    scr_drop(&text);
     Scr_Wait(static_cast<float>(slot<long double XB_CDECL(uint32_t)>(0x00922230)(0x3f800000) + title_global<float>(0x0083ec8c)));  // Scr_RandomFloat(1) + 1.3
     wall = get_ent(from_text(&text, 0x007f4f48), 0x0d786b4c);  // "event4_tiger_through_wall_right"
-    ScriptString_Release(&text);
+    scr_drop(&text);
     slot<PlaySound>(0x009221dc)(wall, from_text(&text, 0x007f4f74), 0, 0, 0);  // "event3_building1_exp2"
-    ScriptString_Release(&text);
+    scr_drop(&text);
     Scr_Wait(2.0f);
 }
 
 void XB_CDECL BroLvl_prologue_FlakMetalHits(uint32_t ent) {
     using PlaySound = void XB_CDECL(uint32_t, ScriptString*, uint32_t, uint32_t, uint32_t);
-    ScriptString alias;
+    ScriptString alias{};
+    ScrStringGuard guard_alias(&alias);
     slot<PlaySound>(0x009221dc)(ent, from_text(&alias, 0x007f4fac), 100, 0, 0);  // GScr_PlaySound("FLAK_METAL_HIT")
-    ScriptString_Release(&alias);
+    scr_drop(&alias);
     Scr_Wait(3.0f);
     slot<PlaySound>(0x009221dc)(ent, from_text(&alias, 0x007f4fac), 75, 0, 0);
-    ScriptString_Release(&alias);
+    scr_drop(&alias);
 }
 
 void XB_CDECL BroLvl_prologue_ActorGoToTag(uint32_t actor, uint32_t ent, ScriptString tag) {
+    ScrStringGuard guard_tag(&tag);
     using TagVec = void XB_CDECL(uint32_t, ScrVec3*, ScriptString*);
     const uint32_t undefined = undefined_lane();
     ScrVec3 vec = {{undefined, undefined, undefined}};
@@ -368,25 +378,26 @@ void XB_CDECL BroLvl_prologue_ActorGoToTag(uint32_t actor, uint32_t ent, ScriptS
     Scr_WaitTill(actor, 0x0032304c);  // goal
     slot<void XB_CDECL(uint32_t, float)>(0x00922df4)(actor, radius);
     ++level_word(0x870);
-    ScriptString_Release(&tag);
+    scr_drop(&tag);
 }
 
 void XB_CDECL BroLvl_prologue_Event4FlakFireFx() {
     using PlaySound = void XB_CDECL(uint32_t, ScriptString*, uint32_t, uint32_t, uint32_t);
-    ScriptString text;
+    ScriptString text{};
+    ScrStringGuard guard_text(&text);
     const uint32_t fx1 = get_ent(from_text(&text, 0x007f503c), 0x0d786b4c);  // "event4_flak_fire_effect_and_sound"
-    ScriptString_Release(&text);
+    scr_drop(&text);
     const uint32_t fx2 = get_ent(from_text(&text, 0x007f5018), 0x0d786b4c);  // "..._sound2"
-    ScriptString_Release(&text);
+    scr_drop(&text);
     const uint32_t fx3 = get_ent(from_text(&text, 0x007f4ff4), 0x0d786b4c);  // "..._sound3"
-    ScriptString_Release(&text);
+    scr_drop(&text);
     const uint32_t fx4 = get_ent(from_text(&text, 0x007f4fd0), 0x0d786b4c);  // "..._sound4"
-    ScriptString_Release(&text);
+    scr_drop(&text);
     Scr_Wait(9.3f);
     // GScr_PlayLoopSound(fx1, "Event4_Flak_Fire", notify 0x25635b90)
     const uint32_t loop = slot<uint32_t XB_CDECL(uint32_t, ScriptString*, uint32_t, uint32_t, uint32_t)>(0x009221e4)(
         fx1, from_text(&text, 0x007f4fbc), 0x25635b90, 0, 0);
-    ScriptString_Release(&text);
+    scr_drop(&text);
     Scr_WaitTill(fx1, 0x25635b90);
     Scr_Wait(2.0f);
     slot<void XB_CDECL(uint32_t)>(0x009221ec)(loop);  // GScr_StopSound
@@ -406,13 +417,14 @@ void XB_CDECL BroLvl_prologue_Event4FlakFireFx() {
 }
 
 void XB_CDECL BroLvl_prologue_FlakCollisionForPlayer() {
-    ScriptString text;
+    ScriptString text{};
+    ScrStringGuard guard_text(&text);
     const uint32_t collision = get_ent(from_text(&text, 0x007f5068), 0x0d786b4c);  // "collision_for_flak"
-    ScriptString_Release(&text);
+    scr_drop(&text);
     BroScr_TriggerOff(collision);
     bool on = false;
     const uint32_t flak = get_ent(from_text(&text, 0x007f5060), 0x0d786b4c);  // "jl830"
-    ScriptString_Release(&text);
+    scr_drop(&text);
     for (;;) {
         Scr_WaitTill(flak, 0x2b740dd3);  // turretownerchange
         if (slot<uint32_t XB_CDECL(uint32_t)>(0x00922588)(flak) == title_global<uint32_t>(0x00921cd0)) {  // GScr_Turret_GetUser == player
@@ -436,16 +448,17 @@ void XB_CDECL BroLvl_prologue_KillOnDeathOf(uint32_t ent, uint32_t other) {
 void XB_CDECL BroLvl_prologue_Event5RedSmoke(uint32_t, uint32_t grenade) {
     using PlaySound = uint32_t XB_CDECL(uint32_t, ScriptString*, uint32_t, uint32_t, uint32_t);
     using Spawn = uint32_t XB_CDECL(ScriptString*, const ScrVec3*, uint32_t);
-    ScriptString text;
+    ScriptString text{};
+    ScrStringGuard guard_text(&text);
     from_text(&text, 0x0083ab88);  // "script_origin"
     const ScrVec3 origin = origin_of(grenade);
     const uint32_t smoke = slot<Spawn>(0x009222f0)(&text, &origin, 0);  // GScr_Spawn
-    ScriptString_Release(&text);
+    scr_drop(&text);
     // GScr_PlaySound(smoke, "event5_red_smoke", notify 0x75c3b1bc, 1)
     const uint32_t sound = slot<PlaySound>(0x009221dc)(smoke, from_text(&text, 0x007f50dc), 0x75c3b1bc, 1, 0);
-    ScriptString_Release(&text);
+    scr_drop(&text);
     slot<PlaySound>(0x009221dc)(grenade, from_text(&text, 0x007f50cc), 0, 0, 0);  // "Smoke_Grenade"
-    ScriptString_Release(&text);
+    scr_drop(&text);
     const int32_t end = get_time() + 30000;
     const uint32_t undefined = undefined_lane();
     ScrVec3 angles = {{undefined, undefined, undefined}};
@@ -490,14 +503,15 @@ void XB_CDECL BroLvl_prologue_PitchUpStep(uint32_t ent, float step) {
 
 void XB_CDECL BroLvl_prologue_ArtilleryWhenBelow(uint32_t, uint32_t ent, float height) {
     while (as_float(origin_of(ent).v[2]) > height) Scr_Wait(0.1f);
-    ScriptString text;
+    ScriptString text{};
+    ScrStringGuard guard_text(&text);
     from_text(&text, 0x0083ab88);  // "script_origin"
     const ScrVec3 origin = origin_of(ent);
     const uint32_t spot = slot<uint32_t XB_CDECL(ScriptString*, const ScrVec3*, uint32_t)>(0x009222f0)(&text, &origin, 0);  // GScr_Spawn
-    ScriptString_Release(&text);
+    scr_drop(&text);
     // GScr_PlaySound(spot, "artillery_generic", notify 0x75c3b1bc)
     slot<void XB_CDECL(uint32_t, ScriptString*, uint32_t, uint32_t, uint32_t)>(0x009221dc)(spot, from_text(&text, 0x007f50f0), 0x75c3b1bc, 0, 0);
-    ScriptString_Release(&text);
+    scr_drop(&text);
     notify(level_ent(), 0x7ad8c8f5);
     delete_ent(ent);
     Scr_WaitTill(spot, 0x75c3b1bc);
@@ -506,22 +520,24 @@ void XB_CDECL BroLvl_prologue_ArtilleryWhenBelow(uint32_t, uint32_t ent, float h
 }
 
 void XB_CDECL BroLvl_prologue_BuildingFallSound(uint32_t, ScrVec3 pos) {
-    ScriptString text;
+    ScriptString text{};
+    ScrStringGuard guard_text(&text);
     const uint32_t spot = slot<uint32_t XB_CDECL(ScriptString*, const ScrVec3*, uint32_t)>(0x009222f0)(
         from_text(&text, 0x0083ab88), &pos, 0);  // GScr_Spawn("script_origin")
-    ScriptString_Release(&text);
+    scr_drop(&text);
     // GScr_PlaySound(spot, "building_fall", notify 0x75c3b1bc)
     slot<void XB_CDECL(uint32_t, ScriptString*, uint32_t, uint32_t, uint32_t)>(0x009221dc)(spot, from_text(&text, 0x007f5104), 0x75c3b1bc, 0, 0);
-    ScriptString_Release(&text);
+    scr_drop(&text);
     Scr_WaitTill(spot, 0x75c3b1bc);
     delete_ent(spot);
 }
 
 void XB_CDECL BroLvl_prologue_ShellImpactAt(uint32_t, ScrVec3 pos, uint32_t type) {
-    ScriptString text;
+    ScriptString text{};
+    ScrStringGuard guard_text(&text);
     const uint32_t spot = slot<uint32_t XB_CDECL(ScriptString*, const ScrVec3*, uint32_t)>(0x009222f0)(
         from_text(&text, 0x0083ab88), &pos, 0);  // GScr_Spawn("script_origin")
-    ScriptString_Release(&text);
+    scr_drop(&text);
     const uint32_t undefined = title_global<uint32_t>(0x00922ea4);
     BroScr_ShellIncomingThenImpact(spot, title_global<uint32_t>(0x0083ebf4), title_global<uint32_t>(0x0083ec30),
                                    title_global<uint32_t>(0x0083eb20), undefined, undefined, undefined, type);  // 512, 50, 1
@@ -544,10 +560,11 @@ void XB_CDECL BroLvl_prologue_PlayerKnockdown(uint32_t, float time) {
     const ScrVec3 origin = origin_of(title_global<uint32_t>(0x00921cd0));
     // GScr_Earthquake(1, 0.25, origin, 300)
     slot<void XB_CDECL(uint32_t, uint32_t, const ScrVec3*, uint32_t)>(0x00922444)(0x3f800000, 0x3e800000, &origin, 0x43960000);
-    ScriptString text;
+    ScriptString text{};
+    ScrStringGuard guard_text(&text);
     slot<void XB_CDECL(uint32_t, ScriptString*, uint32_t, uint32_t, uint32_t)>(0x009221dc)(
         title_global<uint32_t>(0x00921cd0), from_text(&text, 0x007f5118), 0, 0, 0);  // GScr_PlaySound("Body_Land")
-    ScriptString_Release(&text);
+    scr_drop(&text);
     BroScr_LerpPlayerAnglesCall_2(title_global<uint32_t>(0x00921cd0), title_global<float>(0x007f5114), title_global<float>(0x0083eb60),
                                   title_global<float>(0x0083f298), half);  // (345, 180, -75)
     slot<void XB_CDECL(uint32_t, uint32_t)>(0x00922844)(title_global<uint32_t>(0x00921cd0), 1);  // GScr_PlayerSetInt_58c

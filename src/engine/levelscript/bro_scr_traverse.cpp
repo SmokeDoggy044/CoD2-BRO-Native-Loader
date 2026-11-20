@@ -13,6 +13,7 @@
 #include "bro_scr_actor_threads.h"
 #include "bro_scr_notify_threads.h"
 #include "g_script.h"
+#include "scr_unwind_guard.h"
 
 namespace game {
 
@@ -97,9 +98,10 @@ void blend_back(uint32_t ent, uint32_t parent, float blend = 0.1f) {
 void note_tracks(uint32_t ent, uint32_t flag) {
     ScriptString empty;
     ScriptString_Copy(&empty, pointer<ScriptString>(0x00922e90));
-    ScriptString result;
+    ScriptString result{};
+    ScrStringGuard guard_result(&result);
     own_function<HandleNoteTracks>(&BroScr_HandleNoteTracks)(&result, ent, flag, 0, empty);  // BroScr_HandleNoteTracks
-    scr_release(&result);
+    scr_drop(&result);
 }
 // BroScr_HandleNoteTracksForTime(ent, time, flag, 0, a copy of the empty string).
 void note_tracks_for_time(uint32_t ent, float time, uint32_t flag) {
@@ -296,7 +298,8 @@ void XB_CDECL BroScr_Traverse_6(uint32_t ent) {
 }
 
 void XB_CDECL BroScr_PlayStepRunSound(uint32_t ent, uint32_t notify) {
-    ScriptString note;
+    ScriptString note{};
+    ScrStringGuard guard_note(&note);
     ScriptString_FromRep(&note, nullptr);
     for (;;) {
         title_function<void XB_CDECL(uint32_t, uint32_t, ScriptString*)>(0x004b14f0)(ent, notify,
@@ -306,14 +309,15 @@ void XB_CDECL BroScr_PlayStepRunSound(uint32_t ent, uint32_t notify) {
         const uint32_t h = *Scr_HashScriptString(&hash, reinterpret_cast<const uint8_t* const*>(&note));
         if (h == 0x000199a4 || h == 0x9aa82fee || h == 0xcc5542ad) break;
         if (h == 0x19785ffb || h == 0x00385cd0) {
-            ScriptString sound;
+            ScriptString sound{};
+            ScrStringGuard guard_sound(&sound);
             scr_string_from(&sound, 0x008263dc);  // "step_run_dirt"
             slot<void XB_CDECL(uint32_t, ScriptString*, uint32_t, uint32_t, uint32_t)>(0x009221dc)(ent, &sound, 0, 0,
                                                                                                    0);  // GScr_PlaySound
-            scr_release(&sound);
+            scr_drop(&sound);
         }
     }
-    scr_release(&note);
+    scr_drop(&note);
 }
 
 void XB_CDECL BroScr_Traverse_14(uint32_t ent) {
@@ -428,11 +432,12 @@ void XB_CDECL BroScr_Traverse_9(uint32_t ent) {
 
 void XB_CDECL BroScr_TraverseDiveWall(uint32_t ent) {
     vault(ent, 0x008ce970, 0xaa613677);  // g_anim_jump_over_low_wall
-    ScriptString sound;
+    ScriptString sound{};
+    ScrStringGuard guard_sound(&sound);
     scr_string_from(&sound, 0x008263ec);  // "dive_wall"
     slot<void XB_CDECL(uint32_t, ScriptString*, uint32_t, uint32_t, uint32_t)>(0x009221dc)(ent, &sound, 0, 0,
                                                                                            0);  // GScr_PlaySound
-    scr_release(&sound);
+    scr_drop(&sound);
     wait_gravity_on(ent, 0xaa613677);
     traverse_mode(ent, kGravity);
     note_tracks(ent, 0xaa613677);
@@ -457,7 +462,8 @@ void XB_CDECL BroScr_Traverse_10(uint32_t ent) {
 
 void XB_CDECL BroScr_WaitThreeEndNotes(uint32_t ent, uint32_t notify, uint32_t done, uint32_t end) {
     slot<void XB_CDECL(uint32_t, uint32_t)>(0x00922188)(ent, end);  // Scr_EndOn
-    ScriptString note;
+    ScriptString note{};
+    ScrStringGuard guard_note(&note);
     ScriptString_FromRep(&note, nullptr);
     for (int32_t count = 0; count < 3;) {
         title_function<void XB_CDECL(uint32_t, uint32_t, ScriptString*)>(0x004b14f0)(ent, notify,
@@ -465,7 +471,7 @@ void XB_CDECL BroScr_WaitThreeEndNotes(uint32_t ent, uint32_t notify, uint32_t d
         if (ScriptString_Equals(&note, pointer<const char>(0x00832b28))) ++count;  // "end"
     }
     queue_notify(ent, done);
-    scr_release(&note);
+    scr_drop(&note);
 }
 
 void XB_CDECL Bro_anim_main_grenade_recover(uint32_t ent) { begin_functor_thread(own_address(&BroScr_AnimScript_GrenadeRecover), ent); }  // BroScr_AnimScript_GrenadeRecover

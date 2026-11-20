@@ -5,6 +5,7 @@
 #include "g_scr_runtime.h"
 #include "scr_access.h"
 #include "title_data.h"
+#include "scr_unwind_guard.h"
 
 namespace game {
 
@@ -57,16 +58,18 @@ bool checkpoint_set() {
 }  // namespace
 
 void XB_CDECL BroScr_CheckpointFade(ScriptString line0, ScriptString line1, ScriptString line2, ScriptString line3) {
+    ScrStringGuard guard_line0(&line0, &line1, &line2, &line3);
     uint32_t handle;
     level_word(0x2e0) = *slot<NewHud>(0x0092248c)(&handle);
     slot<Set>(0x00922a48)(level_word(0x2e0), 0);  // ScrHudElem_Set_04 (x)
     slot<Set>(0x00922a50)(level_word(0x2e0), 0);  // ScrHudElem_Set_08 (y)
     if (checkpoint_set()) slot<Set>(0x00922a68)(level_word(0x2e0), 0xc4424000);  // ScrHudElem_SetFloat_6c -777
     {
-        ScriptString shader;
+        ScriptString shader{};
+        ScrStringGuard guard_shader(&shader);
         ScriptString_FromCString(&shader, pointer<const char>(0x007f51f8));  // "black"
         slot<HudSetShader>(0x009228ec)(level_object() + 0x2e0, &shader, 0x280, 0x1e0);  // GScr_HudSetShader 640x480
-        ScriptString_Release(&shader);
+        scr_drop(&shader);
     }
     slot<Set>(0x00922844)(level_word(0x7f8), 1);  // GScr_PlayerSetInt_58c (the player)
     if (checkpoint_set()) {
@@ -176,10 +179,10 @@ void XB_CDECL BroScr_CheckpointFade(ScriptString line0, ScriptString line1, Scri
         slot<HudDestroy>(0x0092291c)(level_object() + 0x5d8);
         if (level_word(0x384) != 0xffffffffu) slot<HudDestroy>(0x0092291c)(level_object() + 0x384);
     }
-    ScriptString_Release(&line0);
-    ScriptString_Release(&line1);
-    ScriptString_Release(&line2);
-    ScriptString_Release(&line3);
+    scr_drop(&line0);
+    scr_drop(&line1);
+    scr_drop(&line2);
+    scr_drop(&line3);
 }
 
 void XB_CDECL BroScr_FadeHudBlack(float total, float duration, uint32_t closing, float height) {
@@ -195,10 +198,11 @@ void XB_CDECL BroScr_FadeHudBlack(float total, float duration, uint32_t closing,
                 elapsed = static_cast<float>(slot<FrameTime>(0x009223c8)()) + elapsed;  // GScr_GetFrameTime
                 const float h = (as_float(title_global<uint32_t>(0x0083eb20)) - elapsed / total) * height;  // (1 - t) * height
                 if (static_cast<float>(h > 0.0f ? 1 : 0) != 0.0f && level_word(0x79c) != 0xffffffffu) {
-                    ScriptString shader;
+                    ScriptString shader{};
+                    ScrStringGuard guard_shader(&shader);
                     ScriptString_FromCString(&shader, pointer<const char>(0x007f51f8));  // "black"
                     slot<HudSetShader>(0x009228ec)(level_object() + 0x79c, &shader, 0x280, static_cast<int32_t>(h));
-                    ScriptString_Release(&shader);
+                    scr_drop(&shader);
                 }
                 slot<Set>(0x00922a50)(level_word(0x270),
                                       static_cast<uint32_t>(static_cast<int32_t>(
@@ -210,10 +214,11 @@ void XB_CDECL BroScr_FadeHudBlack(float total, float duration, uint32_t closing,
                 elapsed = static_cast<float>(slot<FrameTime>(0x009223c8)()) + elapsed;
                 const float h = height / total * elapsed;
                 if (static_cast<float>(h > 0.0f ? 1 : 0) != 0.0f && level_word(0x79c) != 0xffffffffu) {
-                    ScriptString shader;
+                    ScriptString shader{};
+                    ScrStringGuard guard_shader(&shader);
                     ScriptString_FromCString(&shader, pointer<const char>(0x007f51f8));
                     slot<HudSetShader>(0x009228ec)(level_object() + 0x79c, &shader, 0x280, static_cast<int32_t>(h));
-                    ScriptString_Release(&shader);
+                    scr_drop(&shader);
                 }
                 slot<Set>(0x00922a50)(level_word(0x270), static_cast<uint32_t>(static_cast<int32_t>(
                                                              as_float(title_global<uint32_t>(0x0083ec08)) - h)));

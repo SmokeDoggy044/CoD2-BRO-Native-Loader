@@ -35,6 +35,7 @@
 #include "bro_scr_traverse.h"
 #include "bro_scr_trigger_threads.h"
 #include "g_scr_builtins.h"
+#include "scr_unwind_guard.h"
 
 namespace game {
 
@@ -73,9 +74,10 @@ using HandleNoteTracksForTime = void XB_CDECL(uint32_t, float, uint32_t, uint32_
 inline void handle_note_tracks(uint32_t ent, uint32_t notify, uint32_t callback = 0) {
     ScriptString empty;
     ScriptString_Copy(&empty, pointer<ScriptString>(0x00922e90));
-    ScriptString result;
+    ScriptString result{};
+    ScrStringGuard guard_result(&result);
     own_function<HandleNoteTracks>(&BroScr_HandleNoteTracks)(&result, ent, notify, callback, empty);  // BroScr_HandleNoteTracks (agent-b list)
-    scr_release(&result);
+    scr_drop(&result);
 }
 
 inline long double anim_length(uint32_t ent, uint32_t anim) {
@@ -365,6 +367,7 @@ void XB_CDECL BroScr_PlayAnimWaitEndNotes(uint32_t ent, uint32_t anim) {
     queue_notify(ent, 0x47e458b4);
 }
 void XB_CDECL BroScr_PlayFaceAnim_3(uint32_t ent, ScriptString unused) {
+    ScrStringGuard guard_unused(&unused);
     slot<void XB_CDECL(uint32_t, uint32_t)>(0x00922188)(ent, 0x07b4e7f7);  // Scr_EndOn
     float kneel_time = 0.0f;
     while (get_int_184(ent) == 0x19669cd9) {
@@ -411,10 +414,11 @@ void XB_CDECL BroScr_PlayFaceAnim_3(uint32_t ent, ScriptString unused) {
         }
     }
     set_orient_mode(ent, 0x0083addc);  // "face default"
-    scr_release(&unused);
+    scr_drop(&unused);
 }
 
 void XB_CDECL BroScr_PlayFaceAnim(uint32_t ent, ScriptString unused) {
+    ScrStringGuard guard_unused(&unused);
     while (get_int_184(ent) == 0x19669cd9) {
         set_orient_mode(ent, 0x0083adec);  // "face current"
         if (*wounded_pose(ent) == 0x06088a8c) {
@@ -451,11 +455,13 @@ void XB_CDECL BroScr_PlayFaceAnim(uint32_t ent, ScriptString unused) {
         }
     }
     set_orient_mode(ent, 0x0083addc);  // "face default"
-    scr_release(&unused);
+    scr_drop(&unused);
 }
 
 void XB_CDECL BroScr_PlayFaceAnim_2(uint32_t ent, ScriptString unused, uint32_t pose) {
-    ScriptString name;
+    ScrStringGuard guard_unused(&unused);
+    ScriptString name{};
+    ScrStringGuard guard_name(&name);
     ScrCall_ScrActor_GetString_1384(&ent, &name);  // read and dropped
     if (pose == undefined_handle() || !pose) pose = 0x070b89a4;
     while (get_int_184(ent) == 0x19669cd9) {
@@ -481,21 +487,23 @@ void XB_CDECL BroScr_PlayFaceAnim_2(uint32_t ent, ScriptString unused, uint32_t 
         } else if (*wounded_pose(ent) == 0x070b89a4) {
             set_int_184(ent, 0x070b89a4);
         } else {
-            scr_release(&name);  // leaves without "face default"
-            scr_release(&unused);
+            scr_drop(&name);  // leaves without "face default"
+            scr_drop(&unused);
             return;
         }
     }
     set_orient_mode(ent, 0x0083addc);  // "face default"
-    scr_release(&name);
-    scr_release(&unused);
+    scr_drop(&name);
+    scr_drop(&unused);
 }
 
 void XB_CDECL BroScr_WoundedWalk(uint32_t ent, ScriptString unused) {
+    ScrStringGuard guard_unused(&unused);
     {
-        ScriptString name;
+        ScriptString name{};
+        ScrStringGuard guard_name(&name);
         ScriptString_Copy(&name, reinterpret_cast<const ScriptString*>(anim_object() + 0x98));
-        scr_release(&name);
+        scr_drop(&name);
     }
     using MotionYaw = long double XB_CDECL(uint32_t);
     while (get_int_184(ent) == 0x19669cd9) {
@@ -545,7 +553,7 @@ void XB_CDECL BroScr_WoundedWalk(uint32_t ent, ScriptString unused) {
             own_function<StandCombatRun>(&BroScr_StandCombatRun)(ent);  // BroScr_StandCombatRun (agent-b list)
         }
     }
-    scr_release(&unused);
+    scr_drop(&unused);
 }
 
 void XB_CDECL BroScr_AimToAlert(uint32_t ent) {
@@ -651,21 +659,24 @@ void XB_CDECL BroScr_LookAtEntityLoop(uint32_t ent, uint32_t target) {
 
 void XB_CDECL Bro_aim__keep_aiming(uint32_t ent, ScrVec3 point, float min_time, float max_time) {
     {
-        ScriptString message;
+        ScriptString message{};
+        ScrStringGuard guard_message(&message);
         scr_string_from(&message, 0x0082649c);  // "aim::keep_aiming and anim_movement != stop"
         handle_slot(ent, 0x0ccee5c1);           // the assert's read
-        scr_release(&message);
+        scr_drop(&message);
     }
     {
-        ScriptString message;
+        ScriptString message{};
+        ScrStringGuard guard_message(&message);
         scr_string_from(&message, 0x0082646c);  // "aim::keep_aiming and anim_alertness != aiming"
         handle_slot(ent, 0x764918ae);
-        scr_release(&message);
+        scr_drop(&message);
     }
     {
-        ScriptString name;
+        ScriptString name{};
+        ScrStringGuard guard_name(&name);
         ScriptString_Copy(&name, reinterpret_cast<const ScriptString*>(anim_object() + 0x194));
-        scr_release(&name);
+        scr_drop(&name);
     }
     float time = title_global<float>(0x0083ec24);  // 0.25
     using SetAimParams = void XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
@@ -772,16 +783,18 @@ void XB_CDECL BroScr_StopCoverCrouchIdle(uint32_t ent) {
 
 void XB_CDECL Bro_cover_crouch__idle(uint32_t ent) {
     {
-        ScriptString message;
+        ScriptString message{};
+        ScrStringGuard guard_message(&message);
         scr_string_from(&message, 0x008264f8);  // "cover_crouch::idle: Not in crouch pose."
         get_int_184(ent);                       // the assert's read
-        scr_release(&message);
+        scr_drop(&message);
     }
     {
-        ScriptString message;
+        ScriptString message{};
+        ScrStringGuard guard_message(&message);
         scr_string_from(&message, 0x008264c8);  // "cover_crouch::idle: Not in cover_crouch pose."
         handle_slot(ent, 0x175567a8);
-        scr_release(&message);
+        scr_drop(&message);
     }
     using EntFn = void XB_CDECL(uint32_t);
     const uint32_t weapon = weapon_type(ent);
@@ -820,7 +833,9 @@ void XB_CDECL Bro_cover_crouch__idle(uint32_t ent) {
 }
 
 void XB_CDECL BroScr_CoverCrouchReloadAnim(uint32_t ent, ScriptString unused) {
-    ScriptString name;
+    ScrStringGuard guard_unused(&unused);
+    ScriptString name{};
+    ScrStringGuard guard_name(&name);
     ScrCall_ScrActor_GetString_1384(&ent, &name);  // read and dropped
     if (weapon_type(ent) == 0xa39d17dd) {
         BroScr_StopCoverCrouchIdle(ent);
@@ -846,8 +861,8 @@ void XB_CDECL BroScr_CoverCrouchReloadAnim(uint32_t ent, ScriptString unused) {
                                           anim_after());  // g_anim_hidelowwallc2hidelowwallb
         }
     }
-    scr_release(&name);
-    scr_release(&unused);
+    scr_drop(&name);
+    scr_drop(&unused);
 }
 
 void XB_CDECL BroScr_PlayCrouchIdleAnim(uint32_t ent) {
@@ -964,7 +979,8 @@ uint8_t* XB_CDECL BroScr_TryTurretGunnerPain(uint8_t* out, uint32_t ent, uint32_
 }
 
 uint8_t* XB_CDECL BroScr_AnimMoveUntilEndNote(uint8_t* out, uint32_t ent, uint32_t notify) {
-    ScriptString note;
+    ScriptString note{};
+    ScrStringGuard guard_note(&note);
     ScriptString_FromRep(&note, nullptr);
     for (;;) {
         uint32_t* const functor = slot<uint32_t* XB_CDECL(uint32_t)>(0x00922928)(0x10);  // ScrIface_Alloc
@@ -999,7 +1015,7 @@ uint8_t* XB_CDECL BroScr_AnimMoveUntilEndNote(uint8_t* out, uint32_t ent, uint32
         const ScrVec3 origin = {{o[0], o[1], o[2]}};
         BroScr_RecordAnimPose(ent, 4, origin.v[0], origin.v[1], origin.v[2], angles.v[0], angles.v[1], angles.v[2]);
     }
-    scr_release(&note);
+    scr_drop(&note);
     return out;
 }
 
@@ -1022,10 +1038,11 @@ void XB_CDECL BroScr_RecordAnimCommand(uint32_t ent, uint32_t a2, uint32_t a3, u
 void XB_CDECL BroScr_ReplayAnimCommands(uint32_t ent) {
     using SetAnimMode = void XB_CDECL(uint32_t, ScriptString*);
     {
-        ScriptString mode;
+        ScriptString mode{};
+        ScrStringGuard guard_mode(&mode);
         scr_string_from(&mode, 0x0083a928);  // "nophysics"
         slot<SetAnimMode>(0x0092273c)(ent, &mode);  // GScr_ActorSetAnimMode
-        scr_release(&mode);
+        scr_drop(&mode);
     }
     const uint8_t* it = reinterpret_cast<const uint8_t*>(
         reinterpret_cast<DynArray*>(ScriptKeyTable_FindOrAdd(ent_script_object(ent), 0x1791f035))->data);
@@ -1045,10 +1062,11 @@ void XB_CDECL BroScr_ReplayAnimCommands(uint32_t ent) {
     }
     DynArray_Resize52(reinterpret_cast<DynArray*>(ScriptKeyTable_FindOrAdd(ent_script_object(ent), 0x1791f035)), 0, 0);
     {
-        ScriptString mode;
+        ScriptString mode{};
+        ScrStringGuard guard_mode(&mode);
         scr_string_from(&mode, 0x00832430);  // "none"
         slot<SetAnimMode>(0x0092273c)(ent, &mode);
-        scr_release(&mode);
+        scr_drop(&mode);
     }
 }
 
@@ -1280,9 +1298,10 @@ void XB_CDECL BroScr_StartAnimFaceWait(uint32_t ent, uint32_t anim, ScriptString
 
 void XB_CDECL BroScr_PlayIdleAnim(uint32_t ent) {
     {
-        ScriptString unused;
+        ScriptString unused{};
+        ScrStringGuard guard_unused(&unused);
         ScriptString_Copy(&unused, reinterpret_cast<const ScriptString*>(anim_object() + 0x194));
-        scr_release(&unused);
+        scr_drop(&unused);
     }
     if (*handle_slot(ent, 0x764918ae) == 0xc4a729a7) return;
     if (get_int_184(ent) == 0x070b89a4) {  // standing
@@ -1317,11 +1336,13 @@ void XB_CDECL BroScr_AnimScript_Walk(uint32_t ent) {
         BroScr_WoundedWalk(ent, name);
     }
     {
-        ScriptString unused;
+        ScriptString unused{};
+        ScrStringGuard guard_unused(&unused);
         ScriptString_Copy(&unused, reinterpret_cast<const ScriptString*>(anim_object() + 0x98));
-        scr_release(&unused);
+        scr_drop(&unused);
     }
-    ScriptString kept;  // never released: the loop does not end
+    ScriptString kept{};  // never released: the loop does not end
+    ScrStringGuard guard_kept(&kept);
     ScriptString_FromRep(&kept, nullptr);
     for (;;) {
         uint32_t pose;
@@ -1403,7 +1424,8 @@ void XB_CDECL BroScr_AnimFaceWait(uint32_t ent, uint32_t anim, ScriptString soun
             record.time = float_to_script_int(as_float(time));
             record.id = id;
             DynArray_PushBack28(static_cast<DynArray*>(ScrField_h053fe992(ent)), reinterpret_cast<const uint8_t*>(&record));
-            ScriptString name;
+            ScriptString name{};
+            ScrStringGuard guard_name(&name);
             scr_string_from(&name, 0x0082652c);  // "animscript face stop waiting "
             ScriptString_AppendInt(&name, static_cast<int32_t>(id));
             const uint32_t stop_a = 0xc77f1e4d;
@@ -1453,7 +1475,7 @@ void XB_CDECL BroScr_AnimFaceWait(uint32_t ent, uint32_t anim, ScriptString soun
                 }
                 p += sizeof(FaceWaitRecord);
             }
-            scr_release(&name);
+            scr_drop(&name);
             title_function<void XB_THISCALL(FaceWaitRecord*)>(0x00458fd0)(&record);  // the record's destructor
         } else if (as_float(level) >= static_cast<float>(static_cast<int32_t>(*int_slot(ent, 0x03375c37)))) {
             // Interrupt the face anim playing now and play this one.
@@ -1827,8 +1849,10 @@ void XB_CDECL BroScr_RamboFire(uint32_t ent) {
 
 void XB_CDECL BroScr_AimUntilCanShoot(uint32_t ent, uint32_t anim_a, uint32_t anim_b, uint32_t anim_c, uint32_t time,
                                       ScriptString name) {
+    ScrStringGuard guard_name(&name);
     if (!name.rep) ScriptString_AssignCString(&name, pointer<const char>(0x00826790));  // "FIXME"
-    ScriptString unused;
+    ScriptString unused{};
+    ScrStringGuard guard_unused(&unused);
     ScrCall_ScrActor_GetString_1384(&ent, &unused);
     float elapsed = 0.0f;
     uint32_t out;
@@ -1846,8 +1870,8 @@ void XB_CDECL BroScr_AimUntilCanShoot(uint32_t ent, uint32_t anim_a, uint32_t an
             elapsed = elapsed + 0.25f;
         }
     }
-    scr_release(&unused);
-    scr_release(&name);
+    scr_drop(&unused);
+    scr_drop(&name);
 }
 
 void XB_CDECL BroScr_ReloadLauncher(uint32_t ent) {
@@ -2290,9 +2314,10 @@ void XB_CDECL BroScr_AnimScript_Pain(uint32_t ent) {
             stop_after = true;
             break;
         default: {
-            ScriptString message;
+            ScriptString message{};
+            ScrStringGuard guard_message(&message);
             scr_string_from(&message, 0x008267cc);  // "Unexpected_anim_pose_value + self.anim_pose"
-            scr_release(&message);
+            scr_drop(&message);
             break;
         }
         }
@@ -2641,13 +2666,15 @@ inline void begin_entity_thread(uint32_t function, uint32_t ent) {
 }  // namespace
 
 void XB_CDECL BroScr_CornerRamboFire(uint32_t ent, uint32_t step_out, uint32_t step_back) {
-    ScriptString name;
+    ScriptString name{};
+    ScrStringGuard guard_name(&name);
     ScrCall_ScrActor_GetString_1384(&ent, &name);  // held to the end
     {
-        ScriptString mode;
+        ScriptString mode{};
+        ScrStringGuard guard_mode(&mode);
         scr_string_from(&mode, 0x0083ad10);
         slot<void XB_CDECL(uint32_t, ScriptString*)>(0x0092273c)(ent, &mode);  // GScr_ActorSetAnimMode
-        scr_release(&mode);
+        scr_drop(&mode);
     }
     float delta[3] = {as_float(undefined_lane()), as_float(undefined_lane()), as_float(undefined_lane())};
     slot<void XB_CDECL(float*, uint32_t, uint32_t, uint32_t)>(0x00922408)(delta, step_out, 0,
@@ -2668,7 +2695,7 @@ void XB_CDECL BroScr_CornerRamboFire(uint32_t ent, uint32_t step_out, uint32_t s
         handle_note_tracks(ent, 0x54e3b2b6);
         *handle_slot(ent, 0x175567a8) = special;
     }
-    scr_release(&name);
+    scr_drop(&name);
 }
 
 void XB_CDECL BroScr_StopProneIdle(uint32_t ent) {
@@ -2754,9 +2781,10 @@ uint8_t* XB_CDECL BroScr_BalconyStumbleDeath(uint8_t* out, uint32_t ent) {
 
 uint8_t* XB_CDECL BroScr_StandShootSideStep(uint8_t* out, uint32_t ent) {
     {
-        ScriptString team;
+        ScriptString team{};
+        ScrStringGuard guard_team(&team);
         const bool allies = ScriptString_Equals(ScrCall_ScrSentient_GetTeam(&ent, &team), pointer<const char>(0x00832084));
-        scr_release(&team);
+        scr_drop(&team);
         uint32_t type;
         if (allies || *BroScr_GetWeaponType(&type, ent) == 0xe5aa1ee7) {
             *reinterpret_cast<uint32_t*>(out) = 0;  // the original writes the whole word
@@ -3245,6 +3273,7 @@ void XB_CDECL BroScr_MiscCombatTimer(uint32_t ent) {
 
 void XB_CDECL BroScr_ForceShootAtPoint(uint32_t ent, ScrVec3 point, uint32_t delay, ScriptString name, uint32_t unused7,
                                        uint32_t target, uint32_t unused9) {
+    ScrStringGuard guard_name(&name);
     end_on(ent, 0x06730ae8);  // death
     end_on(ent, 0x0039894e);
     end_on(ent, 0x2cf20de4);
@@ -3272,11 +3301,12 @@ void XB_CDECL BroScr_ForceShootAtPoint(uint32_t ent, ScrVec3 point, uint32_t del
     } else {
         using CallEntVec = uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, const ScrVec3*);
         own_function<CallEntVec>(&Scr_CallThread_ent_vec_entry)(0, 0, 0, 0, own_address(&BroScr_LookAtPositionLoop), ent, &point);  // Scr_CallThread_ent_vec(BroScr_LookAtPositionLoop)
-        ScriptString mode;
+        ScriptString mode{};
+        ScrStringGuard guard_mode(&mode);
         scr_string_from(&mode, 0x0083ad6c);
         slot<void XB_CDECL(uint32_t, ScriptString*, uint32_t, const ScrVec3*)>(0x00922740)(ent, &mode, 0,
                                                                                          &point);  // GScr_ActorSetOrientMode
-        scr_release(&mode);
+        scr_drop(&mode);
     }
     *key_slot(ent, 0x27cc2178, 0) = target;
     {
@@ -3297,9 +3327,10 @@ void XB_CDECL BroScr_ForceShootAtPoint(uint32_t ent, ScrVec3 point, uint32_t del
     }
     Scr_WaitTill(ent, 0xf378e0c7);
     {
-        ScriptString copy;
+        ScriptString copy{};
+        ScrStringGuard guard_copy(&copy);
         ScriptString_Copy(&copy, reinterpret_cast<const ScriptString*>(anim_object() + 0x194));  // read and dropped
-        scr_release(&copy);
+        scr_drop(&copy);
     }
     Scr_Wait(as_float(delay));
     slot<SetAnim6>(0x009225d8)(ent, shoot, 0x3f800000, 0x3e19999a, 0, 0);  // GScr_SetAnimKnob
@@ -3328,11 +3359,12 @@ void XB_CDECL BroScr_ForceShootAtPoint(uint32_t ent, ScrVec3 point, uint32_t del
     uint32_t interval;
     BroScr_GetShotInterval(&interval, ent);  // read and dropped
     Scr_Wait(0.25f);
-    scr_release(&name);
+    scr_drop(&name);
 }
 
 void XB_CDECL BroScr_ForceShootThink(uint32_t ent, ScrVec3 point, uint32_t delay, ScriptString name, uint32_t a7,
                                      uint32_t target, uint32_t wait_stop) {
+    ScrStringGuard guard_name(&name);
     end_on(ent, 0x06730ae8);  // death
     if (!name.rep) ScriptString_AssignCString(&name, pointer<const char>(0x007f63f0));
     uint32_t a7_or_0 = a7;
@@ -3355,7 +3387,7 @@ void XB_CDECL BroScr_ForceShootThink(uint32_t ent, ScrVec3 point, uint32_t delay
             BroScr_ForceShootAtPoint(ent, point, delay, copy, a7_or_0, target, wait_stop);
         }
     }
-    scr_release(&name);
+    scr_drop(&name);
 }
 
 namespace {
@@ -3384,6 +3416,7 @@ inline bool is_launcher(uint32_t type) { return type == 0xa39d17dd || type == 0x
 
 uint8_t* XB_CDECL BroScr_CoverShootBehavior(uint8_t* out, uint32_t ent, uint32_t wait_after, ScriptString mode,
                                             uint32_t target) {
+    ScrStringGuard guard_mode(&mode);
     uint32_t type;
     BroScr_GetWeaponType(&type, ent);
     if (!mode.rep) ScriptString_AssignCString(&mode, pointer<const char>(0x00826938));
@@ -3486,7 +3519,7 @@ uint8_t* XB_CDECL BroScr_CoverShootBehavior(uint8_t* out, uint32_t ent, uint32_t
                 !ScriptString_Equals(&mode, any)) {
                 queue_notify(ent, 0x807e5a80);
                 *out = 0;
-                scr_release(&mode);
+                scr_drop(&mode);
                 return out;
             }
             drop_anim_string(0x194);
@@ -3506,7 +3539,7 @@ uint8_t* XB_CDECL BroScr_CoverShootBehavior(uint8_t* out, uint32_t ent, uint32_t
     } else {
         *out = 0;
     }
-    scr_release(&mode);
+    scr_drop(&mode);
     return out;
 }
 
@@ -3551,12 +3584,13 @@ void XB_CDECL BroScr_FallbackerTriggerThink(uint32_t trigger) {
                                                            ? title_global<uint32_t>(0x00922ef8) + 4
                                                            : 0);
         const uint32_t index = *int_slot(trigger, 0x8bbe4822);
-        ScriptString text;
+        ScriptString text{};
+        ScrStringGuard guard_text(&text);
         ScriptString_FromCStringPlusInt(&text, pointer<const char>(0x00826458), static_cast<int32_t>(index));
         uint32_t hash;
         const uint32_t value = *Scr_HashScriptString(&hash, reinterpret_cast<const uint8_t* const*>(&text));
         queue_notify(*level, value);
-        scr_release(&text);
+        scr_drop(&text);
     }
     BroScr_DeleteFloodSpawner(trigger);
 }
@@ -3593,11 +3627,12 @@ void XB_CDECL BroScr_AnimScript_ConcealmentStand(uint32_t ent) {
 namespace {
 // Scr_CallThread_ent_str_PROLOGUE(function) on the entity with a temporary title string.
 inline void call_thread_str(uint32_t ent, uint32_t function, uint32_t text) {
-    ScriptString arg;
+    ScriptString arg{};
+    ScrStringGuard guard_arg(&arg);
     scr_string_from(&arg, text);
     using CallEntStr = uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, const ScriptString*);
     title_function<CallEntStr>(0x0045b2b0)(0, 0, 0, 0, function, ent, &arg);
-    scr_release(&arg);
+    scr_drop(&arg);
 }
 // The anim-script start: ends on 0x07b4e7f7, BroScr_InitAnimScript(script), the desired pose.
 inline void anim_script_begin(uint32_t ent, uint32_t script) {
@@ -3659,11 +3694,13 @@ void XB_CDECL BroScr_AnimScript_CoverStand(uint32_t ent) {
 }
 
 void XB_CDECL BroScr_AnimScript_Combat(uint32_t ent, ScriptString unused) {
+    ScrStringGuard guard_unused(&unused);
     end_on(ent, 0x07b4e7f7);
     {
-        ScriptString message;
+        ScriptString message{};
+        ScrStringGuard guard_message(&message);
         scr_string_from(&message, 0x00826c88);  // a debug print, built and dropped
-        scr_release(&message);
+        scr_drop(&message);
     }
     {
         const uint32_t then = own_address(&BroScr_CoverProne_2);  // BroScr_CoverProne_2
@@ -3674,7 +3711,7 @@ void XB_CDECL BroScr_AnimScript_Combat(uint32_t ent, ScriptString unused) {
     }
     Scr_WaitTill(ent, 0x6e5fd3a8);
     call_thread_str(ent, own_address(&Bro_combat__RangedCombat), 0x00826c74);  // Bro_combat__RangedCombat
-    scr_release(&unused);
+    scr_drop(&unused);
 }
 
 namespace {
@@ -3715,7 +3752,8 @@ inline void stop_at_corner_stand(uint32_t ent, uint32_t yaw, ScriptString& unuse
     scr_release(&unused);
 }
 inline void stop_at_corner_crouch(uint32_t ent, uint32_t yaw, ScriptString& unused, bool left) {
-    ScriptString name;
+    ScriptString name{};
+    ScrStringGuard guard_name(&name);
     ScrCall_ScrActor_GetString_1384(&ent, &name);  // held to the end
     uint32_t type;
     BroScr_GetWeaponType(&type, ent);
@@ -3743,7 +3781,7 @@ inline void stop_at_corner_crouch(uint32_t ent, uint32_t yaw, ScriptString& unus
         if (left) BroScr_CornerBCrouchRun2AlertLeft(ent, yaw);
         else BroScr_CornerBCrouchRun2AlertRight(ent, yaw);
     }
-    scr_release(&name);
+    scr_drop(&name);
     scr_release(&unused);
 }
 }  // namespace
@@ -3762,6 +3800,7 @@ void XB_CDECL BroScr_StopAtCornerCrouchLeft(uint32_t ent, uint32_t yaw, ScriptSt
 }
 
 void XB_CDECL BroScr_SpawnerFinishSpawn(uint32_t spawner, uint32_t ent, ScriptString name) {
+    ScrStringGuard guard_name(&name);
     {
         ScriptString copy;
         ScriptString_Copy(&copy, &name);
@@ -3773,7 +3812,7 @@ void XB_CDECL BroScr_SpawnerFinishSpawn(uint32_t spawner, uint32_t ent, ScriptSt
         uint32_t hash;
         queue_notify(ent, *Scr_HashName(&hash, pointer<const char>(0x007f6000)));
     }
-    scr_release(&name);
+    scr_drop(&name);
 }
 
 void XB_CDECL BroScr_TriggerNotifyLevelTargetname(uint32_t trigger) {
@@ -3781,15 +3820,17 @@ void XB_CDECL BroScr_TriggerNotifyLevelTargetname(uint32_t trigger) {
     const uint32_t* const level = pointer<uint32_t>(title_global<uint32_t>(0x00922ef8) ? title_global<uint32_t>(0x00922ef8) + 4
                                                                                       : 0);
     {
-        ScriptString name;
+        ScriptString name{};
+        ScrStringGuard guard_name(&name);
         uint32_t hash;
         const uint32_t value = *Scr_HashScriptString(
             &hash, reinterpret_cast<const uint8_t* const*>(ScrCall_ScrEnt_GetTargetname(&trigger, &name)));
         queue_notify(*level, value);
-        scr_release(&name);
+        scr_drop(&name);
     }
     {
-        ScriptString name;
+        ScriptString name{};
+        ScrStringGuard guard_name(&name);
         uint32_t hash;
         const uint32_t* const key = Scr_HashScriptString(
             &hash, reinterpret_cast<const uint8_t* const*>(ScrCall_ScrEnt_GetTargetname(&trigger, &name)));
@@ -3805,7 +3846,7 @@ void XB_CDECL BroScr_TriggerNotifyLevelTargetname(uint32_t trigger) {
             node = *own_function<Insert>(&HashMap_Insert_PROLOGUE_2)(map, result, pair);  // HashMap_Insert_PROLOGUE_2
         }
         *reinterpret_cast<uint8_t*>(node + 0xc) = 1;  // the level flag of the targetname set
-        scr_release(&name);
+        scr_drop(&name);
     }
     slot<void XB_CDECL(uint32_t)>(0x00922540)(trigger);  // GScr_Delete
 }
@@ -4115,7 +4156,9 @@ inline void cover_auto_burst(uint32_t ent, const uint32_t* set, uint32_t interva
 }  // namespace
 
 void XB_CDECL BroScr_CoverAttack(uint32_t ent, uint32_t yaw, const uint32_t* set, ScriptString text) {
-    ScriptString name;
+    ScrStringGuard guard_text(&text);
+    ScriptString name{};
+    ScrStringGuard guard_name(&name);
     ScrCall_ScrActor_GetString_1384(&ent, &name);  // held to the end
     slot<KnobAllNoFlag>(0x009225c8)(ent, title_global<uint32_t>(0x008ce448), body_root(), 0x3f800000, 0x3e4ccccd,
                                     0x3f800000, 0);  // GScr_SetAnimKnobAll(g_anim_COVER)
@@ -4191,10 +4234,11 @@ void XB_CDECL BroScr_CoverAttack(uint32_t ent, uint32_t yaw, const uint32_t* set
         }
     } else {  // a bolt action: one shot
         {
-            ScriptString message;
+            ScriptString message{};
+            ScrStringGuard guard_message(&message);
             scr_string_from(&message, 0x008268c4);  // "Cover attack - forgot to rechamber first!" (not printed)
             ScrField_hc786fa48(ent);
-            scr_release(&message);
+            scr_drop(&message);
         }
         if (team_is(&ent, 0x0083208c)) Scr_Wait(as_float(0x3ecccccd));  // "axis": 0.4
         aim_until_can_shoot(ent, set);
@@ -4221,8 +4265,8 @@ void XB_CDECL BroScr_CoverAttack(uint32_t ent, uint32_t yaw, const uint32_t* set
         queue_notify(ent, 0x281d9462);
         queue_notify(ent, 0x807e5a80);
     }
-    scr_release(&name);
-    scr_release(&text);
+    scr_drop(&name);
+    scr_drop(&text);
 }
 
 namespace {
@@ -4243,11 +4287,12 @@ inline void anim_script_cover_wide(uint32_t ent, uint32_t script, uint32_t cover
     uint32_t out;
     const uint32_t yaw = *own_function<GetRef>(&BroScr_GetNodeOrActorYaw_entry)(&out, ent);  // BroScr_GetNodeOrActorYaw
     {
-        ScriptString mode;
+        ScriptString mode{};
+        ScrStringGuard guard_mode(&mode);
         scr_string_from(&mode, 0x0083adfc);  // "face angle"
         slot<void XB_CDECL(uint32_t, ScriptString*, uint32_t, uint32_t)>(0x00922740)(
             ent, &mode, bits(as_float(yaw) + title_global<float>(0x0083eb60)), 0);  // GScr_ActorSetOrientMode
-        scr_release(&mode);
+        scr_drop(&mode);
     }
     uint32_t node[3];
     BroScr_GetCoverNodeOrOrigin(node, ent);
@@ -4259,10 +4304,11 @@ inline void anim_script_cover_wide(uint32_t ent, uint32_t script, uint32_t cover
         *handle_slot(ent, 0x175567a8) = cover;
         *handle_slot(ent, 0xbfc60f36) = 0x61;
         {
-            ScriptString mode;
+            ScriptString mode{};
+            ScrStringGuard guard_mode(&mode);
             scr_string_from(&mode, 0x0083adfc);
             slot<void XB_CDECL(uint32_t, ScriptString*, uint32_t, uint32_t)>(0x00922740)(ent, &mode, facing, 0);
-            scr_release(&mode);
+            scr_drop(&mode);
         }
         slot<void XB_CDECL(uint32_t, uint32_t*, uint32_t, uint32_t)>(0x009226f8)(ent, node, 0, 0);  // GScr_ActorTryTeleport
         BroScr_MiscCombatTimer(ent);
@@ -4359,24 +4405,26 @@ inline void cover_prone_loop(uint32_t ent, void(XB_CDECL* shoot_loop)(uint32_t),
         float* const last = reinterpret_cast<float*>(key_slot(ent, 0xa3b8e90e, undefined_float()));
         *last = static_cast<float>(slot<long double XB_CDECL(uint32_t)>(0x00922690)(ent));  // GScr_SentientNearestEnemyDist
         bool stop = false;
-        ScriptString type;
+        ScriptString type{};
+        ScrStringGuard guard_type(&type);
         if (!ScriptString_Equals(BroScr_GetNodeTypeAtPosition(&type, ent), pointer<const char>(0x00833b84))) {  // "Cover Prone"
             const float distance = as_float(*key_slot(ent, 0xa3b8e90e, undefined_float()));
             stop = static_cast<float>(at<float>(anim_object(), 0x90) > distance ? 1 : 0) != title_global<float>(0x0083eafc);
         }
-        scr_release(&type);
+        scr_drop(&type);
         if (stop) break;
     }
 }
 }  // namespace
 
 void XB_CDECL BroScr_CoverProne(uint32_t ent, ScriptString end) {
+    ScrStringGuard guard_end(&end);
     end_on(ent, 0x07b4e7f7);
     end_on(ent, 0x06730ae8);
     Scr_EndOnString(ent, end.rep ? end.rep->text : nullptr);
     cover_prone_loop(ent, BroScr_ProneShootLoop, true);
     queue_notify(ent, 0xc3cc3e6a);
-    scr_release(&end);
+    scr_drop(&end);
 }
 
 void XB_CDECL BroScr_CoverProne_2(uint32_t ent, uint32_t end) {
@@ -4389,6 +4437,7 @@ void XB_CDECL BroScr_CoverProne_2(uint32_t ent, uint32_t end) {
 }
 
 void XB_CDECL BroScr_BipodGunnerStateMain(uint32_t ent, ScriptString unused) {
+    ScrStringGuard guard_unused(&unused);
     end_on(ent, 0x07b4e7f7);
     {
         ScriptString reason;
@@ -4400,21 +4449,24 @@ void XB_CDECL BroScr_BipodGunnerStateMain(uint32_t ent, ScriptString unused) {
     title_function<CallEntHash>(0x004b08e0)(0, 0, 0, 0, own_address(&BroScr_BipodGunner), ent, &done);  // Scr_CallThread_ent_hash(BroScr_BipodGunner)
     Scr_WaitTill(ent, 0xc3cc3e6a);
     call_thread_str(ent, own_address(&Bro_combat__RangedCombat), 0x00826c74);  // Bro_combat__RangedCombat, "Dist < ProneRangeSq"
-    scr_release(&unused);
+    scr_drop(&unused);
 }
 
 void XB_CDECL BroScr_CoverStandIdle(uint32_t ent, ScrVec3 node, ScrVec3 direction, ScriptString text) {
+    ScrStringGuard guard_text(&text);
     ScrVec3 none;
     none.v[0] = none.v[1] = none.v[2] = 0;  // 0.0f
-    ScriptString name;
+    ScriptString name{};
+    ScrStringGuard guard_name(&name);
     ScrCall_ScrActor_GetString_1384(&ent, &name);  // held to the end
     BroScr_MiscCombatTimer(ent);
     {
-        ScriptString mode;
+        ScriptString mode{};
+        ScrStringGuard guard_mode(&mode);
         scr_string_from(&mode, 0x0083adcc);  // "face direction"
         slot<void XB_CDECL(uint32_t, ScriptString*, uint32_t, const ScrVec3*)>(0x00922740)(ent, &mode, 0,
                                                                                          &direction);  // GScr_ActorSetOrientMode
-        scr_release(&mode);
+        scr_drop(&mode);
     }
     BroScr_CoverStandIdleTransition(ent);
     slot<void XB_CDECL(uint32_t, ScrVec3*, uint32_t, uint32_t)>(0x009226f8)(ent, &node, 0, 0);  // GScr_ActorTryTeleport
@@ -4427,8 +4479,8 @@ void XB_CDECL BroScr_CoverStandIdle(uint32_t ent, ScrVec3 node, ScrVec3 directio
         BroScr_TryGrenadeThrow(&thrown, ent, title_global<uint32_t>(0x00922ea8), none);
     }
     BroScr_FaceEnemyAnim(ent);
-    scr_release(&name);
-    scr_release(&text);
+    scr_drop(&name);
+    scr_drop(&text);
 }
 
 void XB_CDECL BroScr_StopCrouchIdle(uint32_t ent) {
@@ -4525,18 +4577,20 @@ void XB_CDECL BroScr_TurretSetAIMode(uint32_t ent, uint32_t turret, uint32_t fla
 void XB_CDECL BroScr_CombatMain(uint32_t ent) {
     anim_script_begin(ent, 0xc0c70454);
     {
-        ScriptString text;
+        ScriptString text{};
+        ScrStringGuard guard_text(&text);
         scr_string_from(&text, 0x00826d04);  // "CombatStart"
-        scr_release(&text);
+        scr_drop(&text);
     }
     if (get_int_184(ent) == 0x19669cd9) {  // wounded
         ScriptString reason;
         scr_string_from(&reason, 0x00826cf4);  // "pose is wounded"
         BroScr_PlayFaceAnim_3(ent, reason);
-        ScriptString text;
+        ScriptString text{};
+        ScrStringGuard guard_text(&text);
         scr_string_from(&text, 0x00826ce8);  // "bad pose"
         get_int_184(ent);
-        scr_release(&text);
+        scr_drop(&text);
     }
     *handle_slot(ent, 0x2afa5406) = 0x0001894d;
     BroScr_MiscCombatTimer(ent);
@@ -4623,9 +4677,10 @@ void XB_CDECL BroScr_CornerBehavior(uint32_t ent, ScrVec3 node, uint32_t yaw, co
     bool rambo = false;
     if (static_cast<float>(as_float(*chance) > static_cast<float>(roll) ? 1 : 0) != title_global<float>(0x0083eafc) &&
         set[6]) {
-        ScriptString team;
+        ScriptString team{};
+        ScrStringGuard guard_team(&team);
         rambo = !ScriptString_Equals(ScrCall_ScrSentient_GetTeam(&ent, &team), pointer<const char>(0x00832084));
-        scr_release(&team);
+        scr_drop(&team);
     }
     if (rambo) {
         BroScr_CornerRamboFire(ent, set[6], set[7]);  // set + 0x18 / 0x1c
@@ -4642,7 +4697,8 @@ namespace {
 // BroScr_CornerBehavior with the corner anim set. `right` differs in the order of the first steps.
 inline void cover_pose(uint32_t ent, uint32_t yaw, const uint32_t* node, uint32_t flag, bool right, bool to_crouch,
                        uint32_t idle, uint32_t anim_a, uint32_t anim_b, uint32_t anim_set) {
-    ScriptString name;
+    ScriptString name{};
+    ScrStringGuard guard_name(&name);
     ScrCall_ScrActor_GetString_1384(&ent, &name);  // held to the end
     title_function<void XB_CDECL(uint32_t, uint32_t)>(idle)(ent, yaw);
     uint32_t type = 0;
@@ -4677,7 +4733,7 @@ inline void cover_pose(uint32_t ent, uint32_t yaw, const uint32_t* node, uint32_
     at.v[1] = node[1];
     at.v[2] = node[2];
     BroScr_CornerBehavior(ent, at, yaw, set);
-    scr_release(&name);
+    scr_drop(&name);
 }
 }  // namespace
 
@@ -4689,8 +4745,9 @@ void XB_CDECL BroScr_CoverLeftPose_1(uint32_t ent, const ScriptString* text, uin
                own_address(&BroScr_GetCoverLeftAnimSet));  // BroScr_CoverLeftIdle, cornercrouch2stand_right / cornerb_, BroScr_GetCoverLeftAnimSet
 }
 void XB_CDECL BroScr_CoverLeftPose_2(uint32_t ent, ScriptString text, uint32_t yaw, const uint32_t* node, uint32_t flag) {
+    ScrStringGuard guard_text(&text);
     cover_pose(ent, yaw, node, flag, false, true, own_address(&BroScr_CoverLeftIdle), 0x008ce3d0, 0x008ce130, own_address(&BroScr_GetCoverLeftAnimSet));  // stand2crouch_right
-    scr_release(&text);
+    scr_drop(&text);
 }
 void XB_CDECL BroScr_CoverRightPose_1(uint32_t ent, const ScriptString* text, uint32_t yaw, const uint32_t* node,
                                       uint32_t flag) {
@@ -4699,8 +4756,9 @@ void XB_CDECL BroScr_CoverRightPose_1(uint32_t ent, const ScriptString* text, ui
                own_address(&BroScr_GetCoverRightAnimSet));  // BroScr_CoverRightIdle, cornercrouch2stand_left / cornerb_, BroScr_GetCoverRightAnimSet
 }
 void XB_CDECL BroScr_CoverRightPose_2(uint32_t ent, ScriptString text, uint32_t yaw, const uint32_t* node, uint32_t flag) {
+    ScrStringGuard guard_text(&text);
     cover_pose(ent, yaw, node, flag, true, true, own_address(&BroScr_CoverRightIdle), 0x008ce3c4, 0x008ce124, own_address(&BroScr_GetCoverRightAnimSet));  // stand2crouch_left
-    scr_release(&text);
+    scr_drop(&text);
 }
 
 }  // namespace game
@@ -4712,6 +4770,7 @@ using namespace bro_ai;
 
 
 void XB_CDECL BroScr_SpawnerSetupAI(uint32_t spawner, uint32_t ent, ScriptString name) {
+    ScrStringGuard guard_name(&name);
     if (field_defined(ScrField_hc07c63aa_IsDefined, ent)) create_entity_thread(own_address(&BroScr_SetIdlePoseByAllowedStance), ent);  // BroScr_SetIdlePoseByAllowedStance
     if (field_defined(ScrField_h95b9edc3_IsDefined, ent)) create_entity_thread(own_address(&BroScr_Stub_Ret), ent);  // BroScr_EmptyFunc_40
     {
@@ -4735,14 +4794,16 @@ void XB_CDECL BroScr_SpawnerSetupAI(uint32_t spawner, uint32_t ent, ScriptString
             using At = uint32_t* XB_THISCALL(DynArray*, uint32_t);
             bool named = false;
             if (found.size) {
-                ScriptString target;
+                ScriptString target{};
+                ScrStringGuard guard_target(&target);
                 named = ScrCall_ScrEnt_GetTargetname(own_function<At>(&DynArray_At_PROLOGUE)(&found, 0), &target)->rep != nullptr;  // DynArray_At
-                scr_release(&target);
+                scr_drop(&target);
             }
             if (named) {
-                ScriptString target;
+                ScriptString target{};
+                ScrStringGuard guard_target(&target);
                 ScriptString_Assign(&name, ScrCall_ScrEnt_GetTargetname(own_function<At>(&DynArray_At_PROLOGUE)(&found, 0), &target));
-                scr_release(&target);
+                scr_drop(&target);
             }
         }
         if (ScriptString_Equals(&name, pointer<const char>(0x007f49a8)) ||   // "mg42"
@@ -4768,14 +4829,16 @@ void XB_CDECL BroScr_SpawnerSetupAI(uint32_t spawner, uint32_t ent, ScriptString
     } else if (!fixed) {
         if (team_is(&ent, 0x00832084)) set_word(0x00922d54, ent, 0x3f666666);  // "allies": ScrActor_SetFloat_130c(0.9)
         if (team_is(&ent, 0x0083208c)) {  // "axis": grenade awareness by the skill
-            ScriptString first;
+            ScriptString first{};
+            ScrStringGuard guard_first(&first);
             bool hard = ScriptString_Equals(ScrCall_GScr_GetCvar(&first, 0x00832fec), pointer<const char>(0x008351bc));  // g_gameskill "2"
             if (!hard) {
-                ScriptString second;
+                ScriptString second{};
+                ScrStringGuard guard_second(&second);
                 hard = ScriptString_Equals(ScrCall_GScr_GetCvar(&second, 0x00832fec), pointer<const char>(0x008398e0));  // "3"
-                scr_release(&second);
+                scr_drop(&second);
             }
-            scr_release(&first);
+            scr_drop(&first);
             uint32_t awareness;
             if (hard)
                 awareness = random_int(3) ? 0x3f000000 : 0x3e4ccccd;  // 0.5 / 0.2
@@ -4819,14 +4882,16 @@ void XB_CDECL BroScr_SpawnerSetupAI(uint32_t spawner, uint32_t ent, ScriptString
         ScriptString a;
         bool stavro = actor_name_is(&ent, &a, 0x00826e88);  // "Cpl. Stavro"
         if (!stavro) {
-            ScriptString b;
+            ScriptString b{};
+            ScrStringGuard guard_b(&b);
             stavro = actor_name_is(&ent, &b, 0x00826e7c);  // "Sgt. Stavro"
             if (!stavro) {
-                ScriptString c;
+                ScriptString c{};
+                ScrStringGuard guard_c(&c);
                 stavro = actor_name_is(&ent, &c, 0x00826e70);  // "Lt. Stavro"
-                scr_release(&c);
+                scr_drop(&c);
             }
-            scr_release(&b);
+            scr_drop(&b);
         }
         scr_release(&a);
         if (stavro) {
@@ -4878,16 +4943,17 @@ void XB_CDECL BroScr_SpawnerSetupAI(uint32_t spawner, uint32_t ent, ScriptString
                 Scr_Wait(6.0f);
             }
         } else if (!fixed && !*reinterpret_cast<uint8_t*>(ScrField_using_respawner(ent, 0))) {
-            ScriptString target;
+            ScriptString target{};
+            ScrStringGuard guard_target(&target);
             const bool has_target = ScrCall_ScrEnt_GetTarget(&ent, &target)->rep != nullptr;
-            scr_release(&target);
+            scr_drop(&target);
             if (has_target)
                 title_function<void XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t)>(0x0045aad0)(
                     0, 0, 0, 0, own_address(&BroScr_GoToBalconyNode), ent, 0x00922ea0);  // Scr_StartThread_ent_pathnode(BroScr_GoToBalconyNode)
         }
     }
     if (found.data) Scr_Free(found.data);
-    scr_release(&name);
+    scr_drop(&name);
 }
 
 namespace {
@@ -5040,21 +5106,23 @@ void XB_CDECL BroScr_MgTurretThink(uint32_t ent, uint32_t turret, uint8_t flag) 
         // Unless the level flag of the turret's target is set, the level waits for it.
         bool clear;
         {
-            ScriptString name;
+            ScriptString name{};
+            ScrStringGuard guard_name(&name);
             uint32_t hash;
             const uint32_t* const key = Scr_HashScriptString(
                 &hash, reinterpret_cast<const uint8_t* const*>(ScrCall_ScrEnt_GetTarget(&turret, &name)));
             using Index = uint8_t* XB_THISCALL(uint32_t, const uint32_t*);
             clear = *title_function<Index>(0x004611e0)(title_global<uint32_t>(0x00922ef8) + 0xfc, key) == 0;
-            scr_release(&name);
+            scr_drop(&name);
         }
         if (clear) {
             const uint32_t object = title_global<uint32_t>(0x00922ef8);
             const uint32_t* const level = pointer<uint32_t>(object ? object + 4 : 0);
-            ScriptString name;
+            ScriptString name{};
+            ScrStringGuard guard_name(&name);
             const ScriptString* const target = ScrCall_ScrEnt_GetTarget(&turret, &name);
             Scr_WaitTillString(*level, target->rep ? target->rep->text : nullptr);
-            scr_release(&name);
+            scr_drop(&name);
         }
     }
     slot<SetWord>(0x00922d14)(ent, 0);
@@ -5065,15 +5133,17 @@ void XB_CDECL BroScr_MgTurretThink(uint32_t ent, uint32_t turret, uint8_t flag) 
     *key_slot(model, 0x070009e5, undefined_float()) = title_global<uint32_t>(0x0083ec9c);  // 3
     bool show;
     {
-        ScriptString value;
+        ScriptString value{};
+        ScrStringGuard guard_value(&value);
         show = !ScriptString_Equals(ScrCall_GScr_GetCvar(&value, 0x007f49a8), pointer<const char>(0x0080da58));  // mg42, "off"
-        scr_release(&value);
+        scr_drop(&value);
     }
     if (show) {
-        ScriptString name;
+        ScriptString name{};
+        ScrStringGuard guard_name(&name);
         scr_string_from(&name, 0x00826e50);  // "xmodel/temp"
         slot<void XB_CDECL(uint32_t, ScriptString*, uint32_t)>(0x00922548)(model, &name, 0);  // GScr_SetModel
-        scr_release(&name);
+        scr_drop(&name);
     }
     {
         uint32_t* const functor = slot<uint32_t* XB_CDECL(uint32_t)>(0x00922928)(0x14);  // ScrIface_Alloc
@@ -5092,11 +5162,12 @@ void XB_CDECL BroScr_MgTurretThink(uint32_t ent, uint32_t turret, uint8_t flag) 
     *mg_bool_slot(turret, 0x19a3d654) = 0;
     DynArray path = {nullptr, 0, 0};
     {
-        ScriptString name;
+        ScriptString name{};
+        ScrStringGuard guard_name(&name);
         scr_string_from(&name, 0x00826e44);  // "mg42_target"
         Scr_GetEntArray(static_cast<uint32_t>(reinterpret_cast<uintptr_t>(&name)), 0x0d786b4c,
                         reinterpret_cast<uint8_t*>(&path), 0);
-        scr_release(&name);
+        scr_drop(&name);
     }
     if (static_cast<int32_t>(path.size) > 0) {
         // Targets along the mg42_target path (the array is never freed: the loops never end).
@@ -5169,12 +5240,13 @@ void XB_CDECL BroScr_MgTurretThink(uint32_t ent, uint32_t turret, uint8_t flag) 
                 for (;;) {
                     bool burst = false;
                     if (mg_can_target()) {
-                        ScriptString name;
+                        ScriptString name{};
+                        ScrStringGuard guard_name(&name);
                         if (ScrCall_ScrEnt_GetTarget(mg_level_target_owner(), &name)->rep) {
                             const int32_t later = end > static_cast<float>(get_time()) ? 1 : 0;
                             burst = static_cast<float>(later) != title_global<float>(0x0083eafc);
                         }
-                        scr_release(&name);
+                        scr_drop(&name);
                     }
                     if (!burst) break;
                     DynArray found = {nullptr, 0, 0};
@@ -5624,6 +5696,7 @@ inline float force_shoot_left(uint32_t ent) {  // the time left to the end (fiel
 
 uint8_t* XB_CDECL BroScr_ForceShoot(uint8_t* out, uint32_t ent, ScrVec3 point, float time, ScriptString name, uint32_t a7,
                                     uint32_t target, uint32_t wait_stop) {
+    ScrStringGuard guard_name(&name);
     end_on(ent, 0x06730ae8);  // death
     end_on(ent, 0xcd9e558b);
     const float duration = time * title_global<float>(0x0083eb9c);
@@ -5681,7 +5754,7 @@ uint8_t* XB_CDECL BroScr_ForceShoot(uint8_t* out, uint32_t ent, ScrVec3 point, f
         result = 1;
     }
     *out = result;
-    scr_release(&name);
+    scr_drop(&name);
     return out;
 }
 
@@ -5713,12 +5786,14 @@ inline void corner_idleset_repick(uint32_t ent, bool accessor_store) {
 
 void XB_CDECL Bro_stop__main(uint32_t ent) {
     {
-        ScriptString text;
+        ScriptString text{};
+        ScrStringGuard guard_text(&text);
         scr_string_from(&text, 0x00826f7c);  // "StopStart"
-        scr_release(&text);
+        scr_drop(&text);
     }
     anim_script_begin(ent, 0x00385d90);
-    ScriptString type;
+    ScriptString type{};
+    ScrStringGuard guard_type(&type);
     ScriptString_FromRep(&type, nullptr);
     if (get_int_184(ent) == 0x19669cd9) {  // wounded
         ScriptString reason;
@@ -5733,10 +5808,11 @@ void XB_CDECL Bro_stop__main(uint32_t ent) {
         if (node != 0 && node != 0xffffffff) {
             uint32_t buffer[3];
             yaw = slot<uint32_t* XB_CDECL(uint32_t*, uint32_t)>(0x00922ac0)(buffer, node)[1];  // ScrPathNode_GetAngles
-            ScriptString node_type;
+            ScriptString node_type{};
+            ScrStringGuard guard_node_type(&node_type);
             own_function<ScriptString* XB_THISCALL(const uint32_t*, ScriptString*)>(&ScrPathNode_CopyType_entry)(&node, &node_type);  // ScrPathNode_CopyType
             ScriptString_Assign(&type, &node_type);
-            scr_release(&node_type);
+            scr_drop(&node_type);
         } else {
             yaw = bits(static_cast<float>(slot<long double XB_CDECL(uint32_t)>(0x00922d00)(ent)));  // ScrActor_GetFloat_154
             ScriptString_AssignCString(&type, pointer<const char>(0x00826f5c));  // "node was undefined"
@@ -5804,7 +5880,7 @@ void XB_CDECL Bro_stop__main(uint32_t ent) {
     } else if (pose == 0x008367fc) {  // the address of "prone" (never a pose)
         BroScr_StopProneIdle(ent);  // never returns
     }
-    scr_release(&type);
+    scr_drop(&type);
 }
 
 namespace {
@@ -5924,12 +6000,13 @@ void XB_CDECL BroScr_BipodGunner(uint32_t ent, uint32_t end) {
     set_level_anim(0xc966b4d2, 0xce69bd99, title_global<uint32_t>(0x008cd7f4));  // c_mg_mg34_deploy
     set_level_anim(0xc966b4d2, 0x7938b286, title_global<uint32_t>(0x008cd800));  // c_mg_mg34_go_prone
     {
-        ScriptString name;
+        ScriptString name{};
+        ScrStringGuard guard_name(&name);
         scr_string_from(&name, 0x007fc050);  // "gunner"
         ScriptString copy;
         ScriptString_Copy(&copy, &name);
         slot<void XB_CDECL(uint32_t, ScriptString)>(0x00922c44)(ent, copy);  // ScrEnt_SetAnimname
-        scr_release(&name);
+        scr_drop(&name);
     }
     flagged_body_knob(ent, 0x365de636, title_global<uint32_t>(0x008cd7f4));  // deploy
     flagged_body_knob(ent, 0x09334428, title_global<uint32_t>(0x008cd800));  // go prone
@@ -5954,9 +6031,11 @@ void XB_CDECL BroScr_BipodGunner(uint32_t ent, uint32_t end) {
         offset[1] = forward[1] * scale;
         offset[2] = forward[2] * scale;
     }
-    ScriptString info;
+    ScriptString info{};
+    ScrStringGuard guard_info(&info);
     ScriptString_FromRep(&info, nullptr);
-    ScriptString model;
+    ScriptString model{};
+    ScrStringGuard guard_model(&model);
     ScriptString_FromRep(&model, nullptr);
     const uint32_t weapon = slot<uint32_t XB_CDECL(uint32_t)>(0x00922d30)(ent);  // ScrActor_GetInt_f0
     if (weapon == 0x0033c678 || weapon == 0x00371a54) {
@@ -5976,7 +6055,8 @@ void XB_CDECL BroScr_BipodGunner(uint32_t ent, uint32_t end) {
         position[1] = origin[1] + offset[1];
         position[2] = origin[2] + offset[2];
     }
-    ScriptString classname;
+    ScriptString classname{};
+    ScrStringGuard guard_classname(&classname);
     scr_string_from(&classname, 0x00839e8c);  // "misc_turret"
     using SpawnTurret = uint32_t XB_CDECL(ScriptString*, const float*, ScriptString*, const uint32_t*, uint32_t);
     const uint32_t turret = slot<SpawnTurret>(0x00922304)(&classname, position, &info, angles, zone);  // GScr_SpawnTurretWithAngles
@@ -5993,16 +6073,17 @@ void XB_CDECL BroScr_BipodGunner(uint32_t ent, uint32_t end) {
     slot<void XB_CDECL(uint32_t, ScriptString*, uint32_t)>(0x00922548)(turret, &model, 0);  // GScr_SetModel
     if (slot<long double XB_CDECL(uint32_t)>(0x00922c58)(ent) != as_float(undefined_float()))  // ScrActor_GetFloat_d4
         slot<SetWord>(0x009225a4)(turret, bits(static_cast<float>(slot<long double XB_CDECL(uint32_t)>(0x00922c58)(ent))));  // GScr_Turret_Set54
-    ScriptString weapon_class;
+    ScriptString weapon_class{};
+    ScrStringGuard guard_weapon_class(&weapon_class);
     ScrCall_GScr_GetWeaponClassname(&weapon_class, slot<uint32_t XB_CDECL(uint32_t)>(0x00922d30)(ent));
     using Call = uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, const uint32_t*, const ScriptString*);
     own_function<Call>(&Scr_CallThread_ent_ent_str_entry)(0, 0, 0, 0, own_address(&BroScr_TurretOwnerChangeSwap), turret, &ent, &weapon_class);  // Scr_CallThread_ent_ent_str(BroScr_TurretOwnerChangeSwap)
     slot<SetWord>(0x00922d34)(ent, slot<uint32_t XB_CDECL(uint32_t)>(0x00922d38)(ent));  // ScrActor_SetInt_f0(GetInt_f4)
     slot<SetWord>(0x0092272c)(ent, turret);  // GScr_ActorUseTurret
-    scr_release(&weapon_class);
-    scr_release(&classname);
-    scr_release(&model);
-    scr_release(&info);
+    scr_drop(&weapon_class);
+    scr_drop(&classname);
+    scr_drop(&model);
+    scr_drop(&info);
 }
 
 // The MG42 cover spot (a spawner's thread).
@@ -6184,12 +6265,13 @@ void XB_CDECL Bro_cover_crouch__cover_crouch(uint32_t ent) {
         }
         bool volley_over;
         {
-            ScriptString team;
+            ScriptString team{};
+            ScrStringGuard guard_team(&team);
             volley_over = ScriptString_Equals(ScrCall_ScrSentient_GetTeam(&ent, &team), pointer<const char>(0x00832084)) ||  // "allies"
                           pending_slot(ent) ||
                           title_global<float>(0x0083eb24) >
                               slot<long double XB_CDECL(uint32_t)>(0x00922230)(0x3f800000);  // 0.5 > Scr_RandomFloat(1)
-            scr_release(&team);
+            scr_drop(&team);
         }
         uint32_t thrown;
         if (volley_over) {
@@ -6241,10 +6323,11 @@ void XB_CDECL Bro_combat__MeleeCombat(uint32_t ent, ScriptString reason) {
     slot<long double XB_CDECL(uint32_t)>(0x00922690)(ent);  // GScr_SentientNearestEnemyDist (unused)
     message_only(0x00826dc8);  // "combat::MeleeCombat - not in range!"
     {
-        ScriptString message;
+        ScriptString message{};
+        ScrStringGuard guard_message(&message);
         scr_string_from(&message, 0x00826da0);  // "Can't melee - I don't have an enemy."
         is_alive(enemy_of(ent));                // the assert's read
-        scr_release(&message);
+        scr_drop(&message);
     }
     message_only(0x00826c88);  // "Script state called without reason."
     uint8_t linked = 0;
@@ -6275,12 +6358,13 @@ void XB_CDECL Bro_combat__MeleeCombat(uint32_t ent, ScriptString reason) {
         uint32_t state = *handle_slot(ent, 0x2afa5406);
         uint32_t stance;
         if (enemy_of(ent) == title_global<uint32_t>(0x009236dc)) {  // the player: his stance
-            ScriptString name;
+            ScriptString name{};
+            ScrStringGuard guard_name(&name);
             ScriptString_FromRep(&name, nullptr);
             slot<void XB_CDECL(uint32_t, ScriptString*)>(0x00922600)(title_global<uint32_t>(0x009236dc), &name);  // GScr_GetStance
             uint32_t hash;
             stance = *Scr_HashScriptString(&hash, reinterpret_cast<const uint8_t* const*>(&name));
-            scr_release(&name);
+            scr_drop(&name);
         } else {
             stance = get_int_184(enemy_of(ent));
         }
@@ -6436,11 +6520,12 @@ void XB_CDECL Bro_combat__RangedCombat(uint32_t ent, ScriptString reason) {
                                  (at<float>(anim_object(), 0x68) - at<float>(anim_object(), 0x9c));
             bool step;
             {
-                ScriptString team;
+                ScriptString team{};
+                ScrStringGuard guard_team(&team);
                 step = !ScriptString_Equals(ScrCall_ScrSentient_GetTeam(&ent, &team), pointer<const char>(0x00832084)) &&  // "allies"
                        static_cast<float>(chance > slot<long double XB_CDECL(uint32_t)>(0x00922230)(0x3f800000) ? 1 : 0) !=
                            title_global<float>(0x0083eafc);  // > Scr_RandomFloat(1)
-                scr_release(&team);
+                scr_drop(&team);
             }
             if (step) {
                 uint32_t stepped;  // the callee writes a whole word
@@ -6578,11 +6663,12 @@ void XB_CDECL Bro_cover_stand__cover_stand(uint32_t ent) {
         }
         bool grenade;
         {
-            ScriptString team;
+            ScriptString team{};
+            ScrStringGuard guard_team(&team);
             grenade = ScriptString_Equals(ScrCall_ScrSentient_GetTeam(&ent, &team), pointer<const char>(0x0083208c)) &&  // "axis"
                       !pending_slot(ent) &&
                       slot<long double XB_CDECL(uint32_t)>(0x00922230)(0x3f800000) > title_global<float>(0x0083eb24);  // > 0.5
-            scr_release(&team);
+            scr_drop(&team);
         }
         if (grenade) {
             uint32_t thrown;
@@ -6693,7 +6779,8 @@ void XB_CDECL BroScr_FallbackThink(uint32_t level, int32_t n, uint32_t group) {
         own_function<ArrayGrow>(&DynArray_Resize)(&ai, 0, 0);
         fb_thread(0x007ffb9c, own_address(&BroScr_FallbackerSetup), level, n, &group);  // BroScr_FallbackerSetup
         // Its trigger, then the fallback starts.
-        ScriptString name;
+        ScriptString name{};
+        ScrStringGuard guard_name(&name);
         ScriptString_FromCString(&name, pointer<const char>(0x00826458));  // "fallbacker_trigger"
         ScriptString_AppendInt(&name, n);
         {
@@ -6703,9 +6790,10 @@ void XB_CDECL BroScr_FallbackThink(uint32_t level, int32_t n, uint32_t group) {
             Scr_WaitTill(*owner, notify);
         }
         {
-            ScriptString value;
+            ScriptString value{};
+            ScrStringGuard guard_value(&value);
             ScriptString_Equals(ScrCall_GScr_GetCvar(&value, 0x00823550), pointer<const char>(0x0082e058));  // "fallback", "1" (unused)
-            scr_release(&value);
+            scr_drop(&value);
         }
         *fb_level_at(0xe4, n) = 1;
         slot<void XB_CDECL(DynArray*)>(0x009223d4)(&ai);  // GScr_GetAIAll
@@ -6763,7 +6851,7 @@ void XB_CDECL BroScr_FallbackThink(uint32_t level, int32_t n, uint32_t group) {
             }
         }
         if (chosen.data) Scr_Free(chosen.data);
-        scr_release(&name);
+        scr_drop(&name);
         if (ai.data) Scr_Free(ai.data);
         if (spawners.data) Scr_Free(spawners.data);
     }
@@ -6848,7 +6936,8 @@ void XB_CDECL BroScr_AnimScript_Death(uint32_t ent) {
         ScriptString_FromCString(&type, pointer<const char>(0x00831f60));  // "death"
         BroScr_BattleChatter(ent, type);
     }
-    ScriptString none;
+    ScriptString none{};
+    ScrStringGuard guard_none(&none);
     ScriptString_FromRep(&none, nullptr);
     {
         ScriptString name;
@@ -6885,7 +6974,8 @@ void XB_CDECL BroScr_AnimScript_Death(uint32_t ent) {
         }
         if (static_cast<float>(limit > distance ? 1 : 0) != title_global<float>(0x0083eafc)) {
             uint32_t forward[3];
-            ScriptString tag;
+            ScriptString tag{};
+            ScrStringGuard guard_tag(&tag);
             const uint32_t* at;
             uint32_t speed;
             if (slot<uint32_t XB_CDECL(uint32_t)>(0x00922ad0)(dt_balcony_node(ent)) & 0x20) {  // ScrPathNode_GetSpawnflags
@@ -6901,8 +6991,8 @@ void XB_CDECL BroScr_AnimScript_Death(uint32_t ent) {
             }
             slot<void XB_CDECL(uint32_t, const uint32_t*, const uint32_t*, uint32_t, uint32_t)>(0x009228dc)(
                 ent, at, forward, speed, 0);  // GScr_PhysicsLaunch
-            scr_release(&tag);
-            scr_release(&none);
+            scr_drop(&tag);
+            scr_drop(&none);
             return;
         }
     }
@@ -7050,7 +7140,7 @@ void XB_CDECL BroScr_AnimScript_Death(uint32_t ent) {
         }
     }
     handle_note_tracks(ent, kNotify);
-    scr_release(&none);
+    scr_drop(&none);
 }
 
 // 0x001d91d0 (split out of BroScr_AnimScript_Death's old Ghidra range; no references, dead): the crouched
@@ -7059,10 +7149,11 @@ void XB_CDECL BroScr_AnimScript_Death(uint32_t ent) {
 void XB_CDECL BroScr_CrouchAimAndShoot(uint32_t ent) {
     own_function<void XB_CDECL(uint32_t, uint32_t, uint32_t)>(&BroScr_SetPoseMovement)(ent, 0xc1165808, 0x00385d90);  // BroScr_SetPoseMovement
     {
-        ScriptString text;
+        ScriptString text{};
+        ScrStringGuard guard_text(&text);
         ScriptString_FromCString(&text, pointer<const char>(0x00826b2c));  // "...About to call aim, movement is bad "
         handle_slot(ent, 0x0ccee5c1);  // anim_movement
-        scr_release(&text);
+        scr_drop(&text);
     }
     aim_idle(ent, title_global<uint32_t>(0x00922ea4));
     const ScrVec3 zero = {0, 0, 0};  // 0.0f words
@@ -7070,10 +7161,11 @@ void XB_CDECL BroScr_CrouchAimAndShoot(uint32_t ent) {
     if (!*BroScr_GetMuzzleOrigin(&clear, ent, zero, title_global<uint32_t>(0x00922e84), title_global<uint32_t>(0x00922ebc)))
         return;
     {
-        ScriptString text;
+        ScriptString text{};
+        ScrStringGuard guard_text(&text);
         ScriptString_FromCString(&text, pointer<const char>(0x00826ae8));  // "...About to call ShootVolley but not aiming"
         handle_slot(ent, 0x764918ae);
-        scr_release(&text);
+        scr_drop(&text);
     }
     uint8_t shot;
     cover_shoot(&shot, ent);
@@ -7146,7 +7238,8 @@ void XB_CDECL Bro_run__main(uint32_t ent) {
         uint8_t reload;
         if (!*BroScr_NeedsReload(&reload, ent, bits(reload_fraction))) {
             bool team_made = false;
-            ScriptString team;
+            ScriptString team{};
+            ScrStringGuard guard_team(&team);
             bool ok = true;
             uint32_t ref;
             if (entity_handle_is_valid(*slot<uint32_t* XB_CDECL(uint32_t*, uint32_t)>(0x00922d58)(&ref, ent))) {  // ScrActor_GetRef_1310
@@ -7168,7 +7261,7 @@ void XB_CDECL Bro_run__main(uint32_t ent) {
                                                     title_global<uint32_t>(0x00922ebc)) != 0;
                 }
             }
-            if (team_made) scr_release(&team);
+            if (team_made) scr_drop(&team);
         }
         uint32_t want;
         if (get_int_184(ent) == 0x0738b1a5)
@@ -7184,9 +7277,10 @@ void XB_CDECL Bro_run__main(uint32_t ent) {
         if (shoot && (pose == 0x070b89a4 || pose == 0xc1165808)) {
             // Shooting run, standing or crouched.
             {
-                ScriptString unused;
+                ScriptString unused{};
+                ScrStringGuard guard_unused(&unused);
                 ScriptString_Copy(&unused, reinterpret_cast<const ScriptString*>(anim_object() + 0x160));
-                scr_release(&unused);
+                scr_drop(&unused);
             }
             if (get_int_184(ent) != 0x070b89a4 && pose == 0x070b89a4)
                 own_function<void XB_CDECL(uint32_t, uint32_t, uint32_t)>(&BroScr_SetPoseMovement)(ent, pose, 0x0001c6ce);  // BroScr_SetPoseMovement
@@ -7214,9 +7308,10 @@ void XB_CDECL Bro_run__main(uint32_t ent) {
             continue;
         }
         {
-            ScriptString unused;
+            ScriptString unused{};
+            ScrStringGuard guard_unused(&unused);
             ScriptString_Copy(&unused, reinterpret_cast<const ScriptString*>(anim_object() + 0x98));
-            scr_release(&unused);
+            scr_drop(&unused);
         }
         own_function<void XB_CDECL(uint32_t, uint32_t, uint32_t)>(&BroScr_SetPoseMovement)(ent, pose, 0x0001c6ce);  // BroScr_SetPoseMovement
         uint32_t now_out;
@@ -7413,6 +7508,7 @@ inline int32_t fs_burst(uint32_t ent, int32_t spread, int32_t base) {
 
 void XB_CDECL BroScr_ForceShootThread(uint32_t ent, ScrVec3 point, float time, ScriptString name, uint32_t a7,
                                       uint32_t target, uint32_t /*wait_stop*/) {
+    ScrStringGuard guard_name(&name);
     const int32_t end = static_cast<int32_t>(static_cast<float>(get_time()) + time);
     slot<void XB_CDECL(uint32_t, uint32_t)>(0x00922188)(ent, 0x06730ae8);  // Scr_EndOn "death"
     slot<void XB_CDECL(uint32_t, uint32_t)>(0x00922188)(ent, 0x0039894e);
@@ -7445,10 +7541,11 @@ void XB_CDECL BroScr_ForceShootThread(uint32_t ent, ScrVec3 point, float time, S
     } else {
         using CallVec = uint32_t XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, const ScrVec3*);
         own_function<CallVec>(&Scr_CallThread_ent_vec_entry)(0, 0, 0, 0, own_address(&BroScr_LookAtPositionLoop), ent, &point);  // Scr_CallThread_ent_vec(BroScr_LookAtPositionLoop)
-        ScriptString mode;
+        ScriptString mode{};
+        ScrStringGuard guard_mode(&mode);
         ScriptString_FromCString(&mode, pointer<const char>(0x0083ad6c));  // "face point"
         slot<void XB_CDECL(uint32_t, ScriptString*, uint32_t, const ScrVec3*)>(0x00922740)(ent, &mode, 0, &point);  // GScr_ActorSetOrientMode
-        scr_release(&mode);
+        scr_drop(&mode);
     }
     *key_slot(ent, 0x27cc2178, 0) = target;
     {
@@ -7576,7 +7673,7 @@ void XB_CDECL BroScr_ForceShootThread(uint32_t ent, ScrVec3 point, float time, S
             } while (fs_before(end));
         }
     }
-    scr_release(&name);
+    scr_drop(&name);
 }
 
 }  // namespace game

@@ -16,6 +16,7 @@
 #include "title_data.h"
 #include "bro_scr_notify_threads.h"
 #include "g_scr_builtins.h"
+#include "scr_unwind_guard.h"
 
 namespace game {
 
@@ -94,16 +95,18 @@ ScriptString* XB_CDECL BroScr_RandomArrayString(ScriptString* out, DynArray stri
 }
 
 void XB_CDECL BroScr_AttachRandomModel(uint32_t ent, DynArray models) {
-    ScriptString name;
+    ScriptString name{};
+    ScrStringGuard guard_name(&name);
     ScriptString_FromRep(&name, nullptr);
     DynArray copy = {nullptr, 0, 0};
     title_function<void XB_THISCALL(DynArray*, const DynArray*)>(0x0052d4a0)(&copy, &models);  // DynArray_AssignString
-    ScriptString chosen;
+    ScriptString chosen{};
+    ScrStringGuard guard_chosen(&chosen);
     const ScriptString* const result = BroScr_RandomArrayString(&chosen, copy);
     ScriptString_Assign(&name, result);
-    ScriptString_Release(&chosen);
+    scr_drop(&chosen);
     slot<void XB_CDECL(uint32_t, ScriptString*)>(0x009224d4)(ent, &name);  // GScr_AttachNoTag
-    ScriptString_Release(&name);
+    scr_drop(&name);
     release_strings(models.data, models.size);
 }
 
@@ -115,12 +118,13 @@ void XB_CDECL BroScr_SetTargetnameFromOrigin(uint32_t ent) {
     uint32_t buffer[3];
     const uint32_t* const o = slot<uint32_t* XB_CDECL(uint32_t*, uint32_t)>(0x00922b20)(buffer, ent);  // ScrEnt_GetOrigin
     const ScrVec3 origin = {{o[0], o[1], o[2]}};
-    ScriptString name;
+    ScriptString name{};
+    ScrStringGuard guard_name(&name);
     ScriptString* const text = ScriptString_FromCStringPlusVec(&name, pointer<const char>(0x00802464), origin);  // "null "
     ScriptString copy;
     ScriptString_Copy(&copy, text);
     slot<void XB_CDECL(uint32_t, ScriptString)>(0x00922b54)(ent, copy);  // ScrEnt_SetTargetname (releases its copy)
-    ScriptString_Release(&name);
+    scr_drop(&name);
     *int_slot(ent, 0x070b8a34) = 1;
     uint32_t* const functor = slot<uint32_t* XB_CDECL(uint32_t)>(0x00922928)(0xc);  // ScrIface_Alloc
     if (functor) {
@@ -369,6 +373,7 @@ struct ClosestNode {
 }  // namespace
 
 void XB_CDECL BroScr_GetFriendlyChainTriggers(ScriptString chain) {
+    ScrStringGuard guard_chain(&chain);
     DynArray triggers = {nullptr, 0, 0};
     friendly_chain_triggers(&triggers);
     for (uint32_t i = 0; static_cast<int32_t>(i) < static_cast<int32_t>(triggers.size); ++i) {
@@ -376,10 +381,11 @@ void XB_CDECL BroScr_GetFriendlyChainTriggers(ScriptString chain) {
         BroScr_TriggerOff(*element_at(&triggers, i));
     }
     free_array(triggers);
-    ScriptString_Release(&chain);
+    scr_drop(&chain);
 }
 
 void XB_CDECL BroScr_MoveFriendlyChainTrigger(ScriptString chain) {
+    ScrStringGuard guard_chain(&chain);
     DynArray triggers = {nullptr, 0, 0};
     friendly_chain_triggers(&triggers);
     for (uint32_t i = 0; static_cast<int32_t>(i) < static_cast<int32_t>(triggers.size); ++i) {
@@ -391,10 +397,11 @@ void XB_CDECL BroScr_MoveFriendlyChainTrigger(ScriptString chain) {
         slot<void XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t)>(0x00922b24)(trigger, o[0], o[1], o[2]);  // ScrEnt_SetOrigin
     }
     free_array(triggers);
-    ScriptString_Release(&chain);
+    scr_drop(&chain);
 }
 
 void XB_CDECL BroScr_DeleteFriendlyChainTrigger(ScriptString chain) {
+    ScrStringGuard guard_chain(&chain);
     DynArray triggers = {nullptr, 0, 0};
     friendly_chain_triggers(&triggers);
     for (uint32_t i = 0; static_cast<int32_t>(i) < static_cast<int32_t>(triggers.size); ++i) {
@@ -403,7 +410,7 @@ void XB_CDECL BroScr_DeleteFriendlyChainTrigger(ScriptString chain) {
         slot<void XB_CDECL(uint32_t)>(0x00922540)(*element_at(&triggers, i));  // GScr_Delete
     }
     free_array(triggers);
-    ScriptString_Release(&chain);
+    scr_drop(&chain);
 }
 
 uint32_t* XB_CDECL BroScr_GetFriendlyChainNode(uint32_t* out, ScriptString chain) {
@@ -417,26 +424,31 @@ uint32_t* XB_CDECL BroScr_GetFriendlyChainNode(uint32_t* out, ScriptString chain
         }
     }
     if (!entity_handle_is_valid(trigger)) {
-        ScriptString text;
+        ScriptString text{};
+        ScrStringGuard guard_text(&text);
         ScriptString_FromCString(&text, pointer<const char>(0x008260c0));  // "Tried to get chain "
-        ScriptString joined;
-        ScriptString message;
+        ScriptString joined{};
+        ScrStringGuard guard_joined(&joined);
+        ScriptString message{};
+        ScrStringGuard guard_message(&message);
         ScriptString_ConcatCString(&message, ScriptString_Concat(&joined, &text, &chain),
                                    pointer<const char>(0x00826088));  // " which does not exist ..."
-        ScriptString_Release(&message);
-        ScriptString_Release(&joined);
-        ScriptString_Release(&text);
+        scr_drop(&message);
+        scr_drop(&joined);
+        scr_drop(&text);
         *out = 0;
     } else {
-        ScriptString key;
+        ScriptString key{};
+        ScrStringGuard guard_key(&key);
         ScriptString_FromCString(&key, pointer<const char>(0x0082dda8));  // "targetname"
-        ScriptString target;
+        ScriptString target{};
+        ScrStringGuard guard_target(&target);
         ScriptString* const name = ScrCall_ScrEnt_GetTarget(&trigger, &target);
         uint32_t node = slot<uint32_t XB_CDECL(ScriptString*, ScriptString*, uint32_t, uint32_t)>(0x009221cc)(
             name, &key, 0, 0);  // GScr_GetNode
         if (node == 0xffffffffu) node = 0;
-        ScriptString_Release(&target);
-        ScriptString_Release(&key);
+        scr_drop(&target);
+        scr_drop(&key);
         *out = node;
     }
     free_array(triggers);

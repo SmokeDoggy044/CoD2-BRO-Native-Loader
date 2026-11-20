@@ -13,6 +13,7 @@
 #include "g_scr_builtins.h"
 #include "levels_twins.h"
 #include "qcommon_fs.h"
+#include "scr_unwind_guard.h"
 
 namespace game {
 
@@ -132,14 +133,15 @@ void plane_crash_sound(uint32_t ent, uint32_t thread) {
     ScriptString* const sound = title_function<GetString>(0x00458da0)(script_object_or_empty(ent), 0x22282ca0);  // ScriptKeyTable_GetString
     slot<void XB_CDECL(uint32_t, ScriptString*, uint32_t*, uint32_t, uint32_t)>(0x009221e0)(ent, sound, origin, 0,
                                                                                            0);  // GScr_PlaySoundAtPosition
-    ScriptString name;
+    ScriptString name{};
+    ScrStringGuard guard_name(&name);
     ScriptString_FromCString(&name, pointer<const char>(0x008245e8));  // "Plane_crash"
     uint32_t buffer2[3];
     o = slot<GetOrigin>(0x00922b20)(buffer2, ent);
     uint32_t origin2[3] = {o[0], o[1], o[2]};
     const uint32_t args[8] = {0, 0, 0, 0, thread, ent, address_of(&name), address_of(origin2)};
     Scr_StartThreadFunctorN(args);
-    ScriptString_Release(&name);
+    scr_drop(&name);
 }
 
 ScriptString* team_field(uint32_t ent) { return ScrField_script_team(ent); }
@@ -148,11 +150,12 @@ bool equals(const ScriptString* string, uint32_t text) { return ScriptString_Equ
 }  // namespace
 
 ScriptString* XB_CDECL ScriptString_FromCStringPlusVec(ScriptString* out, const char* text, ScrVec3 v) {
-    ScriptString temp;
+    ScriptString temp{};
+    ScrStringGuard guard_temp(&temp);
     ScriptString_FromRep(&temp, nullptr);
     title_function<void XB_CDECL(ScriptString*, const char**, ScrVec3*)>(0x00458ce0)(&temp, &text, &v);
     ScriptString_Copy(out, &temp);
-    ScriptString_Release(&temp);
+    scr_drop(&temp);
     return out;
 }
 

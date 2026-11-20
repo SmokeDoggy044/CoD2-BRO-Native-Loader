@@ -17,6 +17,7 @@
 #include "bro_scr_notify_threads.h"
 #include "bro_scr_pose_threads.h"
 #include "g_scr_builtins.h"
+#include "scr_unwind_guard.h"
 
 namespace game {
 
@@ -588,12 +589,14 @@ uint8_t* XB_CDECL BroScr_MeleePair_Relink(uint8_t* out, uint32_t a, uint32_t b) 
 
 void XB_CDECL BroScr_PutGunInHand(uint32_t actor, uint32_t hand) {
     using GetInt = uint32_t XB_CDECL(uint32_t);
-    ScriptString weapon;
+    ScriptString weapon{};
+    ScrStringGuard guard_weapon(&weapon);
     ScriptString_FromCString(&weapon, pointer<const char>(0x0082dfeb));  // ""
     if (slot<GetInt>(0x00922d30)(actor) != 0) {  // ScrActor_GetInt_f0
-        ScriptString name;
+        ScriptString name{};
+        ScrStringGuard guard_name(&name);
         ScriptString_Assign(&weapon, ScrCall_GScr_GetWeaponDisplayName(&name, slot<GetInt>(0x00922d30)(actor)));
-        ScriptString_Release(&name);
+        scr_drop(&name);
     }
     bool defined;
     uint32_t wanted = 0x0036b1a5;
@@ -605,7 +608,7 @@ void XB_CDECL BroScr_PutGunInHand(uint32_t actor, uint32_t hand) {
     if (!*ScrField_h81ea0dd3_IsDefined(&defined, actor))
         ScriptString_AssignCString(key_string(actor, 0x81ea0dd3), pointer<const char>(0x00832430));  // "none"
     if (wanted == *handle_slot(actor, 0x1de0c645) && ScriptString_EqualsString(&weapon, key_string(actor, 0x81ea0dd3))) {
-        ScriptString_Release(&weapon);
+        scr_drop(&weapon);
         return;
     }
     const int32_t now = get_time();
@@ -614,16 +617,18 @@ void XB_CDECL BroScr_PutGunInHand(uint32_t actor, uint32_t hand) {
     using Detach = void XB_CDECL(uint32_t, ScriptString*, ScriptString*, uint32_t);
     const uint32_t held = *handle_slot(actor, 0x1de0c645);
     if (held == 0x003798b4 || *handle_slot(actor, 0x1de0c645) == 0x07151174) {
-        ScriptString tag;
+        ScriptString tag{};
+        ScrStringGuard guard_tag(&tag);
         ScriptString_FromCString(&tag, hand_tag(held));
         slot<Attach>(0x009224d8)(actor, key_string(actor, 0x81ea0dd3), &tag);  // GScr_Detach
-        ScriptString_Release(&tag);
+        scr_drop(&tag);
     }
     if (wanted == 0x003798b4 || wanted == 0x07151174) {
-        ScriptString tag;
+        ScriptString tag{};
+        ScrStringGuard guard_tag(&tag);
         ScriptString_FromCString(&tag, hand_tag(wanted));
         slot<Detach>(0x009224d0)(actor, &weapon, &tag, 0);  // GScr_AttachWithOwner
-        ScriptString_Release(&tag);
+        scr_drop(&tag);
         ScriptString_Assign(key_string(actor, 0x81ea0dd3), &weapon);
         if (wanted == 0x003798b4) *handle_slot(actor, 0x1de0c645) = 0x003798b4;
         else *ScrField_anim_gunhand(actor) = 0x07151174;
@@ -632,7 +637,7 @@ void XB_CDECL BroScr_PutGunInHand(uint32_t actor, uint32_t hand) {
         remove_key(&actor, 0x81ea0dd3);
     }
     BroScr_GetCombatRunAnim(actor);
-    ScriptString_Release(&weapon);
+    scr_drop(&weapon);
 }
 
 void XB_CDECL BroScr_ReattachGunInHand(uint32_t actor) {
@@ -646,16 +651,18 @@ void XB_CDECL BroScr_ReattachGunInHand(uint32_t actor) {
 void XB_CDECL BroScr_ReattachAlliesGuns() {
     int32_t budget = 100000;
     DynArray ai = {nullptr, 0, 0};
-    ScriptString team;
+    ScriptString team{};
+    ScrStringGuard guard_team(&team);
     ScriptString_FromCString(&team, pointer<const char>(0x00832084));  // "allies"
     slot<void XB_CDECL(DynArray*, ScriptString*)>(0x009223d0)(&ai, &team);  // GScr_GetAI
-    ScriptString_Release(&team);
+    scr_drop(&team);
     int32_t ai_left = static_cast<int32_t>(ai.size);
     DynArray spawners = {nullptr, 0, 0};
-    ScriptString team2;
+    ScriptString team2{};
+    ScrStringGuard guard_team2(&team2);
     ScriptString_FromCString(&team2, pointer<const char>(0x00832084));
     slot<void XB_CDECL(DynArray*, ScriptString*)>(0x009223dc)(&spawners, &team2);  // GScr_GetSpawnerTeamArray
-    ScriptString_Release(&team2);
+    scr_drop(&team2);
     int32_t spawners_left = static_cast<int32_t>(spawners.size);
     uint32_t ai_index = 0;
     uint32_t spawner_index = 0;
@@ -667,10 +674,11 @@ void XB_CDECL BroScr_ReattachAlliesGuns() {
     auto has_field = [](uint32_t ent) {
         ScriptKeyTable* table = own_function<ScriptKeyTable* XB_CDECL(uint32_t)>(&ScrCall_GScr_GetEntScriptObject)(ent);
         if (!table) table = pointer<ScriptKeyTable>(0x00922e94);
-        ScriptString copy;
+        ScriptString copy{};
+        ScrStringGuard guard_copy(&copy);
         const bool set = static_cast<ScriptString*>(ScrField_ha1763cc1_Copy(reinterpret_cast<uint8_t*>(table) + 0xc, &copy))
                              ->rep != nullptr;
-        ScriptString_Release(&copy);
+        scr_drop(&copy);
         return set;
     };
     while ((ai_left > 0 || spawners_left > 0) && budget > 0) {

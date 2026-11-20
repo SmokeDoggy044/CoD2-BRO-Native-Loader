@@ -16,6 +16,7 @@
 #include "bro_scr_friendly_threads.h"
 #include "bro_scr_notify_threads.h"
 #include "g_scr_builtins.h"
+#include "scr_unwind_guard.h"
 
 namespace game {
 
@@ -203,10 +204,11 @@ void XB_CDECL BroScr_HangarChainMoverThink(uint32_t ent) {
 
         // Any living axis AI near node 0 or node 1: wait.
         {
-            ScriptString team;
+            ScriptString team{};
+            ScrStringGuard guard_team(&team);
             scr_string_from(&team, 0x0083208c);  // "axis"
             slot<GetAI>(0x009223d0)(&axis, &team);  // GScr_GetAI
-            scr_release(&team);
+            scr_drop(&team);
         }
         int32_t near = 0;
         for (uint32_t i = 1; static_cast<int32_t>(i - 1) < count_of(&axis); ++i) {
@@ -308,10 +310,11 @@ void XB_CDECL BroScr_HangarChainAIThink(uint32_t ent) {
 
         // The allies and the player near node 0.
         {
-            ScriptString team;
+            ScriptString team{};
+            ScrStringGuard guard_team(&team);
             scr_string_from(&team, 0x00832084);  // "allies"
             slot<GetAI>(0x009223d0)(&allies, &team);  // GScr_GetAI
-            scr_release(&team);
+            scr_drop(&team);
         }
         DynArray_PushBack(reinterpret_cast<uint8_t*>(&allies), pointer<uint32_t>(0x009236dc));  // the player
         int32_t near = 0;
@@ -388,6 +391,7 @@ void XB_CDECL BroScr_HangarChainAIThink(uint32_t ent) {
 }
 
 void XB_CDECL BroLvl_oran_SetupEvent4Chains(ScriptString movers, ScriptString chains) {
+    ScrStringGuard guard_chains(&chains);
     queue_notify(level_handle(), 0x011066c4);
     Scr_WaitFrames(0);
     // The previous event's movers and chain owners deleted.
@@ -402,9 +406,10 @@ void XB_CDECL BroLvl_oran_SetupEvent4Chains(ScriptString movers, ScriptString ch
         int32_t n = 0;
         for (uint32_t ent = numbered_ent(&movers, n); entity_handle_is_valid(ent); ent = numbered_ent(&movers, n)) {
             uint32_t mover = spawn_origin();
-            ScriptString name;
+            ScriptString name{};
+            ScrStringGuard guard_name(&name);
             set_string(mover, 0x99ca82d7, ScrCall_ScrEnt_GetTargetname(&ent, &name));
-            scr_release(&name);
+            scr_drop(&name);
             own_function<BuildTargetChain>(&BroScr_BuildTargetChain)(mover, ent, 1);  // BroScr_BuildTargetChain (third word unused)
             start_on(own_address(&BroScr_HangarChainMoverThink), mover);  // BroScr_HangarChainMoverThink
             DynArray_PushBack(reinterpret_cast<uint8_t*>(level_array(0x8c)), &mover);
@@ -415,9 +420,10 @@ void XB_CDECL BroLvl_oran_SetupEvent4Chains(ScriptString movers, ScriptString ch
         int32_t n = 0;
         for (uint32_t ent = numbered_ent(&chains, n); entity_handle_is_valid(ent); ent = numbered_ent(&chains, n)) {
             const uint32_t owner = spawn_origin();
-            ScriptString name;
+            ScriptString name{};
+            ScrStringGuard guard_name(&name);
             set_string(owner, 0x99ca82d7, ScrCall_ScrEnt_GetTargetname(&ent, &name));
-            scr_release(&name);
+            scr_drop(&name);
             own_function<BuildTargetChain>(&BroScr_BuildTargetChain)(owner, ent, 0);  // BroScr_BuildTargetChain
             start_on(own_address(&BroScr_HangarChainAIThink), owner);  // BroScr_HangarChainAIThink
             push_back_inline(level_array(0x98), owner);
@@ -428,7 +434,7 @@ void XB_CDECL BroLvl_oran_SetupEvent4Chains(ScriptString movers, ScriptString ch
     start_on(own_address(&BroScr_HangarChainUpdateLoop), level_handle());  // BroScr_HangarChainUpdateLoop
     queue_notify(level_handle(), 0x492f14bc);
     scr_release(&movers);
-    scr_release(&chains);
+    scr_drop(&chains);
 }
 
 namespace {
@@ -443,13 +449,14 @@ inline bool team_is(uint32_t ent, uint32_t text) {
 // The level list's entry whose targetname (0x99ca82d7) is `ent`'s target (the last match), else `found`.
 inline uint32_t chain_by_target(uint32_t ent, uint32_t offset, uint32_t found) {
     for (uint32_t i = 0; static_cast<int32_t>(i) < count_of(level_array(offset)); ++i) {
-        ScriptString target;
+        ScriptString target{};
+        ScrStringGuard guard_target(&target);
         const ScriptString* const wanted = ScrCall_ScrEnt_GetTarget(&ent, &target);
         const uint32_t chain = *element_at(level_array(offset), i);
         const bool equal = ScriptString_EqualsString(
             wanted, title_function<ScriptString* XB_THISCALL(ScriptKeyTable*, uint32_t)>(0x00458da0)(  // ScriptKeyTable_GetString
                         ent_script_object(chain), 0x99ca82d7));
-        scr_release(&target);
+        scr_drop(&target);
         if (equal) found = *element_at(level_array(offset), i);
     }
     return found;

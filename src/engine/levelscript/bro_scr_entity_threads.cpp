@@ -12,6 +12,7 @@
 #include "bro_scr_anim.h"
 #include "bro_scr_notify_threads.h"
 #include "g_scr_builtins.h"
+#include "scr_unwind_guard.h"
 
 namespace game {
 
@@ -195,18 +196,21 @@ void XB_CDECL BroScr_LeaveTurretToNode(uint32_t ai) {
     slot<EntWord>(0x00922d84)(ai, 0);              // ScrActor_SetByte_1374
     set_goal_radius(ai, goal_radius_key(ai));
     if (!entity_handle_is_valid(turret)) return;
-    ScriptString target;
+    ScriptString target{};
+    ScrStringGuard guard_target(&target);
     const bool none = ScrCall_ScrEnt_GetTarget(&ai, &target)->rep == nullptr;
-    scr_release(&target);
+    scr_drop(&target);
     if (none) return;
-    ScriptString key;
+    ScriptString key{};
+    ScrStringGuard guard_key(&key);
     scr_string_from(&key, 0x0082dda8);  // "targetname"
-    ScriptString target_name;
+    ScriptString target_name{};
+    ScrStringGuard guard_target_name(&target_name);
     uint32_t node = slot<uint32_t XB_CDECL(ScriptString*, ScriptString*, uint32_t, uint32_t)>(0x009221cc)(
         ScrCall_ScrEnt_GetTarget(&ai, &target_name), &key, 0, 0);  // GScr_GetNode
     if (node == 0xffffffff) node = 0;
-    scr_release(&target_name);
-    scr_release(&key);
+    scr_drop(&target_name);
+    scr_drop(&key);
     slot<long double XB_CDECL(uint32_t)>(0x00922df0)(ai);  // ScrSentient_GetFloat_18 (unused)
     set_goal_radius(ai, 8.0f);
     slot<void XB_CDECL(uint32_t, uint32_t*)>(0x00922688)(ai, &node);  // GScr_SetGoalPosFromNode
@@ -337,28 +341,31 @@ void XB_CDECL BroScr_NotSolidThrow(uint32_t ent) {
 }
 
 void XB_CDECL BroScr_PlaySoundOnTag(uint32_t ent, ScriptString alias, ScriptString tag) {
+    ScrStringGuard guard_alias(&alias, &tag);
     using IsFn = uint32_t XB_CDECL(uint32_t);
     if (!slot<IsFn>(0x00922220)(ent) || slot<IsFn>(0x00922210)(ent)) {  // GScr_IsSentient, GScr_IsAlive
         const uint32_t origin = spawn_linked_origin(ent, &tag);
         Scr_WaitTillString(origin, pointer<const char>(0x00825dc8));  // "sounddone"
         delete_ent(origin);
     }
-    scr_release(&alias);
-    scr_release(&tag);
+    scr_drop(&alias);
+    scr_drop(&tag);
 }
 
 void XB_CDECL BroScr_PlayLoopSoundOnTag(uint32_t ent, ScriptString alias, ScriptString tag) {
+    ScrStringGuard guard_alias(&alias, &tag);
     const uint32_t origin = spawn_linked_origin(ent, &tag);
     ScriptString stop;
     scr_string_from(&stop, 0x00825dd4);  // "stop sound"
-    ScriptString notify;
+    ScriptString notify{};
+    ScrStringGuard guard_notify(&notify);
     const ScriptStringRep* const rep = ScriptString_Concat(&notify, &stop, &alias)->rep;
     Scr_WaitTillString(ent, rep ? rep->text : nullptr);
-    scr_release(&notify);
+    scr_drop(&notify);
     scr_release(&stop);
     delete_ent(origin);
-    scr_release(&alias);
-    scr_release(&tag);
+    scr_drop(&alias);
+    scr_drop(&tag);
 }
 
 uint8_t* XB_CDECL BroScr_WaitFinishedSpawning(uint8_t* out, uint32_t ent) {
@@ -436,9 +443,10 @@ void XB_CDECL BroScr_OrientToEntityKillWatch(uint32_t ent, uint32_t other) {
 }
 
 void XB_CDECL BroScr_CoverShootOnNotify(uint32_t ent, uint32_t end, int32_t count, uint32_t target) {
-    ScriptString text;
+    ScriptString text{};
+    ScrStringGuard guard_text(&text);
     scr_string_from(&text, 0x00825e90);  // "doh!" (built and dropped)
-    scr_release(&text);
+    scr_drop(&text);
     end_on(ent, end);
     end_on(ent, kKillAnimScript);
     end_on(ent, kDeath);

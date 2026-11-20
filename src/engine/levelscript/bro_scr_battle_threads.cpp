@@ -13,6 +13,7 @@
 #include "bro_scr_stuka_bomb.h"
 #include "levels_twins.h"
 #include "bro_scr_anim_reach.h"
+#include "scr_unwind_guard.h"
 
 namespace game {
 
@@ -139,28 +140,34 @@ void XB_CDECL BroScr_PlaneBombLoop(uint32_t plane) {
 }
 
 void XB_CDECL BroScr_DronePathSpawnLoopCall_1(uint32_t a1, uint32_t a2, ScriptString name) {
+    ScrStringGuard guard_name(&name);
     drone_path_spawn_loop(a1, a2, &name, word_ebc(), word_ea4(), word_ea4(), word_ea4(), word_ea4(), undefined_bool_word());
 }
 
 void XB_CDECL BroScr_DronePathSpawnLoopCall_2(uint32_t a1, uint32_t a2, ScriptString name, uint32_t p9) {
+    ScrStringGuard guard_name(&name);
     drone_path_spawn_loop(a1, a2, &name, word_ebc(), word_ea4(), word_ea4(), word_ea4(), word_ea4(), p9);
 }
 
 void XB_CDECL BroScr_DronePathSpawnLoopCall_3(uint32_t a1, uint32_t a2, ScriptString name, uint32_t p4) {
+    ScrStringGuard guard_name(&name);
     drone_path_spawn_loop(a1, a2, &name, p4, word_ea4(), word_ea4(), word_ea4(), word_ea4(), undefined_bool_word());
 }
 
 void XB_CDECL BroScr_DronePathSpawnLoopCall_4(uint32_t a1, uint32_t a2, ScriptString name, uint32_t p4, uint32_t p9) {
+    ScrStringGuard guard_name(&name);
     drone_path_spawn_loop(a1, a2, &name, p4, word_ea4(), word_ea4(), word_ea4(), word_ea4(), p9);
 }
 
 void XB_CDECL BroScr_DronePathSpawnLoopCall_5(uint32_t a1, uint32_t a2, ScriptString name, uint32_t p4, uint32_t p5,
                                               uint32_t p6) {
+    ScrStringGuard guard_name(&name);
     drone_path_spawn_loop(a1, a2, &name, p4, p5, p6, word_ea4(), word_ea4(), undefined_bool_word());
 }
 
 void XB_CDECL BroScr_DronePathSpawnLoopCall_6(uint32_t a1, uint32_t a2, ScriptString name, uint32_t p4, uint32_t p5,
                                               uint32_t p6, uint32_t p9) {
+    ScrStringGuard guard_name(&name);
     drone_path_spawn_loop(a1, a2, &name, p4, p5, p6, word_ea4(), word_ea4(), p9);
 }
 
@@ -174,6 +181,7 @@ void XB_CDECL BroScr_MortarGroupShuffledLoopCall_2(uint32_t ent, DynArray group,
 }
 
 void XB_CDECL BroScr_MortarGroupShuffledLoopCall_3(uint32_t ent, DynArray group, ScriptString name) {
+    ScrStringGuard guard_name(&name);
     const uint32_t h = undefined_handle();
     uint32_t hash;
     Scr_HashScriptString(&hash, reinterpret_cast<const uint8_t* const*>(&name));
@@ -181,6 +189,7 @@ void XB_CDECL BroScr_MortarGroupShuffledLoopCall_3(uint32_t ent, DynArray group,
 }
 
 void XB_CDECL BroScr_MortarGroupShuffledLoopCall_4(uint32_t ent, DynArray group, ScriptString name, uint32_t b) {
+    ScrStringGuard guard_name(&name);
     uint32_t hash;  // the original writes it into b's argument slot after pushing b
     Scr_HashScriptString(&hash, reinterpret_cast<const uint8_t* const*>(&name));
     mortar_group_shuffled_loop(ent, &group, hash, b);

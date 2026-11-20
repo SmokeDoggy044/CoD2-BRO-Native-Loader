@@ -8,6 +8,7 @@
 #include "scr_field.h"
 #include "title_data.h"
 #include "bro_scr_note_handlers.h"
+#include "scr_unwind_guard.h"
 
 namespace game {
 
@@ -106,10 +107,11 @@ inline void play_sound_on_temp_origin(ScriptString* sound, const ScrVec3& origin
 inline void stuka_siren(uint32_t ent) {
     Scr_EndOnString(ent, pointer<const char>(0x0082372c));  // "stop_mg42s"
     for (;;) {
-        ScriptString sound;
+        ScriptString sound{};
+        ScrStringGuard guard_sound(&sound);
         ScriptString_FromCString(&sound, pointer<const char>(0x00823720));  // "stuka_siren"
         slot<PlaySound>(0x009221dc)(ent, &sound, 0x9a73c1c0, 0, 0);        // GScr_PlaySound
-        ScriptString_Release(&sound);
+        scr_drop(&sound);
         Scr_WaitTill(ent, 0x9a73c1c0);
     }
 }
@@ -139,12 +141,13 @@ inline void notify_level_on_trigger(uint32_t trigger, const uint32_t* number_fie
         Scr_WaitTillString(trigger, pointer<const char>(0x0083aa58));  // "trigger"
         const uint32_t level = title_global<uint32_t>(0x00922ee0);
         const uint32_t* handle = pointer<uint32_t>(level ? level + 4 : 0);
-        ScriptString name;
+        ScriptString name{};
+        ScrStringGuard guard_name(&name);
         uint32_t hash;
         const uint32_t notify = *Scr_HashScriptString(
             &hash, reinterpret_cast<const uint8_t* const*>(ScriptString_FromCStringPlusInt(&name, pointer<const char>(text), number)));
         queue_notify(*handle, notify);
-        ScriptString_Release(&name);
+        scr_drop(&name);
     }
 }
 
@@ -229,16 +232,18 @@ void XB_CDECL BroScr_WaitTill_h08d272e5(uint32_t object) { Scr_WaitTill(object, 
 void XB_CDECL BroScr_PlayFlakSound(uint32_t, ScrVec3 origin) {
     const uint32_t ent = spawn_script_origin(origin.v);
     slot<void XB_CDECL(uint32_t, ScrVec3)>(0x00922b24)(ent, origin);  // ScrEnt_SetOrigin
-    ScriptString sound;
+    ScriptString sound{};
+    ScrStringGuard guard_sound(&sound);
     ScriptString_FromCString(&sound, pointer<const char>(0x0080a530));  // "flak_generic"
     slot<PlaySound>(0x009221dc)(ent, &sound, kSoundDone, 0, 0);       // GScr_PlaySound
-    ScriptString_Release(&sound);
+    scr_drop(&sound);
     Scr_WaitTill(ent, kSoundDone);
     Scr_Wait(1.0f);
     delete_ent(ent);
 }
 
 void XB_CDECL BroScr_PlaySoundAtTempOrigin(ScrVec3 origin, uint32_t, ScriptString sound, ScrVec3 position) {
+    ScrStringGuard guard_sound(&sound);
     const uint32_t ent = spawn_script_origin(origin.v);
     const uint32_t at[3] = {position.v[0], position.v[1], position.v[2]};
     using PlayAt = void XB_CDECL(uint32_t, ScriptString*, const uint32_t*, uint32_t, uint32_t);
@@ -246,7 +251,7 @@ void XB_CDECL BroScr_PlaySoundAtTempOrigin(ScrVec3 origin, uint32_t, ScriptStrin
     Scr_WaitTill(ent, kSoundDone);
     Scr_Wait(1.0f);
     delete_ent(ent);
-    ScriptString_Release(&sound);
+    scr_drop(&sound);
 }
 
 void XB_CDECL BroScr_WaitFiveSeconds() {
@@ -256,6 +261,7 @@ void XB_CDECL BroScr_WaitFiveSeconds() {
 }
 
 void XB_CDECL BroScr_FadeFromBlack(ScriptString text) {
+    ScrStringGuard guard_text(&text);
     using Set = void XB_CDECL(uint32_t, uint32_t);
     using HudOp = void XB_CDECL(uint32_t, uint32_t);
     // The new hud element's handle is written to a stack word first (the slot returns a pointer to it).
@@ -265,11 +271,12 @@ void XB_CDECL BroScr_FadeFromBlack(ScriptString text) {
     slot<Set>(0x00922a48)(level_word(0x2e0), 0);                                    // ScrHudElem_Set_04
     slot<Set>(0x00922a50)(level_word(0x2e0), 0);                                    // ScrHudElem_Set_08
     slot<Set>(0x00922a68)(level_word(0x2e0), 0);                                    // ScrHudElem_SetFloat_6c
-    ScriptString shader;
+    ScriptString shader{};
+    ScrStringGuard guard_shader(&shader);
     ScriptString_FromCString(&shader, pointer<const char>(0x007f51f8));  // "black"
     slot<void XB_CDECL(uint32_t, ScriptString*, uint32_t, uint32_t)>(0x009228ec)(level_object() + 0x2e0, &shader, 0x280,
                                                                                  0x1e0);  // GScr_HudSetShader 640x480
-    ScriptString_Release(&shader);
+    scr_drop(&shader);
     Scr_Wait(as_float(0x3dcccccd));  // 0.1
     if (text.rep) {
         const uint32_t elem = *slot<uint32_t* XB_CDECL(uint32_t*)>(0x0092248c)(&handle);
@@ -293,7 +300,7 @@ void XB_CDECL BroScr_FadeFromBlack(ScriptString text) {
     Scr_Wait(as_float(0x3fcccccd));  // 1.6
     slot<void XB_CDECL(uint32_t)>(0x0092291c)(level_object() + 0x2e0);  // GScr_HudDestroy
     if (text.rep) slot<void XB_CDECL(uint32_t)>(0x0092291c)(level_object() + 0x62c);
-    ScriptString_Release(&text);
+    scr_drop(&text);
 }
 
 void XB_CDECL BroScr_StartFxOnTrigger(uint32_t, uint32_t, uint32_t trigger) {
@@ -317,11 +324,12 @@ void XB_CDECL BroScr_WaitTillTrigger(uint32_t ent) {
 
 void XB_CDECL BroScr_ExploderTriggerThink(uint32_t trigger) {
     const int32_t number = static_cast<int32_t>(*ScrField_script_exploder(trigger));
-    ScriptString name;
+    ScriptString name{};
+    ScrStringGuard guard_name(&name);
     uint32_t hash;  // the original keeps it in its argument's slot
     hash = *Scr_HashScriptString(&hash, reinterpret_cast<const uint8_t* const*>(ScriptString_FromCStringPlusInt(
                                             &name, pointer<const char>(0x008235d0), number)));  // "killexplodertriggers"
-    ScriptString_Release(&name);
+    scr_drop(&name);
     end_on(level_handle(), hash);
     slot<void XB_CDECL(int32_t, uint32_t)>(0x009223bc)(number, 0);  // GScr_SetIntMapValue
     slot<uint32_t XB_CDECL(int32_t)>(0x009223c0)(number);           // GScr_GetIntMapValue (unused)
@@ -361,12 +369,15 @@ void XB_CDECL BroScr_VehicleFireIfAlive_3(uint32_t vehicle) { fire_if_alive(vehi
 void XB_CDECL BroScr_VehicleFireIfAlive_4(uint32_t vehicle) { fire_if_alive(vehicle); }
 
 void XB_CDECL BroScr_PlaySoundOnTempOrigin(uint32_t, ScriptString sound, ScrVec3 origin) {
+    ScrStringGuard guard_sound(&sound);
     play_sound_on_temp_origin(&sound, origin);
 }
 void XB_CDECL BroScr_PlaySoundOnTempOrigin_2(uint32_t, ScriptString sound, ScrVec3 origin) {
+    ScrStringGuard guard_sound(&sound);
     play_sound_on_temp_origin(&sound, origin);
 }
 void XB_CDECL BroScr_PlaySoundOnTempOrigin_3(uint32_t, ScriptString sound, ScrVec3 origin) {
+    ScrStringGuard guard_sound(&sound);
     play_sound_on_temp_origin(&sound, origin);
 }
 
@@ -375,10 +386,11 @@ void XB_CDECL BroScr_StukaSiren_2(uint32_t ent) { stuka_siren(ent); }
 void XB_CDECL BroScr_StukaSiren_3(uint32_t ent) { stuka_siren(ent); }
 
 void XB_CDECL BroScr_StukaTakeoff(uint32_t ent) {
-    ScriptString tree;
+    ScriptString tree{};
+    ScrStringGuard guard_tree(&tree);
     ScriptString_FromCString(&tree, pointer<const char>(0x007f4970));  // "stuka"
     slot<void XB_CDECL(uint32_t, ScriptString*)>(0x009225f0)(ent, &tree);  // GScr_UseAnimTree
-    ScriptString_Release(&tree);
+    scr_drop(&tree);
     Scr_WaitTillString(ent, pointer<const char>(0x0081db48));  // "takeoff"
     using SetAnim = void XB_CDECL(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
     slot<SetAnim>(0x009225dc)(ent, title_global<uint32_t>(0x008cd4d0), 0x3f800000, 0x3e4ccccd, 0x3f800000,

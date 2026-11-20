@@ -9,6 +9,7 @@
 #include "scr_field.h"
 #include "title_data.h"
 #include "levels_twins.h"
+#include "scr_unwind_guard.h"
 
 namespace game {
 
@@ -74,17 +75,18 @@ uint32_t* XB_CDECL BroScr_DroneSplineMath(uint32_t* out, uint32_t, uint32_t ent)
             return out;
         }
         // "Drone_Spline_Math():\n Spline File Not Found, " + targetname + ".spl" + the hint, dropped.
-        ScriptString head, other, joined, with_suffix, message;
+        ScriptString head{}, other{}, joined{}, with_suffix{}, message{};
+        ScrStringGuard guard_head(&head, &other, &joined, &with_suffix, &message);
         ScriptString_FromCString(&head, pointer<const char>(0x00824c00));
         const ScriptString* const name2 = ScrCall_ScrEnt_GetTargetname(&ent, &other);
         ScriptString_Concat(&joined, &head, name2);
         ScriptString_ConcatCString(&with_suffix, &joined, pointer<const char>(0x00824bf8));  // ".spl"
         ScriptString_ConcatCString(&message, &with_suffix, pointer<const char>(0x00824bb0));
-        ScriptString_Release(&with_suffix);
-        ScriptString_Release(&joined);
-        ScriptString_Release(&other);
-        ScriptString_Release(&head);
-        ScriptString_Release(&message);
+        scr_drop(&with_suffix);
+        scr_drop(&joined);
+        scr_drop(&other);
+        scr_drop(&head);
+        scr_drop(&message);
     }
     out[0] = out[1] = out[2] = 0;
     assign12(reinterpret_cast<DynArray*>(out), &empty);
@@ -114,23 +116,25 @@ uint32_t XB_CDECL BroScr_BuildDroneSplines(uint32_t* args) {
         BroScr_DroneSplineMath(reinterpret_cast<uint32_t*>(&result), *level_ent, *drone);
         assign12(&splines, &result);
         free_data(address_of(result.data));
-        ScriptString targetname, underscore, numbered, file;
+        ScriptString targetname{}, underscore{}, numbered{}, file{};
+        ScrStringGuard guard_targetname(&targetname, &underscore, &numbered, &file);
         const ScriptString* const name_i = ScrCall_ScrEnt_GetTargetname(BroScr_ArrayElement(&args[1], i), &targetname);
         ScriptString_ConcatCString(&underscore, name_i, pointer<const char>(0x0082b1b8));  // "_"
         ScriptString_PlusInt(&numbered, &underscore, static_cast<int32_t>(i));
         ScriptString_ConcatCString(&file, &numbered, pointer<const char>(0x00824bf8));  // ".spl"
-        ScriptString_Release(&numbered);
-        ScriptString_Release(&underscore);
-        ScriptString_Release(&targetname);
-        ScriptString_Release(&file);
+        scr_drop(&numbered);
+        scr_drop(&underscore);
+        scr_drop(&targetname);
+        scr_drop(&file);
         free_data(address_of(splines.data));
     }
     if (drones->size == 0) DynArray_Resize(reinterpret_cast<uint8_t*>(drones), 1, 4);
-    ScriptString first, file;
+    ScriptString first{}, file{};
+    ScrStringGuard guard_first(&first, &file);
     ScriptString_ConcatCString(&file, ScrCall_ScrEnt_GetTargetname(drones->data, &first), pointer<const char>(0x00824bf8));
-    ScriptString_Release(&first);
+    scr_drop(&first);
     *reinterpret_cast<int32_t*>(level() + 0x2e4) = 0;
-    ScriptString_Release(&file);
+    scr_drop(&file);
     free_data(address_of(drones->data));
     ScriptString_Release(name);
     return 0;
@@ -140,7 +144,8 @@ BRO_SCR_ARGS_ENTRY(BroScr_BuildDroneSplinesForEntArrays)
 uint32_t XB_CDECL BroScr_BuildDroneSplinesForEntArrays(uint32_t* args) {
     ScrStringArray* const groups = reinterpret_cast<ScrStringArray*>(&args[1]);
     ScriptString* const name = reinterpret_cast<ScriptString*>(&args[4]);
-    ScriptString none;
+    ScriptString none{};
+    ScrStringGuard guard_none(&none);
     ScriptString_FromRep(&none, nullptr);
     for (uint32_t i = 0; static_cast<int32_t>(i) < static_cast<int32_t>(groups->count); ++i) {
         DynArray drones = {};
@@ -159,7 +164,7 @@ uint32_t XB_CDECL BroScr_BuildDroneSplinesForEntArrays(uint32_t* args) {
         }
         free_data(address_of(drones.data));
     }
-    ScriptString_Release(&none);
+    scr_drop(&none);
     if (groups->data) {
         ScriptString* const end = groups->data + groups->count;
         for (ScriptString* s = groups->data; s != end; ++s) ScriptString_Release(s);
