@@ -3361,9 +3361,15 @@ uint32_t XB_CDECL SndSys_InitDirectSound() {
     // the DSP image 0x008bed18 (no I3DL2 reverb in it), set the distance factor 1 (doppler only) and full HRTF.
     device().open();
     device().set_headphones(false);
-    const uint32_t memory = own_function<uint32_t XB_STDCALL(uint32_t, uint32_t, uint32_t, uint32_t)>(&XPhysicalAlloc)(
-        0x780000, 0xffffffffu, 0, 0x204);  // XPhysicalAlloc: 7.5 MB, any address, PAGE_READWRITE | PAGE_NOCACHE
-    SndMem_Init(memory, 0x780000);
+    // Ours: 1/8 of the memory past 64 MB on top (Mem_ExtraBytes; the original 7.5 MB at 64 MB).
+    const auto physical_alloc = own_function<uint32_t XB_STDCALL(uint32_t, uint32_t, uint32_t, uint32_t)>(&XPhysicalAlloc);  // XPhysicalAlloc
+    uint32_t size = 0x780000 + Mem_ExtraBytes(1, 8);
+    uint32_t memory = physical_alloc(size, 0xffffffffu, 0, 0x204);  // any address, PAGE_READWRITE | PAGE_NOCACHE
+    if (!memory && size != 0x780000) {
+        size = 0x780000;
+        memory = physical_alloc(size, 0xffffffffu, 0, 0x204);
+    }
+    SndMem_Init(memory, size);
     own_function<void XB_CDECL(int32_t, int32_t, int32_t, int32_t, int32_t, int32_t, int32_t, int32_t)>(&SndSys_CreateVoiceBuffers_entry)(
         1, 1, 1, 1, 7, 0x24, 7, 0x24);  // SndSys_CreateVoiceBuffers (its entry wants a title caller's stack)
     title_global<uint32_t>(0x003e45f4) = 0;  // a DirectSound library word

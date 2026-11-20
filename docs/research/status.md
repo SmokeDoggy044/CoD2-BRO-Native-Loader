@@ -168,8 +168,9 @@ outside the repository.)
   `XboxHDKey` is a fixed port key, so saves from a real console won't verify.
 - Memory (`src/runtime/xbox/kernel_memory.cpp`, host side `src/platform/vmem*`): NT-style virtual memory at
   0x10000000-0x50000000, contiguous memory at 0x80000000 + physical, and one physical
-  page budget (`--memory MB`, default 64 like a retail Xbox) shared by the image,
-  contiguous and committed memory. Our own renderer/audio code is outside it.
+  page budget (`--memory MB`: the loader 64 like a retail Xbox, our own exe 128) shared by the image,
+  contiguous and committed memory. Our own renderer/audio code is outside it. Past 64 MB, our C gives the game's
+  physical pool 3/4 and its sound memory 1/8 of the extra (`Mem_ExtraBytes`); 1/8 stays free.
 - Files (`src/runtime/xbox/filesystem.cpp`, host side `src/platform/file*`): symbolic links,
   `\Device\CdRom0` = assets (read-only), partition 1 (E:/T:/U:) and the cache (Z:) in
   the user data folder, case-insensitive paths. File handles are FILE_OBJECTs that

@@ -60,8 +60,9 @@ const SettingDef kSettings[] = {
      "game",
      "the language of the texts on screen (menus, hints, subtitles): the game's own, or Polish, Russian or Ukrainian "
      "(our translations, lang/game/pl.po, ru.po, uk.po; the voices stay in the game's language)"},
-    {"memory", "MB", T::Int, G::Files, 0, 16, 1024, nullptr, "64",
-     "Xbox memory budget (default 64, like a retail Xbox; devkit: 128)"},
+    {"memory", "MB", T::Int, G::Files, 0, 16, 1024, nullptr, "128",
+     "the game's memory (default 128; the game's own pools and sound memory grow with what is past a retail Xbox's 64 "
+     "MB; 64 = exactly as on the Xbox; the multiplayer, still on the loader, keeps 64)"},
 
     // --- Display
     {"game-cursor", "on|off", T::Switch, G::Display, 0, 0, 0, nullptr, "on",

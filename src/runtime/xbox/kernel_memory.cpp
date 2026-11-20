@@ -565,11 +565,19 @@ bool memory_init(const MemoryConfig& config) {
         LOG_ERROR("memory", "invalid memory layout");
         return false;
     }
-    if (!platform::vmem::reserve(config.contiguous_base, config.physical_bytes)) {
-        LOG_ERROR("memory", "cannot reserve contiguous memory at %08x+%x", config.contiguous_base, config.physical_bytes);
-        return false;
-    }
     MemoryConfig layout = config;
+    if (!platform::vmem::reserve(layout.contiguous_base, layout.physical_bytes)) {
+        // More than a retail Xbox's 64 MB is an extra: fall back to 64 when the range is taken.
+        constexpr uint32_t kXboxBytes = 64u << 20;
+        if (layout.physical_bytes <= kXboxBytes || !platform::vmem::reserve(layout.contiguous_base, kXboxBytes)) {
+            LOG_ERROR("memory", "cannot reserve contiguous memory at %08x+%x", config.contiguous_base,
+                      config.physical_bytes);
+            return false;
+        }
+        LOG_WARN("memory", "cannot reserve %u MB at %08x; using 64 MB", config.physical_bytes >> 20,
+                 config.contiguous_base);
+        layout.physical_bytes = kXboxBytes;
+    }
     if (!platform::vmem::reserve(layout.virtual_base, layout.virtual_end - layout.virtual_base)) {
         // Something else already lives there (on Windows e.g. a DLL injected at its
         // default base 0x10000000 before our stub ran). The range's place does not
@@ -598,12 +606,12 @@ bool memory_init(const MemoryConfig& config) {
         }
     }
     g_memory.config = layout;
-    g_memory.total_pages = config.physical_bytes / kPage;
+    g_memory.total_pages = layout.physical_bytes / kPage;
     g_memory.page_state.assign((layout.virtual_end - layout.virtual_base) / kPage, PageState::Free);
     g_memory.page_protect.assign(g_memory.page_state.size(), 0);
     g_memory.contiguous_protect.assign(g_memory.total_pages, 0);
     g_memory.initialized = true;
-    LOG_INFO("memory", "%u MB physical at %08x, virtual %08x-%08x", config.physical_bytes >> 20,
+    LOG_INFO("memory", "%u MB physical at %08x, virtual %08x-%08x", layout.physical_bytes >> 20,
              layout.contiguous_base, layout.virtual_base, layout.virtual_end);
     return true;
 }

@@ -1763,18 +1763,31 @@ uint8_t* XB_THISCALL Heap_AllocFromHeap(uint8_t* heap, uint32_t size, uint32_t a
     return result;
 }
 
+uint32_t Mem_ExtraBytes(uint32_t num, uint32_t den) {
+    uint32_t status[8];
+    own_function<void XB_STDCALL(uint32_t*)>(&GlobalMemoryStatus)(status);  // GlobalMemoryStatus
+    constexpr uint32_t kXboxBytes = 64u << 20;
+    if (status[2] <= kXboxBytes) return 0;
+    const uint64_t share = uint64_t(status[2] - kXboxBytes) * num / den;
+    return static_cast<uint32_t>(share) & ~0xffffu;
+}
+
 uint32_t XB_CDECL Mem_AllocPhysicalPools() {
     // The physical pool (0x232b000 bytes, read/write) and the write-combined one (0x3ac000, read/write +
     // write-combine), anywhere in physical memory, page aligned; no debug pool (start/end -1, size 0). The
-    // memory status it asks for first is not used.
-    uint32_t status[8];
-    own_function<void XB_STDCALL(uint32_t*)>(&GlobalMemoryStatus)(status);  // GlobalMemoryStatus
+    // original asked for the memory status first and did not use it; ours gives the physical pool 3/4 of the
+    // memory past 64 MB (the original's sizes at 64 MB), the original size when that much is not free.
     const auto physical_alloc = own_function<uint32_t XB_STDCALL(uint32_t, uint32_t, uint32_t, uint32_t)>(&XPhysicalAlloc);  // XPhysicalAlloc
     title_global<uint32_t>(0x00901afc) = 0xffffffffu;  // debug pool start
     title_global<uint32_t>(0x00901b00) = 0xffffffffu;  // debug pool end
     title_global<uint32_t>(0x00901b04) = 0;            // debug pool size
-    title_global<uint32_t>(0x00901af8) = 0x0232b000;   // physPoolSize
-    const uint32_t physical = physical_alloc(0x0232b000, 0xffffffffu, 0x1000, 4);  // PAGE_READWRITE
+    uint32_t size = 0x0232b000 + Mem_ExtraBytes(3, 4);
+    uint32_t physical = physical_alloc(size, 0xffffffffu, 0x1000, 4);  // PAGE_READWRITE
+    if (!physical && size != 0x0232b000) {
+        size = 0x0232b000;
+        physical = physical_alloc(size, 0xffffffffu, 0x1000, 4);
+    }
+    title_global<uint32_t>(0x00901af8) = size;  // physPoolSize
     title_global<uint32_t>(0x00901af0) = physical;
     title_global<uint32_t>(0x00901af4) = physical + title_global<uint32_t>(0x00901af8);
     title_global<uint32_t>(0x00901b10) = 0x003ac000;  // wcPoolSize
