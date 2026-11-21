@@ -1,6 +1,7 @@
 // Vulkan instance, device, frames, images and uploads. See vk_context.h.
 
 #include "vk_context.h"
+#include "spirv_layout.h"
 
 #include <SDL3/SDL_vulkan.h>
 
@@ -248,11 +249,13 @@ bool Context::create(SDL_Window* window, bool validation) {
         const bool amd_own_compiler =
             driver.driverID == VK_DRIVER_ID_AMD_PROPRIETARY && !std::strstr(driver.driverInfo, "LLPC");
         shader_build_threads_ = amd_own_compiler ? 1 : 8;
+        set_spirv_strip_debug(amd_own_compiler);
         if (const char* threads = std::getenv("COD_BRO_VK_SHADER_THREADS"); threads && std::atoi(threads) > 0)
             shader_build_threads_ = static_cast<unsigned>(std::min(std::atoi(threads), 32));
         if (shader_build_threads_ == 1)
             LOG_INFO("render", "Vulkan: title shaders compiled on one thread%s",
-                     amd_own_compiler ? " (AMD's driver with its own shader compiler)" : "");
+                     amd_own_compiler ? " (AMD's driver with its own shader compiler; their debug information left out)"
+                                      : "");
     }
     VkDeviceCreateInfo device_info{VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO};
     device_info.pNext = &features;

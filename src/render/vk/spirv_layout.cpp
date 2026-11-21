@@ -63,7 +63,68 @@ bool read_declarations(const uint32_t* tokens, uint32_t count, std::map<std::pai
     return false;
 }
 
+// The forms of SPIR-V that GLSL compilers (and DXVK) give drivers, in place of three vkd3d uses that are valid
+// but rare: AMD's driver with its own shader compiler crashed compiling the first title pixel shader (#28, #25,
+// #33; 1.0.9's crash note: "compiling Vulkan title shader 0 ... pipeline library part 4"), with or without pipeline
+// libraries. The shader's meaning is unchanged:
+// - debug information (OpSource*, OpString, OpLine, OpNoLine, OpModuleProcessed) left out only with
+//   set_spirv_strip_debug (AMD's own compiler): elsewhere it stays for debugging tools (no cost at run time);
+// - OpInBoundsAccessChain as OpAccessChain (the same address, one guarantee less);
+// - OpCopyMemory target source as OpLoad %T %new source + OpStore target %new (%T the source's pointee type; a
+//   copy whose type is not found stays as it was).
+bool g_strip_debug = false;  // set_spirv_strip_debug
+
+void spirv_common_forms(std::vector<uint32_t>& words) {
+    constexpr uint32_t kOpSourceContinued = 2, kOpSource = 3, kOpSourceExtension = 4, kOpString = 7, kOpLine = 8,
+                       kOpNoLine = 317, kOpModuleProcessed = 330, kOpTypePointer = 32, kOpFunctionParameter = 55,
+                       kOpVariable = 59, kOpLoad = 61, kOpStore = 62, kOpCopyMemory = 63, kOpAccessChain = 65,
+                       kOpInBoundsAccessChain = 66, kOpPtrAccessChain = 67, kOpCopyObject = 83,
+                       kOpInBoundsPtrAccessChain = 70;
+    // The pointee type of every pointer type, and the type of every id that can be a pointer.
+    std::map<uint32_t, uint32_t> pointee, type_of;
+    for (size_t i = 5; i < words.size(); i += words[i] >> 16) {
+        const uint32_t count = words[i] >> 16, opcode = words[i] & 0xFFFF;
+        if (count == 0) return;
+        if (opcode == kOpTypePointer && count >= 4) pointee[words[i + 1]] = words[i + 3];
+        else if ((opcode == kOpVariable || opcode == kOpAccessChain || opcode == kOpInBoundsAccessChain ||
+                  opcode == kOpPtrAccessChain || opcode == kOpInBoundsPtrAccessChain || opcode == kOpCopyObject ||
+                  opcode == kOpFunctionParameter || opcode == kOpLoad) && count >= 3)
+            type_of[words[i + 2]] = words[i + 1];
+    }
+    uint32_t bound = words[3];
+    std::vector<uint32_t> out(words.begin(), words.begin() + 5);
+    out.reserve(words.size());
+    for (size_t i = 5; i < words.size(); i += words[i] >> 16) {
+        const uint32_t count = words[i] >> 16, opcode = words[i] & 0xFFFF;
+        if (g_strip_debug && (opcode == kOpSourceContinued || opcode == kOpSource || opcode == kOpSourceExtension ||
+                              opcode == kOpString || opcode == kOpLine || opcode == kOpNoLine ||
+                              opcode == kOpModuleProcessed))
+            continue;
+        if (opcode == kOpInBoundsAccessChain) {
+            out.push_back(count << 16 | kOpAccessChain);
+            out.insert(out.end(), words.begin() + i + 1, words.begin() + i + count);
+            continue;
+        }
+        if (opcode == kOpCopyMemory && count >= 3) {
+            const uint32_t target = words[i + 1], source = words[i + 2];
+            const auto pointer = type_of.find(source);
+            const auto value = pointer == type_of.end() ? pointee.end() : pointee.find(pointer->second);
+            if (value != pointee.end()) {
+                const uint32_t loaded = bound++;
+                out.insert(out.end(), {4u << 16 | kOpLoad, value->second, loaded, source});
+                out.insert(out.end(), {3u << 16 | kOpStore, target, loaded});
+                continue;
+            }
+        }
+        out.insert(out.end(), words.begin() + i, words.begin() + i + count);
+    }
+    out[3] = bound;
+    words = std::move(out);
+}
+
 }  // namespace
+
+void set_spirv_strip_debug(bool strip) { g_strip_debug = strip; }
 
 std::vector<uint32_t> spirv_fixed_layout(const void* d3dbc, uint32_t d3dbc_bytes, const void* spirv,
                                          uint32_t spirv_bytes, std::string* error) {
@@ -172,6 +233,7 @@ std::vector<uint32_t> spirv_fixed_layout(const void* d3dbc, uint32_t d3dbc_bytes
             *error = format("position in o%u", key.second);
             return {};
         }
+    spirv_common_forms(words);
     return words;
 }
 
