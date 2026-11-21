@@ -262,6 +262,9 @@ void configure_title_services(const Options& options, const fs::path& assets, co
         host.reserve = &xbox::title_reserve;
         host.contiguous_base = &xbox::contiguous_base;
         host.in_contiguous_memory = &xbox::in_contiguous_memory;
+        host.game_heap_base = &xbox::game_heap_base;
+        host.game_heap_bytes = &xbox::game_heap_bytes;
+        host.game_heap_commit = &xbox::game_heap_commit;
         host.relaunch = [](const uint8_t* page) { loader::request_title_restart(page, xbox::kLaunchDataPageSize); };
         // The multiplayer runs on the loader (its renderer is the original's): started beside us with our data folder.
         static std::vector<std::string> multiplayer_args;

@@ -39,6 +39,10 @@ struct Config {
     // Replay: also write this run's own state records ('E' + 'F', the recording's format) to this file, so runs in
     // different builds can be compared with each other (tools/replay_compare.py). Empty = no.
     std::filesystem::path hashes_out;
+    // Replay: also write a new recording (this format) of the run: every value the replay hands the title, with this
+    // build's state records and memory layout, and the old file's settings and command line - an old recording
+    // brought to the current format (--rerecord). Empty = no.
+    std::filesystem::path rerecord;
     // Replay: another run's state records (a recording or a hashes_out file); the first frame whose state differs
     // from it is logged (differing entities) and written to reference_dump_dir like dump_frame. Empty = no.
     std::filesystem::path reference;
@@ -77,7 +81,8 @@ bool main_thread();
 // live). Record with value() as usual.
 bool recorded(char tag, uint32_t& v);
 bool replaying();
-// The format version of the file being replayed (a recording: the current one). 5 added native key events.
+// The input format of the file being replayed (a recording: the current one; a re-recording: its original's, kept
+// in its V record). 5 added native key events.
 uint32_t version();
 
 // Ends a recording (flushed, closed) or a replay (its report; exits if exit_at_end). Before a reboot.

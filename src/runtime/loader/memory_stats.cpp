@@ -161,6 +161,7 @@ void sample() {
         labels.push_back({usage.layout.contiguous_base, usage.layout.physical_bytes, "xbox contiguous memory"});
         labels.push_back({usage.layout.virtual_base, usage.layout.virtual_end - usage.layout.virtual_base,
                           "xbox virtual memory range"});
+        if (usage.layout.heap_bytes) labels.push_back({usage.layout.heap_base, usage.layout.heap_bytes, "game heap"});
     }
     // From the game's first frame on: before it the Windows stub still holds its placeholder reservations
     // (win32_stub.c keeps the Xbox ranges free until memory_init takes them).
@@ -222,6 +223,11 @@ void write_memory_stats() {
                   usage.layout.contiguous_base, usage.layout.contiguous_base + usage.layout.physical_bytes,
                   usage.layout.virtual_base, usage.layout.virtual_end);
     text += line;
+    if (usage.layout.heap_bytes) {
+        std::snprintf(line, sizeof(line), "  game heap: %08x, %u of %u MB committed now\n", usage.layout.heap_base,
+                      usage.heap_committed >> 20, usage.layout.heap_bytes >> 20);
+        text += line;
+    }
     {
         std::lock_guard lock(s.mutex);
         text += "\nAddress space below 4 GB (sampled every second)\n";

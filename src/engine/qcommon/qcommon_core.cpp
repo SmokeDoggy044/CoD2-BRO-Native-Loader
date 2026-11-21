@@ -18,6 +18,7 @@
 #include "title_data.h"
 #include "title_xapi.h"
 #include "title_eh.h"
+#include "title_host.h"
 #include "title_savegame.h"
 #include "unr_methods.h"
 
@@ -713,6 +714,12 @@ uint32_t XB_CDECL Heap_Sbrk(uint32_t size) {
     const uint32_t top = word_at(heap, 0x47c);
     const uint32_t next = size + top;
     if (next >= word_at(heap, 0x478)) return 0xffffffffu;
+    // Ours: the main heap (0x008ff638) in the host's own range is committed as its top moves up (the original's pool
+    // was committed whole). A shrinking top keeps its pages.
+    if (heap == reinterpret_cast<uint8_t*>(uintptr_t{0x008ff638}) && static_cast<int32_t>(size) > 0 &&
+        title_host().game_heap_commit && title_host().game_heap_bytes && title_host().game_heap_bytes() &&
+        !title_host().game_heap_commit(next))
+        return 0xffffffffu;
     word_at(heap, 0x47c) = next;
     return top;
 }
@@ -1781,11 +1788,19 @@ uint32_t XB_CDECL Mem_AllocPhysicalPools() {
     title_global<uint32_t>(0x00901afc) = 0xffffffffu;  // debug pool start
     title_global<uint32_t>(0x00901b00) = 0xffffffffu;  // debug pool end
     title_global<uint32_t>(0x00901b04) = 0;            // debug pool size
-    uint32_t size = 0x0232b000 + Mem_ExtraBytes(3, 4);
-    uint32_t physical = physical_alloc(size, 0xffffffffu, 0x1000, 4);  // PAGE_READWRITE
-    if (!physical && size != 0x0232b000) {
-        size = 0x0232b000;
-        physical = physical_alloc(size, 0xffffffffu, 0x1000, 4);
+    uint32_t size = 0;
+    uint32_t physical = 0;
+    if (title_host().game_heap_bytes && title_host().game_heap_bytes()) {
+        // Ours, own engine: the host's game heap range, committed as the heap grows (Heap_Sbrk).
+        physical = title_host().game_heap_base();
+        size = title_host().game_heap_bytes();
+    } else {
+        size = 0x0232b000 + Mem_ExtraBytes(3, 4);
+        physical = physical_alloc(size, 0xffffffffu, 0x1000, 4);  // PAGE_READWRITE
+        if (!physical && size != 0x0232b000) {
+            size = 0x0232b000;
+            physical = physical_alloc(size, 0xffffffffu, 0x1000, 4);
+        }
     }
     title_global<uint32_t>(0x00901af8) = size;  // physPoolSize
     title_global<uint32_t>(0x00901af0) = physical;

@@ -139,6 +139,9 @@ int host_main(int argc, char** argv) {
     constexpr uint32_t kOwnEngineVirtualBytes = 64u << 20;
     memory.virtual_end = memory.virtual_base + kOwnEngineVirtualBytes;
     memory.host_placed = true;
+    // The game's main heap grows as it needs (Heap_Sbrk commits it): up to 512 MB of address space, where the Xbox
+    // had a fixed 35 MB block (and our 128 MB default 83 MB).
+    memory.heap_bytes = 512u << 20;
     if (!xbox::memory_init(memory) || !xbox::place_launch_data_page({}))
         return loader::startup_failed("cannot set up the game's memory");
     xbox::charge_image_pages(loader::initial_image_pages(image));

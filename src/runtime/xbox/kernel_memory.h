@@ -21,6 +21,13 @@ bool in_contiguous_memory(uint32_t address);
 // The address lies in the title's contiguous memory or its virtual range (where its heaps and objects live).
 bool in_title_memory(uint32_t address);
 
+// The game heap's range (MemoryConfig::heap_bytes): its base (0 = none) and size, and committing it up to `end` (an
+// address in it; page runs are committed in 1 MB steps). False when `end` lies past the range or the host refuses.
+// After an in-process restart the same range is handed out again, decommitted.
+XbPtr game_heap_base();
+uint32_t game_heap_bytes();
+bool game_heap_commit(XbPtr end);
+
 // Charges (positive) or returns (negative) pages for memory the kernel does not
 // allocate itself: the XBE image and its sections. Returns false if the budget is
 // now exceeded; the charge is kept either way.
@@ -49,6 +56,7 @@ XbPtr title_reserve(uint32_t bytes);  // reserved and committed, read/write
 struct MemoryUsage {
     MemoryConfig layout;
     uint32_t total_pages, image_pages, contiguous_pages, virtual_committed_pages, virtual_reserved_pages;
+    uint32_t heap_committed;  // bytes of the game heap's range committed (MemoryConfig::heap_bytes)
 };
 MemoryUsage memory_usage();
 

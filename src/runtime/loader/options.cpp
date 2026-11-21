@@ -295,6 +295,8 @@ bool apply_setting(Options& o, Combined& combined, const platform::SettingDef& d
         o.replay_at_switch = on;
     } else if (key == "replay-hashes") {
         o.replay.hashes_out = fs::path(v);
+    } else if (key == "rerecord") {
+        o.replay.rerecord = fs::path(v);
     } else if (key == "replay-continue") {
         if (on) o.replay.exit_at_end = false;
     } else if (key == "replay-speed") {
@@ -436,11 +438,36 @@ bool parse_custom(Options& options, const std::string& arg, int argc, char** arg
 
 bool developer_tool_option(std::string_view name) {
     static constexpr std::string_view kNames[] = {
-        "audio-capture", "check-crt",  "check-settings", "compare",        "compare-all",      "debug-view",
-        "dump-shaders",  "force",      "game-text-template", "lang-template", "menu-walk",     "orbit",
-        "press",         "profile",    "record",         "replay",         "replay-at-switch", "replay-continue",
-        "replay-dump",   "replay-hashes", "replay-no-draw", "replay-reference", "replay-shots", "replay-speed",
-        "screenshots",   "text-clear", "text-trap",      "viewer",         "write-signatures",
+        "audio-capture",
+        "check-crt",
+        "check-settings",
+        "compare",
+        "compare-all",
+        "debug-view",
+        "dump-shaders",
+        "force",
+        "game-text-template",
+        "lang-template",
+        "menu-walk",
+        "orbit",
+        "press",
+        "profile",
+        "record",
+        "replay",
+        "replay-at-switch",
+        "replay-continue",
+        "replay-dump",
+        "replay-hashes",
+        "rerecord",
+        "replay-no-draw",
+        "replay-reference",
+        "replay-shots",
+        "replay-speed",
+        "screenshots",
+        "text-clear",
+        "text-trap",
+        "viewer",
+        "write-signatures",
     };
     for (std::string_view known : kNames)
         if (name == known) return true;

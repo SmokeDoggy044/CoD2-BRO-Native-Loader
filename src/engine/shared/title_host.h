@@ -41,6 +41,12 @@ struct TitleHost {
     // and the address's top bit). Resource headers hold physical addresses: CPU address = base + physical.
     uint32_t (*contiguous_base)() = nullptr;
     bool (*in_contiguous_memory)(uint32_t address) = nullptr;
+    // The game's main heap in a range of its own (Mem_AllocPhysicalPools): its base and size (0 = none: the game
+    // carves its fixed pool from contiguous memory, as on the Xbox), and committing it up to an address as the heap
+    // grows (Heap_Sbrk; false = no room).
+    uint32_t (*game_heap_base)() = nullptr;
+    uint32_t (*game_heap_bytes)() = nullptr;
+    bool (*game_heap_commit)(uint32_t end) = nullptr;
 
     // An in-process restart (own engine host 5b): the title ends here and starts again in this process with `page`
     // (0x1000 bytes) as its LaunchDataPage, on the same window and devices. Called on the title's main thread;
