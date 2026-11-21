@@ -15,6 +15,7 @@
 #include <cstdlib>
 #include <string>
 
+#include "crash_note.h"
 #include "log.h"
 #include "xbe.h"
 
@@ -76,6 +77,7 @@ std::string module_address(uint32_t address) {
     LOG_ERROR("crash", "eax=%08lx ebx=%08lx ecx=%08lx edx=%08lx esi=%08lx edi=%08lx", c.Eax, c.Ebx, c.Ecx, c.Edx,
               c.Esi, c.Edi);
     LOG_ERROR("crash", "esp=%08lx ebp=%08lx eflags=%08lx", c.Esp, c.Ebp, c.EFlags);
+    if (const char* note = platform::crash_note(); *note) LOG_ERROR("crash", "while %s", note);
     log_backtrace(c.Eip, c.Ebp);
     // A jump to a bad address leaves no frame chain to follow: the words at the stack pointer (the return address of
     // the call that jumped there is usually the first one) show where it came from.

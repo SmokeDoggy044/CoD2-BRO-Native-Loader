@@ -8,6 +8,7 @@ add_library(platform STATIC
     system_info.cpp
     sha256.cpp
     chacha20.cpp
+    crash_note.cpp
     texture_index.cpp
     ui_text.cpp
 )

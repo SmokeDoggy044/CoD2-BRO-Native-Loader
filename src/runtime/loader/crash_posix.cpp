@@ -12,6 +12,7 @@
 #include <cstring>
 #include <thread>
 
+#include "crash_note.h"
 #include "log.h"
 
 namespace loader {
@@ -26,6 +27,7 @@ void handle_signal(int signal, siginfo_t* info, void* context) {
     LOG_ERROR("crash", "eax=%08x ebx=%08x ecx=%08x edx=%08x esi=%08x edi=%08x", reg(REG_EAX), reg(REG_EBX),
               reg(REG_ECX), reg(REG_EDX), reg(REG_ESI), reg(REG_EDI));
     LOG_ERROR("crash", "esp=%08x ebp=%08x eflags=%08x", reg(REG_ESP), reg(REG_EBP), reg(REG_EFL));
+    if (const char* note = platform::crash_note(); *note) LOG_ERROR("crash", "while %s", note);
     log_backtrace(reg(REG_EIP), reg(REG_EBP));
     run_fatal_exit_hook(true);
     _exit(128 + signal);

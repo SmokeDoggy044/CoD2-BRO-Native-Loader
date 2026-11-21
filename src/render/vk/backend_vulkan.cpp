@@ -15,6 +15,7 @@
 #include <string>
 #include <vector>
 
+#include "crash_note.h"
 #include "backend.h"
 #include "game_window.h"
 #include "gfx_vulkan.h"
@@ -342,6 +343,7 @@ private:
     }
 
     bool create_present_pass() {
+        const platform::CrashNote note("creating the Vulkan present pass and its pipelines");
         VkDevice device = vk_.device();
         VkSamplerCreateInfo sampler{VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO};
         sampler.addressModeU = sampler.addressModeV = sampler.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
