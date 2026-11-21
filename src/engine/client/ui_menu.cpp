@@ -2413,7 +2413,6 @@ PLATFORM_ASM_ENTRY(SaveSlot_Init_entry,
                    "ret $8")
 
 uint32_t XB_CDECL SaveSlot_Init(uint8_t* saves, int32_t slot, uint8_t keep) {
-    using StrNCpy = char* XB_CDECL(char*, const char*, uint32_t);
     title_global<uint8_t>(0x008d50dd) = 0;
     uint8_t* const record = saves + slot * 0x3cc;
     const char* const version = title_global<uint8_t>(0x0095e7f8) ? text_at(0x0082ab00) : text_at(0x0082aaf8);
@@ -2429,7 +2428,6 @@ uint32_t XB_CDECL SaveSlot_Init(uint8_t* saves, int32_t slot, uint8_t keep) {
 }
 
 void XB_STDCALL SaveSlot_InitAll(uint8_t* saves) {
-    using StrNCpy = char* XB_CDECL(char*, const char*, uint32_t);
     uint8_t profile[0x3a4];  // the defaults (the words Profile_SetDefaults leaves are zero on the dead stack)
     for (uint32_t i = 0; i < sizeof profile; ++i) profile[i] = 0;
     title_global<uint8_t>(0x008d50dd) = 0;

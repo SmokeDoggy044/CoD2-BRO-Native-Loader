@@ -233,11 +233,14 @@ def main():
             table.append(f'    {{0x{e:08x}, nullptr}},  // MANUAL: {why}')
             continue
         uses = ' '.join(lines)
-        decl = ['uint32_t eax = 0, ebx = 0, ecx = 0, edx = 0, esi = 0, edi = 0;']
+        # Only the registers the stub uses (an unused one is a compiler warning in every stub).
+        used = [r for r in ('eax', 'ebx', 'ecx', 'edx', 'esi', 'edi') if re.search(rf'\b{r}\b', uses)]
+        # [[maybe_unused]]: a register the stub only writes (a translated `mov eax, ...` with no later read).
+        decl = ['[[maybe_unused]] uint32_t ' + ', '.join(f'{r} = 0' for r in used) + ';'] if used else []
         if 'xmm[' in uses:
             decl.append('float xmm[8] = {};')
         if 'zf' in uses:
-            decl.append('bool zf = false;')
+            decl.append('[[maybe_unused]] bool zf = false;')
         body = '\n'.join('    ' + l if not l.startswith('L_') else l for l in decl + lines)
         generated.append(f'void si_{e:08x}() {{\n{body}\n}}\n')
         table.append(f'    {{0x{e:08x}, &si_{e:08x}}},')

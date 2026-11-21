@@ -1928,7 +1928,6 @@ uint32_t XB_CDECL Player_FindMountTrigger(const float* point, int32_t* out) {
     }
     if (contents & 0x1000000) return 1;
     alignas(16) uint32_t list[0x540];
-    using VectorCtor = void XB_STDCALL(void*, uint32_t, uint32_t, uint32_t);
     title_vector_construct(list, 4, 0x540, own_address(&ZeroWord_Ctor));  // eh_vector_constructor_iterator
     const float pad = title_global<float>(0x0083ebf8);  // 0.1
     alignas(16) float mins[4], maxs[4];
@@ -3334,7 +3333,7 @@ PLATFORM_ASM_ENTRY(Vehicle_PlayerDriveThink_entry,
                    "popl %esp\n"
                    "ret")
 
-void XB_CDECL Vehicle_PlayerDriveThink(uint32_t entry_esp, uint32_t esi, uint32_t edi) {
+void XB_CDECL Vehicle_PlayerDriveThink(uint32_t entry_esp, uint32_t /*esi*/, uint32_t edi) {
     // The driver's (+0x1a0) stick bytes (client +0x538..+0x53a; none with client flag 0x400000 or +0x2c bit
     // 0x4000) steer the player's vehicle (owner +0x174 is 0x0095f534's +4; client flag 0x200000 set, cleared
     // again for a positive third byte); then the ground trace and, for the player's vehicle, the ground move.

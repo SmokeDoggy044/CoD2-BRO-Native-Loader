@@ -156,7 +156,8 @@ builds and runs several missions at once and prints one line per function. Detai
 
 ## Tests
 
-`ctest --preset linux-loader` runs the tests in `tests/`:
+`ctest --preset linux-loader` runs the tests in `tests/`; `-L fast` runs all but `leaf_test` (seconds, worth it after
+every change) and `-L slow` only `leaf_test` (the long check of rewritten functions):
 
 - The kernel layer (critical sections, dispatcher, memory, file system, crypto, time,
   frame pacing) and audio: the file tests build a fake disc in a temp folder and the

@@ -26,9 +26,11 @@ F* title_function(uint32_t address) {
 // A call into our own C for a function that also has an original address (tools/own_calls.py): F is
 // the signature the call site used for the original, `function` the symbol the hook table registers
 // for that address, so the call keeps its convention and becomes a direct call.
+// The cast goes through void (*)(), the one function type GCC's -Wcast-function-type exempts: the signatures differ
+// on purpose (the original's, e.g. a pointer argument the C takes as uint32_t).
 template <typename F, typename G>
 F* own_function(G* function) {
-    return reinterpret_cast<F*>(function);
+    return reinterpret_cast<F*>(reinterpret_cast<void (*)()>(function));
 }
 
 // For templates whose argument names a callee: an original address (no C yet) or our own C's symbol

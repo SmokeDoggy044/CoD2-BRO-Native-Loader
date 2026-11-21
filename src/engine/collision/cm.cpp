@@ -265,7 +265,6 @@ uint8_t* XB_REGS2 XB_CDECL CM_TempBoxModel(const float* maxs, uint32_t capsule, 
 }
 
 void XB_REGS1 XB_CDECL CM_LoadMap(const char* name, uint32_t client_load) {
-    using Strncpy = char* XB_CDECL(char*, const char*, uint32_t);
     using CvarGet = uint8_t* XB_CDECL(const char*, const char*, uint32_t);
     if (!name || !*name)
         title_function<void XB_CDECL(uint32_t, const char*)>(0x002938f0)(  // __break

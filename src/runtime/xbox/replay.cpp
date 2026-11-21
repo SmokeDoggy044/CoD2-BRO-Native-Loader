@@ -200,22 +200,10 @@ void report_counts() {
              g_count_reports == 5 ? " (no more of these)" : "");
 }
 
-// Word-wise FNV-1a style hash (integer only: title threads run with the title's FPU modes).
-uint32_t hash_words(const void* data, size_t size, uint32_t h = 2166136261u) {
-    const auto* bytes = static_cast<const uint8_t*>(data);
-    size_t i = 0;
-    for (; i + 4 <= size; i += 4) {
-        uint32_t word;
-        std::memcpy(&word, bytes + i, 4);
-        h = (h ^ word) * 16777619u;
-    }
-    for (; i < size; ++i) h = (h ^ bytes[i]) * 16777619u;
-    return h;
-}
-
-// The state hash: hash_words with every word that points into the title's memory (heaps, objects, contiguous
-// memory - xbox::in_title_memory) counted as one marker value, so only what the game holds is compared, not where
-// it sits. Pointers into the title's image stay as they are (the image does not move).
+// The state hash (word-wise FNV-1a, integer only: title threads run with the title's FPU modes). Every word that
+// points into the title's memory (heaps, objects, contiguous memory - xbox::in_title_memory) counts as one marker
+// value, so only what the game holds is compared, not where it sits. Pointers into the title's image stay as they
+// are (the image does not move).
 uint32_t hash_state(const void* data, size_t size, uint32_t h = 2166136261u) {
     constexpr uint32_t kPointer = 0x9e3779b9u;
     const auto* bytes = static_cast<const uint8_t*>(data);

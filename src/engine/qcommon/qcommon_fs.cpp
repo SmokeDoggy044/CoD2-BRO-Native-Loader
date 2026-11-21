@@ -2367,7 +2367,7 @@ PLATFORM_ASM_ENTRY(Save_CheckVersion_entry,
                    "ret")
 
 uint8_t XB_CDECL Save_CheckVersion(const char* header) {
-    const char* date = reinterpret_cast<const char*>(uintptr_t{title_global<uint8_t>(0x0095e7f8) ? 0x0082ab00 : 0x0082aaf8});
+    const char* date = reinterpret_cast<const char*>(uintptr_t{title_global<uint8_t>(0x0095e7f8) ? 0x0082ab00u : 0x0082aaf8u});
     if (own_function<int32_t XB_CDECL(const char*, const char*, uint32_t)>(&title_strncmp)(header, date, 0x19))  // _strncmp
         return 0;
     const char* a = header + 0x3c0;
