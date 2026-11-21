@@ -20,6 +20,11 @@ function(cod_bro_windows_resources target description kind)
         set(RES_MANIFEST "")
         set(RES_ICON "")
     endif()
+    if(kind STREQUAL "PROGRAM")
+        # Terminal-server aware, as Microsoft's linker marks every program by default (MinGW does not):
+        # no change at run time, one difference less from the programs antivirus models are trained on.
+        target_link_options(${target} PRIVATE -Wl,--tsaware)
+    endif()
     set(rc "${CMAKE_CURRENT_BINARY_DIR}/${target}_version.rc")
     configure_file("${PROJECT_SOURCE_DIR}/cmake/windows/version.rc.in" "${rc}" @ONLY)
     target_sources(${target} PRIVATE "${rc}")
