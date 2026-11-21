@@ -4,7 +4,7 @@
 #   tools/mem_sweep.sh OUT [EXTRA_ARGS...]     e.g. tools/mem_sweep.sh build/memsweep --memory 64
 # MISSIONS (default "0 1 2 3 4 5 6 9 11"; never 7: m7_playtest is broken), JOBS (default 3), SECS (default 900),
 # EXE (default the Linux release own exe; a .exe runs under Wine), DRAW=1 draws (a window; default no drawing),
-# MODS=DIR texture packs (--mods-dir). Settings stay in OUT (XDG_DATA_HOME; Wine: build/wine_test_prefix), saves
+# MODS=DIR texture packs (--mods-dir), SPEED (default 8). Settings stay in OUT (XDG_DATA_HOME; Wine: build/wine_test_prefix), saves
 # are copies.
 set -u
 out=${1:?usage: tools/mem_sweep.sh OUT [EXTRA_ARGS...]}
@@ -49,7 +49,7 @@ run() {
     rm -rf "$dir"
     mkdir -p "$dir/xdg"
     cp -a "${rep%.rep}.saves" "$dir/data"
-    local args=(--data "$dir/data" --silent --level "$m" --replay-speed 8 --replay "$rep" --mem-stats "$dir/memory.txt")
+    local args=(--data "$dir/data" --silent --level "$m" --replay-speed "${SPEED:-8}" --replay "$rep" --mem-stats "$dir/memory.txt")
     [[ ${DRAW:-0} == 1 ]] || args+=(--replay-no-draw)
     [[ -n ${MODS:-} ]] && args+=(--mods-dir "$MODS")
     start=$SECONDS

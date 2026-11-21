@@ -17,7 +17,7 @@ import sys
 import time
 from pathlib import Path
 
-EXIT_TEXT = {0: "matched", 3: "drifted", 124: "timed out", 130: "interrupted", 137: "killed"}
+EXIT_TEXT = {0: "matched", 3: "drifted", 4: "played (old recording, not compared)", 124: "timed out", 130: "interrupted", 137: "killed"}
 
 
 def processes_reading():

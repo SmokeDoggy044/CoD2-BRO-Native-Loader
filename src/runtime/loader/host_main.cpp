@@ -134,8 +134,8 @@ int host_main(int argc, char** argv) {
     xbox::MemoryConfig memory;
     memory.physical_bytes = (options.memory_mb ? options.memory_mb : kOwnEngineMemoryMb) * 1024 * 1024;
     // The title's virtual memory (its CRT heap segments and thread stacks) needs 1 MB in every mission; the Xbox's
-    // 1 GB range only took address space from our renderer and drivers. Both ranges go where the host has room - no
-    // fixed addresses (our C reaches contiguous memory through xbox::contiguous_base, not 0x80000000).
+    // 1 GB range only took address space from our renderer and drivers. Both ranges go to the Xbox's places when
+    // free, else where the host has room (our C reaches contiguous memory through xbox::contiguous_base).
     constexpr uint32_t kOwnEngineVirtualBytes = 64u << 20;
     memory.virtual_end = memory.virtual_base + kOwnEngineVirtualBytes;
     memory.host_placed = true;

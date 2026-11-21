@@ -18,6 +18,8 @@ bool memory_init(const MemoryConfig& config);
 uint32_t contiguous_base();
 // The address lies in contiguous memory (what the Xbox told by the address's top bit).
 bool in_contiguous_memory(uint32_t address);
+// The address lies in the title's contiguous memory or its virtual range (where its heaps and objects live).
+bool in_title_memory(uint32_t address);
 
 // Charges (positive) or returns (negative) pages for memory the kernel does not
 // allocate itself: the XBE image and its sections. Returns false if the budget is
