@@ -33,6 +33,7 @@
 #include "devices.h"
 #include "filesystem.h"
 #include "float_env.h"
+#include "cheats.h"
 #include "game_window.h"
 #include "functions.h"
 #include "hooks.h"
@@ -242,6 +243,7 @@ void XB_CDECL mouse_look() {
     float dx, dy;
     input::take_mouse_motion(dx, dy);
     if (dx == 0.0f && dy == 0.0f) return;
+    if (cheats_take_mouse(dx, dy, g_mouse_degrees_per_count)) return;  // the free camera turns instead
     // Player state: view locked (0x4000) unless one of 0x106000 allows looking.
     if ((title<uint32_t>(g_client.view_flags) & 0x4000) && !(title<uint32_t>(g_client.view_allow_flags) & 0x106000))
         return;
@@ -266,11 +268,12 @@ bool XB_CDECL pad_keys_run_layout() {
 
 // ClientPcHooks::native_actions: the held actions, recorded and replayed once per IN_Frame ('Y'). Recordings
 // older than format 5 had the keyboard in the pad state: none while replaying one.
-static_assert(game::kNativeActionCount == static_cast<int32_t>(input::kActionCount));
+// The game gets the first kNativeActionCount actions; ours after them (Free camera) stay on our side.
+static_assert(game::kNativeActionCount <= static_cast<int32_t>(input::kActionCount));
 uint32_t XB_CDECL native_actions() {
     const uint32_t held = input::held_actions();
     if (xbox::replay::on_stream() && xbox::replay::replaying() && xbox::replay::version() < 5) return 0;
-    const uint32_t value = xbox::replay::value('Y', held);
+    const uint32_t value = cheats_filter_actions(xbox::replay::value('Y', held));
     static uint32_t logged = 0;  // --debug: the held actions when they change (keyboard, mouse, gamepad, script)
     if (value != logged && platform::log_enabled(platform::LogLevel::Debug)) {
         std::string names;
@@ -2771,6 +2774,10 @@ void install_title_patches(const TitleInfo& title, const TitlePatchConfig& confi
         }
         // Hit markers: G_Damage and CG_Draw2D as C; switched while playing too (set_hit_markers).
         g_hit_markers_supported = campaign && client_c(0x00250340) && client_c(0x00285f80);
+        // Cheats: ClientEvents, PM_WeaponUseAmmo, CG_CalcViewValues, CG_Draw2D and CG_AddPlayerWeapon as C.
+        install_cheats(campaign && client_c(0x00271590) && client_c(0x002bc630) && client_c(0x002880a0) &&
+                           client_c(0x00285f80) && client_c(0x00288850),
+                       config);
         if (config.hit_markers && g_hit_markers_supported) {
             game::client_pc_hooks().hit_markers = true;
             LOG_INFO("patches", "hit markers on");

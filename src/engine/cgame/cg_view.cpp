@@ -2739,6 +2739,9 @@ uint32_t XB_CDECL CG_CalcViewValues() {
         else
             CG_OffsetFirstPersonView();
     }
+    // Ours: the Free camera cheat takes the view (refdef vieworg 0x00972bb0, viewangles 0x00972bf0) from here on.
+    const ClientPcHooks& hooks = client_pc_hooks();
+    hooks.free_camera && hooks.free_camera(&title_global<float>(0x00972bb0), &title_global<float>(0x00972bf0));
     float right[3];
     uint32_t args[2] = {0x00972bf0, 0x00972bc0};
     AnglesToAxis(args, right, &title_global<float>(0x00972bd8));
@@ -2780,6 +2783,7 @@ void XB_CDECL CG_AddPlayerWeapon(uint32_t entry_esp, uint8_t* cent, uint8_t* ps,
     const uint32_t has_ps = ps != nullptr;
     title_global<uint32_t>(entry_esp - 0x74) = has_ps;
     if (has_ps && title_global<uint32_t>(0x00973008)) return;
+    if (has_ps && client_pc_hooks().free_camera_active) return;  // ours: no view weapon in front of the free camera
     if (*reinterpret_cast<const uint32_t*>(cent + 0x10) & 0x106000) return;
     TitleRegs regs{};
     regs.eax = has_ps;

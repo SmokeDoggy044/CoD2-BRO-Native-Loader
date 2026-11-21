@@ -2942,6 +2942,7 @@ void CG_DrawHitMarker() {
 
 void XB_CDECL CG_Draw2D() {
     if (title_global<int32_t>(0x00971a88) || title_global<int32_t>(0x00971a8c)) return;
+    if (client_pc_hooks().free_camera_active) return;  // ours: the free camera's view without the 2D
     nglPushScene(1);
     if (title_global<int32_t>(0x00973008) || !title_global<int32_t>(0x00949474)) {
         CG_DrawFlashFade();

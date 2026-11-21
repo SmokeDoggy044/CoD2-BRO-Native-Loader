@@ -313,6 +313,13 @@ const SettingDef kSettings[] = {
     {"hit-markers", "on|off", T::Switch, G::Graphics, kLiveIni, 0, 0, nullptr, "off",
      "short strokes round the crosshair when your shot hits (white) or kills (red) (default off = as in the game; "
      "campaign only)"},
+    {"god-mode", "on|off", T::Switch, G::Controls, kLiveIni, 0, 0, nullptr, "off",
+     "cheat: you take no damage, as the game's own god command (default off; campaign only)"},
+    {"infinite-ammo", "on|off", T::Switch, G::Controls, kLiveIni, 0, 0, nullptr, "off",
+     "cheat: firing and throwing take nothing from the magazine, so no reloading (default off; campaign only)"},
+    {"free-camera", "on|off", T::Switch, G::Controls, kLiveIni, 0, 0, nullptr, "off",
+     "cheat: the Free camera key (default B) detaches the camera, to fly with the movement keys and the mouse "
+     "(Jump up, Crouch down, Sprint faster) while you stand still; again to come back (default off; campaign only)"},
     {"more-bodies", "on|off", T::Switch, G::Graphics, 0, 0, 0, nullptr, "off",
      "keep up to 16 fallen soldiers instead of the game's 10 before the farthest one is removed (16 is the game's "
      "own maximum; default off; campaign only)"},
@@ -643,6 +650,12 @@ const SettingUi kUi[] = {
     {"hit-markers", nullptr, "Hit markers",
      "Four short strokes round the crosshair when your shot hits an enemy: white for a hit, red for a kill. Off: as in "
      "the game. Campaign only."},
+    {"god-mode", nullptr, "God mode", "Cheat: you take no damage. Campaign only."},
+    {"infinite-ammo", nullptr, "Infinite ammo", "Cheat: the magazine never empties, so no reloading. Campaign only."},
+    {"free-camera", nullptr, "Free camera",
+     "Cheat: the Free camera key (B, under Controls > Keyboard) detaches the camera. Fly with the movement keys and "
+     "the mouse, Jump to rise, Crouch to sink, Sprint for speed; press the key again to come back. The HUD hides "
+     "meanwhile. Campaign only."},
     {"more-bodies", nullptr, "More bodies",
      "The game keeps 10 fallen soldiers and removes the farthest one when another falls. On: 16, the most the game "
      "can hold. Campaign only."},

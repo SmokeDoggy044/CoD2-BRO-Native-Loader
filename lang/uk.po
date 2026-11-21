@@ -609,3 +609,18 @@ msgstr "Перезапис гри. Не вимикайте комп'ютер."
 
 msgid "Saving Profile. Please don't turn off your PC."
 msgstr "Збереження профілю. Не вимикайте комп'ютер."
+
+msgid "Cheats"
+msgstr "Чити"
+
+msgid "CHEATS"
+msgstr "ЧИТИ"
+
+msgid "God mode"
+msgstr "Режим бога"
+
+msgid "Infinite ammo"
+msgstr "Нескінченні набої"
+
+msgid "Free camera"
+msgstr "Вільна камера"

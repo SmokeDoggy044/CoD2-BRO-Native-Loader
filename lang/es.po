@@ -588,3 +588,18 @@ msgstr "Sobrescribiendo partida. No apagues el PC."
 
 msgid "Saving Profile. Please don't turn off your PC."
 msgstr "Guardando perfil. No apagues el PC."
+
+msgid "Cheats"
+msgstr "Trucos"
+
+msgid "CHEATS"
+msgstr "TRUCOS"
+
+msgid "God mode"
+msgstr "Modo dios"
+
+msgid "Infinite ammo"
+msgstr "Munición infinita"
+
+msgid "Free camera"
+msgstr "Cámara libre"

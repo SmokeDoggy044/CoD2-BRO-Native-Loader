@@ -2,6 +2,7 @@
 
 #include <cstring>
 
+#include "cl.h"
 #include "cm.h"
 #include "qcommon.h"
 #include "title_data.h"
@@ -53,7 +54,7 @@ uint32_t XB_REGS3 XB_CDECL PM_ClipIsEmpty(uint32_t, uint32_t, uint32_t weapon) {
 
 int32_t* XB_REGS3 XB_CDECL PM_WeaponUseAmmo(uint32_t, uint32_t, uint32_t weapon, int32_t amount) {
     int32_t& ammo = clip_ammo(weapon);
-    ammo -= amount;
+    if (!client_pc_hooks().infinite_ammo) ammo -= amount;  // our Infinite ammo cheat: the clip stays as it is
     return &ammo;
 }
 

@@ -13,6 +13,7 @@ set(loader_sources
     title_threads.cpp
     patches.cpp
     pc_menu.cpp
+    cheats.cpp
     game_texts.cpp
     menu_pages.cpp
     viewer.cpp

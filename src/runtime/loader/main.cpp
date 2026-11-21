@@ -302,7 +302,8 @@ int loader_main(int argc, char** argv) {
                                            options->sprint,
                                            loader::sprint_seconds(options->sprint_duration), options->letterbox,
                                            options->more_bodies, options->skip_intro,
-                                           options->hit_markers});
+                                           options->hit_markers, options->god_mode, options->infinite_ammo,
+                                           options->free_camera});
     if (!loader::prepare_fs_access(image)) return loader::startup_failed("cannot prepare the game's code");
     loader::configure_title_services(*options, *assets, *title, aspect, [] {
         loader::run_fatal_exit_hook(false);

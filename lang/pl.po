@@ -609,3 +609,18 @@ msgstr "Nadpisywanie gry. Nie wyłączaj komputera."
 
 msgid "Saving Profile. Please don't turn off your PC."
 msgstr "Zapisywanie profilu. Nie wyłączaj komputera."
+
+msgid "Cheats"
+msgstr "Kody"
+
+msgid "CHEATS"
+msgstr "KODY"
+
+msgid "God mode"
+msgstr "Tryb boga"
+
+msgid "Infinite ammo"
+msgstr "Nieskończona amunicja"
+
+msgid "Free camera"
+msgstr "Wolna kamera"

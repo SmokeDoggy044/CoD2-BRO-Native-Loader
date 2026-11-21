@@ -588,3 +588,18 @@ msgstr "Sovrascrittura partita. Non spegnere il PC."
 
 msgid "Saving Profile. Please don't turn off your PC."
 msgstr "Salvataggio profilo. Non spegnere il PC."
+
+msgid "Cheats"
+msgstr "Trucchi"
+
+msgid "CHEATS"
+msgstr "TRUCCHI"
+
+msgid "God mode"
+msgstr "Modalità dio"
+
+msgid "Infinite ammo"
+msgstr "Munizioni infinite"
+
+msgid "Free camera"
+msgstr "Telecamera libera"

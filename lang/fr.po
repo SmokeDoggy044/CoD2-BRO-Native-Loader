@@ -588,3 +588,18 @@ msgstr "Remplacement de la partie. N'éteignez pas votre PC."
 
 msgid "Saving Profile. Please don't turn off your PC."
 msgstr "Sauvegarde du profil. N'éteignez pas votre PC."
+
+msgid "Cheats"
+msgstr "Triches"
+
+msgid "CHEATS"
+msgstr "TRICHES"
+
+msgid "God mode"
+msgstr "Mode dieu"
+
+msgid "Infinite ammo"
+msgstr "Munitions infinies"
+
+msgid "Free camera"
+msgstr "Caméra libre"

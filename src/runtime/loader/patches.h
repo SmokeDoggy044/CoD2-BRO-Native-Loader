@@ -97,6 +97,10 @@ struct TitlePatchConfig {
     bool skip_intro = false;
     // Hit markers (ClientPcHooks::hit_markers). Needs G_Damage and CG_Draw2D as C.
     bool hit_markers = false;
+    // Cheats (cheats.h): god mode, infinite ammo, the free camera's key. Campaign, with their functions as C.
+    bool god_mode = false;
+    bool infinite_ammo = false;
+    bool free_camera = false;
 };
 
 // Sprint on or off from now on (the sprint question): true when the running campaign can (its +sprint handlers are

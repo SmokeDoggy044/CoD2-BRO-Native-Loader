@@ -81,6 +81,15 @@ struct ClientPcHooks {
     // skips them), and TitleMenu_Update accepts the title screen as soon as it shows, for port 0 (where the keyboard,
     // mouse and pad all arrive), as if START had been pressed there.
     bool skip_intro = false;
+    // Cheats (1.0.10, the Cheats page; src/runtime/loader/cheats.h). God mode: ClientEvents keeps the player's
+    // FL_GODMODE set, as the game's own god command (damage, a grenade held too long, scripted mission failures).
+    // Infinite ammo: PM_WeaponUseAmmo takes nothing from the clip.
+    bool god_mode = false;
+    bool infinite_ammo = false;
+    // Free camera: CG_CalcViewValues hands it the view it worked out (origin, angles); true = it replaced them with
+    // its own. While it does, free_camera_active is set: no view weapon, crosshair or HUD.
+    bool (XB_CDECL* free_camera)(float* origin, float* angles) = nullptr;
+    bool free_camera_active = false;
 };
 ClientPcHooks& client_pc_hooks();
 // Native keyboard, mouse and gamepad (ClientPcHooks::native_actions): the actions' key numbers start at JOY17 (the

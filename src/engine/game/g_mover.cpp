@@ -5923,6 +5923,17 @@ void XB_CDECL ClientEvents(uint32_t entry, uint32_t old_sequence, uint32_t ebx, 
     const uint32_t self = address_of(ent);
     uint8_t* const client = pointer_at(ent, 0x23c);
     const uint32_t client_word = address_of(client);
+    // Ours: the God mode cheat keeps the player's FL_GODMODE (+0x2a4 bit 0) set, as the god command would (damage,
+    // a grenade held too long below, scripted mission failures); cleared again only if the cheat set it.
+    static bool god_set_by_cheat = false;
+    if (client) {
+        if (client_pc_hooks().god_mode) {
+            if (!(ent[0x2a4] & 1)) ent[0x2a4] |= 1, god_set_by_cheat = true;
+        } else if (god_set_by_cheat) {
+            ent[0x2a4] &= ~1u;
+            god_set_by_cheat = false;
+        }
+    }
     int32_t i = static_cast<int32_t>(old_sequence);
     const int32_t sequence = field<int32_t>(client, 0xc4);
     if (i < sequence - 4) i = sequence - 4;

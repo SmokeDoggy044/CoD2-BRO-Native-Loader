@@ -167,6 +167,7 @@ bool menu_mode() { return now_ms() < g_menu_until_ms.load(); }
 // it (SDL_windowsrawinput.c), which the lock (or the thread waiting for itself) always ran out. On Windows the game
 // froze for 3 s at every change, again and again in the menus (issues #26, #23, #28).
 std::atomic<uint64_t> g_capture_request{0};
+std::atomic<bool> g_player_frozen{false};  // set_player_frozen
 
 // The capture state, with a change not applied yet.
 bool is_captured(SDL_Window* window) {
@@ -798,12 +799,16 @@ bool read_port(uint32_t port, PadState& state) {
         g_wait_release = false;
     }
     if (g_ports[port]) read_gamepad(g_ports[port], state);
-    if (port == 0) {
-        read_keyboard_mouse(state);
-        return true;
+    if (port == 0) read_keyboard_mouse(state);
+    if (g_player_frozen.load()) {  // the free camera flies: pause and objectives only
+        const uint16_t keep = state.buttons & (kStart | kBack);
+        state = PadState{};
+        state.buttons = keep;
     }
-    return g_ports[port] != nullptr;
+    return port == 0 || g_ports[port] != nullptr;
 }
+
+void set_player_frozen(bool frozen) { g_player_frozen = frozen; }
 
 void set_rumble(uint32_t port, uint16_t left, uint16_t right) {
     platform::HostFloatEnv host_env;

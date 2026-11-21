@@ -588,3 +588,18 @@ msgstr "Spiel wird überschrieben. Bitte schalte deinen PC nicht aus."
 
 msgid "Saving Profile. Please don't turn off your PC."
 msgstr "Profil wird gespeichert. Bitte schalte deinen PC nicht aus."
+
+msgid "Cheats"
+msgstr "Cheats"
+
+msgid "CHEATS"
+msgstr "CHEATS"
+
+msgid "God mode"
+msgstr "Gottmodus"
+
+msgid "Infinite ammo"
+msgstr "Unendlich Munition"
+
+msgid "Free camera"
+msgstr "Freie Kamera"

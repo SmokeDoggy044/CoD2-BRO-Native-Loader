@@ -122,9 +122,11 @@ const std::vector<PageDef>& pages() {
           key_row("fire"), key_row("aim"), key_row("aim-toggle"), key_row("jump"), key_row("crouch"),
           key_row("raise-stance"), key_row("sprint"), key_row("melee"), key_row("grenade"), key_row("use-reload"),
           key_row("use"), key_row("reload"), key_row("next-weapon"), key_row("previous-weapon"), key_row("lean-left"),
-          key_row("lean-right"), key_row("hide-hud")}},
+          key_row("lean-right"), key_row("hide-hud"), key_row("free-camera")}},
+        {"cheats", "CHEATS",
+         {setting("god-mode"), setting("infinite-ammo"), setting("free-camera"), key_row("free-camera")}},
         {"settings", "SETTINGS",
-         {link("graphics", "Graphics"), link("sound", "Sound"), link("controls", "Controls")}},
+         {link("graphics", "Graphics"), link("sound", "Sound"), link("controls", "Controls"), link("cheats", "Cheats")}},
     };
     return kPages;
 }

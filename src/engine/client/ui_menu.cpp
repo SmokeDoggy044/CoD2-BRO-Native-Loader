@@ -2169,7 +2169,7 @@ namespace {
 bool hud_hidden() {
     static uint8_t* draw_2d = nullptr;
     if (!draw_2d) draw_2d = Cvar_FindVar(text_at(0x008398a8));  // "cg_draw2D" (cgame registers it)
-    return draw_2d && field<int32_t>(draw_2d, 0x20) == 0;
+    return (draw_2d && field<int32_t>(draw_2d, 0x20) == 0) || client_pc_hooks().free_camera_active;  // or the free camera
 }
 }  // namespace
 

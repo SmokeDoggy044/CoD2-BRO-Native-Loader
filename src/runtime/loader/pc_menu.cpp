@@ -15,6 +15,7 @@
 #include <vector>
 
 #include "bindings.h"
+#include "cheats.h"
 #include "devices.h"
 #include "enhanced_graphics.h"
 #include "fe_pc.h"
@@ -54,6 +55,9 @@ platform::Settings live_values() {
     platform::set_combined_setting(v, "graphics-features", render::graphics_features().format());
     ui::put_setting(v, "audio", audio::enhanced() ? "enhanced" : "original");
     ui::put_setting(v, "hit-markers", hit_markers() ? "on" : "off");
+    ui::put_setting(v, "god-mode", god_mode() ? "on" : "off");
+    ui::put_setting(v, "infinite-ammo", infinite_ammo() ? "on" : "off");
+    ui::put_setting(v, "free-camera", free_camera() ? "on" : "off");
     platform::set_combined_setting(v, "enhanced", audio::enhanced_features().format());
     platform::set_combined_setting(v, "volume", audio::category_volumes().format());
     platform::set_combined_setting(v, "reverb", game::SndEnv_Tuning().format());
@@ -107,6 +111,9 @@ void apply_live(const platform::Settings& before, const platform::Settings& afte
     if (differs("trigger-threshold"))
         input::set_trigger_threshold(std::strtof(ui::setting_value(after, "trigger-threshold").c_str(), nullptr));
     if (differs("hit-markers")) set_hit_markers(ui::setting_value(after, "hit-markers") == "on");
+    if (differs("god-mode")) set_god_mode(ui::setting_value(after, "god-mode") == "on");
+    if (differs("infinite-ammo")) set_infinite_ammo(ui::setting_value(after, "infinite-ammo") == "on");
+    if (differs("free-camera")) set_free_camera(ui::setting_value(after, "free-camera") == "on");
     if (differs("mouse-sensitivity"))
         set_mouse_sensitivity(std::strtof(ui::setting_value(after, "mouse-sensitivity").c_str(), nullptr));
 }

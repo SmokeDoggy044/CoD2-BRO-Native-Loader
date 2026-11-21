@@ -167,7 +167,8 @@ int host_main(int argc, char** argv) {
                                            options.sprint,
                                            loader::sprint_seconds(options.sprint_duration), options.letterbox,
                                            options.more_bodies, options.skip_intro,
-                                           options.hit_markers});
+                                           options.hit_markers, options.god_mode, options.infinite_ammo,
+                                           options.free_camera});
     // Before any text or font (ui_text.h, sharp_text.h).
     if (const char* code = options.text_language == "polish"      ? "pl"
                            : options.text_language == "russian"   ? "ru"

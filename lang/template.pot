@@ -475,6 +475,18 @@ msgstr ""
 msgid "Move right"
 msgstr ""
 
+msgid "Free camera"
+msgstr ""
+
+msgid "CHEATS"
+msgstr ""
+
+msgid "God mode"
+msgstr ""
+
+msgid "Infinite ammo"
+msgstr ""
+
 msgid "SETTINGS"
 msgstr ""
 
@@ -485,6 +497,9 @@ msgid "Sound"
 msgstr ""
 
 msgid "Controls"
+msgstr ""
+
+msgid "Cheats"
 msgstr ""
 
 msgid "Reset to Defaults"
