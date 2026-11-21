@@ -611,8 +611,25 @@ uint32_t present_frame() {
         const std::string path = g.config.frame_screenshot();
         if (!path.empty()) g.backend->save_back_buffer(path.c_str());
     }
+    // Stalls a player sees as "not responding" (Windows' verdict on a window that has not handled its events for 5 s,
+    // #28): logged only when they happen - a present over 1 s (inside the graphics driver) and a gap over 1.5 s
+    // between two event pumps (with how much of it was the present).
+    using StallClock = std::chrono::steady_clock;
+    static StallClock::time_point last_pump{};
+    const StallClock::time_point present_start = StallClock::now();
     g.backend->present();
-    if (!g.backend->pump_events() || g.quit_requested.load()) {
+    const StallClock::time_point present_end = StallClock::now();
+    const double present_s = std::chrono::duration<double>(present_end - present_start).count();
+    if (present_s > 1.0) LOG_WARN("render", "presenting frame %u took %.1f s (in the graphics driver)", g.swap_count, present_s);
+    if (last_pump != StallClock::time_point{}) {
+        const double gap_s = std::chrono::duration<double>(present_end - last_pump).count();
+        if (gap_s > 1.5)
+            LOG_WARN("render", "the window went %.1f s without handling its events (%.1f s of it presenting; Windows "
+                     "calls it not responding after 5 s)", gap_s, present_s);
+    }
+    const bool open = g.backend->pump_events();
+    last_pump = StallClock::now();
+    if (!open || g.quit_requested.load()) {
         LOG_INFO("render", "%s", g.quit_requested.load() ? "quit from the game's menu" : "window closed");
         g.backend->save_caches();
         platform::end_process(0);

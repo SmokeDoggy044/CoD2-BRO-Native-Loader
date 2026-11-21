@@ -594,8 +594,13 @@ void apply_mouse_capture() {
     SDL_Window* window = SDL_GetWindowFromID(static_cast<SDL_WindowID>(request >> 2));
     const bool captured = (request & 1) != 0;
     if (window && SDL_GetWindowRelativeMouseMode(window) != captured) {
+        const int64_t start = now_ms();
         SDL_SetWindowRelativeMouseMode(window, captured);
-        LOG_INFO("input", "mouse %s", captured ? "captured (F10 frees it)" : "freed");
+        const int64_t took = now_ms() - start;
+        if (took > 100)
+            LOG_WARN("input", "mouse %s, which took %lld ms", captured ? "captured" : "freed", static_cast<long long>(took));
+        else
+            LOG_INFO("input", "mouse %s", captured ? "captured (F10 frees it)" : "freed");
     }
 }
 
