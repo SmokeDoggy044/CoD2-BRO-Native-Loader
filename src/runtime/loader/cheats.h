@@ -6,8 +6,8 @@
 // All three are off by default and switch while playing.
 //
 // The free camera: with its cheat on, the Free camera key (input::Action::FreeCamera, B) detaches the camera from
-// the player where it is; the movement keys fly it along the view, Jump rises, Crouch sinks, Sprint is faster, Aim
-// slower; the mouse turns it. The player gets no input meanwhile (no keys, no mouse look, no pad), the view weapon,
+// the player where it is; the movement keys or the left stick fly it along the view, Jump rises, Crouch sinks,
+// Sprint is faster, Aim slower; the mouse or the right stick turns it (a controller button can be bound to the key). The player gets no input meanwhile (no keys, no mouse look, no pad), the view weapon,
 // crosshair and HUD are hidden. The key again, the cheat switched off or a new level brings the camera back.
 
 #include <cstdint>

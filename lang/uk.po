@@ -624,3 +624,9 @@ msgstr "Нескінченні набої"
 
 msgid "Free camera"
 msgstr "Вільна камера"
+
+msgid "Free camera key"
+msgstr "Клавіша вільної камери"
+
+msgid "Free camera button"
+msgstr "Кнопка вільної камери"

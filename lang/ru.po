@@ -624,3 +624,9 @@ msgstr "Бесконечные патроны"
 
 msgid "Free camera"
 msgstr "Свободная камера"
+
+msgid "Free camera key"
+msgstr "Клавиша свободной камеры"
+
+msgid "Free camera button"
+msgstr "Кнопка свободной камеры"

@@ -72,8 +72,14 @@ bool XB_CDECL free_camera_view(float* origin, float* angles) {
     const float right[3] = {std::sin(yaw), -std::cos(yaw), 0.0f};
     using A = input::Action;
     const uint32_t h = g_camera.held;
-    const float f = float(held(h, A::MoveForward)) - float(held(h, A::MoveBack));
-    const float r = float(held(h, A::MoveRight)) - float(held(h, A::MoveLeft));
+    // A controller: the left stick moves, the right stick turns (up looks up), about 150 degrees a second at full.
+    float lx, ly, rx, ry;
+    input::free_camera_sticks(lx, ly, rx, ry);
+    constexpr float kTurnRate = 150.0f;
+    g_camera.angles[1] -= rx * kTurnRate * dt;
+    g_camera.angles[0] = std::clamp(g_camera.angles[0] - ry * kTurnRate * dt, -89.0f, 89.0f);
+    const float f = std::clamp(float(held(h, A::MoveForward)) - float(held(h, A::MoveBack)) + ly, -1.0f, 1.0f);
+    const float r = std::clamp(float(held(h, A::MoveRight)) - float(held(h, A::MoveLeft)) + lx, -1.0f, 1.0f);
     const float u = float(held(h, A::Jump)) - float(held(h, A::Crouch));
     const float speed = kSpeed * (held(h, A::Sprint) ? 4.0f : 1.0f) * (held(h, A::Aim) ? 0.25f : 1.0f) * dt;
     for (int k = 0; k < 3; ++k)

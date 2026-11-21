@@ -264,6 +264,7 @@ const SettingDef kSettings[] = {
     {"key-raise-stance", "KEYS", T::Text, G::Controls, kLive | kHidden, 0, 0, nullptr, "", "", "keys", "raise-stance"},
     {"key-previous-weapon", "KEYS", T::Text, G::Controls, kLive | kHidden, 0, 0, nullptr, "", "", "keys", "previous-weapon"},
     {"key-hide-hud", "KEYS", T::Text, G::Controls, kLive | kHidden, 0, 0, nullptr, "", "", "keys", "hide-hud"},
+    {"key-free-camera", "KEYS", T::Text, G::Controls, kLive | kHidden, 0, 0, nullptr, "", "", "keys", "free-camera"},
     {"pad", "LIST", T::Text, G::Controls, 0, 0, 0, nullptr, "",
      "gamepad bindings that differ from the Modern preset, e.g. \"jump=pad-a crouch=pad-b grenade=pad-lb\" "
      "(src/input/bindings.h); settings.ini keeps them as one pad-<action> line each"},
@@ -288,6 +289,7 @@ const SettingDef kSettings[] = {
     {"pad-raise-stance", "BUTTONS", T::Text, G::Controls, kLive | kHidden, 0, 0, nullptr, "", "", "pad", "raise-stance"},
     {"pad-previous-weapon", "BUTTONS", T::Text, G::Controls, kLive | kHidden, 0, 0, nullptr, "", "", "pad", "previous-weapon"},
     {"pad-hide-hud", "BUTTONS", T::Text, G::Controls, kLive | kHidden, 0, 0, nullptr, "", "", "pad", "hide-hud"},
+    {"pad-free-camera", "BUTTONS", T::Text, G::Controls, kLive | kHidden, 0, 0, nullptr, "", "", "pad", "free-camera"},
     // kLauncher: never passed to the game as an option (the game reads it from settings.ini itself).
     {"show-notice", "", T::Flag, G::Controls, kCommandLine | kHidden, 0, 0, nullptr, "",
      "show the one-time notice at the first menu even when it was seen, also in scripted runs (testing)"},
@@ -318,8 +320,9 @@ const SettingDef kSettings[] = {
     {"infinite-ammo", "on|off", T::Switch, G::Controls, kLiveIni, 0, 0, nullptr, "off",
      "cheat: firing and throwing take nothing from the magazine, so no reloading (default off; campaign only)"},
     {"free-camera", "on|off", T::Switch, G::Controls, kLiveIni, 0, 0, nullptr, "off",
-     "cheat: the Free camera key (default B) detaches the camera, to fly with the movement keys and the mouse "
-     "(Jump up, Crouch down, Sprint faster) while you stand still; again to come back (default off; campaign only)"},
+     "cheat: the Free camera key (default B; on a controller, the button you bind) detaches the camera, to fly with "
+     "the movement keys and the mouse or the two sticks (Jump up, Crouch down, Sprint faster) while you stand still; "
+     "again to come back (default off; campaign only)"},
     {"more-bodies", "on|off", T::Switch, G::Graphics, 0, 0, 0, nullptr, "off",
      "keep up to 16 fallen soldiers instead of the game's 10 before the farthest one is removed (16 is the game's "
      "own maximum; default off; campaign only)"},
@@ -653,9 +656,10 @@ const SettingUi kUi[] = {
     {"god-mode", nullptr, "God mode", "Cheat: you take no damage. Campaign only."},
     {"infinite-ammo", nullptr, "Infinite ammo", "Cheat: the magazine never empties, so no reloading. Campaign only."},
     {"free-camera", nullptr, "Free camera",
-     "Cheat: the Free camera key (B, under Controls > Keyboard) detaches the camera. Fly with the movement keys and "
-     "the mouse, Jump to rise, Crouch to sink, Sprint for speed; press the key again to come back. The HUD hides "
-     "meanwhile. Campaign only."},
+     "Cheat: the Free camera key (B, under Controls > Keyboard; a controller button can be bound under Controls > "
+     "Controller) detaches the camera. Fly with the movement keys and the mouse, or the left and right sticks; Jump "
+     "to rise, Crouch to sink, Sprint for speed; press it again to come back. The HUD hides meanwhile. Campaign "
+     "only."},
     {"more-bodies", nullptr, "More bodies",
      "The game keeps 10 fallen soldiers and removes the farthest one when another falls. On: 16, the most the game "
      "can hold. Campaign only."},

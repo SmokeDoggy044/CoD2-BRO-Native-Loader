@@ -460,6 +460,9 @@ msgstr ""
 msgid "Hide HUD"
 msgstr ""
 
+msgid "Free camera"
+msgstr ""
+
 msgid "KEYBOARD"
 msgstr ""
 
@@ -475,9 +478,6 @@ msgstr ""
 msgid "Move right"
 msgstr ""
 
-msgid "Free camera"
-msgstr ""
-
 msgid "CHEATS"
 msgstr ""
 
@@ -485,6 +485,12 @@ msgid "God mode"
 msgstr ""
 
 msgid "Infinite ammo"
+msgstr ""
+
+msgid "Free camera key"
+msgstr ""
+
+msgid "Free camera button"
 msgstr ""
 
 msgid "SETTINGS"

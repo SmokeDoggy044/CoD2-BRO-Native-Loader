@@ -76,6 +76,8 @@ void apply_mouse_capture();
 
 // While set (the free camera cheat flies), the ports give the game only Start and Back.
 void set_player_frozen(bool frozen);
+// Port 0's sticks while frozen, -1..1 past a dead zone (up and right positive): the free camera's controller.
+void free_camera_sticks(float& lx, float& ly, float& rx, float& ry);
 
 // The mouse in menu mode. Position in window pixels; clicks and wheel steps (up is
 // positive) since the last call. Empty outside menu mode.

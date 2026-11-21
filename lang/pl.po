@@ -624,3 +624,9 @@ msgstr "Nieskończona amunicja"
 
 msgid "Free camera"
 msgstr "Wolna kamera"
+
+msgid "Free camera key"
+msgstr "Klawisz wolnej kamery"
+
+msgid "Free camera button"
+msgstr "Przycisk wolnej kamery"

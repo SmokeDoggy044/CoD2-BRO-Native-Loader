@@ -624,3 +624,9 @@ msgstr "Câmera livre"
 
 msgid "Portuguese (Brazil)"
 msgstr "Português (Brasil)"
+
+msgid "Free camera key"
+msgstr "Tecla da câmera livre"
+
+msgid "Free camera button"
+msgstr "Botão da câmera livre"

@@ -8,6 +8,7 @@
 #include <string>
 #include <vector>
 
+#include "bindings.h"
 #include "mod_list.h"
 #include "settings.h"
 #include "settings_schema.h"
@@ -42,6 +43,19 @@ int main() {
     CHECK(s.get("assets") == "/games/cod bro/a=b");  // split at the first '=', spaces kept
     CHECK(s.get("scale") == "3");
     CHECK(!s.get("no equals sign"));
+
+    // Every action has its key-<token> and pad-<token> setting: without one, a binding made in the settings pages
+    // is dropped when stored (the Free camera button read back as none, 1.0.10).
+    for (size_t a = 0; a < input::kActionCount; ++a) {
+        const std::string token = input::action_token(static_cast<input::Action>(a));
+        bool key = false, pad = false;
+        for (const platform::SettingDef& def : platform::setting_defs()) {
+            key = key || def.key == "key-" + token;
+            pad = pad || def.key == "pad-" + token;
+        }
+        if (!key || !pad) std::printf("FAIL: action %s lacks key-/pad- setting\n", token.c_str());
+        CHECK(key && pad);
+    }
 
     const std::vector<std::string> expected = {"--aspect", "16:9", "--assets", "/games/cod bro/a=b", "--silent",
                                                "--scale", "3"};
