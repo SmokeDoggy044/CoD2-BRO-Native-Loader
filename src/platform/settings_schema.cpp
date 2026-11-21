@@ -56,10 +56,11 @@ const SettingDef kSettings[] = {
      "loader, or tools/data)"},
     {"language", "L", T::Choice, G::Files, 0, 0, 0, "english|german|french|spanish|italian", "english",
      "the console language; the game uses it where its disc has that language"},
-    {"text-language", "game|polish|russian|ukrainian", T::Choice, G::Files, 0, 0, 0, "game|polish|russian|ukrainian",
-     "game",
-     "the language of the texts on screen (menus, hints, subtitles): the game's own, or Polish, Russian or Ukrainian "
-     "(our translations, lang/game/pl.po, ru.po, uk.po; the voices stay in the game's language)"},
+    {"text-language", "game|polish|russian|ukrainian|portuguese", T::Choice, G::Files, 0, 0, 0,
+     "game|polish|russian|ukrainian|portuguese", "game",
+     "the language of the texts on screen (menus, hints, subtitles): the game's own, or Polish, Russian, Ukrainian or "
+     "Portuguese (Brazil) (our translations, lang/game/pl.po, ru.po, uk.po, pt_BR.po; the voices stay in the game's "
+     "language)"},
     {"memory", "MB", T::Int, G::Files, 0, 16, 1024, nullptr, "128",
      "the game's memory (default 128; the game's own pools and sound memory grow with what is past a retail Xbox's 64 "
      "MB; 64 = exactly as on the Xbox; the multiplayer, still on the loader, keeps 64)"},
@@ -263,6 +264,7 @@ const SettingDef kSettings[] = {
     {"key-raise-stance", "KEYS", T::Text, G::Controls, kLive | kHidden, 0, 0, nullptr, "", "", "keys", "raise-stance"},
     {"key-previous-weapon", "KEYS", T::Text, G::Controls, kLive | kHidden, 0, 0, nullptr, "", "", "keys", "previous-weapon"},
     {"key-hide-hud", "KEYS", T::Text, G::Controls, kLive | kHidden, 0, 0, nullptr, "", "", "keys", "hide-hud"},
+    {"key-free-camera", "KEYS", T::Text, G::Controls, kLive | kHidden, 0, 0, nullptr, "", "", "keys", "free-camera"},
     {"pad", "LIST", T::Text, G::Controls, 0, 0, 0, nullptr, "",
      "gamepad bindings that differ from the Modern preset, e.g. \"jump=pad-a crouch=pad-b grenade=pad-lb\" "
      "(src/input/bindings.h); settings.ini keeps them as one pad-<action> line each"},
@@ -287,6 +289,7 @@ const SettingDef kSettings[] = {
     {"pad-raise-stance", "BUTTONS", T::Text, G::Controls, kLive | kHidden, 0, 0, nullptr, "", "", "pad", "raise-stance"},
     {"pad-previous-weapon", "BUTTONS", T::Text, G::Controls, kLive | kHidden, 0, 0, nullptr, "", "", "pad", "previous-weapon"},
     {"pad-hide-hud", "BUTTONS", T::Text, G::Controls, kLive | kHidden, 0, 0, nullptr, "", "", "pad", "hide-hud"},
+    {"pad-free-camera", "BUTTONS", T::Text, G::Controls, kLive | kHidden, 0, 0, nullptr, "", "", "pad", "free-camera"},
     // kLauncher: never passed to the game as an option (the game reads it from settings.ini itself).
     {"show-notice", "", T::Flag, G::Controls, kCommandLine | kHidden, 0, 0, nullptr, "",
      "show the one-time notice at the first menu even when it was seen, also in scripted runs (testing)"},
@@ -312,6 +315,14 @@ const SettingDef kSettings[] = {
     {"hit-markers", "on|off", T::Switch, G::Graphics, kLiveIni, 0, 0, nullptr, "off",
      "short strokes round the crosshair when your shot hits (white) or kills (red) (default off = as in the game; "
      "campaign only)"},
+    {"god-mode", "on|off", T::Switch, G::Controls, kLiveIni, 0, 0, nullptr, "off",
+     "cheat: you take no damage, as the game's own god command (default off; campaign only)"},
+    {"infinite-ammo", "on|off", T::Switch, G::Controls, kLiveIni, 0, 0, nullptr, "off",
+     "cheat: firing and throwing take nothing from the magazine, so no reloading (default off; campaign only)"},
+    {"free-camera", "on|off", T::Switch, G::Controls, kLiveIni, 0, 0, nullptr, "off",
+     "cheat: the Free camera key (default B; on a controller, the button you bind) detaches the camera, to fly with "
+     "the movement keys and the mouse or the two sticks (Jump up, Crouch down, Sprint faster) while you stand still; "
+     "again to come back (default off; campaign only)"},
     {"more-bodies", "on|off", T::Switch, G::Graphics, 0, 0, 0, nullptr, "off",
      "keep up to 16 fallen soldiers instead of the game's 10 before the farthest one is removed (16 is the game's "
      "own maximum; default off; campaign only)"},
@@ -470,9 +481,9 @@ const SettingUi kUi[] = {
      "English|German|French|Spanish|Italian"},
     // Renderer first: the launcher's Graphics tab starts with it
     {"text-language", nullptr, "Text language",
-     "The language of the texts on screen: menus, hints and subtitles. Polish, Russian and Ukrainian are our own "
-     "translations (lang/game/, corrections welcome); the voices stay in the game's language.",
-     "Game|Polski|Russian|Ukrainian"},
+     "The language of the texts on screen: menus, hints and subtitles. Polish, Russian, Ukrainian and Portuguese "
+     "(Brazil) are our own translations (lang/game/, corrections welcome); the voices stay in the game's language.",
+     "Game|Polski|Russian|Ukrainian|Portuguese (Brazil)"},
     {"renderer", "Renderer", "Renderer",
      "Vulkan is the renderer of our own engine (needs a Vulkan 1.3 graphics driver; without one the game uses "
      "Direct3D 9 by itself). Choose Direct3D 9 if the picture or the speed is wrong with Vulkan.",
@@ -642,6 +653,13 @@ const SettingUi kUi[] = {
     {"hit-markers", nullptr, "Hit markers",
      "Four short strokes round the crosshair when your shot hits an enemy: white for a hit, red for a kill. Off: as in "
      "the game. Campaign only."},
+    {"god-mode", nullptr, "God mode", "Cheat: you take no damage. Campaign only."},
+    {"infinite-ammo", nullptr, "Infinite ammo", "Cheat: the magazine never empties, so no reloading. Campaign only."},
+    {"free-camera", nullptr, "Free camera",
+     "Cheat: the Free camera key (B, under Controls > Keyboard; a controller button can be bound under Controls > "
+     "Controller) detaches the camera. Fly with the movement keys and the mouse, or the left and right sticks; Jump "
+     "to rise, Crouch to sink, Sprint for speed; press it again to come back. The HUD hides meanwhile. Campaign "
+     "only."},
     {"more-bodies", nullptr, "More bodies",
      "The game keeps 10 fallen soldiers and removes the farthest one when another falls. On: 16, the most the game "
      "can hold. Campaign only."},

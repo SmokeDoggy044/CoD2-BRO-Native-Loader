@@ -62,8 +62,8 @@ struct PageDef {
 
 RowDef setting(const char* key, const char* label = nullptr) { return {Row::Setting, key, label}; }
 RowDef link(const char* page, const char* label) { return {Row::Link, page, label}; }
-RowDef key_row(const char* action) { return {Row::Key, action, nullptr}; }
-RowDef pad_row(const char* action) { return {Row::PadKey, action, nullptr}; }
+RowDef key_row(const char* action, const char* label = nullptr) { return {Row::Key, action, label}; }
+RowDef pad_row(const char* action, const char* label = nullptr) { return {Row::PadKey, action, label}; }
 RowDef control_row(const char* which, const char* label) { return {Row::GameControl, which, label}; }
 
 // Root pages end in Reset to Defaults + Apply and Exit; sub-pages in Reset to Defaults + Back (added below).
@@ -116,15 +116,18 @@ const std::vector<PageDef>& pages() {
           setting("pad-glyphs"), pad_row("fire"), pad_row("aim"), pad_row("aim-toggle"), pad_row("grenade"),
           pad_row("melee"), pad_row("jump"), pad_row("crouch"), pad_row("raise-stance"), pad_row("sprint"),
           pad_row("use-reload"), pad_row("use"), pad_row("reload"), pad_row("next-weapon"), pad_row("previous-weapon"),
-          pad_row("lean-left"), pad_row("lean-right"), pad_row("hide-hud")}},
+          pad_row("lean-left"), pad_row("lean-right"), pad_row("hide-hud"), pad_row("free-camera")}},
         {"keys1", "KEYBOARD",
          {key_row("move-forward"), key_row("move-back"), key_row("move-left"), key_row("move-right"),
           key_row("fire"), key_row("aim"), key_row("aim-toggle"), key_row("jump"), key_row("crouch"),
           key_row("raise-stance"), key_row("sprint"), key_row("melee"), key_row("grenade"), key_row("use-reload"),
           key_row("use"), key_row("reload"), key_row("next-weapon"), key_row("previous-weapon"), key_row("lean-left"),
-          key_row("lean-right"), key_row("hide-hud")}},
+          key_row("lean-right"), key_row("hide-hud"), key_row("free-camera")}},
+        {"cheats", "CHEATS",
+         {setting("god-mode"), setting("infinite-ammo"), setting("free-camera"),
+          key_row("free-camera", "Free camera key"), pad_row("free-camera", "Free camera button")}},
         {"settings", "SETTINGS",
-         {link("graphics", "Graphics"), link("sound", "Sound"), link("controls", "Controls")}},
+         {link("graphics", "Graphics"), link("sound", "Sound"), link("controls", "Controls"), link("cheats", "Cheats")}},
     };
     return kPages;
 }
@@ -653,14 +656,14 @@ void page_view(game::PcPageView* view) {
             }
             case Row::Key: {
                 const input::Action a = action_of(row.def.key);
-                label = input::action_label(a);
+                label = row.def.label ? row.def.label : input::action_label(a);  // a page may name it
                 value = i == s.capture_row ? "Press a key" : key_text(bindings, a);
                 out.kind = game::kPcRowValue;
                 break;
             }
             case Row::PadKey: {
                 const input::Action a = action_of(row.def.key);
-                label = input::action_label(a);
+                label = row.def.label ? row.def.label : input::action_label(a);  // a page may name it
                 value = i == s.capture_row ? "Press a button" : key_text(pad, a);
                 out.kind = game::kPcRowValue;
                 break;

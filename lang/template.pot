@@ -121,6 +121,9 @@ msgstr ""
 msgid "Ukrainian"
 msgstr ""
 
+msgid "Portuguese (Brazil)"
+msgstr ""
+
 msgid "IMAGE QUALITY"
 msgstr ""
 
@@ -457,6 +460,9 @@ msgstr ""
 msgid "Hide HUD"
 msgstr ""
 
+msgid "Free camera"
+msgstr ""
+
 msgid "KEYBOARD"
 msgstr ""
 
@@ -472,6 +478,21 @@ msgstr ""
 msgid "Move right"
 msgstr ""
 
+msgid "CHEATS"
+msgstr ""
+
+msgid "God mode"
+msgstr ""
+
+msgid "Infinite ammo"
+msgstr ""
+
+msgid "Free camera key"
+msgstr ""
+
+msgid "Free camera button"
+msgstr ""
+
 msgid "SETTINGS"
 msgstr ""
 
@@ -482,6 +503,9 @@ msgid "Sound"
 msgstr ""
 
 msgid "Controls"
+msgstr ""
+
+msgid "Cheats"
 msgstr ""
 
 msgid "Reset to Defaults"

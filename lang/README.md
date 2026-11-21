@@ -13,6 +13,7 @@ language, using the file here for it:
 | Polish (text language) | `pl.po` |
 | Russian (text language) | `ru.po` |
 | Ukrainian (text language) | `uk.po` |
+| Portuguese, Brazil (text language) | `pt_BR.po` |
 
 A text without a translation stays English. The first versions of these files were drafted by an AI (Claude);
 corrections from native speakers are welcome as pull requests.
@@ -37,12 +38,12 @@ msgstr "Campo de visión"
 `template.pot` lists every text. It is written by the program: `cod_bro --lang-template lang/template.pot`.
 After a new text is added, the test `ui_text_test` lists the files that miss it.
 
-## Polish, Russian and Ukrainian: the game's own texts too
+## Polish, Russian, Ukrainian and Portuguese: the game's own texts too
 
-The Text language setting (launcher, or Graphics > Screen) set to Polish, Russian or Ukrainian shows every text on
+The Text language setting (launcher, or Graphics > Screen) set to Polish, Russian, Ukrainian or Portuguese (Brazil) shows every text on
 screen in that language - menus, hints, objectives and subtitles - while the game itself (its voices) stays in the
-disc's language. `game/pl.po`, `game/ru.po` and `game/uk.po` hold the game's texts (2628 each), `pl.po`, `ru.po`
-and `uk.po` ours. The game's fonts get the letters drawn in for this (Sharper text is switched on with it); Cyrillic
+disc's language. `game/pl.po`, `game/ru.po`, `game/uk.po` and `game/pt_BR.po` hold the game's texts (2628 each), `pl.po`,
+`ru.po`, `uk.po` and `pt_BR.po` ours. Portuguese needs no new letters; for the others the game's fonts get them drawn in (Sharper text is switched on with it); Cyrillic
 letters the replacement fonts lack come from Oswald and Montserrat (`src/text/fonts/README.md`).
 
 The first versions of all of them were drafted by an AI (Claude) and have not been checked by native speakers yet:

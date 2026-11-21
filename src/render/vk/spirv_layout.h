@@ -31,6 +31,10 @@ constexpr uint32_t kVkLocationFog = 10;
 
 // d3dbc: the shader's tokens; spirv: vkd3d's translation of the same tokens. Returns the SPIR-V with the
 // fixed layout, or an empty vector with the reason in *error.
+// Title shaders' debug information (source lines) left out from now on: AMD's driver with its own shader compiler
+// (Context; it crashed compiling them, #28). Elsewhere it stays; it costs nothing at run time.
+void set_spirv_strip_debug(bool strip);
+
 std::vector<uint32_t> spirv_fixed_layout(const void* d3dbc, uint32_t d3dbc_bytes, const void* spirv,
                                          uint32_t spirv_bytes, std::string* error);
 

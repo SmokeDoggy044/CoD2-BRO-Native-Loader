@@ -30,6 +30,8 @@ enum class Action : uint8_t {
     NextWeapon, LeanLeft, LeanRight, AimToggle,
     UseReload, RaiseStance, PrevWeapon,  // 1.0.6: commands only the game's own pad layouts had
     HideHud,                             // 1.0.7: the HUD off and on again (the game's cg_draw2D)
+    FreeCamera,                          // 1.0.10: the free camera on and off (the Free camera cheat; ours, the
+                                         // game never sees it: game::kNativeActionCount stops before it)
     Count
 };
 constexpr size_t kActionCount = static_cast<size_t>(Action::Count);

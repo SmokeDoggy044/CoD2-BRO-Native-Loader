@@ -13,6 +13,7 @@ set(loader_sources
     title_threads.cpp
     patches.cpp
     pc_menu.cpp
+    cheats.cpp
     game_texts.cpp
     menu_pages.cpp
     viewer.cpp
@@ -65,9 +66,13 @@ if(WIN32)
     target_compile_definitions(cod_bro PRIVATE COD_BRO_LOADER_CORE_DLL="cod_bro_core.dll"
                                COD_BRO_LOADER_CORE_ENTRY="cod_bro_host_main")
     target_compile_options(cod_bro PRIVATE -O2 -ffreestanding -fno-stack-protector -fno-asynchronous-unwind-tables)
+    # DEP on (1.0.10): the XBE's pages are mapped read-write-execute (os_win32.cpp map_image), our code pieces too
+    # (alloc_code), and the title's exception handlers lie in the kept image (keep_executable_headers). Under Wine
+    # with DEP enforced, missions 2, 4 and 5 replayed exactly as without it. The multiplayer stub stays without
+    # (the original x86 code throughout, not tested).
     target_link_options(cod_bro PRIVATE -nostdlib -nostartfiles -Wl,-e,_stub_entry
                         -Wl,--image-base=0x10000 -Wl,--disable-dynamicbase -Wl,--disable-reloc-section
-                        -Wl,--large-address-aware -Wl,--disable-nxcompat -mwindows)
+                        -Wl,--large-address-aware -Wl,--nxcompat -mwindows)
     target_link_libraries(cod_bro PRIVATE kernel32)
     cod_bro_windows_resources(cod_bro "Call of Duty 2: Big Red One - own engine" PROGRAM)
     add_dependencies(cod_bro cod_bro_core)

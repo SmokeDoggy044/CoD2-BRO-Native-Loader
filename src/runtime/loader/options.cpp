@@ -232,6 +232,12 @@ bool apply_setting(Options& o, Combined& combined, const platform::SettingDef& d
         o.more_bodies = on;
     } else if (key == "hit-markers") {
         o.hit_markers = on;
+    } else if (key == "god-mode") {
+        o.god_mode = on;
+    } else if (key == "infinite-ammo") {
+        o.infinite_ammo = on;
+    } else if (key == "free-camera") {
+        o.free_camera = on;
     } else if (key == "skip-intro") {
         o.skip_intro = on;
     } else if (key == "sprint-duration") {

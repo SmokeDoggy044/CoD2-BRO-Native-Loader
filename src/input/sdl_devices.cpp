@@ -167,6 +167,8 @@ bool menu_mode() { return now_ms() < g_menu_until_ms.load(); }
 // it (SDL_windowsrawinput.c), which the lock (or the thread waiting for itself) always ran out. On Windows the game
 // froze for 3 s at every change, again and again in the menus (issues #26, #23, #28).
 std::atomic<uint64_t> g_capture_request{0};
+std::atomic<bool> g_player_frozen{false};  // set_player_frozen
+std::atomic<uint64_t> g_camera_sticks{0};   // port 0's sticks while frozen (free_camera_sticks)
 
 // The capture state, with a change not applied yet.
 bool is_captured(SDL_Window* window) {
@@ -199,6 +201,7 @@ void follow_menu_mode(SDL_Window* window) {
 // A key capture takes the event: true when it did.
 // A capture's end: the input, then port 0 neutral until everything is let go.
 void capture_done(InputCode code) {
+    LOG_INFO("input", "binding capture: %s (%u)", input_name(code).c_str(), unsigned(code));
     g_capture_code = code;
     g_wait_all_keys = true;
     g_wait_release = true;
@@ -207,6 +210,7 @@ void capture_done(InputCode code) {
 }
 
 void capture_cancelled() {
+    LOG_INFO("input", "binding capture cancelled");
     g_wait_all_keys = true;
     g_wait_release = true;
     g_blocked = false;
@@ -218,6 +222,8 @@ bool pad_capture_event(const SDL_Event* event) {
     switch (event->type) {
         case SDL_EVENT_GAMEPAD_BUTTON_DOWN: {
             const auto button = static_cast<SDL_GamepadButton>(event->gbutton.button);
+            LOG_INFO("input", "binding capture: gamepad button %d down%s", int(button),
+                     is_reserved(static_cast<InputCode>(kPadButton + button)) ? " (reserved)" : "");
             if (button == SDL_GAMEPAD_BUTTON_START) {
                 capture_cancelled();
                 return true;
@@ -588,8 +594,13 @@ void apply_mouse_capture() {
     SDL_Window* window = SDL_GetWindowFromID(static_cast<SDL_WindowID>(request >> 2));
     const bool captured = (request & 1) != 0;
     if (window && SDL_GetWindowRelativeMouseMode(window) != captured) {
+        const int64_t start = now_ms();
         SDL_SetWindowRelativeMouseMode(window, captured);
-        LOG_INFO("input", "mouse %s", captured ? "captured (F10 frees it)" : "freed");
+        const int64_t took = now_ms() - start;
+        if (took > 100)
+            LOG_WARN("input", "mouse %s, which took %lld ms", captured ? "captured" : "freed", static_cast<long long>(took));
+        else
+            LOG_INFO("input", "mouse %s", captured ? "captured (F10 frees it)" : "freed");
     }
 }
 
@@ -700,6 +711,7 @@ void begin_key_capture() {
 }
 
 void begin_pad_capture() {
+    LOG_INFO("input", "binding capture: waiting for a gamepad button");
     g_capture_code = 0;
     g_capture_pad = true;
     g_blocked = true;
@@ -798,11 +810,32 @@ bool read_port(uint32_t port, PadState& state) {
         g_wait_release = false;
     }
     if (g_ports[port]) read_gamepad(g_ports[port], state);
-    if (port == 0) {
-        read_keyboard_mouse(state);
-        return true;
+    if (port == 0) read_keyboard_mouse(state);
+    if (g_player_frozen.load()) {  // the free camera flies: pause and objectives only
+        if (port == 0)  // its sticks for the camera (in play only a gamepad moves them, not the keyboard)
+            g_camera_sticks = uint64_t(uint16_t(state.thumb_lx)) | uint64_t(uint16_t(state.thumb_ly)) << 16 |
+                              uint64_t(uint16_t(state.thumb_rx)) << 32 | uint64_t(uint16_t(state.thumb_ry)) << 48;
+        const uint16_t keep = state.buttons & (kStart | kBack);
+        state = PadState{};
+        state.buttons = keep;
     }
-    return g_ports[port] != nullptr;
+    return port == 0 || g_ports[port] != nullptr;
+}
+
+void set_player_frozen(bool frozen) {
+    g_player_frozen = frozen;
+    if (!frozen) g_camera_sticks = 0;
+}
+
+void free_camera_sticks(float& lx, float& ly, float& rx, float& ry) {
+    const uint64_t s = g_camera_sticks.load();
+    // -1..1 past a 20 % dead zone, rescaled so the edge of the dead zone is 0.
+    const auto axis = [](int16_t v) {
+        const float f = std::clamp(float(v) / 32767.0f, -1.0f, 1.0f);
+        const float m = std::fabs(f);
+        return m < 0.2f ? 0.0f : std::copysign((m - 0.2f) / 0.8f, f);
+    };
+    lx = axis(int16_t(s)), ly = axis(int16_t(s >> 16)), rx = axis(int16_t(s >> 32)), ry = axis(int16_t(s >> 48));
 }
 
 void set_rumble(uint32_t port, uint16_t left, uint16_t right) {

@@ -39,6 +39,7 @@ constexpr ActionInfo kActions[] = {
     {"raise-stance", "Raise stance"},
     {"previous-weapon", "Previous weapon"},
     {"hide-hud", "Hide HUD"},
+    {"free-camera", "Free camera"},
 };
 static_assert(std::size(kActions) == kActionCount);
 
@@ -157,6 +158,7 @@ Bindings default_bindings() {
     b[Action::LeanRight] = {key(SDL_SCANCODE_E)};
     b[Action::AimToggle] = {key(SDL_SCANCODE_X)};
     b[Action::HideHud] = {key(SDL_SCANCODE_H)};
+    b[Action::FreeCamera] = {key(SDL_SCANCODE_B)};
     return b;
 }
 

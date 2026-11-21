@@ -261,11 +261,15 @@ void start_game_texts(const fs::path& template_path) {
             LOG_WARN("text", "cannot write the game text template %s", template_path.string().c_str());
         }
     }
-    if (platform::text_script() != platform::TextScript::Latin) {
-        const std::string code = platform::text_language();
+    // A text language (Portuguese has the game's own Latin letters, so test the language, not the script).
+    if (const std::string code = platform::text_language(); !code.empty()) {
         const fs::path translation = fs::path(platform::ui_text_dir()) / "game" / (code + ".po");
         g_translation = read_corrections(translation);
-        const char* name = code == "pl" ? "Polish" : code == "ru" ? "Russian" : code == "uk" ? "Ukrainian" : code.c_str();
+        const char* name = code == "pl"      ? "Polish"
+                           : code == "ru"    ? "Russian"
+                           : code == "uk"    ? "Ukrainian"
+                           : code == "pt_BR" ? "Portuguese (Brazil)"
+                                             : code.c_str();
         LOG_INFO("text", "text language %s: %zu game texts from %s", name, g_translation.size(),
                  translation.string().c_str());
     }

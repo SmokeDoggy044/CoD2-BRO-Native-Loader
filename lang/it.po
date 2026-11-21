@@ -568,6 +568,9 @@ msgstr "Russo"
 msgid "Ukrainian"
 msgstr "Ucraino"
 
+msgid "Portuguese (Brazil)"
+msgstr "Portoghese (Brasile)"
+
 msgid "Checking hard disk. Please do not turn off your PC."
 msgstr "Controllo del disco rigido. Non spegnere il PC."
 
@@ -585,3 +588,24 @@ msgstr "Sovrascrittura partita. Non spegnere il PC."
 
 msgid "Saving Profile. Please don't turn off your PC."
 msgstr "Salvataggio profilo. Non spegnere il PC."
+
+msgid "Cheats"
+msgstr "Trucchi"
+
+msgid "CHEATS"
+msgstr "TRUCCHI"
+
+msgid "God mode"
+msgstr "Modalità dio"
+
+msgid "Infinite ammo"
+msgstr "Munizioni infinite"
+
+msgid "Free camera"
+msgstr "Telecamera libera"
+
+msgid "Free camera key"
+msgstr "Tasto telecamera libera"
+
+msgid "Free camera button"
+msgstr "Pulsante telecamera libera"

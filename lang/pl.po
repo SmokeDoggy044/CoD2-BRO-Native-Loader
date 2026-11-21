@@ -589,6 +589,9 @@ msgstr "Rosyjski"
 msgid "Ukrainian"
 msgstr "Ukraiński"
 
+msgid "Portuguese (Brazil)"
+msgstr "Portugalski (Brazylia)"
+
 msgid "Checking hard disk. Please do not turn off your PC."
 msgstr "Sprawdzanie dysku twardego. Nie wyłączaj komputera."
 
@@ -606,3 +609,24 @@ msgstr "Nadpisywanie gry. Nie wyłączaj komputera."
 
 msgid "Saving Profile. Please don't turn off your PC."
 msgstr "Zapisywanie profilu. Nie wyłączaj komputera."
+
+msgid "Cheats"
+msgstr "Kody"
+
+msgid "CHEATS"
+msgstr "KODY"
+
+msgid "God mode"
+msgstr "Tryb boga"
+
+msgid "Infinite ammo"
+msgstr "Nieskończona amunicja"
+
+msgid "Free camera"
+msgstr "Wolna kamera"
+
+msgid "Free camera key"
+msgstr "Klawisz wolnej kamery"
+
+msgid "Free camera button"
+msgstr "Przycisk wolnej kamery"
