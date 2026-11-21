@@ -72,6 +72,7 @@ public:
         aspect_ = config.display_aspect > 0 ? config.display_aspect : static_cast<float>(width_) / height_;
         pillarbox_ = config.pillarbox_flat_frames && config.display_aspect > 0;
         wait_for_display_ = config.wait_for_display;
+        never_wait_ = config.never_wait;
         vsync_ = config.vsync;
         int pixel_width = 0, pixel_height = 0;
         window_.pixel_size(pixel_width, pixel_height);
@@ -242,7 +243,12 @@ private:
         // As the D3D9 back end: the display paces (FIFO); else no tearing without waiting (mailbox); else
         // neither (immediate).
         VkPresentModeKHR mode = VK_PRESENT_MODE_FIFO_KHR;
-        if (!wait_for_display_) {
+        if (never_wait_) {
+            if (has(VK_PRESENT_MODE_MAILBOX_KHR))
+                mode = VK_PRESENT_MODE_MAILBOX_KHR;
+            else if (has(VK_PRESENT_MODE_IMMEDIATE_KHR))
+                mode = VK_PRESENT_MODE_IMMEDIATE_KHR;
+        } else if (!wait_for_display_) {
             if (vsync_ && has(VK_PRESENT_MODE_MAILBOX_KHR))
                 mode = VK_PRESENT_MODE_MAILBOX_KHR;
             else if (!vsync_ && has(VK_PRESENT_MODE_IMMEDIATE_KHR))
@@ -775,7 +781,7 @@ private:
     uint32_t width_ = 640, height_ = 480;  // the title's back buffer
     float aspect_ = 4.0f / 3.0f;
     bool pillarbox_ = false, pillarboxed_ = false;
-    bool wait_for_display_ = false, vsync_ = true;
+    bool wait_for_display_ = false, never_wait_ = false, vsync_ = true;
     uint32_t xbox_draws_ = 0;
     bool xbox_draw_logged_ = false;
 };

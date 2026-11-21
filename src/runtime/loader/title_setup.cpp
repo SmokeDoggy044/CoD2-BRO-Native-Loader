@@ -330,6 +330,7 @@ void configure_title_services(const Options& options, const fs::path& assets, co
     d3d_config.backend.wait_for_display = title.id == loader::TitleId::Campaign && options.frame_rate == 0 &&
                                           options.pc_patches.value_or(!options.compare) &&
                                           options.replay.mode != xbox::replay::Mode::Replay;
+    d3d_config.backend.never_wait = options.replay.mode == xbox::replay::Mode::Replay;
     d3d_config.backend.d3d9 = options.d3d9;
     d3d_config.backend.api = options.renderer;
     // Multiplayer still draws on the Xbox D3D path (its renderer is the original code, not our C through
