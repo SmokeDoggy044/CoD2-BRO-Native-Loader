@@ -119,6 +119,7 @@ struct Options {
     uint16_t net_port = 3074;    // system link: UDP net_port .. net_port + 3
     std::optional<fs::path> diag_dir;
     std::optional<fs::path> shader_dump_dir;  // --dump-shaders
+    std::optional<fs::path> mem_stats_file;   // --mem-stats (memory_stats.h)
     uint32_t diag_seconds = 10;
     bool dev = false;  // --dev: developer overlay and keys
     std::vector<std::string> viewer_models;  // --viewer M1,M2: the object viewer (implies --dev)

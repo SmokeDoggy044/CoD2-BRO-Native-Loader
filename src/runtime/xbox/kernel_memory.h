@@ -37,6 +37,13 @@ struct TitleMemoryStatistics {
 TitleMemoryStatistics title_memory_statistics();
 XbPtr title_reserve(uint32_t bytes);  // reserved and committed, read/write
 
+// The ranges memory_init reserved and how many pages of them are in use (--mem-stats).
+struct MemoryUsage {
+    MemoryConfig layout;
+    uint32_t total_pages, image_pages, contiguous_pages, virtual_committed_pages, virtual_reserved_pages;
+};
+MemoryUsage memory_usage();
+
 // An in-process title restart (own engine host 5b): remember every allocation and its contents now (just before the
 // title's entry runs), and later put the memory back exactly like that - everything allocated since is gone, what
 // existed then holds its old bytes again, the page budget is what it was.

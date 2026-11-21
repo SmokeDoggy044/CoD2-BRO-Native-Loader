@@ -616,6 +616,13 @@ bool memory_init(const MemoryConfig& config) {
     return true;
 }
 
+MemoryUsage memory_usage() {
+    std::lock_guard lock(g_memory.mutex);
+    return {g_memory.config,           g_memory.total_pages,
+            g_memory.image_pages,      g_memory.contiguous_pages,
+            g_memory.virtual_committed_pages, g_memory.virtual_reserved_pages};
+}
+
 bool charge_image_pages(int32_t pages) {
     std::lock_guard lock(g_memory.mutex);
     g_memory.image_pages = static_cast<uint32_t>(static_cast<int32_t>(g_memory.image_pages) + pages);

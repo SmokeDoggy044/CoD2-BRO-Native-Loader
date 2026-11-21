@@ -313,6 +313,8 @@ bool apply_setting(Options& o, Combined& combined, const platform::SettingDef& d
         o.check_crt = on;
     } else if (key == "dump-shaders") {
         o.shader_dump_dir = fs::path(v);
+    } else if (key == "mem-stats") {
+        o.mem_stats_file = fs::path(v);
     } else if (key == "write-signatures") {
         o.write_signatures = fs::path(v);
     } else if (key == "compare" || key == "compare-all") {

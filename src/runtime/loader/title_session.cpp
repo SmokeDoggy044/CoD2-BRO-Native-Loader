@@ -26,6 +26,7 @@
 #include "compare.h"
 #include "crash.h"
 #include "diag_summary.h"
+#include "memory_stats.h"
 #include "functions.h"
 #include "gfx_device.h"
 #include "enhanced_graphics.h"
@@ -358,9 +359,12 @@ bool start_session(const Options& options, int argc, char** argv) {
                  options.diag_dir->string().c_str(), options.diag_seconds);
         // summary.txt when the process ends (not on a reboot: the session goes on).
         // (platform::end_process ends every normal run and skips atexit handlers; atexit stays for any other exit.)
+        loader::start_memory_stats(*options.diag_dir / "memory.txt");
         static const auto write_once = [] {
             static bool written = false;
-            if (!std::exchange(written, true)) loader::write_diag_summary(*g_diag_dir);
+            if (std::exchange(written, true)) return;
+            loader::write_memory_stats();
+            loader::write_diag_summary(*g_diag_dir);
         };
         platform::at_end_process([] { write_once(); });
         std::atexit([] { write_once(); });
@@ -375,8 +379,14 @@ bool start_session(const Options& options, int argc, char** argv) {
         if (!platform::log_set_file(g_log_path.string().c_str(), kPlayerLogLimit))
             std::fprintf(stderr, "cannot write %s\n", g_log_path.string().c_str());
     }
+    if (options.mem_stats_file && !options.diag_dir) {
+        loader::start_memory_stats(*options.mem_stats_file);
+        platform::at_end_process([] { loader::write_memory_stats(); });
+        std::atexit([] { loader::write_memory_stats(); });
+    }
     loader::set_fatal_exit_hook([](bool error) {
         loader::compare::flush();
+        loader::write_memory_stats();
         if (!error) render::save_caches();  // a crash may have left the GPU device unusable
         if (g_diag_dir) loader::write_diag_summary(*g_diag_dir);
         if (error) tell_player("The game stopped after an error.");

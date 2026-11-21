@@ -11,6 +11,7 @@
 #include "fe.h"
 #include "fx.h"
 #include "lanes.h"
+#include "mem_stats.h"
 #include "movie.h"
 #include "nal_math.h"
 #include "fx_load.h"
@@ -4177,6 +4178,7 @@ int32_t XB_CDECL Com_EventLoop() {
 }
 
 void XB_CDECL Com_Frame() {
+    MemStats_Sample();  // ours: --mem-stats / --diag pool counters (reads only)
     own_function<void XB_STDCALL(uint32_t)>(&Actor_UpdateBlockingPairs_entry)(0x0098aa90);  // Actor_UpdateBlockingPairs
     if (title_global<uint8_t>(0x008d50dd)) {
         // The pause screen: 0x008d50dc set = waiting to resume.

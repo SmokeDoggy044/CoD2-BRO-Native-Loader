@@ -3,6 +3,7 @@ set(loader_sources
     compare_common.cpp
     crash.cpp
     diag_summary.cpp
+    memory_stats.cpp
     hooks.cpp
     host_image.cpp
     kernel_stubs.cpp
