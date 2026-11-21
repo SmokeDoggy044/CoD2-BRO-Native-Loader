@@ -8,6 +8,7 @@
 #include <mutex>
 #include <utility>
 
+#include "qcommon_core.h"
 #include "title_data.h"
 #include "title_host.h"
 
@@ -89,6 +90,8 @@ struct Frame {
         heap("write-combined heap", 0x008fff60);
         heap("script zone heap", word(0x0095f4a0));
         heap("aps zone heap", word(0x0095f6d8));
+        // Ours: what the full zone heaps borrowed from the physical heap (Heap_AllocFromHeap).
+        add("zone heaps lent", word(0x008ff638 + 0x484), Heap_ZoneLentBytes());
 
         // Stream (zone load) heaps: the owner list 0x008ff4a8, count 0x008ff5a8, room for 64.
         const uint32_t stream_heaps = std::min<uint32_t>(word(0x008ff5a8), 64);

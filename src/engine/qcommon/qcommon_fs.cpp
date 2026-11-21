@@ -5570,7 +5570,7 @@ uint8_t* XB_CDECL Mem_InitSmallBlockPools(uint32_t effect_pool_size, uint32_t la
         title_global<uint32_t>(0x0095f6d8) = 0;
         return heap;
     }
-    uint8_t* const created = Heap_CreateFromZone(heap, 0x40000);
+    uint8_t* const created = Heap_CreateFromZone(heap, (Heap_TestSqueeze() & 4) ? 0x1000 : 0x40000);  // ours: squeeze
     title_global<uint32_t>(0x0095f6d8) = u32(created);
     return created;
 }
@@ -6920,18 +6920,20 @@ void XB_CDECL Sys_InitHeaps() {
         config[3 + i * 3] = 0;
     }
     static const uint32_t kPools[3][2] = {{0x20, 30000}, {0x40, 2000}, {0x80, 100}};
+    const uint32_t squeeze = Heap_TestSqueeze();  // ours, developers: tiny pools (1) and zone heap (2)
     for (const auto& pool : kPools) {
         const uint32_t n = config[0];
         if (static_cast<int32_t>(n) >= 16) continue;
         config[1 + n * 3] = pool[0];
         config[2 + n * 3] = 4;
-        config[3 + n * 3] = pool[1];
+        config[3 + n * 3] = (squeeze & 1) ? 8 : pool[1];
         config[0] = n + 1;
     }
     uint8_t* small = Z_Malloc(0x3c);
     title_global<uint8_t*>(0x0095f4a4) = small ? SmallHeap_Init(small, config, 0, 1) : nullptr;
     uint8_t* heap = Z_Malloc(0x494);
-    title_global<uint8_t*>(0x0095f4a0) = heap ? Heap_CreateFromZone(heap, 0x0004b000) : nullptr;
+    title_global<uint8_t*>(0x0095f4a0) =
+        heap ? Heap_CreateFromZone(heap, (squeeze & 2) ? 0x1000 : 0x0004b000) : nullptr;
     // One of 32 callbacks (0x00988784, count 0x00988780).
     const int32_t n = title_global<int32_t>(0x00988780);
     if (n < 32) {

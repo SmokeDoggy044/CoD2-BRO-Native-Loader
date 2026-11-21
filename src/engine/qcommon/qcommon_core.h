@@ -375,8 +375,14 @@ uint8_t XB_CDECL Heap_FreeFromOwner(uint8_t* heap, uint8_t* mem);
 // 0x000428d0: frees mem in its owner chain (0x008ff4a8 x 0x008ff5a8), else the first of the 8 heaps with
 // a size whose region holds it, else the current heap if its region holds it.
 void XB_CDECL Z_Free(uint8_t* mem);
-// 0x00042e30 (heap in ECX): Heap_FreeIn.
+// 0x00042e30 (heap in ECX): Heap_FreeIn. Ours: a block outside the heap's region (lent by Heap_AllocFromHeap) is
+// Z_Free'd instead.
 void XB_THISCALL Heap_FreeIn2(uint32_t heap, uint8_t* mem);
+// Ours: bytes the full zone heaps have lent from the main heap now; reset by an in-process restart.
+uint32_t Heap_ZoneLentBytes();
+void Heap_ZoneLentReset();
+// Ours, developers: COD_BRO_HEAP_SQUEEZE (0 = off).
+uint32_t Heap_TestSqueeze();
 // 0x00042af0: Heap_MallocAligned in the current heap (default heaps made first), counted in +0x488/peak
 // +0x48c; on failure the next heap (+0x490), then from the system heap each owner heap; Sys_DebugBreak
 // (0x00901aec set) when all fail.
@@ -389,7 +395,8 @@ uint8_t* XB_CDECL Heap_Alloc16_2(uint32_t size);
 uint8_t* XB_CDECL Z_Malloc(uint32_t size);
 // 0x00042da0 (heap in ECX; returns it): Heap_Init over a new Z_Malloc block of `size`.
 uint8_t* XB_THISCALL Heap_CreateFromZone(uint8_t* heap, uint32_t size);
-// 0x00042de0 (heap in ECX): Heap_AllocAligned in `heap` unless used + size exceeds its capacity (null).
+// 0x00042de0 (heap in ECX): Heap_AllocAligned in `heap` unless used + size exceeds its capacity (null). Ours: when
+// that fails, the main heap lends the block (not for the main heap itself).
 uint8_t* XB_THISCALL Heap_AllocFromHeap(uint8_t* heap, uint32_t size, uint32_t align);
 // 0x00044040..0x000440e0: pool bounds, Mem_AllocPhysicalPools first while the value is 0. Physical
 // 0x00901af0/f4, debug 0x00901afc/0x00901b00 (-1 = none), write-combined 0x00901b08/0c.
