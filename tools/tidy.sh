@@ -19,6 +19,19 @@ else
     [[ -n $files ]] || { echo "no changed C/C++ files"; exit 0; }
     pattern="(${files%|})\$"
 fi
-# GCC-only flags in the compile commands are not errors for this purpose.
-run-clang-tidy -p "$db" -quiet -j "$(nproc)" -extra-arg=-Wno-unknown-warning-option \
+# The compile commands without GCC-only flags clang does not know (they would stop it parsing those files).
+filtered=$(mktemp -d)
+trap 'rm -rf "$filtered"' EXIT
+python3 -I - "$db/compile_commands.json" "$filtered/compile_commands.json" <<'PY'
+import json, sys
+gcc_only = {"-fno-tree-loop-distribute-patterns"}
+commands = json.load(open(sys.argv[1]))
+for entry in commands:
+    if "command" in entry:
+        entry["command"] = " ".join(a for a in entry["command"].split(" ") if a not in gcc_only)
+    if "arguments" in entry:
+        entry["arguments"] = [a for a in entry["arguments"] if a not in gcc_only]
+json.dump(commands, open(sys.argv[2], "w"))
+PY
+run-clang-tidy -p "$filtered" -quiet -j "$(nproc)" -extra-arg=-Wno-unknown-warning-option \
     -extra-arg=-Wno-ignored-optimization-argument "$pattern" 2>&1 | grep -E "warning:|error:|^ +[0-9]+ \|" || true

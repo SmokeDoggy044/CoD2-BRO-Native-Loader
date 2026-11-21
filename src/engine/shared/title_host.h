@@ -68,8 +68,9 @@ struct TitleHost {
     // own first record (title_seh.cpp stops there). Null = 0xFFFFFFFF.
     uint32_t (*seh_chain_end)() = nullptr;
     // An unrecoverable error in title code (an unhandled exception): report with a backtrace from `eip`/`ebp` and
-    // end the process. Null = print and abort.
-    [[noreturn]] void (*fatal)(const char* message, uint32_t eip, uint32_t ebp) = nullptr;
+    // end the process; it does not return (callers abort after it anyway: [[noreturn]] belongs to functions, and
+    // clang rejects it on a pointer). Null = print and abort.
+    void (*fatal)(const char* message, uint32_t eip, uint32_t ebp) = nullptr;
 };
 
 void set_title_host(const TitleHost& host);
