@@ -3,6 +3,7 @@
 // The game's own texts, changed by us (game::loc_set_overrides, src/engine/qcommon/loc_overrides.h):
 // - PC wording: while the keyboard and mouse are in use, the few texts that name the Xbox controller in words
 //   ("Move the left thumbstick") say the bound keys instead, in the game's language (lang/*.po translate them);
+//   the save and profile notices say "your PC" instead of "your Xbox console", with any input device;
 // - corrections: <user data>/text_overrides.po replaces any text, by its key hash (msgctxt "0x1234abcd"); the
 //   template a session writes (--game-text-template) lists them with the disc's text.
 // A correction wins over the PC wording.

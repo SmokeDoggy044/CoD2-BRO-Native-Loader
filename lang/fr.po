@@ -567,3 +567,21 @@ msgstr "Russe"
 
 msgid "Ukrainian"
 msgstr "Ukrainien"
+
+msgid "Checking hard disk. Please do not turn off your PC."
+msgstr "Vérification du disque dur. N'éteignez pas votre PC."
+
+msgid "Deleting game. Please do not turn off your PC."
+msgstr "Suppression de la partie. N'éteignez pas votre PC."
+
+msgid "Formatting hard drive. Please do not turn off your PC."
+msgstr "Formatage du disque dur. N'éteignez pas votre PC."
+
+msgid "Loading profile. Please do not turn off your PC."
+msgstr "Chargement du profil. N'éteignez pas votre PC."
+
+msgid "Overwriting game. Please do not turn off your PC."
+msgstr "Remplacement de la partie. N'éteignez pas votre PC."
+
+msgid "Saving Profile. Please don't turn off your PC."
+msgstr "Sauvegarde du profil. N'éteignez pas votre PC."

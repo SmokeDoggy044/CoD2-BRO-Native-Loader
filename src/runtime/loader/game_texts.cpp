@@ -179,6 +179,20 @@ constexpr PcWording kPcWording[] = {
     {0xd0904eb0, "Press and hold [AIM] to setup your weapon"},
 };
 
+// The save and profile notices that name the Xbox console: what they say on a PC, whatever the input device
+// (English, translated by lang/*.po). The Xbox Live texts (dead code) and the "COD2 Xbox 360 Trailer" title stay, and
+// so does "Your Xbox does not have enough free blocks" (0x05004a6c): its sentence goes on in a second text, so a
+// translated first half would meet the disc's own second half; it needs a full disk to show.
+constexpr PcWording kPcPlatform[] = {
+    {0xf3ef1a9d, "Checking hard disk. Please do not turn off your PC."},
+    {0x0ebb15b2, "Deleting game. Please do not turn off your PC."},
+    {0xa199a4b6, "Formatting hard drive. Please do not turn off your PC."},
+    {0xfd3de294, "Loading profile. Please do not turn off your PC."},
+    {0xe04fd1fa, "Overwriting game. Please do not turn off your PC."},
+    {0x1073e25c, "Saving Profile. Please don't turn off your PC."},
+    {0xf2870394, "Saving Profile. Please don't turn off your PC."},
+};
+
 std::string with_keys(std::string text, const input::Bindings& bindings) {
     for (size_t at = text.find('{'); at != std::string::npos; at = text.find('{', at)) {
         const size_t end = text.find('}', at);
@@ -210,6 +224,7 @@ int32_t g_language = -1;
 void apply(bool keyboard) {
     std::map<uint32_t, std::string> texts = g_translation;
     const int32_t language = game::title_global<int32_t>(0x0095f5dc);  // g_languageIndex
+    for (const PcWording& w : kPcPlatform) texts[w.hash] = platform::ui_text(language, w.english);
     if (keyboard) {
         for (const PcWording& w : kPcWording) {
             if (w.english) texts[w.hash] = with_keys(platform::ui_text(language, w.english), g_bindings);
@@ -223,6 +238,8 @@ void apply(bool keyboard) {
 
 std::vector<const char*> game_text_texts() {
     std::vector<const char*> texts;
+    for (const PcWording& w : kPcPlatform)
+        if (std::find(texts.begin(), texts.end(), std::string_view(w.english)) == texts.end()) texts.push_back(w.english);
     for (const PcWording& w : kPcWording)
         if (std::string_view(w.english).find_first_not_of("{}-abcdefghijklmnopqrstuvwxyz") != std::string_view::npos &&
             std::find(texts.begin(), texts.end(), std::string_view(w.english)) == texts.end())
