@@ -1,0 +1,8 @@
+<!-- The Windows programs' icon (cmake/windows/program.ico): an olive-drab shield with a red 1, our own drawing. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <!-- Shield: olive drab with a darker rim; flat top, sides curving to a point -->
+  <path d="M40 20 H216 V120 C216 178 176 216 128 240 C80 216 40 178 40 120 Z" fill="#3b4220" />
+  <path d="M52 32 H204 V120 C204 170 170 203 128 225 C86 203 52 170 52 120 Z" fill="#5a6332" />
+  <!-- The red numeral 1: a flag at the top left, a straight stem, a base -->
+  <path d="M112 52 H150 V178 H170 V204 H90 V178 H112 V92 L88 104 V76 Z" fill="#c8102e" stroke="#7a0a1c" stroke-width="4" stroke-linejoin="round"/>
+</svg>
