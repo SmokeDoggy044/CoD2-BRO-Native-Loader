@@ -33,6 +33,7 @@
 #include "devices.h"
 #include "filesystem.h"
 #include "float_env.h"
+#include "game_window.h"
 #include "functions.h"
 #include "hooks.h"
 #include "key_prompts.h"
@@ -2727,6 +2728,7 @@ void install_title_patches(const TitleInfo& title, const TitlePatchConfig& confi
     g_menu_pointer = relocated(campaign ? kCampaignMenuPointer : kMultiplayerMenuPointer);
     if (title.id == TitleId::Multiplayer) install_multiplayer_heap_lock();
     input::set_action_remap(&remap_keyboard_actions);  // input side, not the game's code
+    render::set_after_events(&input::apply_mouse_capture);
     if (config.pc_features) {
         install_mouse_look();
         if (!config.aim_assist) disable_aim_assist();

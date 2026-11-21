@@ -28,6 +28,10 @@ struct WindowRect {
 // Opens the PC menu (pc_menu) on the window's next event pump, as ` would: for a one-time notice (any thread).
 void request_pc_menu();
 
+// Called after every event pump, on the thread that pumps (outside SDL's event watcher lock): the input side's
+// mouse capture changes (input::apply_mouse_capture).
+void set_after_events(void (*hook)());
+
 class GameWindow {
 public:
     GameWindow() = default;

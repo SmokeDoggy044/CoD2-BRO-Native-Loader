@@ -161,18 +161,30 @@ int64_t now_ms() {
 
 bool menu_mode() { return now_ms() < g_menu_until_ms.load(); }
 
-void set_captured(SDL_Window* window, bool captured) {
-    if (window && SDL_GetWindowRelativeMouseMode(window) != captured) {
-        SDL_SetWindowRelativeMouseMode(window, captured);
-        LOG_INFO("input", "mouse %s", captured ? "captured (F10 frees it)" : "freed");
-    }
+// A capture change the event watcher asked for, applied by apply_mouse_capture() after the events are pumped: the
+// window's id << 2 | 2 | captured (0: none). The watcher runs while SDL holds its watcher lock, and for raw mouse
+// input on SDL's raw-input thread itself; turning relative mode on or off stops that thread and waits up to 3 s for
+// it (SDL_windowsrawinput.c), which the lock (or the thread waiting for itself) always ran out. On Windows the game
+// froze for 3 s at every change, again and again in the menus (issues #26, #23, #28).
+std::atomic<uint64_t> g_capture_request{0};
+
+// The capture state, with a change not applied yet.
+bool is_captured(SDL_Window* window) {
+    const uint64_t request = g_capture_request.load();
+    if (request && (request >> 2) == SDL_GetWindowID(window)) return (request & 1) != 0;
+    return SDL_GetWindowRelativeMouseMode(window);
 }
 
-// Frees the mouse in menu mode and captures it again after; on the mouse's own events,
-// so that it happens on the thread that pumps them.
+void set_captured(SDL_Window* window, bool captured) {
+    if (window && is_captured(window) != captured)
+        g_capture_request = uint64_t(SDL_GetWindowID(window)) << 2 | 2 | (captured ? 1 : 0);
+}
+
+// Frees the mouse in menu mode and captures it again after; on the mouse's own events
+// (applied after the pump, apply_mouse_capture).
 void follow_menu_mode(SDL_Window* window) {
     if (!window) return;
-    const bool captured = SDL_GetWindowRelativeMouseMode(window);
+    const bool captured = is_captured(window);
     if (menu_mode()) {
         if (captured) {
             set_captured(window, false);
@@ -385,7 +397,7 @@ bool SDLCALL watch_event(void*, SDL_Event* event) {
             }
             if (event->key.scancode == SDL_SCANCODE_F10 && !event->key.repeat)
                 if (SDL_Window* window = SDL_GetWindowFromID(event->key.windowID)) {
-                    const bool capture = !SDL_GetWindowRelativeMouseMode(window);
+                    const bool capture = !is_captured(window);
                     set_captured(window, capture);
                     g_recapture = capture;
                 }
@@ -568,6 +580,17 @@ bool init_devices() {
     SDL_AddEventWatch(watch_event, nullptr);
     refresh_ports();
     return true;
+}
+
+void apply_mouse_capture() {
+    const uint64_t request = g_capture_request.exchange(0);
+    if (!request || g_blocked.load()) return;  // our menu opened since: it has the mouse (and restores it)
+    SDL_Window* window = SDL_GetWindowFromID(static_cast<SDL_WindowID>(request >> 2));
+    const bool captured = (request & 1) != 0;
+    if (window && SDL_GetWindowRelativeMouseMode(window) != captured) {
+        SDL_SetWindowRelativeMouseMode(window, captured);
+        LOG_INFO("input", "mouse %s", captured ? "captured (F10 frees it)" : "freed");
+    }
 }
 
 void set_action_remap(ActionRemap remap) { g_action_remap = remap; }
