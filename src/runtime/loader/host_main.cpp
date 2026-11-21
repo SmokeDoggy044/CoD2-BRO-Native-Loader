@@ -134,6 +134,11 @@ int host_main(int argc, char** argv) {
     constexpr uint32_t kOwnEngineMemoryMb = 128;
     xbox::MemoryConfig memory;
     memory.physical_bytes = (options.memory_mb ? options.memory_mb : kOwnEngineMemoryMb) * 1024 * 1024;
+    // The title's virtual memory (its CRT heap segments and thread stacks, filled from the bottom up) needs 1 MB in
+    // every mission; the Xbox's 1 GB range only took address space from our renderer and drivers. Same base, so
+    // every address the title sees stays the loader's.
+    constexpr uint32_t kOwnEngineVirtualBytes = 64u << 20;
+    memory.virtual_end = memory.virtual_base + kOwnEngineVirtualBytes;
     if (!xbox::memory_init(memory) || !xbox::place_launch_data_page({}))
         return loader::startup_failed("cannot set up the game's memory");
     xbox::charge_image_pages(loader::initial_image_pages(image));

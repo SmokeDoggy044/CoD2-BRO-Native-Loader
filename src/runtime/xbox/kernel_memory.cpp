@@ -587,8 +587,9 @@ bool memory_init(const MemoryConfig& config) {
                  layout.virtual_end);
         const uint32_t wanted = layout.virtual_end - layout.virtual_base;
         const uint32_t ceiling = std::min<uint32_t>(config.contiguous_base, 0x80000000u);
+        const uint32_t smallest = std::min(wanted, kMinVirtualRange);  // a range asked smaller is not halved
         bool found = false;
-        for (uint32_t size = wanted; !found && size >= kMinVirtualRange; size /= 2) {
+        for (uint32_t size = wanted; !found && size >= smallest; size /= 2) {
             if (size > ceiling - kVirtualSearchStart) continue;
             for (uint32_t base = kVirtualSearchStart; base <= ceiling - size; base += kVirtualSearchStep) {
                 if (platform::vmem::reserve(base, size)) {
@@ -601,7 +602,7 @@ bool memory_init(const MemoryConfig& config) {
         }
         if (!found) {
             LOG_ERROR("memory", "cannot reserve virtual memory range %08x-%08x (nor any other of %u MB or more)",
-                      config.virtual_base, config.virtual_end, kMinVirtualRange >> 20);
+                      config.virtual_base, config.virtual_end, smallest >> 20);
             return false;
         }
     }
