@@ -51,10 +51,9 @@ page installs the optional [texture packs](#texture-packs).
 ## Antivirus warnings (Windows)
 
 Some antivirus programs flag the launcher and the game's starter programs (`cod_bro.exe`,
-`cod_bro_loader.exe`) as `Gen:Variant.Babar`; for 0.2.0, 8 of 71 engines on VirusTotal did
-so for the launcher and 7 of 71 for the loader. The Linux files show no detections. We
-believe these are false positives, and we would rather tell you why than have you find out
-by surprise:
+`cod_bro_loader.exe`); the current numbers are in the table below. The Linux files show no
+detections. We believe these are false positives, and we would rather tell you why than have
+you find out by surprise:
 
 - **"Gen:Variant" is a generic match** on behaviour, not a known piece of malware.
 - **The launcher downloads and installs updates and texture packs.** *Update now* fetches
@@ -62,9 +61,48 @@ by surprise:
   Windows' own `tar` and replaces the program files in its folder: what malware
   "downloaders" do too.
 - **The starter programs reserve memory at fixed addresses** and load the original game's
-  data and mission scripts from your copy into it, which some malware also does.
+  data and mission scripts from your copy into it, which some malware also does. To do that
+  they are tiny (5 KB, no C runtime), sit at a fixed address without address randomisation
+  and carry a large empty memory area: a shape some scanners associate with packed programs
+  (Sophos' `Mal/EncPk`), although the files are neither packed nor encrypted.
 - **The files are not code-signed.** A signing certificate costs money every year, and
   this is a free hobby project.
+
+### Transparency: VirusTotal results
+
+We check every release's Windows programs on [VirusTotal](https://www.virustotal.com) and
+publish the results here, with what we have done about them. Each file name links to its
+public VirusTotal page, where you can see every engine's verdict yourself.
+
+Release 1.0.10, checked on 21 November 2026 (1.0.9's numbers for comparison):
+
+| File | Engines that flag it | 1.0.9 | What they report |
+|---|---|---|---|
+| [`cod_bro_launcher.exe`](https://www.virustotal.com/gui/file/ef6d540cb48120e60b71f7bbdb21142a8acb4dc711767b5532a4ecf76d1c25db) | 9 of 70 | 8 | `Gen:Variant.Babar.740485` from Bitdefender and six engines that use Bitdefender's (ALYac, Arcabit, Emsisoft, GData, eScan, VIPRE); CTX; a machine-learning score from Trapmine |
+| [`cod_bro.exe`](https://www.virustotal.com/gui/file/b4576aefdfeaac686f0bf35d7113ffb2b9def89fda073d91413880392b59b08f) | 6 of 71 | 6 | `Mal/EncPk-OJ` from Sophos and ZoneAlarm (which uses Sophos'); Malwarebytes' machine-learning `Anomalous`; unnamed verdicts from APEX and Google; `Trojan/Win32.Agent` from Antiy |
+| [`cod_bro_loader.exe`](https://www.virustotal.com/gui/file/752aad63531502c7ecfee83500b00a5ab624a575e10b1166654aa6bcfba792f6) | 6 of 71 | 6 | the same as `cod_bro.exe` (1.0.9's was also flagged by Microsoft's machine-learning `Trojan:Win32/Wacatac.B!ml`; 1.0.10's is not) |
+
+What we have done:
+
+- **Bitdefender** confirmed `Gen:Variant.Babar.740485` as a false positive (21 November 2026);
+  until their correction is released, the same signature still matches 1.0.10's launcher, and
+  it then reaches the engines that use theirs over the following days.
+- **Microsoft:** a false-positive report for 1.0.9's starters is in progress; Microsoft's engine
+  does not flag 1.0.10's.
+- **The starters stay small and plain on purpose.** Adding an icon to them in a test build
+  raised their detections from 6 to about 20, so they have none; the launcher has one.
+
+Machine-learning detections ("ML", "MachineLearning", "Anomalous", `!ml`) are guesses
+from a file's shape, not matches with known malware, and they often change from one
+release to the next.
+
+**Every update can change these results.** Each release builds new program files, and
+many vendors clear a false positive only for the exact file they were sent. So a new
+release may be flagged again, sometimes by engines that passed the previous one, until we
+report it and the vendor reviews it. That review is done by the vendors and takes time,
+usually days, during which a fresh release can show more detections than the one before.
+We check each release when it comes out, report what is flagged, and keep this table up
+to date.
 
 To check for yourself: all source code is in this repository and you can build it
 yourself ([Development](docs/developers/development.md)); the checksums are in
@@ -274,20 +312,21 @@ screenshots and patient retesting. Where each report stands:
 | [Hutchyy9](https://github.com/Hutchyy9) | [#17](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader/issues/17) Hang before the second mission | Traced to damaged game files, not the game |
 | [ZIRBY112](https://github.com/ZIRBY112) | [#19](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader/issues/19) Cutscene bars, sniper and tank aiming | Fixed in [1.0.0](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader/releases/tag/v1.0.0) |
 | [kratosac57-cyber](https://github.com/kratosac57-cyber) | [#20](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader/issues/20) The European disc with Spanish | Works since [1.0.3](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader/releases/tag/v1.0.3) |
-| [roioros](https://github.com/roioros) | [#22](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader/issues/22) Cheats (god mode, infinite ammo) | Planned for later |
+| [roioros](https://github.com/roioros) | [#22](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader/issues/22) Cheats (god mode, infinite ammo) | God mode and infinite ammo added in [1.0.10](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader/releases/tag/v1.0.10) (Cheats page) |
 | [Robin613507](https://github.com/Robin613507) | [#23](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader/issues/23) Cutscene bars, more bodies, hide HUD, skip intro, PC wording | Added in [1.0.5](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader/releases/tag/v1.0.5) and [1.0.7](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader/releases/tag/v1.0.7); "PC" in the save messages and a fix for mouse freezes in the menus in [1.0.9](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader/releases/tag/v1.0.9); more than 16 bodies and draw distance on hold |
 | [dosndr2017-sys](https://github.com/dosndr2017-sys) | [#24](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader/issues/24) Crash in The Great Crusade | Fixed in [1.0.4](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader/releases/tag/v1.0.4) |
-| [KraxxBR1](https://github.com/KraxxBR1) | [#25](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader/issues/25) Game closing at start-up (AMD) | Crash now logged ([1.0.7](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader/releases/tag/v1.0.7)); the 1.0.8 change did not help; crash reports name the shader in [1.0.9](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader/releases/tag/v1.0.9); being investigated |
+| [KraxxBR1](https://github.com/KraxxBR1) | [#25](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader/issues/25) Game closing at start-up (AMD) | Crash now logged ([1.0.7](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader/releases/tag/v1.0.7)); a change to the shaders for AMD's driver in [1.0.10](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader/releases/tag/v1.0.10), not confirmed yet; Portuguese (Brazil) text added in [1.0.10](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader/releases/tag/v1.0.10) |
 | [kratosac57-cyber](https://github.com/kratosac57-cyber) | [#26](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader/issues/26) Closing after the prologue; quitting to Windows; pause menu delay | Fixed in [1.0.6](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader/releases/tag/v1.0.6); Quit Game in [1.0.7](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader/releases/tag/v1.0.7); pause menu delay: likely cause fixed in [1.0.9](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader/releases/tag/v1.0.9), not confirmed yet |
 | [Jmon86](https://github.com/Jmon86) | [#27](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader/issues/27) Controller crash, black screen, missing sounds, not starting again, hit markers | Fixed in [1.0.6](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader/releases/tag/v1.0.6) and [1.0.8](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader/releases/tag/v1.0.8); hit markers now switch on at once in [1.0.9](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader/releases/tag/v1.0.9) |
-| [invictus39](https://github.com/invictus39) | [#28](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader/issues/28) Vulkan crash on AMD | The 1.0.8 change did not help; crash reports name the shader in [1.0.9](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader/releases/tag/v1.0.9); being investigated |
+| [invictus39](https://github.com/invictus39) | [#28](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader/issues/28) Vulkan crash on AMD | Crash traced to the first shader compile with [1.0.9](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader/releases/tag/v1.0.9)'s crash report; a change to the shaders in [1.0.10](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader/releases/tag/v1.0.10), not confirmed yet; the pause-menu prompts fixed in [1.0.10](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader/releases/tag/v1.0.10) |
 | [SneakiestDuke68](https://github.com/SneakiestDuke68) | [#29](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader/issues/29) Ambient occlusion lines; Polish | Fixed in [1.0.7](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader/releases/tag/v1.0.7) (confirmed); Polish added in [1.0.7](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader/releases/tag/v1.0.7) |
 | [ninjapro2828](https://github.com/ninjapro2828) | [#30](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader/issues/30) Missing gunfire, silent missions, not starting again | Fixed in [1.0.8](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader/releases/tag/v1.0.8) |
 | [Sol110405](https://github.com/Sol110405) | [#32](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader/issues/32) "Broc Pool empty" | Fixed in [1.0.8](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader/releases/tag/v1.0.8) |
-| [Tuko-Mas](https://github.com/Tuko-Mas) | [#33](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader/issues/33) Closing at start-up (AMD) | The 1.0.8 change did not help; crash reports name the shader in [1.0.9](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader/releases/tag/v1.0.9); being investigated |
-| [Lucifer4ikSX](https://github.com/Lucifer4ikSX) | [#28](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader/issues/28) Logs of the AMD Vulkan crash | Being investigated |
+| [Tuko-Mas](https://github.com/Tuko-Mas) | [#33](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader/issues/33) Closing at start-up (AMD) | A change to the shaders for AMD's driver in [1.0.10](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader/releases/tag/v1.0.10), not confirmed yet |
+| [Lucifer4ikSX](https://github.com/Lucifer4ikSX) | [#28](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader/issues/28) Logs of the AMD Vulkan crash | A change to the shaders for AMD's driver in [1.0.10](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader/releases/tag/v1.0.10), not confirmed yet |
 | [MaximeClonen](https://github.com/MaximeClonen) | [#35](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader/issues/35) Achievements and an Insane difficulty | Suggestion, not planned yet |
 | [Military-Man](https://github.com/Military-Man) | [#38](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader/issues/38) Game not opening | Waiting for a log |
+| [ertup0](https://github.com/ertup0) | [#39](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader/issues/39) Free camera and a UI toggle | Free camera added in [1.0.10](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader/releases/tag/v1.0.10) (Cheats page); the HUD toggle (H) since [1.0.7](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader/releases/tag/v1.0.7) |
 
 Thanks also to everyone who reported an antivirus warning (see [Antivirus warnings](#antivirus-warnings-windows)),
 and to everyone who plays the game this way and tells others about it.
