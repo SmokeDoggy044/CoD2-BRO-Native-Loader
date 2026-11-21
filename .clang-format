@@ -1,0 +1,25 @@
+# The style the code is written in, for formatting the lines you change (`git clang-format`), not whole files.
+BasedOnStyle: Google
+Language: Cpp
+Standard: c++20
+IndentWidth: 4
+ContinuationIndentWidth: 4
+ColumnLimit: 120
+AccessModifierOffset: -2
+DerivePointerAlignment: false
+PointerAlignment: Left
+AllowShortFunctionsOnASingleLine: All
+AllowShortIfStatementsOnASingleLine: WithoutElse
+AllowShortLoopsOnASingleLine: true
+AllowShortCaseLabelsOnASingleLine: true
+AllowShortBlocksOnASingleLine: Empty
+FixNamespaceComments: true
+NamespaceIndentation: None
+SpacesBeforeTrailingComments: 2
+IncludeBlocks: Preserve
+SortIncludes: Never  # include order is chosen on purpose in places
+# Tables of numbers and hand-aligned columns (functions.cpp, layouts) keep their alignment.
+AlignConsecutiveAssignments: false
+AlignTrailingComments:
+  Kind: Leave  # aligned by hand where it helps, not everywhere
+ReflowComments: false
