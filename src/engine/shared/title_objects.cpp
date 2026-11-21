@@ -28,6 +28,14 @@ bool g_native = false;
 
 void set_title_host(const TitleHost& host) { g_host = host; }
 const TitleHost& title_host() { return g_host; }
+
+uint32_t title_physical_to_cpu(uint32_t physical) {
+    return physical + (g_host.contiguous_base ? g_host.contiguous_base() : 0x80000000u);
+}
+
+bool title_in_contiguous_memory(uint32_t address) {
+    return g_host.in_contiguous_memory ? g_host.in_contiguous_memory(address) : (address & 0x80000000u) != 0;
+}
 void set_native_platform(bool on) { g_native = on; }
 bool native_platform() { return g_native; }
 

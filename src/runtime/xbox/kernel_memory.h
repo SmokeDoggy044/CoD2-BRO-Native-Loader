@@ -13,6 +13,12 @@ namespace xbox {
 // Reserves the address ranges from `config`. Called by kernel_init.
 bool memory_init(const MemoryConfig& config);
 
+// Where contiguous ("physical") memory starts: physical address P is at contiguous_base() + P. The Xbox's (and the
+// loader's) 0x80000000, or wherever the host placed it (MemoryConfig::host_placed). Any thread, after memory_init.
+uint32_t contiguous_base();
+// The address lies in contiguous memory (what the Xbox told by the address's top bit).
+bool in_contiguous_memory(uint32_t address);
+
 // Charges (positive) or returns (negative) pages for memory the kernel does not
 // allocate itself: the XBE image and its sections. Returns false if the budget is
 // now exceeded; the charge is kept either way.

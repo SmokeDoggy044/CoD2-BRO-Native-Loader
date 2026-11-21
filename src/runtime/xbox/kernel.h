@@ -43,6 +43,9 @@ struct MemoryConfig {
     uint32_t contiguous_base = 0x80000000;       // virtual address of physical address 0
     uint32_t virtual_base = 0x10000000;          // range for NtAllocateVirtualMemory
     uint32_t virtual_end = 0x50000000;
+    // Own engine: the host picks where both ranges go (the bases above only give the virtual range's size); the
+    // title's code reaches contiguous memory through contiguous_base() and is_contiguous(), not 0x80000000.
+    bool host_placed = false;
 };
 
 struct KernelConfig {

@@ -64,8 +64,9 @@ if(WIN32)
 
     # cod_bro.exe: our own engine, the same kind of stub with cod_bro_core.dll's entry.
     add_executable(cod_bro win32_stub.c)
+    # No held ranges: the own engine places its memory wherever Windows has room (MemoryConfig::host_placed).
     target_compile_definitions(cod_bro PRIVATE COD_BRO_LOADER_CORE_DLL="cod_bro_core.dll"
-                               COD_BRO_LOADER_CORE_ENTRY="cod_bro_host_main")
+                               COD_BRO_LOADER_CORE_ENTRY="cod_bro_host_main" COD_BRO_NO_HELD_RANGES)
     target_compile_options(cod_bro PRIVATE -O2 -ffreestanding -fno-stack-protector -fno-asynchronous-unwind-tables)
     # DEP on (1.0.10): the XBE's pages are mapped read-write-execute (os_win32.cpp map_image), our code pieces too
     # (alloc_code), and the title's exception handlers lie in the kept image (keep_executable_headers). Under Wine

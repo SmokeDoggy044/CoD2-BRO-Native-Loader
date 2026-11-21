@@ -89,7 +89,7 @@ XbSurface* create_surface(uint32_t format, uint32_t width, uint32_t height, uint
     const uint32_t bytes = ((width * bytes_per_pixel + 63) & ~63u) * height;
     const XbPtr memory = xbox::allocate_contiguous(bytes, 0x1000);
     if (!memory) LOG_ERROR("render", "no memory for a %ux%u frame buffer", width, height);
-    surface->container.resource.data = memory & 0x0FFFFFFF;
+    surface->container.resource.data = memory - xbox::contiguous_base();  // physical
     surface->container.format = kFormatDmaChannelA | (2u << kFormatDimensionShift) |
                                 (format << kFormatFormatShift) | (1u << kFormatMipmapShift);
     const uint32_t pitch = (width * bytes_per_pixel + 63) & ~63u;
@@ -370,7 +370,7 @@ uint32_t XB_STDCALL D3DDevice_Clear(uint32_t rect_count, XbPtr /*rects*/, uint32
 void upload_back_buffer_writes() {
     if (!g.back_buffer_written.exchange(false)) return;
     const auto& pixels = g.back_buffer->container;
-    g.backend->write_back_buffer(xbox::from_xbox_ptr<void>(pixels.resource.data | 0x80000000),
+    g.backend->write_back_buffer(xbox::from_xbox_ptr<void>(pixels.resource.data + xbox::contiguous_base()),
                                  ((pixels.size >> kSizePitchShift) + 1) * 64);
 }
 

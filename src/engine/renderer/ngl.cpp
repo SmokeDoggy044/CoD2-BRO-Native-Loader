@@ -13,6 +13,7 @@
 #include "ngl_gfx.h"
 #include "title_crt.h"
 #include "title_data.h"
+#include "title_host.h"
 #include "ngl_debug.h"
 #include "qcommon_core.h"
 #include "xgraphics.h"
@@ -3107,7 +3108,7 @@ void XB_THISCALL nglVertexBuffer_Free(uint32_t* buffer, uint32_t protect) {
 void XB_CDECL nglFreeFileBuffer(uint32_t* buffer) {
     // An installed free hook (0x009098dc) takes the whole buffer; else the count of
     // live buffers drops and the memory goes to the second hook (0x009098ec), or to
-    // XPhysicalFree (physical memory: the address's top bit set) or _aligned_free.
+    // XPhysicalFree (physical memory: the address's top bit set - ours: title_in_contiguous_memory) or _aligned_free.
     using Free = void XB_CDECL(uint32_t);
     if (const uint32_t hook = title_global<uint32_t>(0x009098dc)) {
         title_function<void XB_CDECL(uint32_t*)>(hook)(buffer);
@@ -3119,7 +3120,7 @@ void XB_CDECL nglFreeFileBuffer(uint32_t* buffer) {
         title_function<Free>(hook)(memory);
         return;
     }
-    if (static_cast<int32_t>(memory) < 0) {
+    if (title_in_contiguous_memory(memory)) {
         own_function<void XB_STDCALL(uint32_t)>(&XPhysicalFree)(memory);  // XPhysicalFree
         return;
     }
