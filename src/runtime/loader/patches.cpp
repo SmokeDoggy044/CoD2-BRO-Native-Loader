@@ -493,6 +493,23 @@ input::InputCode positional_pad_input(const PadControl& control) {
     }
 }
 
+// The prompts show the menu keys while a menu takes input, and from the moment the game pauses: the campaign's paused
+// flag 0x0095f919 (CL_TogglePause sets it with cl_paused before the pause menu opens, every Continue clears it; also
+// the mission end screens). Without it the pause menu's opening frames showed the in-play keys ("Esc or C Continue
+// and V Select", #28).
+extern bool g_campaign;  // below: whether the title is the campaign
+
+bool prompts_for_menu() {
+    const bool pointer = input::in_menu(), paused = g_campaign && title<uint8_t>(0x0095f919) != 0;
+    static int logged = -1;  // --debug: when the prompts switch, and why
+    const int now = pointer ? 2 : paused ? 1 : 0;
+    if (now != logged) {
+        LOG_DEBUG("text", "prompts: %s", now == 2 ? "menu keys (a menu takes input)" : now == 1 ? "menu keys (paused)" : "in-play keys");
+        logged = now;
+    }
+    return pointer || paused;
+}
+
 // Gamepad prompts with the pad giving its actions directly (own engine, 1.0.6): each of the game's button icons
 // shows the pad button bound to the action its layout puts there (src/text/key_prompts.h "@pad-..." glyphs, in the
 // pad's style); in menus, where the pad is still the Xbox pad, the button at that place.
@@ -509,7 +526,7 @@ text::KeyLabels pad_prompt_labels() {
     const auto glyph = [&](input::InputCode input) {
         return input ? input::prompt_label(input) + suffix : std::string();
     };
-    const bool menu = input::in_menu();
+    const bool menu = prompts_for_menu();
     const input::Bindings pad = input::pad_bindings();
     for (const PadControl& control : kPadControls) {
         const PromptIcon icon = prompt_icon(control);
@@ -580,7 +597,7 @@ void update_button_prompts() {
     }
     // The menu keys give their buttons in menus, and in play while they are unbound;
     // Escape and Tab in every layout.
-    const bool menu = input::in_menu();
+    const bool menu = prompts_for_menu();
     const auto arrow = [&](PromptIcon icon, SDL_Scancode code, const char* picture) {
         if (menu || (label(icon).empty() && !input::is_bound(input::bindings(), static_cast<input::InputCode>(code))))
             label(icon) = picture;
