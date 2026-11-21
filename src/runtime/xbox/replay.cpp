@@ -7,6 +7,7 @@
 #include <string>
 #include <vector>
 
+#include "kernel_memory.h"
 #include "log.h"
 #include "program.h"
 
@@ -15,7 +16,10 @@ namespace {
 
 // File: "XBREPLAY" + u32 version, then records [tag u8][size u16][payload].
 constexpr char kMagic[8] = {'X', 'B', 'R', 'E', 'P', 'L', 'A', 'Y'};
-constexpr uint32_t kVersion = 5;  // 4: timed waits (W), voice status (S), finished packets (k, K); 5: native keys (Y, y)
+// 4: timed waits (W), voice status (S), finished packets (k, K); 5: native keys (Y, y); 6: state hashes without
+// pointer values (hash_state), so a recording survives the title's memory moving or being laid out differently
+constexpr uint32_t kVersion = 6;
+constexpr uint32_t kMaskedHashesVersion = 6;  // older recordings still play; their state is not compared
 constexpr uint32_t kOldestVersion = 4;  // still replays (no native key records)
 bool known_version(uint32_t v) { return v >= kOldestVersion && v <= kVersion; }
 constexpr char kClockTag = 'C';
@@ -196,13 +200,18 @@ void report_counts() {
              g_count_reports == 5 ? " (no more of these)" : "");
 }
 
-// Word-wise FNV-1a style hash (integer only: title threads run with the title's FPU modes).
-uint32_t hash_words(const void* data, size_t size, uint32_t h = 2166136261u) {
+// The state hash (word-wise FNV-1a, integer only: title threads run with the title's FPU modes). Every word that
+// points into the title's memory (heaps, objects, contiguous memory - xbox::in_title_memory) counts as one marker
+// value, so only what the game holds is compared, not where it sits. Pointers into the title's image stay as they
+// are (the image does not move).
+uint32_t hash_state(const void* data, size_t size, uint32_t h = 2166136261u) {
+    constexpr uint32_t kPointer = 0x9e3779b9u;
     const auto* bytes = static_cast<const uint8_t*>(data);
     size_t i = 0;
     for (; i + 4 <= size; i += 4) {
         uint32_t word;
         std::memcpy(&word, bytes + i, 4);
+        if (in_title_memory(word)) word = kPointer;
         h = (h ^ word) * 16777619u;
     }
     for (; i < size; ++i) h = (h ^ bytes[i]) * 16777619u;
@@ -229,13 +238,13 @@ FrameRecord measure() {
     FrameRecord r{};
     r.frame = g_frame;
     std::memcpy(&r.level_time, title_bytes(kLevelTime), 4);
-    r.level_hash = hash_words(title_bytes(kLevelLocals), kLevelLocalsSize);
+    r.level_hash = hash_state(title_bytes(kLevelLocals), kLevelLocalsSize);
     r.entity_count = entity_count();
     g_entity_hashes.assign(r.entity_count, 0);
     uint32_t h = 2166136261u;
     for (uint32_t i = 0; i < r.entity_count; ++i) {
         const uint8_t* const ent = entity(i);
-        const uint32_t one = ent ? hash_words(ent, kEntitySize) : 0;
+        const uint32_t one = ent ? hash_state(ent, kEntitySize) : 0;
         g_entity_hashes[i] = one;
         h = (h ^ one) * 16777619u;
     }
@@ -243,7 +252,7 @@ FrameRecord measure() {
     uint32_t clients = 0, count = 0;
     std::memcpy(&clients, title_bytes(kLevelLocals), 4);
     std::memcpy(&count, title_bytes(kLevelMaxClients), 4);
-    r.client_hash = clients && count <= kMaxClients ? hash_words(title_bytes(clients), count * kClientSize) : 0;
+    r.client_hash = clients && count <= kMaxClients ? hash_state(title_bytes(clients), count * kClientSize) : 0;
     return r;
 }
 
@@ -300,6 +309,12 @@ bool g_finished = false;
 void finish() {
     if (g_finished || g_config.mode != Mode::Replay) return;
     g_finished = true;
+    if (g_version < kMaskedHashesVersion) {
+        LOG_WARN("replay", "%u frames played; state not compared: recorded before version %u (its hashes hold pointer "
+                 "values) - record it again", g_checked, kMaskedHashesVersion);
+        if (g_config.exit_at_end) platform::end_process(4);
+        return;
+    }
     if (g_mismatches)
         LOG_WARN("replay", "%u of %u frames differed, the first at frame %u", g_mismatches, g_checked, g_first_mismatch);
     else
@@ -512,7 +527,7 @@ void frame() {
     report_counts();
     const FrameRecord recorded = g_recorded_frame;
     ++g_checked;
-    if (std::memcmp(&recorded, &now, sizeof(now)) != 0) {
+    if (g_version >= kMaskedHashesVersion && std::memcmp(&recorded, &now, sizeof(now)) != 0) {
         if (g_mismatches < 10 && recorded.entity_hash != now.entity_hash) {
             const Queue& q = g_queues[static_cast<uint8_t>(kEntityHashesTag)];
             std::string list;

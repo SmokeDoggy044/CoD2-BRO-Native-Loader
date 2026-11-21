@@ -46,6 +46,15 @@
       }
     },
     {
+      "name": "sniper-player",
+      "inherits": "sniper-release",
+      "displayName": "Player release inside the Steam Runtime sniper SDK, without the developer tools (packaging/sniper/inside.sh)",
+      "binaryDir": "${sourceDir}/build/sniper/player",
+      "cacheVariables": {
+        "COD_BRO_DEV_TOOLS": "OFF"
+      }
+    },
+    {
       "name": "linux",
       "displayName": "Linux native (portable code only)",
       "generator": "Ninja",
@@ -84,6 +93,15 @@
       }
     },
     {
+      "name": "windows-mingw-player",
+      "inherits": "windows-mingw-release",
+      "displayName": "Windows 32-bit player release without the developer tools (cross-built with MinGW-w64)",
+      "binaryDir": "${sourceDir}/build/windows-mingw-player",
+      "cacheVariables": {
+        "COD_BRO_DEV_TOOLS": "OFF"
+      }
+    },
+    {
       "name": "windows",
       "displayName": "Windows (portable code only)",
       "generator": "Visual Studio 17 2022",
@@ -109,6 +127,10 @@
       "configurePreset": "sniper-release"
     },
     {
+      "name": "sniper-player",
+      "configurePreset": "sniper-player"
+    },
+    {
       "name": "linux",
       "configurePreset": "linux"
     },
@@ -119,6 +141,10 @@
     {
       "name": "windows-mingw-release",
       "configurePreset": "windows-mingw-release"
+    },
+    {
+      "name": "windows-mingw-player",
+      "configurePreset": "windows-mingw-player"
     },
     {
       "name": "windows",
@@ -149,6 +175,13 @@
       }
     },
     {
+      "name": "sniper-player",
+      "configurePreset": "sniper-player",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
       "name": "linux",
       "configurePreset": "linux",
       "output": {
@@ -165,6 +198,13 @@
     {
       "name": "windows-mingw-release",
       "configurePreset": "windows-mingw-release",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "windows-mingw-player",
+      "configurePreset": "windows-mingw-player",
       "output": {
         "outputOnFailure": true
       }
@@ -194,8 +234,22 @@
       ]
     },
     {
+      "name": "sniper-player",
+      "configurePreset": "sniper-player",
+      "generators": [
+        "TGZ"
+      ]
+    },
+    {
       "name": "windows-mingw-release",
       "configurePreset": "windows-mingw-release",
+      "generators": [
+        "ZIP"
+      ]
+    },
+    {
+      "name": "windows-mingw-player",
+      "configurePreset": "windows-mingw-player",
       "generators": [
         "ZIP"
       ]

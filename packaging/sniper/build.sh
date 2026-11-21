@@ -2,7 +2,7 @@
 # Builds the player release in the Steam Runtime 3 "sniper" SDK container (glibc
 # 2.31), so it runs on older distributions than the development Fedora.
 #
-#   packaging/sniper/build.sh     -> build/sniper/release/package/cod_bro-<version>-linux.tar.gz
+#   packaging/sniper/build.sh     -> build/sniper/player/package/cod_bro-<version>-linux.tar.gz
 #
 # Needs podman. Everything it builds and downloads stays in build/sniper/
 # (dependency sources and builds are reused on later runs).

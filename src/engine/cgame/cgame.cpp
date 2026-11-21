@@ -3652,7 +3652,6 @@ void XB_CDECL CG_ShellShock_f() {
                                                               : reinterpret_cast<const char*>(uintptr_t{0x0082dfeb});
     title_strncpy(text, arg, 0xff);
     text[0xff] = 0;
-    using ext = long double;
     const float seconds = static_cast<float>(title_atof(text) *  // atof
                                              platform_x87_ld(g(0x0083eb9c)));
     CG_ReadShellShockCvars(&title_global<uint8_t>(0x00975b44));
@@ -4239,7 +4238,6 @@ void XB_REGS1 XB_CDECL CG_ClearState(uint32_t restart) {
     title_global<uint32_t>(0x00973a6c) = 0;
     CG_InitLocalEntities();
     for (int32_t i = 0x10; i < 0x20; ++i) CG_ParseObjective(i);
-    using AtofFn = float XB_CDECL(const char*);
     auto configstring = [](uint32_t address) -> const char* {
         const uint8_t* const string = title_global<const uint8_t*>(address);
         return string ? reinterpret_cast<const char*>(string + 6) : nullptr;
@@ -4749,8 +4747,6 @@ void XB_CDECL CG_ServerCommand() {
     // unknown - also after the music stop - unless one of three ignored hashes.
     using LocalizeFn = const char* XB_CDECL(const char*, uint32_t, uint32_t);
     LocalizeFn* const localize = own_function<LocalizeFn>(&SEH_LocalizeTextMessage);  // SEH_LocalizeTextMessage
-    using AtofFn = float XB_CDECL(const char*);
-    using AtolFn = int32_t XB_CDECL(const char*);
     const char* const first = title_global<uint32_t>(0x00934248) ? title_global<const char*>(0x0092df90)
                                                                   : &title_global<const char>(0x0082dfeb);
     char* const buffer = &title_global<char>(0x0098b958);
@@ -5115,7 +5111,6 @@ void XB_CDECL CG_PredictPlayerState(uint32_t entry_esp, uint32_t ebx, uint32_t e
                         const uint32_t mover[5] = {0x00972550, title_global<uint32_t>(0x009725b0), title_global<uint32_t>(0x00972544),
                                                    title_global<uint32_t>(0x00972540), top + 0x34};
                         call(own_address(&CG_AdjustPositionForMover_entry), 5, mover);  // CG_AdjustPositionForMover
-                        using ext = long double;
                         at(0x10) = static_cast<float>(platform_x87_ld(at(0x20)) - platform_x87_ld(at(0x40)));
                         const int32_t yaw = static_cast<int32_t>(at(0x38) * g(0x0083ebd8)) & 0xffff;
                         title_global<int32_t>(0x009725a8) += yaw;

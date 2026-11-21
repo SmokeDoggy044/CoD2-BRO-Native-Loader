@@ -2050,7 +2050,6 @@ void XB_CDECL Stream_LoadBtr(char* name, uint8_t* data, uint32_t, uint32_t) {
     for (uint32_t offset = 0; offset < 0x43 * 4; offset += 4) title_global<uint32_t>(0x00988bd8 + offset) = 0;
     title_global<uint32_t>(0x0095e394) = 1;
     title_global<uint32_t>(0x0095e608) = 0;
-    using Strncpy = char* XB_CDECL(char*, const char*, uint32_t);
     title_strncpy(title_text(0x00988bd8), name, 0x7f);  // _strncpy
     title_global<char>(0x00988c57) = 0;
     const char* base = title_text(0x00988bd8);

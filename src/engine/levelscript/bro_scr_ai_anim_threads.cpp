@@ -3271,8 +3271,8 @@ void XB_CDECL BroScr_MiscCombatTimer(uint32_t ent) {
     }
 }
 
-void XB_CDECL BroScr_ForceShootAtPoint(uint32_t ent, ScrVec3 point, uint32_t delay, ScriptString name, uint32_t unused7,
-                                       uint32_t target, uint32_t unused9) {
+void XB_CDECL BroScr_ForceShootAtPoint(uint32_t ent, ScrVec3 point, uint32_t delay, ScriptString name, uint32_t /*unused7*/,
+                                       uint32_t target, uint32_t /*unused9*/) {
     ScrStringGuard guard_name(&name);
     end_on(ent, 0x06730ae8);  // death
     end_on(ent, 0x0039894e);

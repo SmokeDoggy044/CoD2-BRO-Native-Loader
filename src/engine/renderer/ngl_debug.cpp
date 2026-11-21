@@ -315,7 +315,6 @@ void XB_THISCALL nglDebugLineBatch_Draw(uint8_t* self) {
         for (int32_t c = 0; c < 4; ++c) {
             for (int32_t r = 0; r < 4; ++r) constants[c * 4 + r] = rows[r].v[c];
         }
-        using SetConstants = void XB_FASTCALL(uint32_t, const float*, uint32_t);
         xb::set_vertex_constants(6, constants, 16);  // NotInlineFast
         nglSetVertexShaderCached(&title_global<NglShaderRef>(0x00903cc8));
     }

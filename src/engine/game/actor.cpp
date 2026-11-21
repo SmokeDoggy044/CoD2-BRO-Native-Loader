@@ -8807,7 +8807,7 @@ uint32_t XB_CDECL Actor_Grenade_NodeClaimRevoked(uint32_t entry, uint32_t, uint3
 
 AI_GAP_ENTRY(Actor_Grenade_UpdateReaction, 0)
 
-uint32_t XB_CDECL Actor_Grenade_UpdateReaction(uint32_t entry, uint32_t, uint32_t ebx, uint32_t ecx, uint32_t edx,
+uint32_t XB_CDECL Actor_Grenade_UpdateReaction(uint32_t entry, uint32_t, uint32_t ebx, uint32_t /*ecx*/, uint32_t edx,
                                                uint32_t esi, uint32_t edi, uint32_t) {
     // ESI actor: a grenade owned by this actor's entity (or by nobody before the actor threw
     // one, +0x1324) is first tried for a throw back (its result returned when it succeeds; the
@@ -8847,7 +8847,7 @@ uint32_t XB_CDECL Actor_Grenade_UpdateReaction(uint32_t entry, uint32_t, uint32_
 
 AI_GAP_ENTRY(Actor_UpdateOrient, 0)
 
-uint32_t XB_CDECL Actor_UpdateOrient(uint32_t entry, uint32_t eax, uint32_t ebx, uint32_t ecx, uint32_t edx,
+uint32_t XB_CDECL Actor_UpdateOrient(uint32_t entry, uint32_t eax, uint32_t ebx, uint32_t ecx, uint32_t /*edx*/,
                                      uint32_t esi, uint32_t edi, uint32_t) {
     // ECX actor: the orientation record (+0x140 when its mode is set, else +0x12c) by mode -
     // 2: Actor_OrientToMoveHistory (tail jump), 3: Actor_ChooseIdleOrient, 4:
@@ -8895,7 +8895,7 @@ uint32_t XB_CDECL Actor_UpdateOrient(uint32_t entry, uint32_t eax, uint32_t ebx,
 
 AI_GAP_ENTRY(Actor_SetGoalNodeAndTakeCover, 4)
 
-uint32_t XB_CDECL Actor_SetGoalNodeAndTakeCover(uint32_t entry, uint32_t eax, uint32_t ebx, uint32_t ecx, uint32_t edx,
+uint32_t XB_CDECL Actor_SetGoalNodeAndTakeCover(uint32_t entry, uint32_t eax, uint32_t ebx, uint32_t /*ecx*/, uint32_t edx,
                                                 uint32_t esi, uint32_t edi, uint32_t ebp) {
     // EAX sentient, stack node (ret 4): the goal position becomes the node's origin (block
     // (x, y, z, x) at A - 0x10, A = the 16-aligned frame base). For a cover node type (1 <<
@@ -9061,7 +9061,6 @@ uint32_t XB_CDECL Path_ScoreEnemyExposure(uint32_t entry, uint32_t ebx0, uint32_
                                 1, &other);  // PathNode_CanSee_2 (EAX node, EDX blocks; stdcall)
                     if (!(seen & 0xff)) continue;
                 }
-                using ext = long double;
                 const float dx = float(platform_x87_ld(pos[0]) - platform_x87_ld(field<float>(point, 0)));
                 const float dy = float(platform_x87_ld(pos[1]) - platform_x87_ld(field<float>(point, 4)));
                 const float dz = float(platform_x87_ld(pos[2]) - platform_x87_ld(field<float>(point, 8)));
@@ -10750,7 +10749,6 @@ void actor_clip_move(const float* v, const float* p, float* out) {
 
 // x87 dot product of a clip vector and a plane, ((a0 p0 + a1 p1) + a2 p2) in the precision control.
 long double actor_dot_x87(const float* a, const float* p) {
-    using ext = long double;
     return (platform_x87_ld(a[0]) * platform_x87_ld(p[0]) + platform_x87_ld(a[1]) * platform_x87_ld(p[1])) + platform_x87_ld(a[2]) * platform_x87_ld(p[2]);
 }
 
@@ -11325,7 +11323,6 @@ uint32_t XB_CDECL Actor_GrenadeThrow_Fallback(uint32_t entry, const float* start
     stack_word(F) = ebx;
     int32_t count = title_global<int32_t>(0x00985fd4);
     if (!count) return 0;
-    using ext = long double;
     const float dz = target[2] - start[2];
     const float dx = float(platform_x87_ld(target[0]) - platform_x87_ld(start[0]));
     const float dy = float(platform_x87_ld(target[1]) - platform_x87_ld(start[1]));
@@ -18505,7 +18502,7 @@ uint32_t XB_CDECL Actor_MoveAlongPath(uint32_t entry, uint32_t eax, uint32_t ebx
 
 AI_GAP_ENTRY(Actor_RunMovement, 0)
 
-uint32_t XB_CDECL Actor_RunMovement(uint32_t entry, uint32_t eax, uint32_t ebx, uint32_t ecx, uint32_t edx, uint32_t esi,
+uint32_t XB_CDECL Actor_RunMovement(uint32_t entry, uint32_t eax, uint32_t ebx, uint32_t /*ecx*/, uint32_t edx, uint32_t esi,
                                     uint32_t edi, uint32_t ebp) {
     // ESI move record (actor +0x290; g_actorMove): +0x10c, +0x88, +0x121 cleared. A ground
     // entity (handle +0x44) outside a valid cell clears +0x20. Standing on the world (+0x20 =

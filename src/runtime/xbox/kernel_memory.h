@@ -13,6 +13,14 @@ namespace xbox {
 // Reserves the address ranges from `config`. Called by kernel_init.
 bool memory_init(const MemoryConfig& config);
 
+// Where contiguous ("physical") memory starts: physical address P is at contiguous_base() + P. The Xbox's (and the
+// loader's) 0x80000000, or wherever the host placed it (MemoryConfig::host_placed). Any thread, after memory_init.
+uint32_t contiguous_base();
+// The address lies in contiguous memory (what the Xbox told by the address's top bit).
+bool in_contiguous_memory(uint32_t address);
+// The address lies in the title's contiguous memory or its virtual range (where its heaps and objects live).
+bool in_title_memory(uint32_t address);
+
 // Charges (positive) or returns (negative) pages for memory the kernel does not
 // allocate itself: the XBE image and its sections. Returns false if the budget is
 // now exceeded; the charge is kept either way.
@@ -36,6 +44,13 @@ struct TitleMemoryStatistics {
 };
 TitleMemoryStatistics title_memory_statistics();
 XbPtr title_reserve(uint32_t bytes);  // reserved and committed, read/write
+
+// The ranges memory_init reserved and how many pages of them are in use (--mem-stats).
+struct MemoryUsage {
+    MemoryConfig layout;
+    uint32_t total_pages, image_pages, contiguous_pages, virtual_committed_pages, virtual_reserved_pages;
+};
+MemoryUsage memory_usage();
 
 // An in-process title restart (own engine host 5b): remember every allocation and its contents now (just before the
 // title's entry runs), and later put the memory back exactly like that - everything allocated since is gone, what

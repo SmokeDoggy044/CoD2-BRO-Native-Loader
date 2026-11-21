@@ -13,6 +13,7 @@
 #include "ngl_gfx.h"
 #include "title_crt.h"
 #include "title_data.h"
+#include "title_host.h"
 #include "ngl_debug.h"
 #include "qcommon_core.h"
 #include "xgraphics.h"
@@ -2287,7 +2288,6 @@ void XB_CDECL nglComputeObjectLights(NglMeshDrawNode* node, float* directions, f
 }
 
 void XB_THISCALL nglSetDecalZBias(uint8_t* self, uint32_t bias) {
-    using SetRenderStateSimple = void XB_FASTCALL(uint32_t, uint32_t);
     const float b = platform_x87_unsigned_to_float(bias);
     float& cached_bias = *reinterpret_cast<float*>(self + 0x80);
     float& cached_factor = *reinterpret_cast<float*>(self + 0x84);
@@ -2551,7 +2551,6 @@ void XB_CDECL nglSetPaletteCached(uint32_t stage, uint8_t* palette) {
 }
 
 void XB_CDECL nglUnbindTextures() {
-    using SetStageObject = void XB_STDCALL(uint32_t, uint32_t);
     for (uint32_t stage = 0; stage < 4; ++stage) xb::set_palette(stage, 0);  // SetPalette
     uint32_t* palettes = title_global<uint32_t[4]>(0x00903d48);
     for (uint32_t stage = 0; stage < 4; ++stage) palettes[stage] = 0;
@@ -2603,7 +2602,6 @@ void XB_CDECL nglSetVertexStreams(const uint8_t* vertex_buffer, uint32_t stride,
     uint32_t& cached_offset = title_global<uint32_t>(0x00903c90);
     if (buffer == cached_buffer && stride == cached_stride && offset == cached_offset) return;
     const Stream stream = {buffer, stride, offset};
-    using InputDirect = void XB_STDCALL(uint32_t, uint32_t, const Stream*);
     xb::set_vertex_input(title_global<uint32_t>(0x00903c0c), 1, &stream);  // SetVertexShaderInputDirect
     cached_buffer = buffer;
     cached_stride = stride;
@@ -2611,7 +2609,6 @@ void XB_CDECL nglSetVertexStreams(const uint8_t* vertex_buffer, uint32_t stride,
 }
 
 void XB_CDECL nglDrawMeshSection(const NglMeshSection* section) {
-    using Draw = void XB_STDCALL(uint32_t, uint32_t, uint32_t);
     nglSetVertexStreams(section->vertex_buffer, section->stride, 0);
     if (!section->index_count) {
         xb::draw_vertices(section->primitive, 0, section->vertex_count);  // DrawVertices
@@ -2654,14 +2651,12 @@ void XB_CDECL nglSetTransformConstants(int32_t slot, NglMeshDrawNode* node, floa
     constants[5] = p.v[1];
     constants[6] = p.v[2];
     constants[7] = 1.0f;
-    using SetConstants = void XB_FASTCALL(uint32_t, const float*, uint32_t);
     xb::set_vertex_constants(static_cast<uint32_t>(slot + 0x60), constants, 8);  // NotInlineFast
 }
 
 void XB_CDECL nglSetObjectLightConstants(int32_t slot, NglMeshDrawNode* node) {
     alignas(16) float constants[32];  // directions[16], colours[16]
     nglComputeObjectLights(node, constants, constants + 16);
-    using SetConstants = void XB_FASTCALL(uint32_t, const float*, uint32_t);
     xb::set_vertex_constants(static_cast<uint32_t>(slot + 0x60), constants, 32);  // NotInlineFast
 }
 
@@ -2707,7 +2702,6 @@ void XB_CDECL nglSetSkinningConstants(int32_t slot, NglMeshDrawNode* node, const
     const float* instance_bones = reinterpret_cast<const float*>(static_cast<uintptr_t>(params[2]));
     alignas(16) const float info[4] = {title_global<float>(0x007bf6d4), static_cast<float>(slot),
                                        title_global<float>(0x00903c70), title_global<float>(0x00903c74)};
-    using SetConstant1 = void XB_FASTCALL(uint32_t, const float*);
     xb::set_vertex_constant(0, info);  // SetVertexShaderConstant1Fast
     const uint32_t flags = params[0];
     for (uint32_t i = 0; i < section->bone_count; ++i) {
@@ -2742,7 +2736,6 @@ void XB_CDECL nglSetSkinningConstants(int32_t slot, NglMeshDrawNode* node, const
     if (count == 1) {
         xb::set_vertex_constant(static_cast<uint32_t>(slot + 0x60), matrices);
     } else {
-        using SetConstants = void XB_FASTCALL(uint32_t, const float*, uint32_t);
         xb::set_vertex_constants(static_cast<uint32_t>(slot + 0x60), matrices, count * 4);  // NotInlineFast
     }
 }
@@ -3107,7 +3100,7 @@ void XB_THISCALL nglVertexBuffer_Free(uint32_t* buffer, uint32_t protect) {
 void XB_CDECL nglFreeFileBuffer(uint32_t* buffer) {
     // An installed free hook (0x009098dc) takes the whole buffer; else the count of
     // live buffers drops and the memory goes to the second hook (0x009098ec), or to
-    // XPhysicalFree (physical memory: the address's top bit set) or _aligned_free.
+    // XPhysicalFree (physical memory: the address's top bit set - ours: title_in_contiguous_memory) or _aligned_free.
     using Free = void XB_CDECL(uint32_t);
     if (const uint32_t hook = title_global<uint32_t>(0x009098dc)) {
         title_function<void XB_CDECL(uint32_t*)>(hook)(buffer);
@@ -3119,7 +3112,7 @@ void XB_CDECL nglFreeFileBuffer(uint32_t* buffer) {
         title_function<Free>(hook)(memory);
         return;
     }
-    if (static_cast<int32_t>(memory) < 0) {
+    if (title_in_contiguous_memory(memory)) {
         own_function<void XB_STDCALL(uint32_t)>(&XPhysicalFree)(memory);  // XPhysicalFree
         return;
     }
@@ -3245,7 +3238,6 @@ void XB_CDECL nglQuadBatch_Draw() {
     const uint32_t buffer = title_global<uint32_t>(0x00909f2c);
     nglSetVertexStreams(title_global<const uint8_t* [2]>(0x00909f20)[buffer], 0x18, 0);
     const uint8_t* indices = *title_global<uint8_t**>(0x00909f28) + title_global<int32_t>(0x00909f38) * 2;
-    using Draw = void XB_STDCALL(uint32_t, uint32_t, const uint8_t*);
     xb::draw_indexed_vertices(5, title_global<int32_t>(0x00909f30) * 6, indices);  // DrawIndexedVertices, triangle list
     const int32_t quads = title_global<int32_t>(0x00909f30);
     title_global<int32_t>(0x00909f38) += quads * 6;
@@ -3260,7 +3252,6 @@ void XB_CDECL nglQuadBatch_SetMaterial(NglTexture* texture, uint32_t blend, uint
     // The particle quads' states through the state cache (0x00902f08): alpha test with
     // `alpha_ref` unless 0x00909f50 is set (then alpha test and blending off), culling
     // off, fog, and a blend: 0/3 alpha, 1 additive (src alpha, one), 2 reverse subtract.
-    using SetRenderStateSimple = void XB_FASTCALL(uint32_t, uint32_t);
     uint8_t* cache = &title_global<uint8_t>(0x00902f08);
     auto set_byte = [cache](uint32_t offset, uint8_t value, uint32_t method) {
         if (cache[offset] != value) {
@@ -3375,8 +3366,6 @@ void XB_CDECL nglSetDefaultSceneParams() {
 }
 
 void XB_THISCALL nglRestoreRenderStates(uint8_t* self) {
-    using SetState = void XB_STDCALL(uint32_t);
-    using SetRenderStateSimple = void XB_FASTCALL(uint32_t, uint32_t);
     auto field = [self](uint32_t offset) { return *reinterpret_cast<uint32_t*>(self + offset); };
     // Simple states also go into D3D's render-state shadow (title memory).
     auto simple = [](uint32_t method, uint32_t value, uint32_t shadow) {
@@ -3409,7 +3398,6 @@ void XB_THISCALL nglRestoreRenderStates(uint8_t* self) {
 }
 
 void XB_CDECL nglInitShaderConstants(uint8_t init_table) {
-    using SetConstant1 = void XB_FASTCALL(uint32_t, const float*);
     title_function<void XB_STDCALL(uint32_t)>(0x003e7050)(0x11);  // SetShaderConstantMode
     auto f = [](uint32_t address) { return title_global<float>(address); };
     // c1: 0, 0.5, 1, 2; c2: pi, 0.5, 2pi, 1/2pi; c3/c4: the cos/sin Taylor coefficients.
@@ -3512,8 +3500,6 @@ void XB_CDECL nglGenerateRenderTargetMips(NglTexture* texture) {
 
 void XB_THISCALL nglSetDefaultRenderStates(uint8_t* self) {
     // Sends every state of the cache to D3D (nglInitRenderStates' tail).
-    using SetState = void XB_STDCALL(uint32_t);
-    using SetRenderStateSimple = void XB_FASTCALL(uint32_t, uint32_t);
     auto field = [self](uint32_t offset) { return *reinterpret_cast<uint32_t*>(self + offset); };
     auto simple = [](uint32_t method, uint32_t value, uint32_t shadow) {
         xb::set_render_state_simple(method, value);
@@ -3697,7 +3683,6 @@ void set_cached_simple_state(uint32_t cache, uint32_t method, uint32_t shadow, T
 }  // namespace
 
 void XB_CDECL nglDrawFogPass() {
-    using SetState = void XB_STDCALL(uint32_t);
     nglAllocFogTextures();
     nglUpdateFogTable();
     uint32_t& z_enable = title_global<uint32_t>(0x00902f80);
@@ -3914,8 +3899,6 @@ void XB_CDECL nglGetTextExtent(const uint8_t* font, const char* text, int32_t* w
 }
 
 void XB_CDECL nglBeginSceneRender(NglScene* target_scene) {
-    using SetState = void XB_STDCALL(uint32_t);
-    using SetRenderStateSimple = void XB_FASTCALL(uint32_t, uint32_t);
     // A render state through the title's cache (cache) and D3D's shadow table (shadow).
     auto simple = [](uint32_t method, uint32_t value, uint32_t shadow, uint32_t cache) {
         if (title_global<uint32_t>(cache) == value) return;
@@ -6278,7 +6261,6 @@ uint8_t XB_CDECL nglSaveTextureTGA(NglTexture* texture, const char* name) {
     nglUnbindTextures();
     title_function<void XB_CDECL()>(0x003e6200)();  // D3DDevice_BlockUntilIdle
     char path[0x400];
-    using Sprintf = int32_t XB_CDECL(char*, const char*, ...);
     if (name) {
         title_sprintf(path, &title_global<char>(0x007be534), name);  // "D:\%s.tga"
     } else {

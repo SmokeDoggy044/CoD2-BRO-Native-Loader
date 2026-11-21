@@ -25,7 +25,6 @@ void store_vec4(uint32_t address, uint32_t x, uint32_t y, uint32_t z, uint32_t w
 // `eh vector destructor iterator' (0x00011280, stdcall: array, size, count, destructor) with
 // ScriptString_Release, the last array first.
 void release_script_string_arrays(uint32_t end, uint32_t stride, int32_t count) {
-    using Iterator = void XB_STDCALL(uint32_t, uint32_t, uint32_t, uint32_t);
     uint32_t array = end;
     for (int32_t i = 0; i < count; ++i) {
         array -= stride;

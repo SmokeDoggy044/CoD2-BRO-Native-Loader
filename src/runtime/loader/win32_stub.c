@@ -3,7 +3,8 @@
    array makes the image cover the whole range (win32_layout.h). It also reserves the
    kernel's fixed memory ranges, then loads the program proper from
    cod_bro_loader_core.dll (cod_bro.exe: cod_bro_core.dll), which maps the XBE over this
-   image and never returns.
+   image and never returns. cod_bro.exe (COD_BRO_NO_HELD_RANGES) reserves nothing: our own
+   engine's memory goes wherever Windows has room.
 
    Built without the C runtime and importing only kernel32 (already loaded with
    ntdll), as the process's first code after Windows' own. */
@@ -29,11 +30,13 @@ static void fail(const char* message) {
 }
 
 void stub_entry(void) {
+#ifndef COD_BRO_NO_HELD_RANGES
     static const struct {
         DWORD start, size;
     } held[COD_BRO_HELD_RANGE_COUNT] = COD_BRO_HELD_RANGES;
     for (int i = 0; i < COD_BRO_HELD_RANGE_COUNT; ++i)
         VirtualAlloc((void*)(ULONG_PTR)held[i].start, held[i].size, MEM_RESERVE, PAGE_NOACCESS);
+#endif
 
     HMODULE core = LoadLibraryA(COD_BRO_LOADER_CORE_DLL);
     if (!core) fail("Cannot load " COD_BRO_LOADER_CORE_DLL " (or one of the DLLs it needs) next to this program.");

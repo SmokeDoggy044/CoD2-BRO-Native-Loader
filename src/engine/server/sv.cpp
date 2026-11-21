@@ -1292,7 +1292,8 @@ void XB_CDECL SV_SetConfigstring(int32_t index, const char* value) {
     if (!value) value = title_text(0x0082dfeb);  // ""
     uint8_t* slot = reinterpret_cast<uint8_t*>(uintptr_t{0x00964ce0 + static_cast<uint32_t>(index) * 4});
     const uint8_t* current = field<uint8_t*>(slot, 0);
-    if (!std::strcmp(value, reinterpret_cast<const char*>(current ? current + 6 : nullptr))) return;
+    // The original compared with current + 6 even with no string set yet (a crash); ours sets it then.
+    if (current && !std::strcmp(value, reinterpret_cast<const char*>(current + 6))) return;
     own_function<void XB_THISCALL(uint8_t*, const char*)>(&ScriptString_AssignCString)(slot, value);  // ScriptString_AssignCString
     if (title_global<int32_t>(0x00964cd4) != 2) return;
     uint8_t* svs = title_global<uint8_t*>(0x00927e8c);
@@ -1707,7 +1708,7 @@ PLATFORM_ASM_ENTRY(SV_ExecuteClientMessage_entry,
                    "popl %esp\n"
                    "ret")
 
-void XB_CDECL SV_ExecuteClientMessage(uint32_t entry_esp, uint8_t* msg, uint32_t esi, uint32_t edi) {
+void XB_CDECL SV_ExecuteClientMessage(uint32_t entry_esp, uint8_t* msg, uint32_t /*esi*/, uint32_t edi) {
     const uint32_t top = entry_esp - 8;
     uint32_t* slot = reinterpret_cast<uint32_t*>(uintptr_t{entry_esp + 4});
     uint8_t* client = reinterpret_cast<uint8_t*>(uintptr_t{*slot});
@@ -2329,7 +2330,6 @@ PLATFORM_ASM_ENTRY(SV_GetConfigstring_entry,
                    "ret")
 
 char* XB_CDECL SV_GetConfigstring(int32_t index, int32_t size, char* buffer) {
-    using Strncpy = char* XB_CDECL(char*, const char*, int32_t);
     if (size < 1) title_function<void XB_CDECL(uint32_t, const char*, int32_t)>(kBreak)(1, title_text(0x00832d58), size);
     if (index < 0 || index >= 0x400)
         title_function<void XB_CDECL(uint32_t, const char*, int32_t)>(kBreak)(1, title_text(0x00832d34), index);
@@ -2740,7 +2740,6 @@ uint32_t XB_CDECL SV_LoadLastSave_f() {
 }
 
 uint32_t XB_CDECL SV_LoadGame_f() {
-    using Strncpy = char* XB_CDECL(char*, const char*, uint32_t);
     using Strstr = char* XB_CDECL(const char*, const char*);
     Strstr* const strstr_ = own_function<Strstr>(&title_strstr);
     if (const uint32_t reloading = field<uint32_t>(title_global<uint8_t*>(0x0093f800), 0x20)) {

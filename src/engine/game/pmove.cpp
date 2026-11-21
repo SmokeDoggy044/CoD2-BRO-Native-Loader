@@ -3975,7 +3975,6 @@ void XB_CDECL PM_UpdateAimSpread() {
     // by the view-angle change (pm +0x38/+0x3c old vs +0xc/+0x10 new, short units, wrapped to +-180) x +0x664 / 100
     // per second and by the larger move axis / 128 x +0x668 (x87), plus 2.56 in the air, x frametime; x255.
     // Fully aimed down the sights (ps +0x88 = 1) it only decays; without a rate it falls to 0.
-    using ext = long double;
     const uint8_t* const def = title_global<uint8_t*>(0x00960020);
     const uint8_t* const pm = pm_global();
     const float zero = 0.0f;
@@ -4120,7 +4119,6 @@ void XB_CDECL PM_ViewHeightAdjust() {
             const float value = PM_EvalLerpCurve(percent, pointer<const uint8_t>(curve_for(ps, lerp_target)), &height);
             at<float>(pm_ps_ref(pm), 0xac) = value;
             uint8_t* const p = pm_ps_ref(pm);
-            using ext = long double;
             if (__builtin_fabsl(platform_x87_ld(at<float>(p, 0xbc)) - platform_x87_ld(height)) >
                 platform_x87_ld(title_global<float>(0x0083edc8))) {
                 float saved[3];

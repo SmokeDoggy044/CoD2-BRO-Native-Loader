@@ -1,0 +1,19 @@
+# Line endings: the repository stores text as committed (no auto-conversion that would rewrite the CRLF data and
+# license files); scripts must stay LF so they run from a Windows checkout too.
+*.sh    text eol=lf
+*.py    text eol=lf
+*.cmake text eol=lf
+CMakeLists.txt text eol=lf
+
+# Binary files: never diffed or merged as text.
+*.ttf  binary
+*.otf  binary
+*.png  binary
+*.ico  binary
+*.bmp  binary
+*.bin  binary
+*.rep  binary
+*.spv  binary
+*.dll  binary
+*.exe  binary
+*.zip  binary

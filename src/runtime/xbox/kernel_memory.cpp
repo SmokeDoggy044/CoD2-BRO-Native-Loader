@@ -14,6 +14,7 @@
 #include "kernel_memory_impl.h"
 
 #include <algorithm>
+#include <atomic>
 #include <cstring>
 #include <iterator>
 #include <map>
@@ -119,6 +120,11 @@ struct MemoryState {
 };
 
 MemoryState& g_memory = immortal<MemoryState>();
+// memory_init's placement, for readers on any thread without the lock (set once, before the title runs).
+std::atomic<uint32_t> g_contiguous_base{0x80000000u};
+std::atomic<uint32_t> g_contiguous_bytes{0};
+std::atomic<uint32_t> g_virtual_base{0};
+std::atomic<uint32_t> g_virtual_bytes{0};
 
 void* host(uint32_t address) { return from_xbox_ptr<void>(address); }
 
@@ -566,7 +572,30 @@ bool memory_init(const MemoryConfig& config) {
         return false;
     }
     MemoryConfig layout = config;
-    if (!platform::vmem::reserve(layout.contiguous_base, layout.physical_bytes)) {
+    if (config.host_placed) {
+        // Both ranges at the config's bases when they are free (the same place on every machine keeps recordings
+        // comparable: the replay's state hash masks values that fall in these ranges), else wherever the host has
+        // room, aligned to the reservation granularity (alignments the title asks of contiguous memory are of its
+        // physical address, so the base must not break them).
+        const auto place = [](uint32_t preferred, uint32_t size, const char* what) -> uint32_t {
+            if (platform::vmem::reserve(preferred, size)) return preferred;
+            void* const block = platform::vmem::reserve(0, size + kGranularity);
+            if (!block) return 0;
+            const uint32_t base = round_up(static_cast<uint32_t>(reinterpret_cast<uintptr_t>(block)), kGranularity);
+            LOG_WARN("memory", "%s: %08x is in use; at %08x instead (recordings made elsewhere may not compare)", what,
+                     preferred, base);
+            return base;
+        };
+        const uint32_t virtual_size = layout.virtual_end - layout.virtual_base;
+        layout.contiguous_base = place(config.contiguous_base, layout.physical_bytes, "contiguous memory");
+        layout.virtual_base = place(config.virtual_base, virtual_size, "virtual memory");
+        layout.virtual_end = layout.virtual_base + virtual_size;
+        if (!layout.contiguous_base || !layout.virtual_base) {
+            LOG_ERROR("memory", "cannot reserve %u MB + %u MB for the title's memory", layout.physical_bytes >> 20,
+                      virtual_size >> 20);
+            return false;
+        }
+    } else if (!platform::vmem::reserve(layout.contiguous_base, layout.physical_bytes)) {
         // More than a retail Xbox's 64 MB is an extra: fall back to 64 when the range is taken.
         constexpr uint32_t kXboxBytes = 64u << 20;
         if (layout.physical_bytes <= kXboxBytes || !platform::vmem::reserve(layout.contiguous_base, kXboxBytes)) {
@@ -578,7 +607,8 @@ bool memory_init(const MemoryConfig& config) {
                  config.contiguous_base);
         layout.physical_bytes = kXboxBytes;
     }
-    if (!platform::vmem::reserve(layout.virtual_base, layout.virtual_end - layout.virtual_base)) {
+    if (!config.host_placed &&
+        !platform::vmem::reserve(layout.virtual_base, layout.virtual_end - layout.virtual_base)) {
         // Something else already lives there (on Windows e.g. a DLL injected at its
         // default base 0x10000000 before our stub ran). The range's place does not
         // matter to the title, only that it is below the contiguous memory: take the
@@ -587,8 +617,9 @@ bool memory_init(const MemoryConfig& config) {
                  layout.virtual_end);
         const uint32_t wanted = layout.virtual_end - layout.virtual_base;
         const uint32_t ceiling = std::min<uint32_t>(config.contiguous_base, 0x80000000u);
+        const uint32_t smallest = std::min(wanted, kMinVirtualRange);  // a range asked smaller is not halved
         bool found = false;
-        for (uint32_t size = wanted; !found && size >= kMinVirtualRange; size /= 2) {
+        for (uint32_t size = wanted; !found && size >= smallest; size /= 2) {
             if (size > ceiling - kVirtualSearchStart) continue;
             for (uint32_t base = kVirtualSearchStart; base <= ceiling - size; base += kVirtualSearchStep) {
                 if (platform::vmem::reserve(base, size)) {
@@ -601,11 +632,15 @@ bool memory_init(const MemoryConfig& config) {
         }
         if (!found) {
             LOG_ERROR("memory", "cannot reserve virtual memory range %08x-%08x (nor any other of %u MB or more)",
-                      config.virtual_base, config.virtual_end, kMinVirtualRange >> 20);
+                      config.virtual_base, config.virtual_end, smallest >> 20);
             return false;
         }
     }
     g_memory.config = layout;
+    g_contiguous_base.store(layout.contiguous_base);
+    g_contiguous_bytes.store(layout.physical_bytes);
+    g_virtual_base.store(layout.virtual_base);
+    g_virtual_bytes.store(layout.virtual_end - layout.virtual_base);
     g_memory.total_pages = layout.physical_bytes / kPage;
     g_memory.page_state.assign((layout.virtual_end - layout.virtual_base) / kPage, PageState::Free);
     g_memory.page_protect.assign(g_memory.page_state.size(), 0);
@@ -614,6 +649,24 @@ bool memory_init(const MemoryConfig& config) {
     LOG_INFO("memory", "%u MB physical at %08x, virtual %08x-%08x", layout.physical_bytes >> 20,
              layout.contiguous_base, layout.virtual_base, layout.virtual_end);
     return true;
+}
+
+uint32_t contiguous_base() { return g_contiguous_base.load(std::memory_order_relaxed); }
+
+bool in_contiguous_memory(uint32_t address) {
+    return address - contiguous_base() < g_contiguous_bytes.load(std::memory_order_relaxed);
+}
+
+bool in_title_memory(uint32_t address) {
+    return in_contiguous_memory(address) ||
+           address - g_virtual_base.load(std::memory_order_relaxed) < g_virtual_bytes.load(std::memory_order_relaxed);
+}
+
+MemoryUsage memory_usage() {
+    std::lock_guard lock(g_memory.mutex);
+    return {g_memory.config,           g_memory.total_pages,
+            g_memory.image_pages,      g_memory.contiguous_pages,
+            g_memory.virtual_committed_pages, g_memory.virtual_reserved_pages};
 }
 
 bool charge_image_pages(int32_t pages) {

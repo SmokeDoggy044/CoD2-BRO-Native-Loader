@@ -208,3 +208,14 @@ add_test(NAME game_files_test COMMAND game_files_test)
 # Developer tool: the launcher's game-file check and disc dump extraction without its window (not a test).
 add_executable(game_files_tool game_files_tool.cpp)
 target_link_libraries(game_files_tool PRIVATE launcher_update)
+
+# Labels: `ctest -L fast` checks a change in seconds (every test but leaf_test, each under a second);
+# `ctest -L slow` is leaf_test, the rewritten functions against the originals (about half an hour in full).
+get_property(cod_bro_tests DIRECTORY PROPERTY TESTS)
+foreach(test IN LISTS cod_bro_tests)
+    if(test STREQUAL "leaf_test")
+        set_tests_properties(${test} PROPERTIES LABELS slow)
+    else()
+        set_tests_properties(${test} PROPERTIES LABELS fast)
+    endif()
+endforeach()

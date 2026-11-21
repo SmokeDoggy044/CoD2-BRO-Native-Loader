@@ -1,18 +1,19 @@
 # The player release for Windows (route B, 32-bit, cross-built with MinGW-w64 by the
-# windows-mingw-release presets): `cmake --install` / `cpack` lay out
+# windows-mingw-player presets, without the developer tools): `cmake --install` / `cpack` lay out
 #
 #   cod_bro_launcher.exe, cod_bro.exe + cod_bro_core.dll (the game), cod_bro_loader.exe (stub) + cod_bro_loader_core.dll
 #   (multiplayer),
-#   OpenAL32.dll, default_xbe_symbols.txt, codmp_xbe_symbols.txt, *_signatures.txt, README.txt
+#   OpenAL32.dll, libwinpthread-1.dll, default_xbe_symbols.txt, codmp_xbe_symbols.txt, *_signatures.txt, README.txt
 #   dxvk/d3d9.dll             DXVK (Direct3D 9 on Vulkan); the game falls back to the
 #                             system's d3d9.dll without it or without Vulkan
 #   packaging/assets/README.md          the player copies the game dump here
 #   LICENSES/                 the port's notes plus every bundled component's license
 #
-# The GCC runtime and SDL3 are linked in; OpenAL Soft stays a DLL (LGPL: replaceable).
+# libgcc, libstdc++ and SDL3 are linked in; OpenAL Soft (LGPL: replaceable) and MinGW's winpthreads stay DLLs.
 # DXVK comes from packaging/windows-dxvk/build.sh (run it once before the release).
 
 install(TARGETS cod_bro cod_bro_core cod_bro_loader cod_bro_loader_core cod_bro_launcher OpenAL RUNTIME DESTINATION .)
+install(FILES "${COD_BRO_WINPTHREAD_DLL}" DESTINATION .)
 install(FILES ${PROJECT_SOURCE_DIR}/tools/data/default_xbe_symbols.txt
               ${PROJECT_SOURCE_DIR}/tools/data/codmp_xbe_symbols.txt
               ${PROJECT_SOURCE_DIR}/tools/data/default_xbe_signatures.txt
@@ -71,7 +72,7 @@ set(bundled_licenses
     "${dxvk_dir}/licenses/libdisplay-info.txt|libdisplay-info|libdisplay-info (built into dxvk/d3d9.dll)|https://gitlab.freedesktop.org/emersion/libdisplay-info"
     "/usr/share/licenses/mingw32-libgcc/COPYING3|GCC-runtime-GPL-3.0|GCC runtime (libgcc and libstdc++, linked in): GPL-3.0|https://gcc.gnu.org"
     "/usr/share/licenses/mingw32-libgcc/COPYING.RUNTIME|GCC-runtime-exception|GCC runtime: runtime library exception|"
-    "/usr/share/licenses/mingw32-winpthreads/COPYING|mingw-w64-winpthreads|mingw-w64 winpthreads (linked in)|https://www.mingw-w64.org"
+    "/usr/share/licenses/mingw32-winpthreads/COPYING|mingw-w64-winpthreads|mingw-w64 winpthreads (libwinpthread-1.dll)|https://www.mingw-w64.org"
     "/usr/share/licenses/mingw32-crt/COPYING|mingw-w64-runtime|mingw-w64 runtime (startup code, linked in)|https://www.mingw-w64.org")
 set(bundled_text "Components bundled in this release (libraries linked into the programs,\nOpenAL32.dll and dxvk/d3d9.dll).\n\n")
 foreach(entry ${bundled_licenses})

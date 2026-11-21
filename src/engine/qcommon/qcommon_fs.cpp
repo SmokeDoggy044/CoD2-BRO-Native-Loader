@@ -11,6 +11,7 @@
 #include "fe.h"
 #include "fx.h"
 #include "lanes.h"
+#include "mem_stats.h"
 #include "movie.h"
 #include "nal_math.h"
 #include "fx_load.h"
@@ -2366,7 +2367,7 @@ PLATFORM_ASM_ENTRY(Save_CheckVersion_entry,
                    "ret")
 
 uint8_t XB_CDECL Save_CheckVersion(const char* header) {
-    const char* date = reinterpret_cast<const char*>(uintptr_t{title_global<uint8_t>(0x0095e7f8) ? 0x0082ab00 : 0x0082aaf8});
+    const char* date = reinterpret_cast<const char*>(uintptr_t{title_global<uint8_t>(0x0095e7f8) ? 0x0082ab00u : 0x0082aaf8u});
     if (own_function<int32_t XB_CDECL(const char*, const char*, uint32_t)>(&title_strncmp)(header, date, 0x19))  // _strncmp
         return 0;
     const char* a = header + 0x3c0;
@@ -4177,6 +4178,7 @@ int32_t XB_CDECL Com_EventLoop() {
 }
 
 void XB_CDECL Com_Frame() {
+    MemStats_Sample();  // ours: --mem-stats / --diag pool counters (reads only)
     own_function<void XB_STDCALL(uint32_t)>(&Actor_UpdateBlockingPairs_entry)(0x0098aa90);  // Actor_UpdateBlockingPairs
     if (title_global<uint8_t>(0x008d50dd)) {
         // The pause screen: 0x008d50dc set = waiting to resume.

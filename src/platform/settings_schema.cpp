@@ -355,8 +355,8 @@ const SettingDef kSettings[] = {
     {"diag", "DIR [S]", T::Custom, G::Testing, kCli, 0, 0, nullptr, "",
      "diagnostics while playing: DIR/log.txt, a screenshot every S seconds (default 10); F12 marks a problem: "
      "screenshot, a note typed while the game is paused (DIR/marks.txt), draw dump in the log; new warnings and "
-     "errors are marked by themselves; F11 shows draws that need missing features in magenta; DIR/summary.txt on "
-     "exit"},
+     "errors are marked by themselves; F11 shows draws that need missing features in magenta; DIR/summary.txt and "
+     "DIR/memory.txt (see --mem-stats) on exit"},
     {"dev", "", T::Flag, G::Testing, kCli, 0, 0, nullptr, "false",
      "developer mode: an overlay (frame time, GPU memory, texture packs) and keys: F1 overlay on/off, F2 mods on/off, "
      "F3 enhanced graphics on/off, F4 next enhanced feature, F5 that feature on/off, F6 textures under the "
@@ -445,6 +445,9 @@ const SettingDef kSettings[] = {
      "our CRT (src/engine/shared/title_crt.h) against the title's on a table, then exit"},
     {"dump-shaders", "DIR", T::Path, G::Developer, kCli, 0, 0, nullptr, "",
      "every shader program the renderer sets up, for tools/shader_hlsl.py"},
+    {"mem-stats", "FILE", T::Path, G::Developer, kCli, 0, 0, nullptr, "",
+     "the game's memory pools (peak use per map) and the process's address space (least free, and what took it), "
+     "written to FILE on exit; --diag writes DIR/memory.txt"},
     {"write-signatures", "FILE", T::Path, G::Developer, kCli, 0, 0, nullptr, "",
      "write the supported XBE's function signatures, for finding its addresses in other releases (tools/data), and "
      "exit"},

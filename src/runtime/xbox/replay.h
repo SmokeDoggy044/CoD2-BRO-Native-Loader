@@ -33,7 +33,8 @@ struct Config {
     // points: the same frames of one recording, compared between builds or back ends. Empty = none.
     std::vector<uint32_t> shot_frames;
     std::filesystem::path shot_dir;
-    // Replay: exit when the file ends (exit code 0 = every frame matched, 3 = some differed).
+    // Replay: exit when the file ends (exit code 0 = every frame matched, 3 = some differed, 4 = played, state not
+    // compared: a recording from before version 6).
     bool exit_at_end = true;
     // Replay: also write this run's own state records ('E' + 'F', the recording's format) to this file, so runs in
     // different builds can be compared with each other (tools/replay_compare.py). Empty = no.

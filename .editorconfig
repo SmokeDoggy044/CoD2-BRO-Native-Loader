@@ -1,0 +1,28 @@
+# Editor settings matching the code as it is (spaces, LF, UTF-8). https://editorconfig.org
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+indent_style = space
+indent_size = 4
+
+[*.{c,cc,cpp,h,hpp,inc,py,cmake}]
+max_line_length = 120
+
+[{CMakeLists.txt,*.cmake}]
+indent_size = 4
+
+[*.{json,yml,yaml}]
+indent_size = 2
+
+[*.md]
+trim_trailing_whitespace = false  # two trailing spaces are a line break
+
+# Data and license files kept byte for byte as they came.
+[*.{csv,tsv,txt,po,pot}]
+trim_trailing_whitespace = false
+insert_final_newline = unset
+end_of_line = unset

@@ -6,6 +6,7 @@
 #include <fstream>
 
 #include "log.h"
+#include "memory_stats.h"
 #include "os.h"
 #include "release_map.h"
 
@@ -133,6 +134,7 @@ bool XbeImage::load(const std::filesystem::path& path) {
         if (section->flags & kSectionPreload) load_section(*section);
     }
 
+    label_address_range(base, size(), "title image (default.xbe)");
     LOG_INFO("xbe", "mapped %s at %08x-%08x, %u sections, entry %08x, kernel thunks %08x",
              path.filename().string().c_str(), base, base + size(), header_->num_sections, entry_point_,
              kernel_thunk_table_);
