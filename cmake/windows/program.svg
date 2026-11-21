@@ -4,5 +4,5 @@
   <path d="M40 20 H216 V120 C216 178 176 216 128 240 C80 216 40 178 40 120 Z" fill="#3b4220" />
   <path d="M52 32 H204 V120 C204 170 170 203 128 225 C86 203 52 170 52 120 Z" fill="#5a6332" />
   <!-- The red numeral 1: a flag at the top left, a straight stem, a base -->
-  <path d="M112 52 H150 V178 H170 V204 H90 V178 H112 V92 L88 104 V76 Z" fill="#c8102e" stroke="#7a0a1c" stroke-width="4" stroke-linejoin="round"/>
+  <path transform="translate(128 116) scale(0.78) translate(-129 -128)" d="M112 52 H150 V178 H170 V204 H90 V178 H112 V92 L88 104 V76 Z" fill="#c8102e" stroke="#7a0a1c" stroke-width="4" stroke-linejoin="round"/>
 </svg>
