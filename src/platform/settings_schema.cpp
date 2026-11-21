@@ -309,7 +309,7 @@ const SettingDef kSettings[] = {
     {"letterbox", "on|off", T::Switch, G::Graphics, 0, 0, 0, nullptr, "on",
      "the black bars at the top and bottom during the campaign's cutscenes (default on = as in the game; off: the "
      "full picture, the cutscene otherwise unchanged)"},
-    {"hit-markers", "on|off", T::Switch, G::Graphics, 0, 0, 0, nullptr, "off",
+    {"hit-markers", "on|off", T::Switch, G::Graphics, kLiveIni, 0, 0, nullptr, "off",
      "short strokes round the crosshair when your shot hits (white) or kills (red) (default off = as in the game; "
      "campaign only)"},
     {"more-bodies", "on|off", T::Switch, G::Graphics, 0, 0, 0, nullptr, "off",

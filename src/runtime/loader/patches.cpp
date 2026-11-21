@@ -1831,6 +1831,7 @@ void tap_digital(uint16_t button) {
 }
 
 ScriptedPointerSource g_scripted_pointer = nullptr;
+bool g_hit_markers_supported = false;  // set_hit_markers: this title can show them (campaign, our C)
 bool g_pc_menu_notice = false;  // set_pc_menu_notice
 
 bool press_start_screen(uint32_t vtable) {
@@ -2140,6 +2141,13 @@ void set_field_of_view(float degrees) { g_fov_wanted = degrees; }
 float field_of_view() { return g_fov_wanted.load(); }
 float game_field_of_view() { return g_fov ? title<float>(g_fov->vm_value) : 0.0f; }
 bool field_of_view_supported() { return g_fov != nullptr; }
+
+void set_hit_markers(bool on) {
+    if (!g_hit_markers_supported || game::client_pc_hooks().hit_markers == on) return;
+    game::client_pc_hooks().hit_markers = on;
+    LOG_INFO("patches", "hit markers %s", on ? "on" : "off");
+}
+bool hit_markers() { return game::client_pc_hooks().hit_markers; }
 
 render::UiNarrowing in_game_menu_draw() {
     const uint32_t scene = title<uint32_t>(g_menus.current_scene);
@@ -2761,7 +2769,9 @@ void install_title_patches(const TitleInfo& title, const TitlePatchConfig& confi
             game::client_pc_hooks().skip_intro = true;
             LOG_INFO("patches", "intro skipped");
         }
-        if (config.hit_markers && campaign && client_c(0x00250340) && client_c(0x00285f80)) {
+        // Hit markers: G_Damage and CG_Draw2D as C; switched while playing too (set_hit_markers).
+        g_hit_markers_supported = campaign && client_c(0x00250340) && client_c(0x00285f80);
+        if (config.hit_markers && g_hit_markers_supported) {
             game::client_pc_hooks().hit_markers = true;
             LOG_INFO("patches", "hit markers on");
         }

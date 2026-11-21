@@ -53,6 +53,7 @@ platform::Settings live_values() {
     ui::put_setting(v, "graphics", render::graphics_enhanced() ? "enhanced" : "original");
     platform::set_combined_setting(v, "graphics-features", render::graphics_features().format());
     ui::put_setting(v, "audio", audio::enhanced() ? "enhanced" : "original");
+    ui::put_setting(v, "hit-markers", hit_markers() ? "on" : "off");
     platform::set_combined_setting(v, "enhanced", audio::enhanced_features().format());
     platform::set_combined_setting(v, "volume", audio::category_volumes().format());
     platform::set_combined_setting(v, "reverb", game::SndEnv_Tuning().format());
@@ -105,6 +106,7 @@ void apply_live(const platform::Settings& before, const platform::Settings& afte
     }
     if (differs("trigger-threshold"))
         input::set_trigger_threshold(std::strtof(ui::setting_value(after, "trigger-threshold").c_str(), nullptr));
+    if (differs("hit-markers")) set_hit_markers(ui::setting_value(after, "hit-markers") == "on");
     if (differs("mouse-sensitivity"))
         set_mouse_sensitivity(std::strtof(ui::setting_value(after, "mouse-sensitivity").c_str(), nullptr));
 }
