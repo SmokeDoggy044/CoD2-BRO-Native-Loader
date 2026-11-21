@@ -136,6 +136,10 @@ bool field_of_view_supported();
 // menu); the title's thread.
 void set_mouse_sensitivity(float degrees_per_count);
 float mouse_sensitivity();
+// Hit markers (TitlePatchConfig::hit_markers), switched while playing (the settings pages, the PC menu); nothing
+// where the title cannot show them (multiplayer). Read every frame by CG_Draw2D, so no restart.
+void set_hit_markers(bool on);
+bool hit_markers();
 
 // The campaign mission being played (0-13, 0 = prologue; the level index New Game and
 // the mission screens set), -1 in multiplayer. Any thread.

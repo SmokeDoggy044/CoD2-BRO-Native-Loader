@@ -42,7 +42,7 @@ struct Options {
     std::optional<fs::path> data;
     platform::LogLevel log_level = platform::LogLevel::Info;
     bool trace_kernel = false;
-    uint32_t memory_mb = 64;
+    uint32_t memory_mb = 0;  // 0 = the program's own: the loader 64 (a retail Xbox), cod_bro kOwnEngineMemoryMb
     uint32_t scale = 2;
     uint32_t anisotropy = 16;
     render::BackendConfig::D3D9 d3d9 = render::BackendConfig::D3D9::Auto;

@@ -12,6 +12,7 @@
 #include <cmath>
 #include <cstdlib>
 #include <cstring>
+#include <set>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -19,6 +20,7 @@
 #include "d3d_internal.h"
 #include "draw_placement.h"
 #include "enhanced_graphics.h"
+#include "crash_note.h"
 #include "log.h"
 #include "texture_hash.h"
 #include "texture_pack.h"
@@ -423,9 +425,16 @@ public:
         }
         const char kind = stage == ShaderStage::Vertex ? 'v' : 'p';
         for (unsigned i = 0; i < kTitleShaderCount; ++i)
-            if (kTitleShaders[i].stage == kind && kTitleShaders[i].key == key && kTitleShaders[i].variant == variant)
-                return create_shader(stage, {kTitleShaders[i].d3d9, kTitleShaders[i].d3d9_bytes,
-                                             kTitleShaders[i].spirv, kTitleShaders[i].spirv_bytes});
+            if (kTitleShaders[i].stage == kind && kTitleShaders[i].key == key && kTitleShaders[i].variant == variant) {
+                const platform::CrashNote note("creating Vulkan title shader %u (%cs %08x/%08x)", i, kind, key, variant);
+                const ShaderId id = create_shader(stage, {kTitleShaders[i].d3d9, kTitleShaders[i].d3d9_bytes,
+                                                          kTitleShaders[i].spirv, kTitleShaders[i].spirv_bytes});
+                if (auto found = shaders_.find(id); found != shaders_.end() && !found->second.shared) {
+                    found->second.key = key;
+                    found->second.variant = variant;
+                }
+                return id;
+            }
         LOG_ERROR("render", "gfx: no title %s shader %08x (variant %08x)", kind == 'v' ? "vertex" : "pixel", key,
                   variant);
         return 0;
@@ -433,6 +442,7 @@ public:
     // Ours in the title shaders' layout (gfx_device.h OwnPixelShader, kOwnModelShader), straight from glslang's
     // SPIR-V.
     ShaderId own_shader(ShaderStage stage, const char* name) {
+        const platform::CrashNote note("creating Vulkan shader %s", name);
         const vk::SpirvShader* code = vk::spirv_shader(name);
         VkShaderModule module = VK_NULL_HANDLE;
         if (code) {
@@ -452,6 +462,7 @@ public:
         }
         const ShaderId id = next_id_++;
         shaders_[id] = {stage, module, inputs, vk_.pipeline_libraries() ? shader_library(stage, module) : VK_NULL_HANDLE};
+        shaders_[id].own = name_copy(name);
         return id;
     }
     // Pipelines keep no reference to their modules: a module can go at once.
@@ -1137,7 +1148,22 @@ private:
         uint32_t inputs;                     // vertex shaders: the input locations read
         VkPipeline library = VK_NULL_HANDLE;  // pipeline libraries: the compiled stage
         bool shared = false;                 // module and library belong to prebuilt_
+        // What it is, for the crash note (platform::CrashNote): a title shader's key and variant, or our own's name.
+        uint32_t key = 0, variant = 0;
+        const char* own = nullptr;
     };
+    // Our own shaders' names for Shader::own, kept for the device's lifetime.
+    const char* name_copy(const char* name) { return own_names_.insert(name).first->c_str(); }
+    std::set<std::string> own_names_;
+    static std::string describe(const Shader& shader) {
+        char text[80];
+        if (shader.own)
+            std::snprintf(text, sizeof text, "%s", shader.own);
+        else
+            std::snprintf(text, sizeof text, "%s %08x/%08x", shader.stage == ShaderStage::Vertex ? "vs" : "ps",
+                          shader.key, shader.variant);
+        return text;
+    }
     struct PipelineKey {
         uint32_t vs, ps, layout, topology, blend_enable, src, dst, op, write_mask, fill, color_format, depth_format,
             bindings;
@@ -1800,6 +1826,10 @@ private:
             break;
         }
         VkPipeline pipeline = VK_NULL_HANDLE;
+        const std::string within = platform::crash_note();  // the shader being compiled, if any
+        const platform::CrashNote note("%s%sVulkan pipeline library part %x (topology %d, formats %d/%d)",
+                                       within.c_str(), within.empty() ? "" : ": ", unsigned(part), int(topology), int(color_format),
+                                       int(depth_format));
         if (VkResult r = vkCreateGraphicsPipelines(vk_.device(), pipeline_cache_, 1, &info, nullptr, &pipeline);
             r != VK_SUCCESS) {
             LOG_ERROR("render", "gfx: Vulkan pipeline library: %s", result_name(r));
@@ -1839,6 +1869,8 @@ private:
 
     void prebuild_one(unsigned i) {
         const TitleShader& title = kTitleShaders[i];
+        const platform::CrashNote note("compiling Vulkan title shader %u of %u (%cs %08x/%08x)", i, kTitleShaderCount,
+                                       title.stage, title.key, title.variant);
         std::string error;
         const std::vector<uint32_t> words =
             spirv_fixed_layout(title.d3d9, title.d3d9_bytes, title.spirv, title.spirv_bytes, &error);
@@ -1851,6 +1883,8 @@ private:
         const ShaderStage stage = title.stage == 'v' ? ShaderStage::Vertex : ShaderStage::Pixel;
         prebuild_results_[i] = {stage, module, stage == ShaderStage::Vertex ? spirv_input_mask(words) : 0,
                                 shader_library(stage, module)};
+        prebuild_results_[i].key = title.key;
+        prebuild_results_[i].variant = title.variant;
     }
 
     void join_prebuild() {
@@ -1905,6 +1939,9 @@ private:
         info.layout = pipeline_layout_;
         VkPipeline pipeline = VK_NULL_HANDLE;
         const auto start = std::chrono::steady_clock::now();
+        const platform::CrashNote note("linking a Vulkan pipeline: %s + %s (topology %u, formats %u/%u)",
+                                       describe(vs).c_str(), describe(ps).c_str(), key.topology, key.color_format,
+                                       key.depth_format);
         if (VkResult r = vkCreateGraphicsPipelines(vk_.device(), pipeline_cache_, 1, &info, nullptr, &pipeline);
             r != VK_SUCCESS) {
             LOG_ERROR("render", "gfx: Vulkan pipeline link: %s", result_name(r));
@@ -2043,6 +2080,9 @@ private:
         info.layout = pipeline_layout_;
         VkPipeline pipeline = VK_NULL_HANDLE;
         const auto start = std::chrono::steady_clock::now();
+        const platform::CrashNote note("creating a Vulkan pipeline: %s + %s (topology %u, blend %u, fill %u, formats %u/%u)",
+                                       describe(vs).c_str(), describe(ps).c_str(), key.topology, key.blend_enable,
+                                       key.fill, key.color_format, key.depth_format);
         if (VkResult r = vkCreateGraphicsPipelines(vk_.device(), pipeline_cache_, 1, &info, nullptr, &pipeline);
             r != VK_SUCCESS) {
             LOG_ERROR("render", "gfx: Vulkan pipeline: %s", result_name(r));

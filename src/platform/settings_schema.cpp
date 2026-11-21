@@ -60,8 +60,9 @@ const SettingDef kSettings[] = {
      "game",
      "the language of the texts on screen (menus, hints, subtitles): the game's own, or Polish, Russian or Ukrainian "
      "(our translations, lang/game/pl.po, ru.po, uk.po; the voices stay in the game's language)"},
-    {"memory", "MB", T::Int, G::Files, 0, 16, 1024, nullptr, "64",
-     "Xbox memory budget (default 64, like a retail Xbox; devkit: 128)"},
+    {"memory", "MB", T::Int, G::Files, 0, 16, 1024, nullptr, "128",
+     "the game's memory (default 128; the game's own pools and sound memory grow with what is past a retail Xbox's 64 "
+     "MB; 64 = exactly as on the Xbox; the multiplayer, still on the loader, keeps 64)"},
 
     // --- Display
     {"game-cursor", "on|off", T::Switch, G::Display, 0, 0, 0, nullptr, "on",
@@ -308,7 +309,7 @@ const SettingDef kSettings[] = {
     {"letterbox", "on|off", T::Switch, G::Graphics, 0, 0, 0, nullptr, "on",
      "the black bars at the top and bottom during the campaign's cutscenes (default on = as in the game; off: the "
      "full picture, the cutscene otherwise unchanged)"},
-    {"hit-markers", "on|off", T::Switch, G::Graphics, 0, 0, 0, nullptr, "off",
+    {"hit-markers", "on|off", T::Switch, G::Graphics, kLiveIni, 0, 0, nullptr, "off",
      "short strokes round the crosshair when your shot hits (white) or kills (red) (default off = as in the game; "
      "campaign only)"},
     {"more-bodies", "on|off", T::Switch, G::Graphics, 0, 0, 0, nullptr, "off",

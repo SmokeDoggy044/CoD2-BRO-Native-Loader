@@ -108,9 +108,12 @@ double GameWindow::refresh_rate() const {
 
 namespace {
 std::atomic<bool> g_pc_menu_requested{false};
+std::atomic<void (*)()> g_after_events{nullptr};
 }  // namespace
 
 void request_pc_menu() { g_pc_menu_requested = true; }
+
+void set_after_events(void (*hook)()) { g_after_events = hook; }
 
 bool GameWindow::pump_events() {
     if (closed_) return false;
@@ -140,6 +143,7 @@ bool GameWindow::pump_events() {
             LOG_INFO("render", "%s (Alt+Enter)", fullscreen ? "fullscreen" : "windowed");
         }
     }
+    if (const auto hook = g_after_events.load()) hook();
     return true;
 }
 

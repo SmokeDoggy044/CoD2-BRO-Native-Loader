@@ -1,3 +1,4 @@
+#include "crash_note.h"
 #include "vk_post.h"
 
 #include <algorithm>
@@ -143,6 +144,7 @@ bool Post::create(VkFormat format) {
     info.layout = pipeline_layout_;
     VkResult r = VK_ERROR_INITIALIZATION_FAILED;
     if (vertex && fxaa && sharpen) {
+        const platform::CrashNote note("creating the Vulkan FXAA and sharpening pipelines");
         stages[1].module = fxaa;
         r = vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &info, nullptr, &fxaa_);
         stages[1].module = sharpen;

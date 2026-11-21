@@ -404,7 +404,11 @@ uint32_t XB_CDECL Mem_GetWCPoolStart();
 // heap 0 current. Returns 1.
 uint32_t XB_CDECL Heap_InitDefaultHeaps();
 // 0x00043fb0: the physical and write-combined pools (XPhysicalAlloc); returns the write-combined pool's end.
+// Ours: the physical pool also gets Mem_ExtraBytes(3, 4) (the original's size at 64 MB).
 uint32_t XB_CDECL Mem_AllocPhysicalPools();
+// Ours (no original): num/den of the memory past the Xbox's 64 MB (--memory), 64 KB aligned; 0 at 64 MB. The
+// title's fixed budgets (physical pool 3/4, sound memory 1/8) grow by these shares; 1/8 stays free.
+uint32_t Mem_ExtraBytes(uint32_t num, uint32_t den);
 // 0x00044160: formats into 512 bytes; fprintf to `stream` when given, else OutputDebugStringA (returns 0).
 int32_t XB_CDECL Mem_DebugPrintf(uint32_t stream, const char* format, ...);
 

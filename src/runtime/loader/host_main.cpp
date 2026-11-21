@@ -129,9 +129,11 @@ int host_main(int argc, char** argv) {
                            static_cast<uint32_t>(options.frame_rate ? options.frame_rate : 60), image, symbols);
     loader::os::release_reserved_ranges();
 
-    // The title's memory: the same allocator and layout as the loader's, so replays compare across both.
+    // The title's memory: the same allocator and layout as the loader's, so replays compare across both. More than
+    // the Xbox's 64 MB by default: the game's physical pool and sound memory grow with it (Mem_ExtraBytes).
+    constexpr uint32_t kOwnEngineMemoryMb = 128;
     xbox::MemoryConfig memory;
-    memory.physical_bytes = options.memory_mb * 1024 * 1024;
+    memory.physical_bytes = (options.memory_mb ? options.memory_mb : kOwnEngineMemoryMb) * 1024 * 1024;
     if (!xbox::memory_init(memory) || !xbox::place_launch_data_page({}))
         return loader::startup_failed("cannot set up the game's memory");
     xbox::charge_image_pages(loader::initial_image_pages(image));

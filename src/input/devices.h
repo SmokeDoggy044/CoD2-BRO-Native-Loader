@@ -70,6 +70,10 @@ void take_mouse_motion(float& dx, float& dy);
 // up (menu mode ends 0.25 s after the last call).
 void set_menu_pointer();
 
+// Captures or frees the mouse as the input events asked: call on the thread that pumps the window's events, after
+// the pump (render::set_after_events). Never from inside SDL's event watcher, where it stalls up to 3 s on Windows.
+void apply_mouse_capture();
+
 // The mouse in menu mode. Position in window pixels; clicks and wheel steps (up is
 // positive) since the last call. Empty outside menu mode.
 struct PointerState {

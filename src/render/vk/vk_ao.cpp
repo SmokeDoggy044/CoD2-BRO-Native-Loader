@@ -1,3 +1,4 @@
+#include "crash_note.h"
 #include "vk_ao.h"
 
 #include <algorithm>
@@ -119,6 +120,7 @@ bool Ao::create(VkFormat scene_format) {
     info.layout = pipeline_layout_;
     VkResult r = VK_ERROR_INITIALIZATION_FAILED;
     if (vertex && ao && blur && apply) {
+        const platform::CrashNote note("creating the Vulkan ambient occlusion pipelines");
         stages[1].module = ao;
         r = vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &info, nullptr, &ao_);
         stages[1].module = blur;

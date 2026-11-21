@@ -182,7 +182,7 @@ xbox::KernelConfig kernel_config(const Options& options, const fs::path& assets,
     config.current_irql = loader::current_irql_location;
     config.attach_kernel_thread = loader::attach_kernel_thread;
     config.call_guest = loader::call_guest;
-    config.memory.physical_bytes = options.memory_mb * 1024 * 1024;
+    config.memory.physical_bytes = (options.memory_mb ? options.memory_mb : 64) * 1024 * 1024;
     config.widescreen = options.widescreen;
     config.language = options.language;
     config.cdrom_root = assets;

@@ -574,6 +574,24 @@ msgstr ""
 msgid "Left / right to choose, A or Enter to confirm, B or Escape keeps it off"
 msgstr ""
 
+msgid "Checking hard disk. Please do not turn off your PC."
+msgstr ""
+
+msgid "Deleting game. Please do not turn off your PC."
+msgstr ""
+
+msgid "Formatting hard drive. Please do not turn off your PC."
+msgstr ""
+
+msgid "Loading profile. Please do not turn off your PC."
+msgstr ""
+
+msgid "Overwriting game. Please do not turn off your PC."
+msgstr ""
+
+msgid "Saving Profile. Please don't turn off your PC."
+msgstr ""
+
 msgid "Use {move}"
 msgstr ""
 
