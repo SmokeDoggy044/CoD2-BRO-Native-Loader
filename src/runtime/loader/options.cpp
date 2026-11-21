@@ -434,6 +434,19 @@ bool parse_custom(Options& options, const std::string& arg, int argc, char** arg
 
 }  // namespace
 
+bool developer_tool_option(std::string_view name) {
+    static constexpr std::string_view kNames[] = {
+        "audio-capture", "check-crt",  "check-settings", "compare",        "compare-all",      "debug-view",
+        "dump-shaders",  "force",      "game-text-template", "lang-template", "menu-walk",     "orbit",
+        "press",         "profile",    "record",         "replay",         "replay-at-switch", "replay-continue",
+        "replay-dump",   "replay-hashes", "replay-no-draw", "replay-reference", "replay-shots", "replay-speed",
+        "screenshots",   "text-clear", "text-trap",      "viewer",         "write-signatures",
+    };
+    for (std::string_view known : kNames)
+        if (name == known) return true;
+    return false;
+}
+
 std::optional<Options> parse_args(int argc, char** argv) {
     Options options;
     Combined combined;
@@ -443,6 +456,10 @@ std::optional<Options> parse_args(int argc, char** argv) {
         const platform::SettingDef* def = arg.starts_with("--") ? platform::find_setting(arg.substr(2)) : nullptr;
         if (!def) {
             print_usage(argv[0]);
+            return std::nullopt;
+        }
+        if (!COD_BRO_DEV_TOOLS && developer_tool_option(def->key)) {
+            std::fprintf(stderr, "%s is a developer tool; this build is for players and leaves it out\n", arg.c_str());
             return std::nullopt;
         }
         if (def->type == platform::SettingType::Custom) {

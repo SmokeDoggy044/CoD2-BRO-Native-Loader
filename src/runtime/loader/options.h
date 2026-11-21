@@ -135,6 +135,8 @@ struct Options {
 
 void print_usage(const char* program);
 std::string option_name(std::string arg);
+// A developer tool's option (record/replay, --compare, --profile, ...): player builds (COD_BRO_DEV_TOOLS off) refuse it.
+bool developer_tool_option(std::string_view name);
 std::optional<Options> parse_args(int argc, char** argv);
 
 }  // namespace loader

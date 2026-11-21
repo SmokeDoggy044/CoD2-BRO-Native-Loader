@@ -265,6 +265,14 @@ int load_options(int argc, char** argv, std::optional<Options>& parsed_out) {
             platform::end_process(i + 1 < argc && write_lang_template(argv[i + 1]) ? 0 : 1);
         }
     // settings.ini first, so the command line overrides it. A reboot re-reads it.
+    // Player builds: a developer tool's option is refused before anything acts on it (the recording read below).
+    for (int i = 1; !COD_BRO_DEV_TOOLS && i < argc; ++i) {
+        const std::string name = option_name(argv[i]);
+        if (name.starts_with("--") && developer_tool_option(name.substr(2))) {
+            std::fprintf(stderr, "%s is a developer tool; this build is for players and leaves it out\n", name.c_str());
+            return 2;
+        }
+    }
     // Not with --compare: the comparison runs the game as on the Xbox, whatever the
     // player chose in the launcher.
     bool comparing = false;
