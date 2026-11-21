@@ -171,8 +171,9 @@ int host_main(int argc, char** argv) {
     // Before any text or font (ui_text.h, sharp_text.h).
     if (const char* code = options.text_language == "polish"      ? "pl"
                            : options.text_language == "russian"   ? "ru"
-                           : options.text_language == "ukrainian" ? "uk"
-                                                                  : nullptr) {
+                           : options.text_language == "ukrainian"  ? "uk"
+                           : options.text_language == "portuguese" ? "pt_BR"
+                                                                   : nullptr) {
         platform::set_text_language(code);
         text::set_sharp_text_script(platform::text_script());
     }

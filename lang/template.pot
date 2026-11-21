@@ -121,6 +121,9 @@ msgstr ""
 msgid "Ukrainian"
 msgstr ""
 
+msgid "Portuguese (Brazil)"
+msgstr ""
+
 msgid "IMAGE QUALITY"
 msgstr ""
 

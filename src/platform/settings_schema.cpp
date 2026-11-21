@@ -56,10 +56,11 @@ const SettingDef kSettings[] = {
      "loader, or tools/data)"},
     {"language", "L", T::Choice, G::Files, 0, 0, 0, "english|german|french|spanish|italian", "english",
      "the console language; the game uses it where its disc has that language"},
-    {"text-language", "game|polish|russian|ukrainian", T::Choice, G::Files, 0, 0, 0, "game|polish|russian|ukrainian",
-     "game",
-     "the language of the texts on screen (menus, hints, subtitles): the game's own, or Polish, Russian or Ukrainian "
-     "(our translations, lang/game/pl.po, ru.po, uk.po; the voices stay in the game's language)"},
+    {"text-language", "game|polish|russian|ukrainian|portuguese", T::Choice, G::Files, 0, 0, 0,
+     "game|polish|russian|ukrainian|portuguese", "game",
+     "the language of the texts on screen (menus, hints, subtitles): the game's own, or Polish, Russian, Ukrainian or "
+     "Portuguese (Brazil) (our translations, lang/game/pl.po, ru.po, uk.po, pt_BR.po; the voices stay in the game's "
+     "language)"},
     {"memory", "MB", T::Int, G::Files, 0, 16, 1024, nullptr, "128",
      "the game's memory (default 128; the game's own pools and sound memory grow with what is past a retail Xbox's 64 "
      "MB; 64 = exactly as on the Xbox; the multiplayer, still on the loader, keeps 64)"},
@@ -470,9 +471,9 @@ const SettingUi kUi[] = {
      "English|German|French|Spanish|Italian"},
     // Renderer first: the launcher's Graphics tab starts with it
     {"text-language", nullptr, "Text language",
-     "The language of the texts on screen: menus, hints and subtitles. Polish, Russian and Ukrainian are our own "
-     "translations (lang/game/, corrections welcome); the voices stay in the game's language.",
-     "Game|Polski|Russian|Ukrainian"},
+     "The language of the texts on screen: menus, hints and subtitles. Polish, Russian, Ukrainian and Portuguese "
+     "(Brazil) are our own translations (lang/game/, corrections welcome); the voices stay in the game's language.",
+     "Game|Polski|Russian|Ukrainian|Portuguese (Brazil)"},
     {"renderer", "Renderer", "Renderer",
      "Vulkan is the renderer of our own engine (needs a Vulkan 1.3 graphics driver; without one the game uses "
      "Direct3D 9 by itself). Choose Direct3D 9 if the picture or the speed is wrong with Vulkan.",

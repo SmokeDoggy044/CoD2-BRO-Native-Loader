@@ -568,6 +568,9 @@ msgstr "Russo"
 msgid "Ukrainian"
 msgstr "Ucraino"
 
+msgid "Portuguese (Brazil)"
+msgstr "Portoghese (Brasile)"
+
 msgid "Checking hard disk. Please do not turn off your PC."
 msgstr "Controllo del disco rigido. Non spegnere il PC."
 

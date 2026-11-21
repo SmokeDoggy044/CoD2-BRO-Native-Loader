@@ -1,0 +1,626 @@
+# Brazilian Portuguese translation of our own texts (the text-language setting; lang/README.md).
+# First version drafted by an AI (Claude); corrections from native speakers are welcome.
+msgid ""
+msgstr ""
+"Content-Type: text/plain; charset=UTF-8\n"
+
+msgid "GRAPHICS"
+msgstr "GRÁFICOS"
+
+msgid "CONTROLS"
+msgstr "CONTROLES"
+
+msgid "Settings"
+msgstr "Configurações"
+
+msgid "Enhanced Graphics"
+msgstr "Gráficos aprimorados"
+
+msgid "Quit Game"
+msgstr "Sair do jogo"
+
+msgid "Quit the game? Progress since the last checkpoint will be lost."
+msgstr "Sair do jogo? O progresso desde o último checkpoint será perdido."
+
+msgid "Press ENTER or START"
+msgstr "Pressione ENTER ou START"
+
+msgid "on"
+msgstr "sim"
+
+msgid "off"
+msgstr "não"
+
+msgid "Display"
+msgstr "Tela"
+
+msgid "Screen"
+msgstr "Imagem"
+
+msgid "Image Quality"
+msgstr "Qualidade de imagem"
+
+msgid "Lighting"
+msgstr "Iluminação"
+
+msgid "Detail"
+msgstr "Detalhes"
+
+msgid "DISPLAY"
+msgstr "TELA"
+
+msgid "Fullscreen"
+msgstr "Tela cheia"
+
+msgid "Game cursor"
+msgstr "Cursor do jogo"
+
+msgid "Window size"
+msgstr "Tamanho da janela"
+
+msgid "Aspect ratio"
+msgstr "Proporção da tela"
+
+msgid "Auto"
+msgstr "Auto"
+
+msgid "Render scale"
+msgstr "Escala de renderização"
+
+msgid "Frame rate"
+msgstr "Taxa de quadros"
+
+msgid "SCREEN"
+msgstr "IMAGEM"
+
+msgid "Brightness"
+msgstr "Brilho"
+
+msgid "Field of view"
+msgstr "Campo de visão"
+
+msgid "Sharper text"
+msgstr "Texto mais nítido"
+
+msgid "Cutscene bars"
+msgstr "Faixas nas cenas"
+
+msgid "Hit markers"
+msgstr "Marcadores de acerto"
+
+msgid "Language"
+msgstr "Idioma"
+
+msgid "English"
+msgstr "Inglês"
+
+msgid "German"
+msgstr "Alemão"
+
+msgid "French"
+msgstr "Francês"
+
+msgid "Spanish"
+msgstr "Espanhol"
+
+msgid "Italian"
+msgstr "Italiano"
+
+msgid "Text language"
+msgstr "Idioma dos textos"
+
+msgid "Game"
+msgstr "Jogo"
+
+msgid "Polski"
+msgstr "Polski"
+
+msgid "Russian"
+msgstr "Russo"
+
+msgid "Ukrainian"
+msgstr "Ucraniano"
+
+msgid "IMAGE QUALITY"
+msgstr "QUALIDADE DE IMAGEM"
+
+msgid "Anti-aliasing"
+msgstr "Antialiasing"
+
+msgid "Anisotropic filtering"
+msgstr "Filtragem anisotrópica"
+
+msgid "Filtering level"
+msgstr "Nível de filtragem"
+
+msgid "Sharpening"
+msgstr "Nitidez"
+
+msgid "Sharpness"
+msgstr "Intensidade da nitidez"
+
+msgid "Colour vibrance"
+msgstr "Vivacidade das cores"
+
+msgid "Vibrance"
+msgstr "Vivacidade"
+
+msgid "LIGHTING"
+msgstr "ILUMINAÇÃO"
+
+msgid "Original shadows"
+msgstr "Sombras originais"
+
+msgid "Sun shadows"
+msgstr "Sombras do sol"
+
+msgid "Per-pixel lighting"
+msgstr "Iluminação por pixel"
+
+msgid "Normal maps"
+msgstr "Mapas normais"
+
+msgid "Shine"
+msgstr "Brilho especular"
+
+msgid "Lit surface detail"
+msgstr "Detalhe das superfícies"
+
+msgid "DETAIL"
+msgstr "DETALHES"
+
+msgid "Ambient occlusion"
+msgstr "Oclusão de ambiente"
+
+msgid "Cavity shading"
+msgstr "Sombreamento de cavidades"
+
+msgid "Texture detail"
+msgstr "Detalhe das texturas"
+
+msgid "Detail bias"
+msgstr "Viés de detalhe"
+
+msgid "Smooth models"
+msgstr "Modelos suavizados"
+
+msgid "More bodies"
+msgstr "Mais corpos"
+
+msgid "Texture Packs"
+msgstr "Pacotes de texturas"
+
+msgid "TEXTURE PACKS"
+msgstr "PACOTES DE TEXTURAS"
+
+msgid "SOUND"
+msgstr "SOM"
+
+msgid "Master Volume"
+msgstr "Volume geral"
+
+msgid "Enhanced Sound"
+msgstr "Som aprimorado"
+
+msgid "Volumes"
+msgstr "Volumes"
+
+msgid "Sound Paths"
+msgstr "Propagação do som"
+
+msgid "Reverb"
+msgstr "Reverberação"
+
+msgid "Quality"
+msgstr "Qualidade"
+
+msgid "Output"
+msgstr "Saída"
+
+msgid "VOLUMES"
+msgstr "VOLUMES"
+
+msgid "Effects"
+msgstr "Efeitos"
+
+msgid "Ambience"
+msgstr "Ambiente"
+
+msgid "Dialogue"
+msgstr "Diálogos"
+
+msgid "Music"
+msgstr "Música"
+
+msgid "Others' gunfire"
+msgstr "Tiros dos outros"
+
+msgid "Your gunfire"
+msgstr "Seus tiros"
+
+msgid "Bullets Nearby"
+msgstr "Balas por perto"
+
+msgid "SOUND PATHS"
+msgstr "PROPAGAÇÃO DO SOM"
+
+msgid "Occlusion"
+msgstr "Oclusão"
+
+msgid "Transmission"
+msgstr "Transmissão"
+
+msgid "Partial cover"
+msgstr "Cobertura parcial"
+
+msgid "Through Openings"
+msgstr "Através de aberturas"
+
+msgid "Air absorption"
+msgstr "Absorção do ar"
+
+msgid "REVERB"
+msgstr "REVERBERAÇÃO"
+
+msgid "Room Detail"
+msgstr "Detalhe do ambiente"
+
+msgid "Echoes"
+msgstr "Ecos"
+
+msgid "Amount"
+msgstr "Quantidade"
+
+msgid "Decay"
+msgstr "Decaimento"
+
+msgid "Reflections"
+msgstr "Reflexões"
+
+msgid "QUALITY"
+msgstr "QUALIDADE"
+
+msgid "Finer resampling"
+msgstr "Reamostragem mais fina"
+
+msgid "More voices"
+msgstr "Mais vozes"
+
+msgid "Stereo cutscenes"
+msgstr "Cenas em estéreo"
+
+msgid "Room clutter"
+msgstr "Objetos no ambiente"
+
+msgid "OUTPUT"
+msgstr "SAÍDA"
+
+msgid "Speakers"
+msgstr "Alto-falantes"
+
+msgid "Automatic"
+msgstr "Automático"
+
+msgid "Stereo"
+msgstr "Estéreo"
+
+msgid "Headphones"
+msgstr "Fones de ouvido"
+
+msgid "Quad"
+msgstr "Quadrifônico"
+
+msgid "Mute sound"
+msgstr "Silenciar som"
+
+msgid "Mouse sensitivity"
+msgstr "Sensibilidade do mouse"
+
+msgid "Aim assist"
+msgstr "Assistência de mira"
+
+msgid "Skip intro"
+msgstr "Pular introdução"
+
+msgid "Sprint"
+msgstr "Correr"
+
+msgid "Sprint duration"
+msgstr "Duração da corrida"
+
+msgid "1.5 s"
+msgstr "1,5 s"
+
+msgid "3 s"
+msgstr "3 s"
+
+msgid "5 s"
+msgstr "5 s"
+
+msgid "8 s"
+msgstr "8 s"
+
+msgid "Unlimited"
+msgstr "Ilimitada"
+
+msgid "Button prompts"
+msgstr "Ícones de botões"
+
+msgid "Keyboard"
+msgstr "Teclado"
+
+msgid "Controller"
+msgstr "Controle"
+
+msgid "CONTROLLER"
+msgstr "CONTROLE"
+
+msgid "Layout"
+msgstr "Esquema"
+
+msgid "Modern"
+msgstr "Moderno"
+
+msgid "Original A"
+msgstr "Original A"
+
+msgid "Original B"
+msgstr "Original B"
+
+msgid "Original C"
+msgstr "Original C"
+
+msgid "Original D"
+msgstr "Original D"
+
+msgid "Custom"
+msgstr "Personalizado"
+
+msgid "Invert Aim"
+msgstr "Inverter mira"
+
+msgid "Vibration"
+msgstr "Vibração"
+
+msgid "Look Speed"
+msgstr "Velocidade da câmera"
+
+msgid "Look Speed Vertical"
+msgstr "Velocidade vertical da câmera"
+
+msgid "Trigger threshold"
+msgstr "Limite dos gatilhos"
+
+msgid "Button style"
+msgstr "Estilo dos botões"
+
+msgid "Detected"
+msgstr "Detectado"
+
+msgid "Xbox"
+msgstr "Xbox"
+
+msgid "PlayStation"
+msgstr "PlayStation"
+
+msgid "Nintendo"
+msgstr "Nintendo"
+
+msgid "Steam Deck"
+msgstr "Steam Deck"
+
+msgid "Fire"
+msgstr "Atirar"
+
+msgid "Aim down sights"
+msgstr "Mirar"
+
+msgid "Aim down sights (toggle)"
+msgstr "Mirar (alternar)"
+
+msgid "Throw grenade"
+msgstr "Lançar granada"
+
+msgid "Melee"
+msgstr "Corpo a corpo"
+
+msgid "Jump"
+msgstr "Pular"
+
+msgid "Crouch / prone"
+msgstr "Agachar / deitar"
+
+msgid "Raise stance"
+msgstr "Levantar"
+
+msgid "Use / reload"
+msgstr "Usar / recarregar"
+
+msgid "Use"
+msgstr "Usar"
+
+msgid "Reload"
+msgstr "Recarregar"
+
+msgid "Next weapon"
+msgstr "Próxima arma"
+
+msgid "Previous weapon"
+msgstr "Arma anterior"
+
+msgid "Lean left"
+msgstr "Inclinar à esquerda"
+
+msgid "Lean right"
+msgstr "Inclinar à direita"
+
+msgid "Hide HUD"
+msgstr "Ocultar HUD"
+
+msgid "KEYBOARD"
+msgstr "TECLADO"
+
+msgid "Move forward"
+msgstr "Avançar"
+
+msgid "Move back"
+msgstr "Recuar"
+
+msgid "Move left"
+msgstr "Esquerda"
+
+msgid "Move right"
+msgstr "Direita"
+
+msgid "SETTINGS"
+msgstr "CONFIGURAÇÕES"
+
+msgid "Graphics"
+msgstr "Gráficos"
+
+msgid "Sound"
+msgstr "Som"
+
+msgid "Controls"
+msgstr "Controles"
+
+msgid "Reset to Defaults"
+msgstr "Restaurar padrões"
+
+msgid "Apply and Exit"
+msgstr "Aplicar e sair"
+
+msgid "Back"
+msgstr "Voltar"
+
+msgid "Press a key"
+msgstr "Pressione uma tecla"
+
+msgid "none"
+msgstr "nenhuma"
+
+msgid "Press a button"
+msgstr "Pressione um botão"
+
+msgid "Left stick click"
+msgstr "Clique do analógico esquerdo"
+
+msgid "Right stick click"
+msgstr "Clique do analógico direito"
+
+msgid "D-pad up"
+msgstr "Direcional para cima"
+
+msgid "D-pad down"
+msgstr "Direcional para baixo"
+
+msgid "D-pad left"
+msgstr "Direcional para a esquerda"
+
+msgid "D-pad right"
+msgstr "Direcional para a direita"
+
+msgid "Back R4"
+msgstr "Traseiro R4"
+
+msgid "Back L4"
+msgstr "Traseiro L4"
+
+msgid "Back R5"
+msgstr "Traseiro R5"
+
+msgid "Back L5"
+msgstr "Traseiro L5"
+
+msgid "What's new"
+msgstr "Novidades"
+
+msgid "New controller support"
+msgstr "Novo suporte a controles"
+
+msgid "Your controller now talks to the game directly instead of pretending to be the original Xbox pad, and it starts with a modern layout:"
+msgstr "Seu controle agora se comunica diretamente com o jogo em vez de fingir ser o controle original do Xbox, e começa com um esquema moderno:"
+
+msgid "RT fire, LT aim, RB grenade"
+msgstr "RT atirar, LT mirar, RB granada"
+
+msgid "A jump, B crouch, X use / reload, Y next weapon"
+msgstr "A pular, B agachar, X usar / recarregar, Y próxima arma"
+
+msgid "L3 sprint, R3 melee, D-pad left / right lean"
+msgstr "L3 correr, R3 corpo a corpo, direcional esquerda / direita inclinar"
+
+msgid "The game's original layouts, every single button, invert, vibration and look speed are under Options > Controls > Controller (and in the launcher). The on-screen prompts show your controller's own buttons."
+msgstr "Os esquemas originais do jogo, cada botão, a inversão, a vibração e a velocidade da câmera estão em Opções > Controles > Controle (e no inicializador). Os ícones na tela mostram os botões do seu controle."
+
+msgid "OK"
+msgstr "OK"
+
+msgid "A, B or Start on the controller, Enter or a click"
+msgstr "A, B ou Start no controle, Enter ou um clique"
+
+msgid "The campaign has the game's own sprint (faster running with stamina), but the original game never lets you use it. Do you want to sprint in the campaign?"
+msgstr "A campanha tem a corrida do próprio jogo (correr mais rápido com fôlego), mas o jogo original nunca deixa você usá-la. Quer correr na campanha?"
+
+msgid "Off is the original game. You can change this at any time under Options > Controls > Sprint, or in the launcher."
+msgstr "Desativado é o jogo original. Você pode mudar isso a qualquer momento em Opções > Controles > Correr, ou no inicializador."
+
+msgid "Keep it off (original)"
+msgstr "Manter desativado (original)"
+
+msgid "Turn sprint on"
+msgstr "Ativar a corrida"
+
+msgid "Left / right to choose, A or Enter to confirm, B or Escape keeps it off"
+msgstr "Esquerda / direita para escolher, A ou Enter para confirmar, B ou Esc mantém desativado"
+
+msgid "Checking hard disk. Please do not turn off your PC."
+msgstr "Verificando o disco rígido. Não desligue o PC."
+
+msgid "Deleting game. Please do not turn off your PC."
+msgstr "Excluindo jogo. Não desligue o PC."
+
+msgid "Formatting hard drive. Please do not turn off your PC."
+msgstr "Formatando o disco rígido. Não desligue o PC."
+
+msgid "Loading profile. Please do not turn off your PC."
+msgstr "Carregando perfil. Não desligue o PC."
+
+msgid "Overwriting game. Please do not turn off your PC."
+msgstr "Sobrescrevendo jogo. Não desligue o PC."
+
+msgid "Saving Profile. Please don't turn off your PC."
+msgstr "Salvando perfil. Não desligue o PC."
+
+msgid "Use {move}"
+msgstr "Use {move}"
+
+msgid "Move the mouse"
+msgstr "Mova o mouse"
+
+msgid "Press and hold {sprint}"
+msgstr "Mantenha {sprint} pressionado"
+
+msgid "Press {aim-toggle}"
+msgstr "Pressione {aim-toggle}"
+
+msgid "Press and hold [AIM] to setup your weapon"
+msgstr "Mantenha [AIM] pressionado para apoiar sua arma"
+
+msgid "Cheats"
+msgstr "Trapaças"
+
+msgid "CHEATS"
+msgstr "TRAPAÇAS"
+
+msgid "God mode"
+msgstr "Modo deus"
+
+msgid "Infinite ammo"
+msgstr "Munição infinita"
+
+msgid "Free camera"
+msgstr "Câmera livre"
+
+msgid "Portuguese (Brazil)"
+msgstr "Português (Brasil)"

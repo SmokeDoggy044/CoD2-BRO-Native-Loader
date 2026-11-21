@@ -82,8 +82,8 @@ int main() {
     check(std::string(platform::ui_text(0, "Back")) == "Back", "English stays");
     const char* unknown = "No such text";
     check(platform::ui_text(2, unknown) == unknown, "an unknown text is handed back as it is");
-    // Text languages: our texts in Polish, Russian and Ukrainian, on the game's codes for their letters.
-    for (const char* code : {"pl", "ru", "uk"}) {
+    // Text languages: our texts in Polish, Russian, Ukrainian and Portuguese, on the game's codes for their letters.
+    for (const char* code : {"pl", "ru", "uk", "pt_BR"}) {
         std::map<std::string, std::string> texts;
         const std::string file = std::string(code) + ".po";
         check(platform::parse_po(read(dir / file), texts, &error), file + " reads: " + error);
