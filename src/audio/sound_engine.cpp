@@ -8,6 +8,7 @@
 #include "sound_engine.h"
 
 #include <algorithm>
+#include <cstdlib>
 #include <chrono>
 #include <cmath>
 #include <condition_variable>
@@ -48,6 +49,7 @@ struct VoiceImpl {
         : voice(desc.stream ? Voice::Kind::Stream : Voice::Kind::Buffer), desc(desc) {}
 
     VoiceHeader header{};
+    uint32_t serial = 0;  // creation order (from 1): the voice's key in recordings (the same in every run)
     int refs = 1;
     Voice voice;
     const VoiceDesc desc;
@@ -154,6 +156,8 @@ public:
     void finish_held(const Held& h);
     void release_held();
     void describe_packet_owner(uint32_t key);
+    uint32_t next_serial = 0;
+    bool replay_flush(VoiceImpl& v, const std::deque<Packet>& queue, uint32_t front_played);
 
 private:
     // The output, or none in a test process: there voices only keep their state.
@@ -353,6 +357,27 @@ void Engine::sync(VoiceImpl& v) {
     if (Output* o = out(); o && v.source) o->sync(v.source);
 }
 
+// Developers: COD_BRO_PACKET_TRACE=key,key,... (packet status-word or completion addresses, hex) logs those packets'
+// submits and finishes (thread, status, held or not) - for a replay that waited in vain for one.
+static bool traced_packet(uint32_t key) {
+    static const std::vector<uint32_t> keys = [] {
+        std::vector<uint32_t> out;
+        if (const char* list = std::getenv("COD_BRO_PACKET_TRACE"))
+            for (const char* p = list; *p;) {
+                char* end = nullptr;
+                const unsigned long v = std::strtoul(p, &end, 16);
+                if (end == p) break;
+                out.push_back(static_cast<uint32_t>(v));
+                p = *end == ',' ? end + 1 : end;
+            }
+        return out;
+    }();
+    return !keys.empty() && std::find(keys.begin(), keys.end(), key) != keys.end();
+}
+static uint32_t packet_key(const Packet& packet) {
+    return packet.status ? to_xbox_ptr(packet.status) : packet.completion;
+}
+
 // Called with the voice locked, possibly on the mixer thread.
 void Engine::packet_done(VoiceImpl& v, const Packet& packet, uint32_t status) {
     if (v.callback) {
@@ -375,12 +400,21 @@ VoiceId Engine::create_voice(const VoiceDesc& desc, const Format* format) {
     if (!in_test() && !output) return 0;
     auto* v = new VoiceImpl(desc);
     v->header = {vtable, kMagicVoice, v};
+    v->serial = ++next_serial;
     v->voice.on_packet_done = [v](const Packet& packet, uint32_t status) { g.packet_done(*v, packet, status); };
     if (xbox::replay::active())
         v->voice.take_finished = [v](const Packet& packet, uint32_t status, uint32_t played) {
+            if (traced_packet(packet_key(packet)))
+                LOG_INFO("replay", "frame %u: packet %08x finished on the %s thread, status %08x, played %u",
+                         xbox::replay::frame_number(), packet_key(packet),
+                         xbox::replay::main_thread() ? "main" : "mixer", status, played);
             if (xbox::replay::main_thread()) return false;  // a flush or stop: in the title's order already
             g.hold(*v, packet, status, played);
             return true;
+        };
+    if (xbox::replay::active())
+        v->voice.take_flush = [v](const std::deque<Packet>& queue, uint32_t front_played) {
+            return g.replay_flush(*v, queue, front_played);
         };
     if (desc.buffer_bytes) {
         v->own_data.assign(desc.buffer_bytes, 0);
@@ -463,6 +497,10 @@ void Engine::play(VoiceId id, bool looping, bool from_start, Start start) {
 bool Engine::submit(VoiceId id, const Packet& packet) {
     Guard lock(mutex, TestLock::State);
     VoiceImpl* v = find(id);
+    if (traced_packet(packet_key(packet)))
+        LOG_INFO("replay", "frame %u: packet %08x submitted to voice %08x on the %s thread%s",
+                 xbox::replay::frame_number(), packet_key(packet), id,
+                 xbox::replay::main_thread() ? "main" : "other", v ? "" : " (no such voice)");
     if (!v || !v->voice.submit(packet, std::max<uint32_t>(v->desc.max_packets, 1))) return false;
     sync(*v);  // streams start with their first packet
     return true;
@@ -507,7 +545,9 @@ void Engine::resume(VoiceId id, Start start) {
 
 VoiceStatus Engine::status(VoiceId id) {
     VoiceStatus s;
+    uint32_t serial = 0;
     change(id, [&](VoiceImpl& v) {
+        serial = v.serial;
         s.playing = v.voice.playing() || v.synch_play;
         s.paused = v.voice.paused();
         s.looping = s.playing && v.voice.looping();
@@ -518,7 +558,8 @@ VoiceStatus Engine::status(VoiceId id) {
     // Record/replay: whether a voice still plays changes with the mixer's timing.
     const uint32_t bits = xbox::replay::value(
         'S', uint32_t{s.playing} | uint32_t{s.paused} << 1 | uint32_t{s.looping} << 2 | uint32_t{s.starved} << 3 |
-                 uint32_t{s.accepts_packets} << 4);
+                 uint32_t{s.accepts_packets} << 4,
+        serial);
     s.playing = bits & 1, s.paused = bits & 2, s.looping = bits & 4, s.starved = bits & 8, s.accepts_packets = bits & 16;
     return s;
 }
@@ -646,6 +687,76 @@ void Engine::finish_held(const Held& h) {
     packet_done(*h.voice, h.packet, h.status);
 }
 
+// Record/replay: which packets a stop flushes depends on how far the mixer got (one it finished is held, not
+// queued), so the recording lists them ('f' count, then 'g' key and 'G' bytes played each). A replay flushes exactly
+// those, with the recorded bytes; a packet still queued that the recording did not flush counts as finished (held for
+// its recorded hand-over); a recorded one the mixer already finished leaves the held list flushed. Without 'f' records
+// (older files) the flush is live, and recorded so in a re-recording.
+bool Engine::replay_flush(VoiceImpl& v, const std::deque<Packet>& queue, uint32_t front_played) {
+    if (!xbox::replay::main_thread()) return false;
+    const auto played_of = [&](size_t i) { return i == 0 ? front_played : 0u; };
+    if (!xbox::replay::replaying()) {
+        xbox::replay::value('f', static_cast<uint32_t>(queue.size()), v.serial);
+        for (size_t i = 0; i < queue.size(); ++i) {
+            xbox::replay::value('g', packet_key(queue[i]));
+            xbox::replay::value('G', played_of(i));
+        }
+        return false;
+    }
+    uint32_t count = 0;
+    if (!xbox::replay::take_recorded('f', count, v.serial)) {
+        xbox::replay::rerecord_value('f', static_cast<uint32_t>(queue.size()), v.serial);
+        for (size_t i = 0; i < queue.size(); ++i) {
+            xbox::replay::rerecord_value('g', packet_key(queue[i]));
+            xbox::replay::rerecord_value('G', played_of(i));
+        }
+        return false;
+    }
+    std::vector<std::pair<uint32_t, uint32_t>> want, done;
+    for (uint32_t i = 0; i < count; ++i) {
+        uint32_t key = 0, played = 0;
+        xbox::replay::take_recorded('g', key);
+        xbox::replay::take_recorded('G', played);
+        want.emplace_back(key, played);
+    }
+    const auto flushed = [&](const Packet& p, uint32_t played) {
+        if (p.completed) *p.completed = played;
+        if (p.status) *p.status = kPacketFlushed;
+        packet_done(v, p, kPacketFlushed);
+    };
+    for (const Packet& p : queue) {
+        const uint32_t key = packet_key(p);
+        auto it = std::find_if(want.begin(), want.end(), [&](const auto& w) { return w.first == key; });
+        if (it == want.end()) {
+            hold(v, p, kPacketSuccess, p.size);  // the recording's mixer had finished it
+            continue;
+        }
+        flushed(p, it->second);
+        done.push_back(*it);
+        want.erase(it);
+    }
+    for (const auto& [key, played] : want) {
+        std::unique_lock lock(held_mutex);
+        auto it = std::find_if(held.begin(), held.end(), [&](const Held& h) { return h.key() == key && h.voice == &v; });
+        if (it == held.end()) {
+            lock.unlock();
+            xbox::replay::fault(xbox::replay::Fault::MissedPacket);
+            continue;
+        }
+        const Packet p = it->packet;
+        held.erase(it);
+        lock.unlock();
+        flushed(p, played);
+        done.emplace_back(key, played);
+    }
+    xbox::replay::rerecord_value('f', static_cast<uint32_t>(done.size()), v.serial);
+    for (const auto& [key, played] : done) {
+        xbox::replay::rerecord_value('g', key);
+        xbox::replay::rerecord_value('G', played);
+    }
+    return true;
+}
+
 // Diagnostics for a packet the replay waited for in vain: which voice still holds it, and that voice's state.
 void Engine::describe_packet_owner(uint32_t key) {
     Guard lock(mutex, TestLock::State);
@@ -662,11 +773,16 @@ void Engine::describe_packet_owner(uint32_t key) {
 }
 
 void Engine::release_held() {
-    uint32_t count = 0;
-    if (xbox::replay::recorded('k', count)) {
+    if (xbox::replay::replaying()) {
+        // Only what the recording lists, never the live finishes (a missing count = none: the read-count check
+        // reports it). A re-recording gets only the packets really handed over: one this run never produced is left
+        // out, so the new file replays without waiting for it; finishes the recording never lists stay held.
+        uint32_t count = 0;
+        xbox::replay::take_recorded('k', count);
+        std::vector<uint32_t> handed;
         for (uint32_t i = 0; i < count; ++i) {
             uint32_t key = 0;
-            if (!xbox::replay::recorded('K', key)) break;
+            if (!xbox::replay::take_recorded('K', key)) break;
             std::unique_lock lock(held_mutex);
             const auto match = [&] { return std::find_if(held.begin(), held.end(), [&](const Held& h) { return h.key() == key; }); };
             auto it = match();
@@ -677,6 +793,7 @@ void Engine::release_held() {
             if (it == held.end() &&
                 !held_signal.wait_for(lock, wait, [&] { return (it = match()) != held.end(); })) {
                 lock.unlock();
+                xbox::replay::fault(xbox::replay::Fault::MissedPacket);
                 if (++missed <= 3) {
                     LOG_WARN("replay", "frame %u: the recording finished packet %08x here; the mixer did not within "
                              "10 s", xbox::replay::frame_number(), key);
@@ -688,8 +805,13 @@ void Engine::release_held() {
             const Held h = *it;
             held.erase(it);
             lock.unlock();
+            if (traced_packet(key))
+                LOG_INFO("replay", "frame %u: packet %08x handed to the title (recorded here)", xbox::replay::frame_number(), key);
+            handed.push_back(key);
             finish_held(h);
         }
+        xbox::replay::rerecord_value('k', static_cast<uint32_t>(handed.size()));
+        for (uint32_t key : handed) xbox::replay::rerecord_value('K', key);
         return;
     }
     std::deque<Held> due;
@@ -699,6 +821,8 @@ void Engine::release_held() {
     }
     xbox::replay::value('k', static_cast<uint32_t>(due.size()));
     for (const Held& h : due) {
+        if (traced_packet(h.key()))
+            LOG_INFO("replay", "frame %u: packet %08x handed to the title (recording it)", xbox::replay::frame_number(), h.key());
         xbox::replay::value('K', h.key());
         finish_held(h);
     }

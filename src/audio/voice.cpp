@@ -104,10 +104,11 @@ void Voice::discontinuity() {
 
 void Voice::flush() {
     Guard lock(mutex_, TestLock::Voice);
-    for (Packet& packet : packets_) {
-        const uint32_t played = &packet == &packets_.front() ? packet_offset_ : 0;
-        finish_packet(packet, kPacketFlushed, played);
-    }
+    if (!take_flush || !take_flush(packets_, packet_offset_))
+        for (Packet& packet : packets_) {
+            const uint32_t played = &packet == &packets_.front() ? packet_offset_ : 0;
+            finish_packet(packet, kPacketFlushed, played);
+        }
     packets_.clear();
     packet_offset_ = 0;
     block_fill_ = 0;

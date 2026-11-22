@@ -18,11 +18,17 @@ struct TitleHost {
                          uint32_t* thread_id) = nullptr;
 
     // Record/replay (src/runtime/xbox/replay.h): the calling thread's reads go to the stream; a replay is running;
-    // the next recorded value of `tag` in this frame (replay only); record or replay one value.
+    // the next recorded value of `tag` in this frame (replay only); record or replay one value (`site`: what it
+    // belongs to when the tag has several readers, 0 = one); a replay fault (replay::Fault as int); a title thread
+    // the main thread started.
     bool (*replay_on_stream)() = nullptr;
     bool (*replay_replaying)() = nullptr;
-    bool (*replay_recorded)(char tag, uint32_t* value) = nullptr;
-    uint32_t (*replay_value)(char tag, uint32_t real) = nullptr;
+    bool (*replay_recorded)(char tag, uint32_t* value, uint32_t site) = nullptr;
+    uint32_t (*replay_value)(char tag, uint32_t real, uint32_t site) = nullptr;
+    void (*replay_fault)(int kind) = nullptr;
+    void (*replay_thread_started)(uint32_t routine) = nullptr;
+    // A checkpoint was saved (its name): logged, recorded, checked against a replay's recording.
+    void (*replay_checkpoint)(const char* name) = nullptr;
 
     // The current UTC time, 100 ns units since 1601 (FILETIME).
     int64_t (*system_time)() = nullptr;

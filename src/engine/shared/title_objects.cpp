@@ -165,9 +165,13 @@ uint32_t wait_recorded(const std::vector<std::shared_ptr<Object>>& objects, bool
     const TitleHost& host = g_host;
     if (!deadline || objects.empty() || !host.replay_on_stream || !host.replay_on_stream())
         return wait_live(objects, wait_all, deadline, alertable);
+    // The wait's key: how many objects of which kinds, all or any - a different wait at this point is a fault.
+    const uint32_t site = (static_cast<uint32_t>(objects.size()) & 0xff) << 16 | (wait_all ? 0x8000u : 0u) |
+                          static_cast<uint32_t>(objects.front()->kind) << 8 | static_cast<uint32_t>(objects.back()->kind) |
+                          0x57000000u;
     uint32_t outcome = 0;
-    if (!host.replay_replaying() || !host.replay_recorded('W', &outcome))
-        return host.replay_value('W', wait_live(objects, wait_all, deadline, alertable));
+    if (!host.replay_replaying() || !host.replay_recorded('W', &outcome, site))
+        return host.replay_value('W', wait_live(objects, wait_all, deadline, alertable), site);
     if (outcome == kStatusTimeout) return kStatusTimeout;
     const size_t index = outcome - kStatusSuccess;
     if (outcome == kStatusUserApc || index >= objects.size()) return wait_live(objects, wait_all, deadline, alertable);
@@ -190,6 +194,7 @@ uint32_t wait_recorded(const std::vector<std::shared_ptr<Object>>& objects, bool
     }
     std::fprintf(stderr, "[replay] a wait the recording saw end (%08x) did not end within 10 s; waiting live\n",
                  outcome);
+    if (host.replay_fault) host.replay_fault(1);  // replay::Fault::LiveWait
     return wait_live(objects, wait_all, deadline, alertable);
 }
 
@@ -251,6 +256,7 @@ uint32_t create_mutex(bool initially_owned) {
 uint32_t create_thread(uint32_t stack_size, uint32_t tls_size, ThreadBody* body, uint32_t routine, uint32_t context,
                        uint32_t* thread_id) {
     if (!g_host.start_thread) return 0;
+    if (g_host.replay_thread_started) g_host.replay_thread_started(routine);  // recorded/checked on the main thread
     auto o = std::make_shared<Object>();
     o->kind = Kind::Thread;
     const uint32_t handle = insert(std::move(o));

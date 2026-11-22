@@ -71,6 +71,9 @@ else()
 endif()
 
 option(COD_BRO_BUILD_TESTS "Build the tests" ON)
+# Translated level code (tools/translator/lift.py output, not in the repository yet): the folder with <level>_xl.cpp
+# and leaf_translated.inc. Empty = none.
+set(COD_BRO_LEVEL_XLAT_DIR "" CACHE PATH "Folder with generated level code (tools/translator/lift.py)")
 
 # Developer tools (profiler, text traps, shader dumps, menu walks, object viewer and orbit camera; the options of the
 # test tools such as record/replay, scripted presses and --compare). ON for our own builds; the player presets

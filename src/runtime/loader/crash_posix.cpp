@@ -6,6 +6,7 @@
 #include <pthread.h>
 #include <signal.h>
 #include <sys/ucontext.h>
+#include <sys/uio.h>
 #include <unistd.h>
 
 #include <cstdint>
@@ -28,6 +29,14 @@ void handle_signal(int signal, siginfo_t* info, void* context) {
               reg(REG_ECX), reg(REG_EDX), reg(REG_ESI), reg(REG_EDI));
     LOG_ERROR("crash", "esp=%08x ebp=%08x eflags=%08x", reg(REG_ESP), reg(REG_EBP), reg(REG_EFL));
     if (const char* note = platform::crash_note(); *note) LOG_ERROR("crash", "while %s", note);
+    if (reg(REG_EIP) < 0x10000) {  // a jump through a null or wild pointer: the words at ESP name how it got there
+        uint32_t words[12]{};
+        iovec local{words, sizeof words}, remote{reinterpret_cast<void*>(uintptr_t{reg(REG_ESP)}), sizeof words};
+        if (process_vm_readv(getpid(), &local, 1, &remote, 1, 0) == static_cast<ssize_t>(sizeof words))
+            for (int i = 0; i < 12; i += 4)
+                LOG_ERROR("crash", "[esp+%02x] %08x %08x %08x %08x (%s)", i * 4, words[i], words[i + 1], words[i + 2],
+                          words[i + 3], describe_address(words[i]).c_str());
+    }
     log_backtrace(reg(REG_EIP), reg(REG_EBP));
     run_fatal_exit_hook(true);
     _exit(128 + signal);

@@ -47,6 +47,7 @@
 #include "kernel_memory.h"
 #include "kernel_thunks.h"
 #include "hooks.h"
+#include "xlat_install.h"
 #include "host_image.h"
 #include "qcommon_fs.h"
 #include "text_trap.h"
@@ -294,6 +295,12 @@ int loader_main(int argc, char** argv) {
     input::set_pad_bindings(options->pad_bindings);
     input::set_trigger_threshold(options->trigger_threshold);
     input::set_pad_family_override(options->pad_glyphs);
+    // The one-time notice and sprint question are for players: never in recordings, replays or scripted runs (as
+    // host_main; this path showed them in every --record run with fresh settings).
+    loader::set_notice_allowed(options->show_notice ||
+                                   (options->press_script.empty() && options->menu_walk.empty() && !options->screenshot_dir &&
+                                    options->replay.mode == xbox::replay::Mode::Off && !options->compare),
+                               options->show_notice);
     loader::install_title_patches(*title, {options->mouse_sensitivity, options->start_level, options->aim_assist,
                                            options->frame_rate, options->late_frames_wait,
                                            options->widescreen ? aspect : 0.0f, options->field_of_view,
@@ -329,6 +336,7 @@ int loader_main(int argc, char** argv) {
     xbox::set_event_signal([](uint32_t handle) { xbox::set_event_handle(handle); });
     if (!options->press_script.empty() && !input::set_script(options->press_script)) return 1;
     if (!options->replay_at_switch && !xbox::replay::start(options->replay)) return 1;
+    platform::at_end_process([] { xbox::replay::stop(); });  // closing the window still ends the file properly
     if (!loader::install_sdk_replacements(image, symbols, *title)) {
         LOG_ERROR("loader", "SDK replacements need the symbol file (%s)", symbol_path.string().c_str());
         return loader::startup_failed(std::string(title->symbol_file) + " is missing or damaged");
@@ -372,6 +380,7 @@ int loader_main(int argc, char** argv) {
     compare.before_fork = audio::hold_for_fork;
     compare.after_fork = audio::release_after_fork;
     loader::compare::install(game::functions(), compare);
+    loader::install_translated_levels();
     std::atexit([] { loader::compare::flush(); });
     platform::at_end_process([] { loader::compare::flush(); });
     if (const size_t missed = loader::missed_title_addresses()) {

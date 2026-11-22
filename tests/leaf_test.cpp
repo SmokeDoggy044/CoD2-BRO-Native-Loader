@@ -61,6 +61,7 @@
 
 #include "compiler.h"
 #include "functions.h"
+#include "xlat_runtime.h"
 
 namespace {
 
@@ -73,6 +74,9 @@ struct LeafFunction {
 
 const LeafFunction kLeafFunctions[] = {
 #include "leaf_functions.inc"
+#if defined(COD_BRO_LEVEL_XLAT)
+#include "leaf_translated.inc"
+#endif
 };
 
 constexpr uint32_t kImageBase = 0x00010000;
@@ -1221,6 +1225,8 @@ void emit(FILE* file, size_t index, bool failed, const LeafFunction& leaf, int t
 
 const game::Function* find_function(const char* name) {
     for (const game::Function& f : game::functions())
+        if (std::strcmp(f.name, name) == 0) return &f;
+    for (const game::Function& f : game::translated_functions())
         if (std::strcmp(f.name, name) == 0) return &f;
     return nullptr;
 }

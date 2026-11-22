@@ -79,6 +79,9 @@ public:
     // Record/replay: when set and it returns true, the owner takes the finished packet over (writes its status words
     // later, at a point of the title's main thread) and finish_packet does nothing more.
     std::function<bool(const Packet& packet, uint32_t status, uint32_t played)> take_finished;
+    // Record/replay: a flush (stop) hands the queued packets (the front one `front_played` bytes in) to the owner
+    // first; true = it finished or held each of them itself, the queue is only cleared.
+    std::function<bool(const std::deque<Packet>& queue, uint32_t front_played)> take_flush;
 
 private:
     void finish_packet(Packet& packet, uint32_t status, uint32_t played);

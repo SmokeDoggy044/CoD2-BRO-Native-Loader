@@ -25,6 +25,7 @@
 #include "crash.h"
 #include "functions.h"
 #include "hooks.h"
+#include "xlat_install.h"
 #include "host_image.h"
 #include "kernel.h"
 #include "kernel_memory.h"
@@ -197,6 +198,7 @@ int host_main(int argc, char** argv) {
     });
     if (!options.press_script.empty() && !input::set_script(options.press_script)) return 1;
     if (!options.replay_at_switch && !xbox::replay::start(options.replay)) return 1;
+    platform::at_end_process([] { xbox::replay::stop(); });  // closing the window still ends the file properly
     if (!loader::install_sdk_replacements(image, symbols, *title))
         return loader::startup_failed(std::string(title->symbol_file) + " is missing or damaged");
 
@@ -220,6 +222,7 @@ int host_main(int argc, char** argv) {
     hooks.before_fork = audio::hold_for_fork;
     hooks.after_fork = audio::release_after_fork;
     loader::compare::install(game::functions(), hooks);
+    loader::install_translated_levels();
 
     // The title's initial thread (no TLS block, as on the Xbox); the XBE entry is our start-up (title_start.cpp).
     loader::ThreadEnv* env = loader::create_thread_env(image.header().pe_stack_commit, 0);

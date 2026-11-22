@@ -11,6 +11,7 @@
 #include "stack_guard.h"
 #include "title_data.h"
 #include "vmem.h"
+#include "xlat_runtime.h"
 
 // The switch itself (AT&T, both 32-bit builds). scr_fiber_switch(target, fresh) keeps the scheduler's EBP, EBX,
 // ESI, EDI and FS:[0] on its own stack, writes the context Scr_RestoreContext (0x002f5660) returns through at
@@ -127,6 +128,8 @@ constexpr uint32_t kImportBlock = 0x0095f49c;     // -> the level import block (
 // their gap entries' gaps (up to 0x40000 each, title_data.h GAME_GAP_ESP).
 constexpr uint32_t kStackSize = 1024 * 1024;
 constexpr uint32_t kGuardSize = 4096;
+// Translated level code's own frames (levels/xlat_runtime.h), made on the first translated call on the fiber.
+constexpr uint32_t kHostStackSize = 256 * 1024;
 
 struct Fiber {
     uint8_t* reservation = nullptr;  // guard page + stack
@@ -134,6 +137,8 @@ struct Fiber {
     uint32_t top = 0;                // first frame goes below this
     uint32_t esp = 0;                // the wait's frame while the thread waits
     uint32_t floor = 0;              // the thread's gap-entry floor while it waits (title_data.h)
+    uint8_t* host = nullptr;         // translated level code's stack (kHostStackSize), or none yet
+    uint32_t host_sp = 0;            // its current top (lowered while translated code calls out)
 };
 
 std::unordered_map<uint8_t*, Fiber*> g_fibers;  // thread record -> its fiber
@@ -167,6 +172,7 @@ Fiber* take_fiber(uint8_t* thread) {
     }
     fiber->esp = 0;
     fiber->floor = 0;
+    fiber->host_sp = fiber->host ? static_cast<uint32_t>(reinterpret_cast<uintptr_t>(fiber->host)) + kHostStackSize : 0;
     g_fibers[thread] = fiber;
     if (++g_live > g_peak) {
         g_peak = g_live;
@@ -225,10 +231,13 @@ bool run(Fiber* fiber, uint32_t esp, bool fresh) {
     g_running = fiber;
     g_ended = false;
     const uint32_t scheduler_floor = game_floor_swap(fiber->floor);
+    // Translated level code's host stack (levels/xlat_runtime.h) goes with the fiber too (0: made on first use).
+    const uint32_t scheduler_host = xl::host_sp_swap(fiber->host ? fiber->host_sp : 0);
     platform_set_title_on_fiber(true);
     scr_fiber_switch(esp, fresh ? 1u : 0u);
     platform_set_title_on_fiber(false);
     fiber->floor = game_floor_swap(scheduler_floor);
+    fiber->host_sp = xl::host_sp_swap(scheduler_host);
     g_running = nullptr;
     return g_ended;
 }
@@ -243,6 +252,20 @@ struct Stats {
 } g_stats;
 
 }  // namespace
+
+uint32_t* scr_fiber_host_sp() {
+    if (!g_running) return nullptr;
+    if (!g_running->host) {
+        g_running->host = static_cast<uint8_t*>(platform::vmem::reserve(0, kHostStackSize));
+        if (!g_running->host ||
+            !platform::vmem::commit(g_running->host, kHostStackSize, platform::vmem::Protection::ReadWrite)) {
+            std::fprintf(stderr, "[scr_fiber] out of address space for translated code's stacks\n");
+            std::abort();
+        }
+        g_running->host_sp = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(g_running->host)) + kHostStackSize;
+    }
+    return &g_running->host_sp;
+}
 
 bool scr_fiber_stack(uint32_t* limit, uint32_t* base) {
     if (!g_running) return false;
@@ -448,6 +471,7 @@ void XB_CDECL Scr_WaitRecord17(uint32_t object, uint32_t wait_object, uint32_t n
 void scr_fiber_reset() {
     auto drop = [](Fiber* fiber) {
         platform::vmem::release(fiber->reservation, kStackSize + kGuardSize);
+        if (fiber->host) platform::vmem::release(fiber->host, kHostStackSize);
         delete fiber;
     };
     for (auto& [thread, fiber] : g_fibers) drop(fiber);

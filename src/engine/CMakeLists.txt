@@ -131,6 +131,7 @@ set(game_code_sources
     levels/levels_prologue_bodies_a.cpp
     levels/levels_prologue_events.cpp
     levels/levels_templates.cpp
+    levels/xlat_runtime.cpp
     client/movie.cpp
     client/movie_vid.cpp
     xanim/nal_anim.cpp
@@ -201,6 +202,10 @@ if(COD_BRO_BUILD_LOADER AND CMAKE_SYSTEM_NAME STREQUAL "Linux")
 else()
     add_library(game_code STATIC ${game_code_sources})
     target_link_libraries(game_code PRIVATE platform)
+endif()
+if(COD_BRO_LEVEL_XLAT_DIR)
+    target_sources(game_code PRIVATE ${COD_BRO_LEVEL_XLAT_DIR}/prologue_xl.cpp)
+    target_compile_definitions(game_code PRIVATE COD_BRO_LEVEL_XLAT=1)
 endif()
 # One folder per module; the sources include each other's headers by file name.
 target_include_directories(game_code PUBLIC

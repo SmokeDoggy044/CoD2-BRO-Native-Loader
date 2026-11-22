@@ -11,6 +11,7 @@ usage: tools/leafscan.py [--module all|renderer,game,...] [--states untested,inc
   --emit FILE  write the eligible functions as the test's table (name, address, size,
                instruction count, globals read by the function and its callees, compare
                constants of the function and its callees)
+  --translated GEN.cpp  the rows of generated level code (tools/translator/lift.py) instead of the decompiled ones
 """
 import argparse
 import bisect
@@ -312,6 +313,7 @@ def main():
     parser.add_argument("--module", default="all")
     parser.add_argument("--states", default="untested,inconclusive,mismatched,offline,unsorted")
     parser.add_argument("--emit")
+    parser.add_argument("--translated")
     args = parser.parse_args()
     wanted = set(args.states.split(","))
     functions, _ = fnpack.load_names()
@@ -320,14 +322,20 @@ def main():
     image = fnpack.Image()
     targets = []
     listed = set()
+    translated = {int(a, 16): n for n, a in re.findall(r'\{"(\w+)", 0x([0-9a-fA-F]+),', open(args.translated).read())} \
+        if args.translated else None
+    if translated:
+        targets = [(va, n, "translated") for va, n in sorted(translated.items())]
     with open(fnpack.DATA / "progress.csv", newline="") as f:
         for row in csv.DictReader(f):
             va = int(row["address"], 16)
             listed.add(va)
+            if translated is not None:
+                continue
             if (args.module == "all" or row["module"] in args.module.split(",")) and row["state"] in wanted and va in ours:
                 targets.append((va, row["name"], row["state"]))
     # Decompiled gap functions (no symbol, so not in progress.csv): state "unsorted".
-    if args.module == "all" and "unsorted" in wanted:
+    if args.module == "all" and "unsorted" in wanted and translated is None:
         with open(fnpack.DATA / "functions.csv", newline="") as f:
             for row in csv.DictReader(f):
                 va = int(row["address"], 16)
@@ -444,7 +452,7 @@ def main():
         table = {int(a, 16): n for n, a in
                  re.findall(r'\{"(\w+)", 0x([0-9a-fA-F]+),', (fnpack.ROOT / "src/engine/shared/functions.cpp").read_text())}
         for va, name, _ in eligible:
-            name = table.get(va, name)
+            name = name if translated else table.get(va, name)
             if name in pending:
                 continue
             r = info(va)

@@ -246,8 +246,13 @@ void configure_title_services(const Options& options, const fs::path& assets, co
         host.start_thread = &loader::start_title_thread;
         host.replay_on_stream = [] { return xbox::replay::on_stream(); };
         host.replay_replaying = [] { return xbox::replay::replaying(); };
-        host.replay_recorded = [](char tag, uint32_t* value) { return xbox::replay::recorded(tag, *value); };
-        host.replay_value = [](char tag, uint32_t real) { return xbox::replay::value(tag, real); };
+        host.replay_recorded = [](char tag, uint32_t* value, uint32_t site) {
+            return xbox::replay::recorded(tag, *value, site);
+        };
+        host.replay_value = [](char tag, uint32_t real, uint32_t site) { return xbox::replay::value(tag, real, site); };
+        host.replay_fault = [](int kind) { xbox::replay::fault(static_cast<xbox::replay::Fault>(kind)); };
+        host.replay_thread_started = [](uint32_t routine) { xbox::replay::thread_started(routine); };
+        host.replay_checkpoint = [](const char* name) { xbox::replay::checkpoint(name); };
         host.system_time = [] { return platform::system_time_now(); };
         host.allocate_contiguous = &xbox::title_allocate_contiguous;
         host.free_contiguous = &xbox::title_free_contiguous;
