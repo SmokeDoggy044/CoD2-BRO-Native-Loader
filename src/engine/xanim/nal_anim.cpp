@@ -440,6 +440,11 @@ void setup_state(AnimState* state, uint8_t* clip, int32_t range) {
     if (!state->data) {
         state->data = static_cast<uint8_t*>(Mem_AlignedAlloc(size, alignment, 0));
         state->owned = 1;
+        // Ours: the block starts zeroed. Channel slot 12 below leaves the root record as it is, and a blend node
+        // whose children all weigh 0 (AnimTree_CalcPose_r) hands that record on untouched: the original read the
+        // heap block's old bytes as root motion (an actor could slide hundreds of units, depending on what the
+        // block held). Zero = identity rotation and no move.
+        if (state->data) std::memset(state->data, 0, size);
     }
     uint8_t* cursor = state->data;
     uint8_t* group = groups(clip);
