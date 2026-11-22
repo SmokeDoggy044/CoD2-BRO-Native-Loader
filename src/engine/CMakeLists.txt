@@ -204,7 +204,8 @@ else()
     target_link_libraries(game_code PRIVATE platform)
 endif()
 if(COD_BRO_LEVEL_XLAT_DIR)
-    target_sources(game_code PRIVATE ${COD_BRO_LEVEL_XLAT_DIR}/prologue_xl.cpp)
+    file(GLOB level_xlat_sources CONFIGURE_DEPENDS ${COD_BRO_LEVEL_XLAT_DIR}/*_xl.cpp)  # one per level
+    target_sources(game_code PRIVATE ${level_xlat_sources})
     target_compile_definitions(game_code PRIVATE COD_BRO_LEVEL_XLAT=1)
 endif()
 # One folder per module; the sources include each other's headers by file name.

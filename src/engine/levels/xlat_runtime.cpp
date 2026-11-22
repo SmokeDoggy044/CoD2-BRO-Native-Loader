@@ -24,9 +24,13 @@ std::vector<xl::Entry>& table() {  // sorted by address
     static std::vector<xl::Entry> entries;
     return entries;
 }
-std::vector<xl::Fn>& by_index() {  // in the order the generated code numbered its entries
-    static std::vector<xl::Fn> fns;
-    return fns;
+std::vector<std::vector<xl::Fn>>& by_index() {  // per level, in the order its generated code numbered its entries
+    static std::vector<std::vector<xl::Fn>> levels;
+    return levels;
+}
+std::vector<game::Function>& rows() {
+    static std::vector<game::Function> all;
+    return all;
 }
 
 // Developers: COD_BRO_XLAT_TRACE=1 prints each translated function's first call (which ones a run reaches).
@@ -62,12 +66,15 @@ void xl_trap() {
     std::abort();
 }
 
-void register_table(const Entry* entries, size_t count) {
-    for (size_t i = 0; i < count; ++i) by_index().push_back(entries[i].fn);
+void register_table(const Entry* entries, size_t count, uint32_t level) {
+    if (by_index().size() <= level) by_index().resize(level + 1);
+    for (size_t i = 0; i < count; ++i) by_index()[level].push_back(entries[i].fn);
     auto& t = table();
     t.insert(t.end(), entries, entries + count);
     std::sort(t.begin(), t.end(), [](const Entry& a, const Entry& b) { return a.address < b.address; });
 }
+
+void register_rows(const game::Function* list, size_t count) { rows().insert(rows().end(), list, list + count); }
 
 static Fn lookup(uint32_t address) {
     const auto& t = table();
@@ -152,7 +159,9 @@ void xl_host_init() {
 }
 
 void xl_run(XlFrame* f) {
-    const xl::Fn fn = f->index < by_index().size() ? by_index()[f->index] : nullptr;
+    const uint32_t level = f->index >> 16, index = f->index & 0xffffu;
+    const xl::Fn fn =
+        level < by_index().size() && index < by_index()[level].size() ? by_index()[level][index] : nullptr;
     if (!fn) std::abort();
     trace_first_call(fn);
     xl::Cpu c{f->eax, f->ecx, f->edx, f->ebx, f->guest_esp, f->ebp, f->esi, f->edi, 0, 0, {}};
@@ -240,14 +249,7 @@ uint32_t host_sp_swap(uint32_t sp) {
 
 }  // namespace xl
 
-#if defined(COD_BRO_LEVEL_XLAT)
 namespace game {
-extern const Function kTranslated_prologue[];
-extern const size_t kTranslated_prologue_count;
-std::span<const Function> translated_functions() { return {kTranslated_prologue, kTranslated_prologue_count}; }
+// Every level built in (each generated file registers its rows at start-up).
+std::span<const Function> translated_functions() { return {rows().data(), rows().size()}; }
 }  // namespace game
-#else
-namespace game {
-std::span<const Function> translated_functions() { return {}; }
-}  // namespace game
-#endif

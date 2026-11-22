@@ -291,7 +291,10 @@ struct Entry {
     uint32_t address;
     Fn fn;
 };
-void register_table(const Entry* entries, size_t count);
+// One level's table; its entry stubs number their functions level << 16 | index (lift.py LEVELS).
+void register_table(const Entry* entries, size_t count, uint32_t level);
+// One level's game::Function rows (what game::translated_functions() lists).
+void register_rows(const game::Function* rows, size_t count);
 // Swaps the running guest stack's host stack pointer (FS word; scr_fiber.cpp when it switches fibers).
 uint32_t host_sp_swap(uint32_t sp);
 

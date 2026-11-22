@@ -39,6 +39,9 @@ CC_FLAGS = {"o": "o", "no": "o", "b": "c", "ae": "c", "e": "z", "ne": "z", "be":
 
 
 NAMES = {}  # every function's name by address (main())
+# Level ids (fixed): entry stubs number their functions level << 16 | index (xlat_runtime.cpp xl_run).
+LEVELS = ["PROLOGUE", "ORAN", "TUNISIA", "KASSPASS", "KASSRINE", "LIBEATOR", "GELA", "PIANLUPO", "TROINA", "OMAHEACH",
+          "MONS1", "EILEDORF", "BUCHHOLZ", "DRAGEETH"]
 
 
 class Unsupported(Exception):
@@ -859,6 +862,7 @@ def main():
                 skipped.append((fn, str(why)))
         translated = {fn.start for fn, _, _ in lifted}
     level = args.level.lower()
+    level_id = LEVELS.index(args.level)
     os.makedirs(args.out, exist_ok=True)
     path = os.path.join(args.out, f"{level}_xl.cpp")
     with open(path, "w") as f:
@@ -870,11 +874,12 @@ def main():
             f.write(f"XL_FUNCTION(0x{fn.start:08x}) {{\n    XL_LOAD();\n" + ("    XL_LOAD_X();\n" if lf.uses_xmm else ""))
             f.write("    uint32_t fa = 0, fb = 0, fr = 0, fc = 0" + (", fk = 0" if lf.uses_fk else "") + ";\n")
             f.write("\n".join(body) + "\n}\n")
-            f.write(f"XL_ENTRY(0x{fn.start:08x}, {index})\n")
+            f.write(f"XL_ENTRY(0x{fn.start:08x}, {level_id << 16 | index})\n")
         f.write("\nconst Entry kTable[] = {\n")
         for fn, _, _ in lifted:
             f.write(f"    {{0x{fn.start:08x}u, xl_fn_0x{fn.start:08x}}},\n")
-        f.write("};\n[[maybe_unused]] const int kRegistered = (register_table(kTable, sizeof kTable / sizeof *kTable), 0);\n")
+        f.write("};\n[[maybe_unused]] const int kRegistered = "
+                f"(register_table(kTable, sizeof kTable / sizeof *kTable, {level_id}u), 0);\n")
         f.write("\n}  // namespace xl\n\nnamespace game {\n\n")
         f.write(f"extern const Function kTranslated_{level}[];\nextern const size_t kTranslated_{level}_count;\n")
         f.write(f"extern const Function kTranslated_{level}[] = {{\n")
@@ -882,7 +887,9 @@ def main():
             f.write(f'    {{"xl_{fn.name}", 0x{fn.start:08x}, 0, XL_CODE(0x{fn.start:08x}), {fn.arg_pop or 0}, '
                     "Result::Eax, Status::Compare},\n")
         f.write("};\n")
-        f.write(f"extern const size_t kTranslated_{level}_count = {len(lifted)};\n\n}}  // namespace game\n")
+        f.write(f"extern const size_t kTranslated_{level}_count = {len(lifted)};\n")
+        f.write(f"[[maybe_unused]] const int kRegisteredRows_{level} = "
+                f"(::xl::register_rows(kTranslated_{level}, kTranslated_{level}_count), 0);\n\n}}  // namespace game\n")
     print(f"{args.level}: {len(lifted)} lifted, {len(skipped)} skipped -> {path}")
     reasons = collections.Counter(why for _, why in skipped)
     for why, n in reasons.most_common():
