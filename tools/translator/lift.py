@@ -39,6 +39,7 @@ CC_FLAGS = {"o": "o", "no": "o", "b": "c", "ae": "c", "e": "z", "ne": "z", "be":
 
 
 NAMES = {}  # every function's name by address (main())
+NAN_TRACE = False  # --nan-trace (debugging)
 # Level ids (fixed): entry stubs number their functions level << 16 | index (xlat_runtime.cpp xl_run).
 LEVELS = ["PROLOGUE", "ORAN", "TUNISIA", "KASSPASS", "KASSRINE", "LIBEATOR", "GELA", "PIANLUPO", "TROINA", "OMAHEACH",
           "MONS1", "EILEDORF", "BUCHHOLZ", "DRAGEETH"]
@@ -384,7 +385,8 @@ class Lifter:
                 self.uses_fk = True
             e(f"eax = (eax & 0xffff00ffu) | (::xl::XL_LAHF({k}, fa, fb, fr, fc) << 8);")
         elif self.sse(ins):
-            pass
+            if NAN_TRACE and ops and is_xmm(ins, ops[0]):  # debugging: first NaN an SSE instruction produces
+                e(f"::xl::xl_nan_check(0x{ins.address:08x}u, {ins.reg_name(ops[0].reg)});")
         elif self.x87(ins):
             pass
         elif m in ("movsb", "movsw", "movsd", "stosb", "stosw", "stosd", "rep movsb", "rep movsw", "rep movsd",
@@ -744,7 +746,7 @@ class Lifter:
                                   "edx = (uint32_t)((uint64_t)v >> 32); }")
                         continue
                     if ins.address in self.call_fret:
-                        self.emit("c->fret = 0u;")
+                        self.emit("c->fret = 0u; c->fwant = 1u;")
                     if op.type == x86.X86_OP_IMM:
                         self.call(op.imm, nxt)
                     else:
@@ -828,12 +830,15 @@ def main():
     ap.add_argument("--class", dest="classes", default=",".join(cfg.RANK))
     ap.add_argument("--only")
     ap.add_argument("--skip", help="addresses left to the original code (bisecting)")
+    ap.add_argument("--nan-trace", action="store_true", help="debugging: report the first SSE result that is NaN")
     ap.add_argument("--extra-starts", help="addresses that start a function although no symbol names them")
     ap.add_argument("--out", default="build/translator/gen")
     ap.add_argument("--verbose", action="store_true")
     args = ap.parse_args()
     functions, _ = fnpack.load_names()
     NAMES.update(functions)
+    global NAN_TRACE
+    NAN_TRACE = args.nan_trace
     image = fnpack.Image()
     sec = next(s for s in image.sections if s[0] == args.level)
     lo, hi = sec[1], sec[1] + max(sec[2], sec[4])

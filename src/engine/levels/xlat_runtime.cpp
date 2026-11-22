@@ -167,6 +167,9 @@ void xl_run(XlFrame* f) {
     xl::Cpu c{f->eax, f->ecx, f->edx, f->ebx, f->guest_esp, f->ebp, f->esi, f->edi, 0, 0, {}};
     std::memcpy(c.xmm, f->xmm, sizeof c.xmm);
     const uint32_t entry_esp = f->guest_esp, ret = xl::mem_r32(entry_esp);
+    static const bool calltrace = std::getenv("COD_BRO_XLAT_CALLTRACE") != nullptr;  // see xl_native
+    if (calltrace)
+        std::fprintf(stderr, "XLENTER level %u index %u esp=%08x ret=%08x\n", f->index >> 16, f->index & 0xffffu, entry_esp, ret);
     fn(&c);
     if (c.ret != ret || c.esp != entry_esp + 4 + c.ret_pop || c.ret_pop > 252 || (c.ret_pop & 3)) {
         std::fprintf(stderr, "translated level code: unexpected return (esp %08x, expected %08x; ret %08x/%08x)\n",
@@ -201,12 +204,28 @@ void xl_native(Cpu* c, uint32_t target) {
     const uint32_t host = fs_r32(kFsHost);
     // The return slot holds our way back while the callee runs; afterwards what a `call` leaves there.
     const uint32_t ret_slot = c->esp, ret = mem_r32(ret_slot);
+    // Developers: COD_BRO_XLAT_CALLTRACE=1 lists every call out (return address, target, stack words, XMM0 low).
+    static const bool calltrace = std::getenv("COD_BRO_XLAT_CALLTRACE") != nullptr;
+    if (calltrace)
+        std::fprintf(stderr, "XLCALL esp=%08x ret=%08x target=%08x args=%08x %08x %08x %08x %08x %08x ecx=%08x xmm=%08x %08x %08x %08x\n", ret_slot + 4, ret,
+                     target, mem_r32(ret_slot + 4), mem_r32(ret_slot + 8), mem_r32(ret_slot + 12), mem_r32(ret_slot + 16),
+                     mem_r32(ret_slot + 20), mem_r32(ret_slot + 24), c->ecx, c->xmm[0][0], c->xmm[1][0], c->xmm[2][0],
+                     c->xmm[3][0]);
+    // A translated callee's float return nobody took yet is on the original's FPU at this point: put it there.
+    if (c->fret) {
+        const long double v = ld_f80(c->f80);
+        __asm__ volatile("fldt %0" : : "m"(v));
+        c->fret = 0;
+    }
+    const bool want = c->fwant != 0;
+    c->fwant = 0;
     uint16_t before, after;
     __asm__ volatile("fnstsw %0" : "=m"(before));
     xl_native_asm(c, target);
-    // A float return: the callee pushed one value on the FPU (its stack top moved down by one) - into the Cpu.
+    // A float return the caller takes: the callee pushed one value on the FPU (its stack top moved down by one) -
+    // into the Cpu. Otherwise it stays on the FPU (a later callee may take it as its argument).
     __asm__ volatile("fnstsw %0" : "=m"(after));
-    if (((after >> 11) & 7) == ((((before >> 11) & 7) + 7) & 7)) {
+    if (want && ((after >> 11) & 7) == ((((before >> 11) & 7) + 7) & 7)) {
         long double v;
         __asm__ volatile("fstpt %0" : "=m"(v));
         st_f80(c->f80, v);

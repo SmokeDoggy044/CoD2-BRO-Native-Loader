@@ -206,6 +206,11 @@ endif()
 if(COD_BRO_LEVEL_XLAT_DIR)
     file(GLOB level_xlat_sources CONFIGURE_DEPENDS ${COD_BRO_LEVEL_XLAT_DIR}/*_xl.cpp)  # one per level
     target_sources(game_code PRIVATE ${level_xlat_sources})
+    # No auto-vectorization in the generated code: with -msse (no SSE2) GCC vectorizes 64-bit pieces in MMX registers
+    # without emms, which leaves the x87 register stack full of MMX values - the next float code then computes NaN
+    # (LIBEATOR's SetupShipsAndTurrets: ships' movers got NaN positions). Our engine C has none outside the movie
+    # decoder's own MMX code (which ends in emms).
+    set_source_files_properties(${level_xlat_sources} PROPERTIES COMPILE_OPTIONS "-fno-tree-vectorize")
     target_compile_definitions(game_code PRIVATE COD_BRO_LEVEL_XLAT=1)
 endif()
 # One folder per module; the sources include each other's headers by file name.

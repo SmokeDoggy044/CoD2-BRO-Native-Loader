@@ -8,6 +8,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <cstdio>
 #include <cstring>
 #include <span>
 #include <xmmintrin.h>
@@ -27,8 +28,13 @@ struct Cpu {
     // for a native caller.
     uint32_t fret;
     uint8_t f80[12];
+    // 184: the caller takes the next call's float return (XL_FRESULT). Without it a float a native callee leaves stays
+    // on the real FPU, as in the original: optimized code passes st(0) from one callee straight into the next one
+    // without an x87 instruction in between (LIBEATOR's SetupShipsAndTurrets; taking it away made the next callee
+    // read an empty register - NaN).
+    uint32_t fwant;
 };
-static_assert(offsetof(Cpu, xmm) == 40 && offsetof(Cpu, fret) == 168);
+static_assert(offsetof(Cpu, xmm) == 40 && offsetof(Cpu, fret) == 168 && offsetof(Cpu, fwant) == 184);
 
 using Fn = void (*)(Cpu*);
 
@@ -219,6 +225,14 @@ inline uint32_t eflags_after_fcomi(long double a, long double b) {
     return static_cast<uint32_t>(f);
 }
 [[noreturn]] void xl_fret_missing();
+// Debugging (lift.py --nan-trace): reports the first SSE result with a NaN in its low lane.
+inline void xl_nan_check(uint32_t address, __m128 v) {
+    static bool reported = false;
+    if (!reported && _mm_cvtss_f32(v) != _mm_cvtss_f32(v)) {
+        reported = true;
+        std::fprintf(stderr, "translated level code: first NaN from the SSE instruction at %08x\n", address);
+    }
+}
 #define XL_FRETURN(v) (::xl::st_f80(c->f80, (v)), c->fret = 1u)
 #define XL_FRESULT(v) (c->fret ? (void)0 : ::xl::xl_fret_missing(), (v) = ::xl::ld_f80(c->f80), c->fret = 0u)
 
@@ -240,7 +254,9 @@ inline uint32_t eflags_after_fcomi(long double a, long double b) {
 #define XL_DECLARE(addr) extern "C" PLATFORM_HIDDEN void xl_fn_##addr(::xl::Cpu* c);
 #define XL_LOAD()                                                                                                 \
     uint32_t eax = c->eax, ecx = c->ecx, edx = c->edx, ebx = c->ebx, esp = c->esp, ebp = c->ebp, esi = c->esi, \
-             edi = c->edi
+             edi = c->edi;                                                                                         \
+    const uint32_t fwant_in = c->fwant; /* our caller's wish for our float return: only a tail call passes it on */ \
+    c->fwant = 0u
 #define XL_SAVE() \
     (c->eax = eax, c->ecx = ecx, c->edx = edx, c->ebx = ebx, c->esp = esp, c->ebp = ebp, c->esi = esi, c->edi = edi)
 #define XL_RELOAD() \
@@ -264,18 +280,21 @@ inline uint32_t eflags_after_fcomi(long double a, long double b) {
 #define XL_TAIL_XL(addr) \
     do {                 \
         XL_SAVE();       \
+        c->fwant = fwant_in; \
         xl_fn_##addr(c); \
         return;          \
     } while (0)
 #define XL_TAIL_NATIVE(target)               \
     do {                                     \
         XL_SAVE();                           \
+        c->fwant = fwant_in;                 \
         ::xl::xl_native_tail(c, target);     \
         return;                              \
     } while (0)
 #define XL_TAIL_DYN(target)            \
     do {                               \
         XL_SAVE();                     \
+        c->fwant = fwant_in;           \
         ::xl::xl_tail(c, target);      \
         return;                        \
     } while (0)
