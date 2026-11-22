@@ -388,6 +388,11 @@ std::atomic<bool> g_frame_rate_changed{false};
 // Session seconds up to which frames_last_second() reports 0 (not measured): the game
 // was paused for a --diag note (the automatic profile took that for a slow spot).
 std::atomic<int64_t> g_unmeasured_until{-1};
+// The last presented frame whose time --diag itself took (a mark's note prompt, the next frame's draw dump and
+// pictures): the gap is no stall. Counting it made an auto mark, whose own dump made the next gap - a run of marks
+// at 1 fps after one F12 (11-22).
+uint32_t g_diag_capture_until_frame = 0;
+bool g_diag_resume_audio = false;  // a mark's pause_audio(false) waits until its captures are done
 
 int64_t session_second() {
     return std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now() -
@@ -459,7 +464,8 @@ std::vector<std::string> diagnostics() {
         fps_text = text;
     }
     if (auto stall = pacing.take_stall())
-        LOG_INFO("frames", "stall %.1f s before frame %u", stall->seconds, stall->frame);
+        LOG_INFO("frames", "stall %.1f s before frame %u%s", stall->seconds, stall->frame,
+                 stall->frame <= g_diag_capture_until_frame + 1 ? " (--diag's mark and captures)" : "");
 
     // COD_BRO_MARKS="900,1500": marks at those presented frames without a note prompt (unattended checks of the
     // mark dumps).
@@ -490,7 +496,7 @@ std::vector<std::string> diagnostics() {
         const auto note = scripted_mark ? std::optional<std::string>("(scripted mark)")
                                         : g.backend->prompt({"MARK " + std::to_string(marks) + " saved - game paused",
                                                              "What is wrong here? (one or two sentences)"});
-        if (g.config.pause_audio && !dev::paused()) g.config.pause_audio(false);  // F7's pause stays
+        g_diag_resume_audio = g.config.pause_audio != nullptr;  // after the next frame's captures (below)
         g_unmeasured_until.store(session_second() + 1, std::memory_order_relaxed);
         std::string text = note ? *note : "";
         if (g.config.dev) text += " [dev: " + dev::state_text() + "]";
@@ -535,7 +541,10 @@ std::vector<std::string> diagnostics() {
         flash = "AUTO MARK " + std::to_string(auto_marks) + ": " + fresh.front().substr(0, 70);
         flash_until = Clock::now() + std::chrono::seconds(4);
     }
-    if (dump) g.backend->dump_next_frame(dump_prefix);
+    if (dump) {
+        g.backend->dump_next_frame(dump_prefix);
+        g_diag_capture_until_frame = g.swap_count + 1;  // this frame (prompt) and the next (dump) are ours
+    }
 
     if (g.backend->take_highlight_toggle()) {
         highlight = !highlight;
@@ -623,9 +632,17 @@ uint32_t present_frame() {
     if (present_s > 1.0) LOG_WARN("render", "presenting frame %u took %.1f s (in the graphics driver)", g.swap_count, present_s);
     if (last_pump != StallClock::time_point{}) {
         const double gap_s = std::chrono::duration<double>(present_end - last_pump).count();
-        if (gap_s > 1.5)
+        if (gap_s > 1.5 && g.swap_count <= g_diag_capture_until_frame) {
+            LOG_INFO("diag", "the mark and its captures took %.1f s (not a stall)", gap_s);
+            g_unmeasured_until.store(session_second() + 1, std::memory_order_relaxed);
+        } else if (gap_s > 1.5) {
             LOG_WARN("render", "the window went %.1f s without handling its events (%.1f s of it presenting; Windows "
                      "calls it not responding after 5 s)", gap_s, present_s);
+        }
+    }
+    if (g_diag_resume_audio && g.swap_count >= g_diag_capture_until_frame) {
+        g_diag_resume_audio = false;
+        if (!dev::paused()) g.config.pause_audio(false);  // F7's pause stays
     }
     const bool open = g.backend->pump_events();
     last_pump = StallClock::now();
