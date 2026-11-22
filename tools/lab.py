@@ -58,7 +58,7 @@ from PIL import Image
 
 PORT = Path(__file__).resolve().parent.parent
 POINTS = PORT / "tools/data/capture_points.csv"
-DEFAULT_LOADER = PORT / "build/linux-loader-release/bin/cod_bro_loader"
+DEFAULT_LOADER = PORT / "build/linux-loader-release/bin/cod_bro"
 DEFAULT_VARIANTS = ['original=--graphics original', 'enhanced=--graphics enhanced']
 
 

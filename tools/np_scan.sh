@@ -2,7 +2,7 @@
 # tools/np_scan.sh MISSION RANGE TAG - plain vs own-main dumps of recordings/mN/mN_playtest.rep over RANGE (N-M[:S]),
 # then the first dumped frame with non-pointer differences
 P=$(cd "$(dirname "$0")/.." && pwd); cd $P; m=$1; R=$2; T=$3
-run(){ O=$P/build/trap/np_${T}_$1; rm -rf $O; mkdir -p $O; cp -a recordings/m$m/m${m}_playtest.saves $O/data; timeout -s INT ${SECS:-200} build/linux-loader-release/bin/cod_bro_loader $2 --replay-no-draw --data $O/data --silent --level $m --replay-speed 8 --replay recordings/m$m/m${m}_playtest.rep --replay-dump $R $O > $O/log.txt 2>&1; }
+run(){ O=$P/build/trap/np_${T}_$1; rm -rf $O; mkdir -p $O; cp -a recordings/m$m/m${m}_playtest.saves $O/data; timeout -s INT ${SECS:-200} build/linux-loader-release/bin/cod_bro $2 --replay-no-draw --data $O/data --silent --level $m --replay-speed 8 --replay recordings/m$m/m${m}_playtest.rep --replay-dump $R $O > $O/log.txt 2>&1; }
 run plain "" & run own --own-main & wait
 for f in $(ls build/trap/np_${T}_own | sed -n 's/frame_\([0-9]*\)_level.bin/\1/p' | sort -n); do
   [ -f build/trap/np_${T}_plain/frame_${f}_level.bin ] || continue

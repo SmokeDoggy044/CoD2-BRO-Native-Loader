@@ -25,7 +25,7 @@ def main():
     p.add_argument("out")
     p.add_argument("walk", nargs="?", default="front_options")
     p.add_argument("--level", type=int)
-    p.add_argument("--loader", default=str(ROOT / "build" / "linux-loader-release" / "bin" / "cod_bro_loader"))
+    p.add_argument("--loader", default=str(ROOT / "build" / "linux-loader-release" / "bin" / "cod_bro"))
     p.add_argument("--seconds", type=int, default=240)
     p.add_argument("--keep-data", action="store_true", help="keep OUT/data/cod_bro (the user data copy: settings.ini, log.txt)")
     p.add_argument("extra", nargs="*")

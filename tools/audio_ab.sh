@@ -4,7 +4,7 @@
 #
 #   tools/audio_ab.sh OUT RECORDING.rep NAME="[LOADER::]OPTIONS" [NAME="..."] ...
 #
-# LOADER defaults to the release build; e.g. ref="build/lab_reference/p30/cod_bro_loader::" new="" off="--occlusion off".
+# LOADER defaults to the release build; e.g. ref="build/lab_reference/p30/cod_bro::" new="" off="--occlusion off".
 # The recording's saves (RECORDING.saves) are copied per variant. Environment: SPEED (default 4), EXTRA (options for
 # every variant), TIMEOUT (seconds, default from the recording's length).
 set -u
@@ -21,7 +21,7 @@ level=()
 specs=()
 for v in "$@"; do
     name=${v%%=*} spec=${v#*=}
-    loader="$port/build/linux-loader-release/bin/cod_bro_loader" opts=$spec
+    loader="$port/build/linux-loader-release/bin/cod_bro" opts=$spec
     if [[ $spec == *::* ]]; then loader=${spec%%::*}; opts=${spec#*::}; fi
     [[ $loader != /* ]] && loader="$port/$loader"
     (

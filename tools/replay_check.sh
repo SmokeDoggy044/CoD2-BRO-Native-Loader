@@ -35,8 +35,8 @@ fi
 port=$(cd "$(dirname "$0")/.." && pwd)
 builds=("$@")
 [ ${#builds[@]} -eq 0 ] && builds=(
-    "release=$port/build/linux-loader-release/bin/cod_bro_loader"
-    "debug=$port/build/linux-loader/bin/cod_bro_loader"
+    "release=$port/build/linux-loader-release/bin/cod_bro"
+    "debug=$port/build/linux-loader/bin/cod_bro"
     "windows=$port/build/wine_wrap.sh")
 rec=$(realpath "$rec")
 saves=$(realpath "$saves")
