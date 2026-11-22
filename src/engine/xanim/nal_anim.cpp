@@ -440,11 +440,23 @@ void setup_state(AnimState* state, uint8_t* clip, int32_t range) {
     if (!state->data) {
         state->data = static_cast<uint8_t*>(Mem_AlignedAlloc(size, alignment, 0));
         state->owned = 1;
-        // Ours: the block starts zeroed. Channel slot 12 below leaves the root record as it is, and a blend node
-        // whose children all weigh 0 (AnimTree_CalcPose_r) hands that record on untouched: the original read the
-        // heap block's old bytes as root motion (an actor could slide hundreds of units, depending on what the
-        // block held). Zero = identity rotation and no move.
-        if (state->data) std::memset(state->data, 0, size);
+        // Ours: the block starts as the clip's rest pose (a generic clip's own state at +0xc8, data +0xd0), else
+        // zeroed; the root record (+0xd8) as the identity (quaternion (0, 0, 0, 1), no move - the game's default at
+        // 0x00909850). Channel slot 12 below leaves the root record and the data alone; the original kept the heap
+        // block's old bytes, and AnimTree_CalcPose_r blends a temporary state that a child whose own children all
+        // weigh 0 never writes: another evaluation's pose and root motion (in the prologue an actor moved 3..117
+        // units a frame depending on the heap layout). Such a child now adds the rest pose without moving.
+        if (state->data) {
+            const bool generic = *reinterpret_cast<const uint32_t*>(clip) == title_global<uint32_t>(0x00903fdc);
+            const uint8_t* rest = generic ? *reinterpret_cast<uint8_t* const*>(clip + 0xd0) : nullptr;
+            if (rest && rest != state->data) std::memcpy(state->data, rest, size);
+            else std::memset(state->data, 0, size);
+            const int32_t root = *reinterpret_cast<const int32_t*>(clip + 0xd8);
+            if (generic && root >= 0 && static_cast<uint32_t>(root) + 32 <= size) {
+                const float identity[8] = {0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f};
+                std::memcpy(state->data + root, identity, sizeof identity);
+            }
+        }
     }
     uint8_t* cursor = state->data;
     uint8_t* group = groups(clip);
