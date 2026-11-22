@@ -242,6 +242,10 @@ uint32_t g_live_waits = 0;      // recorded waits that had to go live
 uint32_t g_order = 0;           // keyed values read with another site (Fault::Order)
 uint32_t g_threads = 0;         // title thread starts that differ (Fault::Thread)
 bool g_layout_differs = false;  // recorded with the title's memory elsewhere: masked hashes may compare falsely
+// scan(): the recording's memory layout record (format 6 on) and command line.
+LayoutRecord g_scanned_layout{};
+bool g_scanned_has_layout = false;
+std::string g_scanned_command_line;
 bool g_ended = false;           // format 7: the end record was found and its CRC and frame count agree
 std::string g_file_problem;     // format 7: why the file is not whole (no end record, bad CRC)
 
@@ -298,7 +302,8 @@ bool load_frame() {
             if (const LayoutRecord now = current_layout(); !(recorded == now) && (g_layout_differs = true))
                 LOG_WARN("replay",
                          "recorded with the title's memory elsewhere (contiguous %08x+%x, virtual %08x+%x, heap "
-                         "%08x+%x; now %08x+%x, %08x+%x, %08x+%x): state differences may be false - record it again",
+                         "%08x+%x; now %08x+%x, %08x+%x, %08x+%x): state hashes may differ falsely (a value that "
+                         "falls in one layout's range is masked there only); the replay faults are the real check",
                          recorded.contiguous_base, recorded.contiguous_bytes, recorded.virtual_base,
                          recorded.virtual_bytes, recorded.heap_base, recorded.heap_bytes, now.contiguous_base,
                          now.contiguous_bytes, now.virtual_base, now.virtual_bytes, now.heap_base, now.heap_bytes);
@@ -621,6 +626,12 @@ void scan(const std::filesystem::path& path, uint32_t version) {
         crc = crc32_update(crc, &length, 2);
         crc = crc32_update(crc, payload.data(), length);
         if (static_cast<char>(tag) == kFrameTag) ++frames;
+        if (static_cast<char>(tag) == kLayoutTag && length == sizeof(LayoutRecord) && !g_scanned_has_layout) {
+            std::memcpy(&g_scanned_layout, payload.data(), sizeof(LayoutRecord));
+            g_scanned_has_layout = true;
+        }
+        if (static_cast<char>(tag) == kCommandLineTag && g_scanned_command_line.empty())
+            g_scanned_command_line.assign(payload.begin(), payload.end());
         if (static_cast<char>(tag) == kCheckpointTag)
             g_expected_checkpoints.push_back({std::string(payload.begin(), payload.end()), frames});
     }
@@ -666,6 +677,23 @@ bool start(const Config& config) {
     g_input_version = version;
     g_file_crc = crc32_update(crc32_update(0, magic, 8), &version, 4);
     scan(config.file, version);
+    // The amount of memory decides how the game plays (its physical pool and sound memory grow with it): a
+    // recording made with other sizes (cod_bro: 128 MB and a growing heap; cod_bro_loader: the Xbox's 64 MB) cannot
+    // replay. Other places with the same sizes are fine (the game reads the same; only masked hashes may differ).
+    if (const LayoutRecord now = current_layout();
+        g_scanned_has_layout && (g_scanned_layout.contiguous_bytes != now.contiguous_bytes ||
+                                 g_scanned_layout.virtual_bytes != now.virtual_bytes ||
+                                 g_scanned_layout.heap_bytes != now.heap_bytes)) {
+        const std::string program = g_scanned_command_line.substr(0, g_scanned_command_line.find(' '));
+        LOG_ERROR("replay",
+                  "%s was recorded with other memory sizes (%u MB physical, %u MB virtual, %u MB heap; this run %u, "
+                  "%u, %u): the game plays differently. Replay it with the program that recorded it (%s)%s",
+                  config.file.string().c_str(), g_scanned_layout.contiguous_bytes >> 20, g_scanned_layout.virtual_bytes >> 20,
+                  g_scanned_layout.heap_bytes >> 20, now.contiguous_bytes >> 20, now.virtual_bytes >> 20,
+                  now.heap_bytes >> 20, program.empty() ? "see its command line" : program.c_str(),
+                  std::getenv("COD_BRO_REPLAY_ANY_MEMORY") ? "; going on anyway (COD_BRO_REPLAY_ANY_MEMORY)" : "");
+        if (!std::getenv("COD_BRO_REPLAY_ANY_MEMORY")) return false;
+    }
     g_live = false;
     if (!load_frame()) {
         LOG_ERROR("replay", "%s has no frames", config.file.string().c_str());
