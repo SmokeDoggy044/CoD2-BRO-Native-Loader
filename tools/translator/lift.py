@@ -495,14 +495,23 @@ class Lifter:
         for a, ins in fn.ins.items():
             if ins.mnemonic != "call":
                 continue
-            n, d = a + ins.size, 0
-            while n in fn.ins:
+            n, d, steps = a + ins.size, 0, 0
+            while n in fn.ins and steps < 64:
+                steps += 1
                 j = fn.ins[n]
+                if j.mnemonic == "jmp" and j.operands[0].type == x86.X86_OP_IMM and j.operands[0].imm in fn.ins:
+                    n = j.operands[0].imm  # merged code: follow the jump
+                    continue
                 if is_x87(j):
                     if x87_reach(j) > d:
                         self.call_fret.add(a)
                         break
                     d += self.x87_effect(j, d)
+                elif j.mnemonic == "call" and self.is_ftol(j):  # _ftol takes st(0)
+                    if d < 1:
+                        self.call_fret.add(a)
+                        break
+                    d -= 1
                 elif j.mnemonic in ("call", "ret", "retn", "jmp", "int3") or j.mnemonic in cfg.JCC:
                     break
                 n += j.size
