@@ -700,6 +700,8 @@ class Lifter:
         self.lines = body
         if self.uses_x87:
             body.append("    long double f0 = 0, f1 = 0, f2 = 0, f3 = 0, f4 = 0, f5 = 0, f6 = 0, f7 = 0;")
+        if blocks and blocks[0][0] != fn.start:  # code below the entry (a block the compiler placed before it)
+            body.append(f"    goto L_{fn.start:08x};")
         prev_end = None
         for a, insns in blocks:
             if prev_end is not None and prev_end != a:
@@ -826,6 +828,7 @@ def main():
     ap.add_argument("--class", dest="classes", default=",".join(cfg.RANK))
     ap.add_argument("--only")
     ap.add_argument("--skip", help="addresses left to the original code (bisecting)")
+    ap.add_argument("--extra-starts", help="addresses that start a function although no symbol names them")
     ap.add_argument("--out", default="build/translator/gen")
     ap.add_argument("--verbose", action="store_true")
     args = ap.parse_args()
@@ -835,6 +838,8 @@ def main():
     sec = next(s for s in image.sections if s[0] == args.level)
     lo, hi = sec[1], sec[1] + max(sec[2], sec[4])
     starts = {a: n for a, n in functions.items() if lo <= a < hi}
+    for x in (args.extra_starts.split(",") if args.extra_starts else []):
+        starts.setdefault(int(x, 16), f"FUN_{int(x, 16):08x}")
     md = capstone.Cs(capstone.CS_ARCH_X86, capstone.CS_MODE_32)
     md.detail = True
     only = {int(x, 16) for x in args.only.split(",")} if args.only else None
