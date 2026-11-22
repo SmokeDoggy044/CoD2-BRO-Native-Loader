@@ -41,6 +41,16 @@ namespace game {
 
 namespace {
 
+// A path point (0x1c bytes: position, 2D direction +0xc, length +0x14, node handle +0x18, two bytes of padding) gets
+// its node handle as a whole word. The original wrote 16 bits and later copies whole points (Path_CopyToActor), so
+// the padding kept whatever the stack held - with our C frames on the title stack, addresses of our library, which
+// differ from run to run: the game state (an actor's path) differed between runs of one recording (missions 3, 11).
+void set_point_node(uint8_t* point, uint32_t node) { *reinterpret_cast<uint32_t*>(point + 0x18) = node & 0xffffu; }
+
+}  // namespace
+
+namespace {
+
 uint8_t* sentients() { return title_global<uint8_t*>(0x00985378); }
 int32_t level_time() { return title_global<int32_t>(0x0098540c); }
 
@@ -789,7 +799,7 @@ void XB_CDECL Path_DropPassedPoints(uint32_t count, uint8_t* path) {
         for (uint32_t i = 0; i < 12; i += 4) field<uint32_t>(path, i) = field<uint32_t>(path, 0x3cc + i);
         field<int16_t>(path, 0x382) = 1;
         field<uint32_t>(path, 0x3c8) = 0;
-        field<uint16_t>(path, 0x18) = 0;
+        set_point_node(path, 0);
         field<uint32_t>(path, 0x14) = 0;
         field<uint32_t>(path, 0xc) = 0;
         field<uint32_t>(path, 0x10) = 0;
@@ -3869,7 +3879,7 @@ uint32_t XB_CDECL Path_TrimAtGoal(uint8_t* path, const float* goal, float radius
     }
     Path_DropPassedPoints(uint32_t(i), path);
     const int16_t left_points = field<int16_t>(path, 0x380);
-    field<uint16_t>(path, 0x18) = 0;
+    set_point_node(path, 0);
     if (left_points <= 1) return 1;
     float* const first = reinterpret_cast<float*>(path);
     const float* const second = first + 7;
@@ -18654,9 +18664,9 @@ uint32_t XB_CDECL Path_BuildFromNodes(uint32_t entry, uint32_t, uint32_t ebx, ui
         field<float>(path, 0) = point[0];
         field<float>(path, 4) = point[1];
         field<float>(path, 8) = point[2];
-        field<uint16_t>(path, 0x18) = 0;
+        set_point_node(path, 0);
         if (point[0] == field<float>(end_node, 0x44) && point[1] == field<float>(end_node, 0x48)) {
-            field<uint16_t>(path, 0x18) = field<uint16_t>(end_node, 0);
+            set_point_node(path, field<uint16_t>(end_node, 0));
             next = addr_of(end_node) == start ? nullptr : field<const uint8_t*>(end_node, 0x74);
         } else {
             next = end_node;
@@ -18665,7 +18675,7 @@ uint32_t XB_CDECL Path_BuildFromNodes(uint32_t entry, uint32_t, uint32_t ebx, ui
         field<uint32_t>(path, 0) = field<uint32_t>(end_node, 0x44);
         field<uint32_t>(path, 4) = field<uint32_t>(end_node, 0x48);
         field<uint32_t>(path, 8) = field<uint32_t>(end_node, 0x4c);
-        field<uint16_t>(path, 0x18) = field<uint16_t>(end_node, 0);
+        set_point_node(path, field<uint16_t>(end_node, 0));
         next = addr_of(end_node) == start ? nullptr : field<const uint8_t*>(end_node, 0x74);
     }
     int32_t count = 1;
@@ -18688,7 +18698,7 @@ uint32_t XB_CDECL Path_BuildFromNodes(uint32_t entry, uint32_t, uint32_t ebx, ui
             field<uint32_t>(r, 4) = field<uint32_t>(next, 0x48);
             field<uint32_t>(r, 8) = field<uint32_t>(next, 0x4c);
             ++count;
-            field<uint16_t>(r, 0x18) = field<uint16_t>(next, 0);
+            set_point_node(r, field<uint16_t>(next, 0));
         }
     }
     const uint32_t had80 = field<uint32_t>(path, 0x3bc) & 0x80;
@@ -18933,7 +18943,7 @@ uint32_t XB_CDECL Path_TryDodge(uint32_t entry, uint32_t eax, uint32_t ebx, uint
         point = next;
         field<int16_t>(path, 0x388) = int16_t(idx);
         field<float>(path, 0x3b8) = 0.0f;
-        field<int16_t>(point, 0x18) = 0;
+        set_point_node(point, 0);
     }
     const float ox = slot_f(out1);
     const float oy = slot_f(out1 + 4);
@@ -18955,7 +18965,7 @@ uint32_t XB_CDECL Path_TryDodge(uint32_t entry, uint32_t eax, uint32_t ebx, uint
         field<float>(q, 0) = ox;
         field<float>(q, 4) = slot_f(out1 + 4);
         field<float>(q, 8) = slot_f(out1 + 8);
-        field<int16_t>(q, 0x18) = 0;
+        set_point_node(q, 0);
     }
     uint8_t* const r = path + idx * 0x1c;
     field<float>(r, 0xc) = ox - st[0];
@@ -18979,7 +18989,7 @@ uint32_t XB_CDECL Path_TryDodge(uint32_t entry, uint32_t eax, uint32_t ebx, uint
     field<uint32_t>(path, 0x3cc) = stack_word(start);
     field<uint32_t>(path, 0x3d0) = stack_word(start + 4);
     field<uint32_t>(path, 0x3d4) = stack_word(start + 8);
-    field<int16_t>(e, 0x18) = 0;
+    set_point_node(e, 0);
     field<float>(e, 0x14) = 0.0f;
     field<float>(e, 0xc) = 0.0f;
     field<float>(e, 0x10) = 0.0f;
