@@ -5,6 +5,7 @@
 #include <new>
 
 #include "log.h"
+#include "stack_arena.h"
 #include "vmem.h"
 
 namespace loader {
@@ -39,10 +40,11 @@ ThreadEnv* create_thread_env(uint32_t stack_size, uint32_t tls_size) {
     }
     stack_size = (std::max(stack_size, kMinStackSize) + tls_size + 0xFFF) & ~0xFFFu;
     using namespace platform;
-    void* stack = vmem::reserve(0, stack_size + kGuardSize);
+    // At the same address in every run (the game reads stale stack words; platform/stack_arena.h).
+    void* stack = stack_arena::reserve(stack_size + kGuardSize);
     if (!stack || !vmem::commit(static_cast<uint8_t*>(stack) + kGuardSize, stack_size, vmem::Protection::ReadWrite)) {
         LOG_ERROR("thread", "cannot allocate a %u byte stack", stack_size);
-        if (stack) vmem::release(stack, stack_size + kGuardSize);
+        if (stack) stack_arena::release(stack, stack_size + kGuardSize);
         return nullptr;
     }
 

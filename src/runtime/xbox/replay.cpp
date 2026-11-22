@@ -11,6 +11,7 @@
 #include "kernel_memory.h"
 #include "log.h"
 #include "program.h"
+#include "stack_arena.h"
 
 namespace xbox::replay {
 namespace {
@@ -395,7 +396,8 @@ void report_counts() {
 }
 
 // The state hash (word-wise FNV-1a, integer only: title threads run with the title's FPU modes). Every word that
-// points into the title's memory (heaps, objects, contiguous memory - xbox::in_title_memory) counts as one marker
+// points into the title's memory (heaps, objects, contiguous memory - xbox::in_title_memory - and its stacks,
+// platform::stack_arena) counts as one marker
 // value, so only what the game holds is compared, not where it sits. Pointers into the title's image stay as they
 // are (the image does not move).
 uint32_t hash_state(const void* data, size_t size, uint32_t h = 2166136261u) {
@@ -405,7 +407,7 @@ uint32_t hash_state(const void* data, size_t size, uint32_t h = 2166136261u) {
     for (; i + 4 <= size; i += 4) {
         uint32_t word;
         std::memcpy(&word, bytes + i, 4);
-        if (in_title_memory(word)) word = kPointer;
+        if (in_title_memory(word) || platform::stack_arena::contains(word)) word = kPointer;  // stacks too
         h = (h ^ word) * 16777619u;
     }
     for (; i < size; ++i) h = (h ^ bytes[i]) * 16777619u;

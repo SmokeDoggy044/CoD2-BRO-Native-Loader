@@ -10,6 +10,7 @@
 #include "qcommon_core.h"
 #include "stack_guard.h"
 #include "title_data.h"
+#include "stack_arena.h"
 #include "vmem.h"
 #include "xlat_runtime.h"
 
@@ -149,7 +150,8 @@ uint32_t g_live = 0, g_peak = 0, g_created = 0;
 
 Fiber* new_fiber() {
     auto* fiber = new Fiber;
-    fiber->reservation = static_cast<uint8_t*>(platform::vmem::reserve(0, kStackSize + kGuardSize));
+    // At the same address in every run (the game reads stale stack words; platform/stack_arena.h).
+    fiber->reservation = static_cast<uint8_t*>(platform::stack_arena::reserve(kStackSize + kGuardSize));
     if (!fiber->reservation ||
         !platform::vmem::commit(fiber->reservation + kGuardSize, kStackSize, platform::vmem::Protection::ReadWrite)) {
         std::fprintf(stderr, "[scr_fiber] out of address space for script thread stacks (%u live)\n", g_live);
