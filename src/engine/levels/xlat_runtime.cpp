@@ -53,6 +53,10 @@ void xl_divide_error() {
     std::abort();
 }
 
+void xl_fret_missing() {
+    std::fprintf(stderr, "translated level code: a call was expected to return a float (x87 st(0)) and did not\n");
+    std::abort();
+}
 void xl_trap() {
     std::fprintf(stderr, "translated level code: int3 reached\n");
     std::abort();
@@ -167,6 +171,11 @@ void xl_run(XlFrame* f) {
     xl::fs_w32(xl::kFsEsp, entry_esp);
     xl::fs_w32(xl::kFsIndex, static_cast<uint32_t>(reinterpret_cast<uintptr_t>(xl_ret_thunks)) + c.ret_pop / 4 * 3);
 #endif
+    // A float return goes to the native caller in st(0), as the original's did (last: nothing below uses the FPU).
+    if (c.fret) {
+        const long double v = xl::ld_f80(c.f80);
+        __asm__ volatile("fldt %0" : : "m"(v));
+    }
 }
 
 }  // extern "C"
@@ -183,7 +192,17 @@ void xl_native(Cpu* c, uint32_t target) {
     const uint32_t host = fs_r32(kFsHost);
     // The return slot holds our way back while the callee runs; afterwards what a `call` leaves there.
     const uint32_t ret_slot = c->esp, ret = mem_r32(ret_slot);
+    uint16_t before, after;
+    __asm__ volatile("fnstsw %0" : "=m"(before));
     xl_native_asm(c, target);
+    // A float return: the callee pushed one value on the FPU (its stack top moved down by one) - into the Cpu.
+    __asm__ volatile("fnstsw %0" : "=m"(after));
+    if (((after >> 11) & 7) == ((((before >> 11) & 7) + 7) & 7)) {
+        long double v;
+        __asm__ volatile("fstpt %0" : "=m"(v));
+        st_f80(c->f80, v);
+        c->fret = 1;
+    }
     mem_w32(ret_slot, ret);
     fs_w32(kFsHost, host);
 #else

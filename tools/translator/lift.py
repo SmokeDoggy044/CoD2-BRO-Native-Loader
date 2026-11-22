@@ -31,10 +31,14 @@ CC = {"o": "o", "no": "no", "b": "b", "ae": "ae", "e": "e", "ne": "ne", "be": "b
 # Flag-setting kinds (XL_K_* in xlat_runtime.h) and which instructions set them.
 KIND = {"add": "ADD", "sub": "SUB", "cmp": "SUB", "neg": "NEG", "and": "LOGIC", "or": "LOGIC", "xor": "LOGIC",
         "test": "LOGIC", "inc": "INC", "dec": "DEC", "shl": "SHL", "shr": "SHR", "sar": "SAR", "imul": "MUL",
-        "mul": "MUL", "adc": "ADC", "sbb": "SBB", "bt": "BT", "ucomiss": "RAW", "comiss": "RAW"}
+        "mul": "MUL", "adc": "ADC", "sbb": "SBB", "bt": "BT", "ucomiss": "RAW", "comiss": "RAW",
+        "fcompi": "RAW", "fcomip": "RAW", "fcomi": "RAW", "fucompi": "RAW", "fucomip": "RAW", "fucomi": "RAW"}
 # Flags each condition reads (an INC/DEC producer cannot answer CF).
 CC_FLAGS = {"o": "o", "no": "o", "b": "c", "ae": "c", "e": "z", "ne": "z", "be": "cz", "a": "cz", "s": "s", "ns": "s",
             "p": "p", "np": "p", "l": "so", "ge": "so", "le": "zso", "g": "zso"}
+
+
+NAMES = {}  # every function's name by address (main())
 
 
 class Unsupported(Exception):
@@ -164,13 +168,17 @@ class Lifter:
             if m in cfg.JCC:
                 s = [ins.operands[0].imm, nxt]
             elif m == "jmp":
-                t = ins.operands[0].imm if ins.operands[0].type == x86.X86_OP_IMM else None
-                s = [t] if t in fn.ins else []
+                if ins.operands[0].type == x86.X86_OP_IMM:
+                    t = ins.operands[0].imm
+                    s = [t] if t in fn.ins else []
+                else:  # a switch: its table's cases (the flags and the x87 depth flow into them)
+                    s = sorted({c for c in (cfg.switch_table(self.image, ins, self.lo, self.hi) or []) if c in fn.ins})
             elif m in ("ret", "int3"):
                 s = []
             else:
                 s = [nxt] if nxt in fn.ins else []
             succ[a] = s
+        self.succ = succ
         self.kind_of = {}
         for a in order:
             ins = fn.ins[a]
@@ -374,6 +382,8 @@ class Lifter:
             e(f"eax = (eax & 0xffff00ffu) | (::xl::XL_LAHF({k}, fa, fb, fr, fc) << 8);")
         elif self.sse(ins):
             pass
+        elif self.x87(ins):
+            pass
         elif m in ("movsb", "movsw", "movsd", "stosb", "stosw", "stosd", "rep movsb", "rep movsw", "rep movsd",
                    "rep stosb", "rep stosw", "rep stosd"):
             self.string(ins)
@@ -443,6 +453,167 @@ class Lifter:
             raise Unsupported(f"mnemonic {m}")
         return True
 
+    # ---- x87 -------------------------------------------------------------------------------------------------
+    # The stack depth before each instruction is static (compiler code: equal at every join, empty at calls); st(i)
+    # at depth d is the local f<d-1-i>. A float return travels through the Cpu (XL_FRETURN / XL_FRESULT).
+    def x87_effect(self, ins, d):
+        m = ins.mnemonic
+        if m == "call" and self.is_ftol(ins):
+            if d < 1:
+                raise Unsupported("_ftol without a value")
+            return -1
+        if m == "call":
+            if d:
+                raise Unsupported("x87 values live across a call")
+            return 1 if ins.address in self.call_fret else 0
+        if m in ("jmp",) and ins.operands[0].type == x86.X86_OP_IMM and ins.operands[0].imm not in self.fn.ins and d:
+            raise Unsupported("x87 values live across a tail call")
+        if not is_x87(ins):
+            return 0
+        if m in ("fld", "fild", "fld1", "fldz"):
+            return 1
+        if m in ("fstp", "fistp", "faddp", "fsubp", "fsubrp", "fmulp", "fdivp", "fdivrp", "fcompi", "fcomip",
+                 "fucompi", "fucomip"):
+            return -1
+        if m in ("fst", "fadd", "fsub", "fsubr", "fmul", "fdiv", "fdivr", "fxch", "fabs", "fchs", "fcomi", "fucomi"):
+            return 0
+        raise Unsupported(f"mnemonic {m}")
+
+    def is_ftol(self, ins):
+        """The CRT's _ftol: st(0) popped, truncated to a 64-bit integer in edx:eax."""
+        op = ins.operands[0]
+        return op.type == x86.X86_OP_IMM and NAMES.get(op.imm) in ("_ftol", "_ftol2")
+
+    def x87_depths(self):
+        fn = self.fn
+        self.fdepth, self.call_fret, self.ret_float = {}, set(), False
+        self.uses_x87 = any(is_x87(i) for i in fn.ins.values())
+        if not self.uses_x87:
+            return
+        # A call returns a float the caller uses when the x87 code after it reaches below what it pushed itself
+        # (e.g. fld constant; fcomip st(1): the call's result is st(1)).
+        for a, ins in fn.ins.items():
+            if ins.mnemonic != "call":
+                continue
+            n, d = a + ins.size, 0
+            while n in fn.ins:
+                j = fn.ins[n]
+                if is_x87(j):
+                    if x87_reach(j) > d:
+                        self.call_fret.add(a)
+                        break
+                    d += self.x87_effect(j, d)
+                elif j.mnemonic in ("call", "ret", "retn", "jmp", "int3") or j.mnemonic in cfg.JCC:
+                    break
+                n += j.size
+        depth = {fn.start: 0}
+        work = [fn.start]
+        rets = set()
+        while work:
+            a = work.pop()
+            ins = self.fn.ins[a]
+            d = depth[a]
+            if ins.mnemonic in ("ret", "retn"):
+                rets.add(d)
+            d2 = d + self.x87_effect(ins, d)
+            if not 0 <= d2 <= 8:
+                raise Unsupported("x87 stack under/overflow")
+            for t in self.succ[a]:
+                if t in depth:
+                    if depth[t] != d2:
+                        raise Unsupported("x87 stack depth differs at a join")
+                else:
+                    depth[t] = d2
+                    work.append(t)
+        if not rets <= {0, 1} or len(rets) > 1:
+            raise Unsupported("x87 stack at return")
+        self.ret_float = rets == {1}
+        self.fdepth = depth
+
+    def st(self, ins, i):
+        d = self.fdepth[ins.address]
+        if not 0 <= i < d:
+            raise Unsupported("x87 register outside the stack")
+        return f"f{d - 1 - i}"
+
+    def st_index(self, ins, op):
+        n = ins.reg_name(op.reg)
+        if not n.startswith("st"):
+            raise Unsupported(f"x87 operand {n}")
+        return int(n[3]) if n.startswith("st(") else 0
+
+    def fmem(self, ins, op):
+        """A memory operand as a long double (float/double, or int for fi* forms)."""
+        a = self.addr(ins, op)
+        if op.mem.segment:
+            raise Unsupported("x87 fs operand")
+        if ins.mnemonic.startswith("fi"):
+            return {2: f"(long double)(int16_t)XL_R16({a})", 4: f"(long double)(int32_t)XL_R32({a})"}.get(op.size) \
+                or self._unsup("fild size")
+        return {4: f"::xl::ld_f32({a})", 8: f"::xl::ld_f64({a})"}.get(op.size) or self._unsup("x87 operand size")
+
+    def _unsup(self, why):
+        raise Unsupported(why)
+
+    def x87(self, ins):
+        if not is_x87(ins):
+            return False
+        m, ops, e = ins.mnemonic, ins.operands, self.emit
+        d = self.fdepth[ins.address]
+        if m in ("fld", "fild"):
+            if ops[0].type == x86.X86_OP_MEM:
+                e(f"f{d} = {self.fmem(ins, ops[0])};")
+            else:
+                e(f"f{d} = {self.st(ins, self.st_index(ins, ops[0]))};")
+        elif m in ("fld1", "fldz"):
+            e(f"f{d} = {'1.0L' if m == 'fld1' else '0.0L'};")
+        elif m in ("fst", "fstp"):
+            top = self.st(ins, 0)
+            if ops[0].type == x86.X86_OP_MEM:
+                if op_size(ops[0]) == 4:
+                    e(f"::xl::st_f32({self.addr(ins, ops[0])}, {top});")
+                elif op_size(ops[0]) == 8:
+                    e(f"::xl::st_f64({self.addr(ins, ops[0])}, {top});")
+                else:
+                    raise Unsupported("fst size")
+            else:
+                i = self.st_index(ins, ops[0])
+                if i:
+                    e(f"{self.st(ins, i)} = {top};")
+        elif m in ("fadd", "fsub", "fsubr", "fmul", "fdiv", "fdivr", "faddp", "fsubp", "fsubrp", "fmulp", "fdivp",
+                   "fdivrp"):
+            base = m[:-1] if m.endswith("p") and m != "fsubp" and m != "fdivp" else m
+            base = {"fsubp": "fsub", "fdivp": "fdiv"}.get(m, base)
+            if len(ops) == 1 and ops[0].type == x86.X86_OP_MEM:
+                dst, src = self.st(ins, 0), self.fmem(ins, ops[0])
+            elif m.endswith("p") and len(ops) <= 1:  # f*p st(i): st(i) = st(i) op st(0), then pop
+                dst, src = self.st(ins, self.st_index(ins, ops[0]) if ops else 1), self.st(ins, 0)
+            elif len(ops) == 1:
+                dst, src = self.st(ins, 0), self.st(ins, self.st_index(ins, ops[0]))
+            else:
+                dst = self.st(ins, self.st_index(ins, ops[0]))
+                src = self.st(ins, self.st_index(ins, ops[1]))
+            expr = {"fadd": f"{dst} + {src}", "fsub": f"{dst} - {src}", "fsubr": f"{src} - {dst}",
+                    "fmul": f"{dst} * {src}", "fdiv": f"{dst} / {src}", "fdivr": f"{src} / {dst}"}[base]
+            e(f"{dst} = {expr};")
+        elif m in ("fcompi", "fcomip", "fucompi", "fucomip", "fcomi", "fucomi"):
+            other = self.st(ins, self.st_index(ins, ops[-1]))
+            r = f"::xl::eflags_after_fcomi({self.st(ins, 0)}, {other})"
+            fl = self.set_flags(ins, "RAW", "0u", "0u", r, 4)
+            e("{ " + (fl or f"(void){r};") + " }")
+        elif m == "fxch":
+            # capstone may list st(0) among the operands: the other register is the one swapped with (default st(1))
+            other = max([self.st_index(ins, o) for o in ops if o.type == x86.X86_OP_REG] + [0]) or 1
+            a_, b_ = self.st(ins, 0), self.st(ins, other)
+            e(f"{{ long double t = {a_}; {a_} = {b_}; {b_} = t; }}")
+        elif m == "fabs":
+            e(f"{self.st(ins, 0)} = __builtin_fabsl({self.st(ins, 0)});")
+        elif m == "fchs":
+            e(f"{self.st(ins, 0)} = -{self.st(ins, 0)};")
+        else:
+            raise Unsupported(f"mnemonic {m}")
+        return True
+
     def call(self, target, nxt):
         if target in self.translated:
             self.callees.add(target)
@@ -506,6 +677,7 @@ class Lifter:
         self.xs = "XL_SAVE_X(); " if self.uses_xmm else ""
         self.xr = " XL_RELOAD_X();" if self.uses_xmm else ""
         self.flow()
+        self.x87_depths()
         blocks = cfg.blocks(fn)
         targets = set()
         for a, insns in blocks:
@@ -514,6 +686,8 @@ class Lifter:
                 targets.add(last.operands[0].imm)
         body = []
         self.lines = body
+        if self.uses_x87:
+            body.append("    long double f0 = 0, f1 = 0, f2 = 0, f3 = 0, f4 = 0, f5 = 0, f6 = 0, f7 = 0;")
         prev_end = None
         for a, insns in blocks:
             if prev_end is not None and prev_end != a:
@@ -550,13 +724,24 @@ class Lifter:
                 elif m == "call":
                     op = ins.operands[0]
                     nxt = ins.address + ins.size
+                    if self.uses_x87 and self.is_ftol(ins):
+                        # _ftol inline: C's conversion truncates (as _ftol sets the rounding control to do)
+                        self.emit(f"{{ const int64_t v = (int64_t){self.st(ins, 0)}; eax = (uint32_t)v; "
+                                  "edx = (uint32_t)((uint64_t)v >> 32); }")
+                        continue
+                    if ins.address in self.call_fret:
+                        self.emit("c->fret = 0u;")
                     if op.type == x86.X86_OP_IMM:
                         self.call(op.imm, nxt)
                     else:
                         self.emit("{ uint32_t t = " + self.read(ins, op, 4) + "; " + self.xs + f"XL_CALL_DYN(t, 0x{nxt:x}u);"
                                   + self.xr + " }")
+                    if ins.address in self.call_fret:
+                        self.emit("XL_FRESULT(f0);")
                 elif m in ("ret", "retn"):
                     n = ins.operands[0].imm if ins.operands else 0
+                    if self.ret_float:
+                        self.emit("XL_FRETURN(f0);")
                     self.emit(self.xs + f"XL_RETURN({n}u);")
                 elif m == "int3":
                     self.emit("::xl::xl_trap();")
@@ -579,6 +764,26 @@ class Lifter:
                 continue
             out.append(line)
         return out
+
+
+def is_x87(ins):
+    return ins.mnemonic.startswith("f") and ins.mnemonic not in ("femms",)
+
+
+def x87_reach(ins):
+    """How many stack values the instruction reads (st(0) is 1)."""
+    m = ins.mnemonic
+    if m in ("fld1", "fldz") or (m in ("fld", "fild") and ins.operands[0].type == x86.X86_OP_MEM):
+        return 0
+    deep = [int(ins.reg_name(o.reg)[3]) + 1 for o in ins.operands
+            if o.type == x86.X86_OP_REG and ins.reg_name(o.reg).startswith("st(")]
+    if m in ("fld", "fxch") and not deep:
+        return 2 if m == "fxch" else 0
+    return max([1] + deep)
+
+
+def op_size(op):
+    return op.size
 
 
 def reads_flags(ins):
@@ -608,10 +813,12 @@ def main():
     ap.add_argument("level", nargs="?", default="PROLOGUE")
     ap.add_argument("--class", dest="classes", default=",".join(cfg.RANK))
     ap.add_argument("--only")
+    ap.add_argument("--skip", help="addresses left to the original code (bisecting)")
     ap.add_argument("--out", default="build/translator/gen")
     ap.add_argument("--verbose", action="store_true")
     args = ap.parse_args()
     functions, _ = fnpack.load_names()
+    NAMES.update(functions)
     image = fnpack.Image()
     sec = next(s for s in image.sections if s[0] == args.level)
     lo, hi = sec[1], sec[1] + max(sec[2], sec[4])
@@ -623,6 +830,8 @@ def main():
     candidates = []
     for a in sorted(starts):
         if only is not None and a not in only:
+            continue
+        if args.skip and a in {int(x, 16) for x in args.skip.split(",")}:
             continue
         fn = cfg.Fn(a, starts[a])
         cfg.decode(fn, image, md, lo, hi, starts)

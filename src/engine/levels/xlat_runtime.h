@@ -22,8 +22,13 @@ struct Cpu {
     uint32_t ret;                                     // 32: return address the function popped
     uint32_t ret_pop;                                 // 36: its `ret N`
     uint32_t xmm[8][4];                               // 40: XMM0-7 (LTCG passes floats in them, both ways)
+    // 168: a float return travelling as the x87 ABI's st(0): the callee sets it (translated: XL_FRETURN; native:
+    // xl_native takes what it pushed on the FPU), the caller takes it (XL_FRESULT); xl_run pushes it on the real FPU
+    // for a native caller.
+    uint32_t fret;
+    uint8_t f80[12];
 };
-static_assert(offsetof(Cpu, xmm) == 40);
+static_assert(offsetof(Cpu, xmm) == 40 && offsetof(Cpu, fret) == 168);
 
 using Fn = void (*)(Cpu*);
 
@@ -179,6 +184,44 @@ inline uint32_t eflags_after_comiss(__m128 a, __m128 b) {
     __asm__ volatile("comiss %2, %1\n pushf\n pop %0" : "=r"(f) : "x"(a), "x"(b) : "cc");
     return static_cast<uint32_t>(f);
 }
+// ---- x87 ---------------------------------------------------------------------------------------------------------
+// The x87 stack lives in long double locals (the lifter knows each instruction's stack depth). long double arithmetic
+// is x87 arithmetic in both 32- and 64-bit builds, under the thread's own control word (precision, rounding), so the
+// results are the original's to the bit.
+inline long double ld_f32(uint32_t a) {
+    float f;
+    std::memcpy(&f, reinterpret_cast<const void*>(uintptr_t{a}), 4);
+    return f;
+}
+inline long double ld_f64(uint32_t a) {
+    double d;
+    std::memcpy(&d, reinterpret_cast<const void*>(uintptr_t{a}), 8);
+    return d;
+}
+inline long double ld_f80(const void* p) {
+    long double v = 0;
+    std::memcpy(&v, p, 10);
+    return v;
+}
+inline void st_f32(uint32_t a, long double v) {
+    const float f = static_cast<float>(v);
+    std::memcpy(reinterpret_cast<void*>(uintptr_t{a}), &f, 4);
+}
+inline void st_f64(uint32_t a, long double v) {
+    const double d = static_cast<double>(v);
+    std::memcpy(reinterpret_cast<void*>(uintptr_t{a}), &d, 8);
+}
+inline void st_f80(void* p, long double v) { std::memcpy(p, &v, 10); }
+// EFLAGS after fcomip st(0), st(i): ZF, PF, CF as the compare sets them.
+inline uint32_t eflags_after_fcomi(long double a, long double b) {
+    uintptr_t f;
+    __asm__ volatile("fcomip %%st(1), %%st\n pushf\n pop %0" : "=r"(f) : "t"(a), "u"(b) : "st", "cc");
+    return static_cast<uint32_t>(f);
+}
+[[noreturn]] void xl_fret_missing();
+#define XL_FRETURN(v) (::xl::st_f80(c->f80, (v)), c->fret = 1u)
+#define XL_FRESULT(v) (c->fret ? (void)0 : ::xl::xl_fret_missing(), (v) = ::xl::ld_f80(c->f80), c->fret = 0u)
+
 #define XL_LOAD_X()                                                                                           \
     __m128 xmm0 = ::xl::xmm_ld(c->xmm[0]), xmm1 = ::xl::xmm_ld(c->xmm[1]), xmm2 = ::xl::xmm_ld(c->xmm[2]),   \
            xmm3 = ::xl::xmm_ld(c->xmm[3]), xmm4 = ::xl::xmm_ld(c->xmm[4]), xmm5 = ::xl::xmm_ld(c->xmm[5]),   \
