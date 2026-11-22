@@ -55,8 +55,10 @@ mission() {
     replay "m${m}_convert" "$m" "$rep" "${rep%.rep}.saves" --rerecord "$new"
     if [[ ! -s $new ]]; then return; fi
     cp -a "${rep%.rep}.saves" "${new%.rep}.saves"
-    replay "m${m}_verify" "$m" "$new" "${new%.rep}.saves"
-    [[ ${WINE:-0} == 1 ]] && replay "m${m}_verify_wine" "$m" "$new" "${new%.rep}.saves"
+    # Both verifies at once (they only read the new file; each run copies the saves).
+    replay "m${m}_verify" "$m" "$new" "${new%.rep}.saves" &
+    [[ ${WINE:-0} == 1 ]] && replay "m${m}_verify_wine" "$m" "$new" "${new%.rep}.saves" &
+    wait
 }
 
 rm -f "$out/exits.txt"
