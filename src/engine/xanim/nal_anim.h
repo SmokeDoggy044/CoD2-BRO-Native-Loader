@@ -3,6 +3,7 @@
 // NAL animation states (docs/formats/nal_animation.md): a clip's per-channel state data and the
 // drivers that walk its channel groups through the channel vtable.
 
+#include <string>
 #include <cstdint>
 
 #include "compiler.h"
@@ -95,6 +96,10 @@ void XB_THISCALL NAL_AnimTrack_Sample(uint8_t* track, float time, float previous
 // children). Returns the root-motion flag (clip +0x34 bit 1) of the normal children.
 uint8_t XB_CDECL AnimTree_CalcPose_r(uint32_t index, AnimState* dst, const AnimState* src, uint32_t arg4, uint32_t arg5,
                                      int32_t min_level);
+// Ours, diagnostics only (COD_BRO_ANIM_TREE_LOG): the current tree's live nodes as text - index/child count, the
+// active children in braces ('+' additive), "{EMPTY}" for a node none of whose children take part, "!notrack" for a
+// leaf without a track.
+std::string AnimTree_DebugSummary();
 // 0x0008e0d0: the skeleton named `name` (manager 0x00909838, slot 2), or 0.
 uint32_t XB_CDECL NAL_FindSkeleton(uint32_t name);
 // 0x0001db80 (memory context in EAX, -1 = none; cdecl clip): a new 16-byte state for the

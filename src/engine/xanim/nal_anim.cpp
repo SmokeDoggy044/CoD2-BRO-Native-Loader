@@ -1,5 +1,7 @@
 #include "nal_anim.h"
 
+#include <cstdio>
+#include <cstdlib>
 #include <cstring>
 
 #include "nal_math.h"
@@ -777,6 +779,59 @@ uint8_t XB_CDECL AnimTree_CalcPose_r(uint32_t index, AnimState* dst, const AnimS
         NAL_AnimState_Destroy(&a);
     }
     return root_motion;
+}
+
+namespace {
+void tree_summary_r(uint32_t index, std::string& out, int depth) {
+    const uint8_t* tree = current_tree();
+    const uint8_t* node = tree_node(tree, index);
+    const int32_t count = *reinterpret_cast<const uint16_t*>(node + 0x20);
+    char buf[48];
+    if (count == 0) {
+        const bool track = *reinterpret_cast<const uint32_t*>(anim_info(tree, index) + 0x1c) != 0;
+        std::snprintf(buf, sizeof buf, "%u%s", index, track ? "" : "!notrack");
+        out += buf;
+        if (!track) {
+            char more[128];
+            std::snprintf(more, sizeof more, "(name=%.28s hash=%08x clip=%08x notes=%08x stamp=%08x now=%08x flags=%04x)",
+                          reinterpret_cast<const char*>(node + 4), *reinterpret_cast<const uint32_t*>(node),
+                          *reinterpret_cast<const uint32_t*>(node + 0x24), *reinterpret_cast<const uint32_t*>(node + 0x28),
+                          *reinterpret_cast<const uint32_t*>(node + 0x2c), title_global<uint32_t>(0x008d508c),
+                          *reinterpret_cast<const uint16_t*>(node + 0x34));
+            out += more;
+        } else if (std::getenv("COD_BRO_ANIM_TREE_NAMES")) {
+            char more[48];
+            std::snprintf(more, sizeof more, "(%.28s)", reinterpret_cast<const char*>(node + 4));
+            out += more;
+        }
+        return;
+    }
+    int32_t indices[64];
+    float weights[64];
+    const uint32_t first = *reinterpret_cast<const uint16_t*>(node + 0x36);
+    const int32_t n = active_children(node, false, indices, weights);
+    const int32_t m = active_children(node, true, indices + n, weights + n);
+    std::snprintf(buf, sizeof buf, "%u/%d", index, count);
+    out += buf;
+    if (n + m == 0) {
+        out += "{EMPTY}";
+        return;
+    }
+    if (depth > 12) return;
+    out += '{';
+    for (int32_t i = 0; i < n + m; ++i) {
+        if (i) out += ' ';
+        if (i >= n) out += '+';
+        tree_summary_r(first + indices[i], out, depth + 1);
+    }
+    out += '}';
+}
+}  // namespace
+
+std::string AnimTree_DebugSummary() {
+    std::string out;
+    if (current_tree()) tree_summary_r(0, out, 0);
+    return out;
 }
 
 uint32_t XB_CDECL NAL_FindSkeleton(uint32_t name) {

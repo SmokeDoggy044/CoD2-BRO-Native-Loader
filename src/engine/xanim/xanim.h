@@ -106,6 +106,9 @@ extern "C" void AnimData_EnsureLoaded_entry(void);
 // 0x00250e70 (XMM0): the anim's clip length, loading it first; 1 without a clip.
 extern "C" PLATFORM_HIDDEN void XB_CDECL AnimTree_EnsureAnimLoaded(uint32_t handle, uint32_t* result);
 extern "C" void AnimTree_EnsureAnimLoaded_entry(void);
+// Ours: whether the anim `handle` (anim-tree entry << 16 | node) has a clip in the loaded data (looked up first if
+// it has none yet, as AnimTree_EnsureAnimLoaded does).
+bool XAnim_ClipLoaded(uint32_t handle);
 // 0x002f6840 (entry in EAX): every node of the anim-tree table entry drops its clip, child
 // count and notetracks.
 void XB_REGS1 XB_CDECL AnimTree_FreeNotetracks(uint32_t entry);

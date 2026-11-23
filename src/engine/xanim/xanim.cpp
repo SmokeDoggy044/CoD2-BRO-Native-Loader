@@ -676,6 +676,12 @@ void XB_CDECL AnimTree_EnsureAnimLoaded(uint32_t handle, uint32_t* result) {
     *result = clip ? *reinterpret_cast<const uint32_t*>(static_cast<uintptr_t>(clip + 0x38)) : title_global<uint32_t>(0x0083eb20);
 }
 
+bool XAnim_ClipLoaded(uint32_t handle) {
+    uint8_t* node = anim_node(rm_anims(handle >> 16), handle & 0xffff);
+    if (!*reinterpret_cast<const uint32_t*>(node + 0x24)) AnimData_EnsureLoaded(node);
+    return *reinterpret_cast<const uint32_t*>(node + 0x24) != 0;
+}
+
 void XB_REGS1 XB_CDECL AnimTree_FreeNotetracks(uint32_t entry) {
     // Every node of the entry drops its clip, child count and notetracks.
     const uint8_t* anims = rm_anims(entry);

@@ -1,6 +1,10 @@
 #include "dobj.h"
 
+#include <cstdio>
+#include <cstdlib>
 #include <cstring>
+#include <string>
+#include <unordered_map>
 
 #include "compiler.h"
 #include "lanes.h"
@@ -837,6 +841,30 @@ void normalize_quat(float* q) {
 
 }  // namespace
 
+// Ours, diagnostics only: COD_BRO_ANIM_TREE_LOG=FROM-TO (level times, ms) prints each animated model's live tree
+// (AnimTree_DebugSummary) to stderr whenever it changes, with the level time, entity, model and whether its clip
+// state was created this frame. Reads only; the game plays the same with or without it.
+namespace {
+void log_anim_tree(const DObj* obj, int32_t model, const uint8_t* ent, bool created) {
+    static int32_t from = -1, to = -1;
+    static const bool on = [] {
+        const char* v = std::getenv("COD_BRO_ANIM_TREE_LOG");
+        return v && std::sscanf(v, "%d-%d", &from, &to) == 2;
+    }();
+    if (!on) return;
+    const int32_t time = title_global<int32_t>(0x0098540c);
+    if (time < from || time > to) return;
+    static std::unordered_map<uint64_t, std::string> last;
+    const uint64_t key = (static_cast<uint64_t>(reinterpret_cast<uintptr_t>(obj)) << 3) | static_cast<uint64_t>(model);
+    std::string summary = AnimTree_DebugSummary();
+    auto it = last.find(key);
+    if (it != last.end() && it->second == summary && !created) return;
+    std::fprintf(stderr, "anim-tree t=%d ent=%08x obj=%08x model=%d xmodel=%08x%s: %s\n", time, addr(ent), addr(obj), model,
+                 addr(obj->models[model]), created ? " NEW-STATE" : "", summary.c_str());
+    last[key] = std::move(summary);
+}
+}  // namespace
+
 void XB_CDECL DObj_UpdateSkeletons(DObj* obj) {
     uint8_t* bones = obj->bone_matrices;
     if (!bones) return;
@@ -870,8 +898,10 @@ void XB_CDECL DObj_UpdateSkeletons(DObj* obj) {
             skeleton = generic_skeleton(model);
         }
         AnimState*& clip_state = reinterpret_cast<AnimState**>(reinterpret_cast<uint8_t*>(obj) + 0x68)[i];
+        const bool created = !clip_state;
         if (!clip_state) clip_state = Anim_CreateClipState(obj->client_index, skeleton);
         title_global<uint32_t>(0x00928588) = addr(tree);
+        log_anim_tree(obj, i, ent, created);
         AnimState* state = clip_state;
         if (!state || !state->clip || *reinterpret_cast<const uint32_t*>(state->clip) != title_global<uint32_t>(0x00903fdc))
             state = nullptr;
