@@ -12,9 +12,10 @@ namespace platform::stack_arena {
 namespace {
 
 // Free in every process we measured (11-22: 0x14000000-0x7fc3d000 unused; the game's virtual range ends at
-// 0x14000000, its contiguous memory starts at 0x80000000). 512 MB: about 500 script fibers of 1 MB.
+// 0x14000000, its contiguous memory starts at 0x80000000). 1 GB: about 1000 script fibers of 1 MB. 512 MB was full
+// on Omaha Beach (11-23: 512+ script threads alive at once, deepest stack use 396 KB).
 constexpr uintptr_t kPreferredBase = 0x20000000;
-constexpr size_t kBytes = 512u << 20;
+constexpr size_t kBytes = 1024u << 20;
 constexpr size_t kPage = 4096;
 
 struct Arena {
@@ -81,8 +82,12 @@ void release(void* address, size_t bytes) {
 }
 
 bool contains(uint32_t address) {
+    // The replay hash masks these words as stack pointers, so the range stays the first 512 MB (the arena's size
+    // when the recordings were made): a wider one also masks floats from 2.0 up and changes every stored hash.
+    // Stacks above it have fixed addresses too, so they need no masking to compare runs.
+    constexpr size_t kHashedBytes = 512u << 20;
     const Arena& a = arena();
-    return address >= a.base && address < a.end;
+    return a.base && address >= a.base && address < a.base + kHashedBytes;
 }
 
 }  // namespace platform::stack_arena
