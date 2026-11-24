@@ -317,20 +317,40 @@ void register_rows(const game::Function* rows, size_t count);
 // Swaps the running guest stack's host stack pointer (FS word; scr_fiber.cpp when it switches fibers).
 uint32_t host_sp_swap(uint32_t sp);
 
-// Per-thread words in FS (Linux: spare PRCB words of our KPCR, src/runtime/loader/thread_env.h; the title reads
-// none of them). The entry and the way out touch nothing on the guest stack the original does not touch - the game
-// reads stale stack, and our engine's gap entries keep live C frames below the title's ESP (title_data.h).
-//   0x300 the running guest stack's host stack pointer (script fibers swap it, scr_fiber.cpp; 0 = not made yet)
-//   0x304 the guest ESP at an entry / to leave with
-//   0x308 the entered function's index / the `ret N` thunk to leave through
-//   0x30c a call out's target
+// Per-thread words in FS (the title reads none of them). The entry and the way out touch nothing on the guest stack
+// the original does not touch - the game reads stale stack, and our engine's gap entries keep live C frames below the
+// title's ESP (title_data.h).
+//   host   the running guest stack's host stack pointer (script fibers swap it, scr_fiber.cpp; 0 = not made yet)
+//   esp    the guest ESP at an entry / to leave with
+//   index  the entered function's index / the `ret N` thunk to leave through
+//   target a call out's target
+// Linux: spare PRCB words of our KPCR (src/runtime/loader/thread_env.h), 0x300-0x30c. Windows: FS is the thread's
+// TEB, whose words Windows owns; ours are TEB TLS slots 60-63 (TlsSlots at 0xE10), which xl_reserve_fs_slots()
+// takes at start-up. The asm below needs fixed offsets, so the slots are fixed too: the last four of the 64 in the
+// TEB, which nothing takes before them (TlsAlloc hands out the lowest free slot).
+#if defined(_WIN32)
+#define XL_FS_HOST "0xf00"
+#define XL_FS_ESP "0xf04"
+#define XL_FS_INDEX "0xf08"
+#define XL_FS_TARGET "0xf0c"
+constexpr uint32_t kFsHost = 0xf00, kFsEsp = 0xf04, kFsIndex = 0xf08;
+constexpr uint32_t kFsFirstSlot = 60;  // (0xf00 - 0xe10) / 4
+#else
 #define XL_FS_HOST "0x300"
 #define XL_FS_ESP "0x304"
 #define XL_FS_INDEX "0x308"
 #define XL_FS_TARGET "0x30c"
 constexpr uint32_t kFsHost = 0x300, kFsEsp = 0x304, kFsIndex = 0x308;
+#endif
 
-#if defined(__i386__) && defined(__linux__)
+// The entry stubs and the call-out glue (x86 asm): 32-bit Linux and Windows.
+#if defined(__i386__) && (defined(__linux__) || defined(_WIN32))
+#define XL_HOST_GLUE 1
+#else
+#define XL_HOST_GLUE 0
+#endif
+
+#if XL_HOST_GLUE
 // The row's code: the function's index (an immediate - the Linux game code is position-independent) into FS, then
 // xl_enter_common (xlat_runtime.cpp) moves to the host stack and runs it.
 #define XL_ENTRY(addr, index) XL_ENTRY2(xl_entry_##addr, index)

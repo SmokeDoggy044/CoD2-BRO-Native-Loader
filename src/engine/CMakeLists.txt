@@ -212,6 +212,16 @@ if(COD_BRO_LEVEL_XLAT_DIR)
     # decoder's own MMX code (which ends in emms).
     set_source_files_properties(${level_xlat_sources} PROPERTIES COMPILE_OPTIONS "-fno-tree-vectorize")
     target_compile_definitions(game_code PRIVATE COD_BRO_LEVEL_XLAT=1)
+    # The levels register themselves from static initializers, and nothing else names them: a static game_code
+    # (Windows, player builds) left them out of the link. xlat_runtime.cpp names each level's rows from this list.
+    set(xlat_levels "")
+    foreach(source IN LISTS level_xlat_sources)
+        get_filename_component(level ${source} NAME_WE)
+        string(REGEX REPLACE "_xl$" "" level ${level})
+        string(APPEND xlat_levels "XL_LEVEL(${level})\n")
+    endforeach()
+    file(CONFIGURE OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/xlat_levels.inc CONTENT "${xlat_levels}")
+    target_include_directories(game_code PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
 endif()
 # One folder per module; the sources include each other's headers by file name.
 target_include_directories(game_code PUBLIC

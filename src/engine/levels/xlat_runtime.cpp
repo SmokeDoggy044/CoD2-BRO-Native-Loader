@@ -8,6 +8,11 @@
 
 #include "scr_fiber.h"
 
+#if defined(_WIN32)
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
+#endif
+
 // What xl_enter_common pushes on the host stack: the guest ESP and the function's index (from the FS words), the
 // XMM registers, the PUSHA block.
 struct XlFrame {
@@ -86,7 +91,7 @@ static Fn lookup(uint32_t address) {
 
 extern "C" {
 
-#if defined(__i386__) && defined(__linux__)
+#if XL_HOST_GLUE
 // xl_native_asm(Cpu* c, uint32_t target): saves the host's callee-saved registers; the host stack below them is
 // where translated code the callee reaches runs (FS host word); puts xl_native_return into the return slot at
 // c->esp, loads the guest registers and jumps to the target on the guest stack. xl_native_return goes back to the
@@ -179,7 +184,7 @@ void xl_run(XlFrame* f) {
     f->eax = c.eax, f->ecx = c.ecx, f->edx = c.edx, f->ebx = c.ebx, f->ebp = c.ebp, f->esi = c.esi, f->edi = c.edi;
     std::memcpy(f->xmm, c.xmm, sizeof f->xmm);
     // The way out: ESP at the return slot, then `ret N` (the FS words are free again: nothing runs in between).
-#if defined(__i386__) && defined(__linux__)
+#if XL_HOST_GLUE
     xl::fs_w32(xl::kFsEsp, entry_esp);
     xl::fs_w32(xl::kFsIndex, static_cast<uint32_t>(reinterpret_cast<uintptr_t>(xl_ret_thunks)) + c.ret_pop / 4 * 3);
 #endif
@@ -200,7 +205,7 @@ void xl_native(Cpu* c, uint32_t target) {
                      target, mem_r32(c->esp), c->esp);
         std::abort();
     }
-#if defined(__i386__) && defined(__linux__)
+#if XL_HOST_GLUE
     const uint32_t host = fs_r32(kFsHost);
     // The return slot holds our way back while the callee runs; afterwards what a `call` leaves there.
     const uint32_t ret_slot = c->esp, ret = mem_r32(ret_slot);
@@ -257,7 +262,7 @@ void xl_tail(Cpu* c, uint32_t target) {
 }
 
 uint32_t host_sp_swap(uint32_t sp) {
-#if defined(__i386__) && defined(__linux__)
+#if XL_HOST_GLUE
     const uint32_t old = fs_r32(kFsHost);
     fs_w32(kFsHost, sp);
     return old;
@@ -268,7 +273,63 @@ uint32_t host_sp_swap(uint32_t sp) {
 
 }  // namespace xl
 
+#if COD_BRO_LEVEL_XLAT
+// Each level's rows, named so that a static link keeps every level's object (they register themselves from static
+// initializers; the list comes from the build, src/engine/CMakeLists.txt).
+namespace game {
+#define XL_LEVEL(name) extern const Function kTranslated_##name[];
+#include "xlat_levels.inc"
+#undef XL_LEVEL
+}  // namespace game
+namespace {
+[[gnu::used]] const void* const kLevelRows[] = {
+#define XL_LEVEL(name) game::kTranslated_##name,
+#include "xlat_levels.inc"
+#undef XL_LEVEL
+};
+}  // namespace
+#endif
+
 namespace game {
 // Every level built in (each generated file registers its rows at start-up).
 std::span<const Function> translated_functions() { return {rows().data(), rows().size()}; }
+
+bool translated_levels_usable(const char** why) {
+#if !XL_HOST_GLUE
+    *why = "this build has no entry glue for it";
+    return false;
+#elif defined(_WIN32)
+    // Our FS words are TEB TLS slots 60-63 (xlat_runtime.h). TlsAlloc hands out the lowest free slot: take every
+    // free one below 64, keep 60-63, give the rest back. Once, before the title's threads start; later TlsAlloc
+    // callers get the slots given back (or expansion slots, which TlsGetValue serves just the same).
+    static const bool ok = [] {
+        DWORD taken[64];
+        size_t count = 0;
+        bool mine[4] = {};
+        for (;;) {
+            const DWORD slot = TlsAlloc();
+            if (slot == TLS_OUT_OF_INDEXES) break;
+            if (slot >= 64) {  // past the TEB's own slots: nothing more below 64 is free
+                TlsFree(slot);
+                break;
+            }
+            if (slot >= xl::kFsFirstSlot)
+                mine[slot - xl::kFsFirstSlot] = true;
+            else
+                taken[count++] = slot;
+        }
+        for (size_t i = 0; i < count; ++i) TlsFree(taken[i]);
+        const bool all = mine[0] && mine[1] && mine[2] && mine[3];
+        if (!all)  // a slot of the four belongs to someone else: give back the ones we got
+            for (DWORD i = 0; i < 4; ++i)
+                if (mine[i]) TlsFree(xl::kFsFirstSlot + i);
+        return all;
+    }();
+    if (!ok) *why = "TEB TLS slots 60-63 are in use by something else";
+    return ok;
+#else
+    (void)why;
+    return true;
+#endif
+}
 }  // namespace game

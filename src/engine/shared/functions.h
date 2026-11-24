@@ -39,5 +39,8 @@ std::span<const Function> functions();
 // Translated level code (src/engine/levels/xlat_runtime.h; empty when the build has none): rows whose code is
 // generated from the original x86.
 std::span<const Function> translated_functions();
+// Whether this process can run them (Windows: the FS words' TEB TLS slots; reserved on the first call). False:
+// *why says why, and the original x86 runs.
+bool translated_levels_usable(const char** why);
 
 }  // namespace game
