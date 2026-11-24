@@ -90,6 +90,10 @@ struct ClientPcHooks {
     // its own. While it does, free_camera_active is set: no view weapon, crosshair or HUD.
     bool (XB_CDECL* free_camera)(float* origin, float* angles) = nullptr;
     bool free_camera_active = false;
+    // Diagnostics (#44/#48: the HUD gone for a whole mission, until a restart): UIRoot_DrawHud reports when what keeps
+    // the HUD panels from drawing changes - 0 drawn; 1 a dialog is active (`dialog` = its index, -1 none); 2 the root's
+    // byte +0x49; 3 cg_draw2D 0; 4 the free camera. The loader logs it.
+    void (*hud_state)(int32_t reason, int32_t dialog) = nullptr;
 };
 ClientPcHooks& client_pc_hooks();
 // Native keyboard, mouse and gamepad (ClientPcHooks::native_actions): the actions' key numbers start at JOY17 (the
