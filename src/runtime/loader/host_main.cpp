@@ -117,8 +117,14 @@ int host_main(int argc, char** argv) {
                          list.c_str(), changed.size() > 24 ? " ..." : "");
         }
     }
-    if (!loader::clear_code_sections(image, {loader::data_file("code_section_data.txt"),
-                                             loader::data_file("level_eh_code.txt")}))
+    // Developers: COD_BRO_X86_CENSUS=1 (with COD_BRO_XLAT=1) also fills the level EH code and every level function's
+    // instructions with INT3, so any original x86 that still runs traps at its address (the crash log names it).
+    const bool x86_census = COD_BRO_DEV_TOOLS && std::getenv("COD_BRO_X86_CENSUS");
+    std::vector<fs::path> keep_lists{loader::data_file("code_section_data.txt")}, clear_lists;
+    // The census ranges trap once each (Linux: logged as "x86 census: ran", restored, resumed - one run lists them all).
+    if (x86_census) clear_lists.push_back(loader::data_file("level_code_ranges.txt"));
+    (x86_census ? clear_lists : keep_lists).push_back(loader::data_file("level_eh_code.txt"));
+    if (!loader::clear_code_sections(image, keep_lists, clear_lists))
         return loader::startup_failed("cannot prepare the game's image");
 
     static loader::SymbolTable symbols;

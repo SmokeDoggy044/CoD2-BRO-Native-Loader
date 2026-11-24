@@ -27,9 +27,21 @@ int32_t initial_image_pages(const XbeImage& image) {
     return pages;
 }
 
-bool clear_code_sections(const XbeImage& image, const std::vector<std::filesystem::path>& keep_lists) {
-    std::vector<std::pair<uint32_t, uint32_t>> keep;
-    for (const std::filesystem::path& list : keep_lists) {
+namespace {
+
+struct CensusRange {
+    uint32_t begin, end;
+    std::vector<uint8_t> original;
+};
+
+std::vector<CensusRange>& census_ranges() {
+    static std::vector<CensusRange> ranges;
+    return ranges;
+}
+
+// 'begin end' hex lines of the lists into out; false when one cannot be read.
+bool read_ranges(const std::vector<std::filesystem::path>& lists, std::vector<std::pair<uint32_t, uint32_t>>& out) {
+    for (const std::filesystem::path& list : lists) {
         std::ifstream in(list);
         if (!in) {
             LOG_ERROR("host", "cannot read %s", list.string().c_str());
@@ -41,10 +53,26 @@ bool clear_code_sections(const XbeImage& image, const std::vector<std::filesyste
             std::istringstream fields(line);
             std::string begin, end;
             if (fields >> begin >> end)
-                keep.emplace_back(static_cast<uint32_t>(std::stoul(begin, nullptr, 16)),
-                                  static_cast<uint32_t>(std::stoul(end, nullptr, 16)));
+                out.emplace_back(static_cast<uint32_t>(std::stoul(begin, nullptr, 16)),
+                                 static_cast<uint32_t>(std::stoul(end, nullptr, 16)));
         }
     }
+    return true;
+}
+
+}  // namespace
+
+bool clear_code_sections(const XbeImage& image, const std::vector<std::filesystem::path>& keep_lists,
+                         const std::vector<std::filesystem::path>& clear_lists) {
+    std::vector<std::pair<uint32_t, uint32_t>> keep, clear;
+    if (!read_ranges(keep_lists, keep) || !read_ranges(clear_lists, clear)) return false;
+    // The census ranges' original bytes, before anything is cleared (census_resume puts them back).
+    for (const auto& [b, e] : clear) {
+        const auto* bytes = reinterpret_cast<const uint8_t*>(uintptr_t{b});
+        census_ranges().push_back({b, e, std::vector<uint8_t>(bytes, bytes + (e - b))});
+    }
+    std::sort(census_ranges().begin(), census_ranges().end(),
+              [](const CensusRange& a, const CensusRange& b) { return a.begin < b.begin; });
     static const char* const kCode[] = {".text", "XONLINE", "XNET", "D3DX", "DSOUND", "D3D", "XGRPH", "XPP"};
     size_t cleared = 0, kept = 0;
     for (const XbeSectionHeader* section : image.sections()) {
@@ -65,6 +93,27 @@ bool clear_code_sections(const XbeImage& image, const std::vector<std::filesyste
         }
     }
     LOG_INFO("host", "code sections: %zu bytes INT3, %zu kept (data and level EH code)", cleared, kept);
+    if (!clear.empty()) {
+        size_t extra = 0;
+        for (const auto& [b, e] : clear) {
+            std::memset(reinterpret_cast<void*>(uintptr_t{b}), 0xCC, e - b);
+            extra += e - b;
+        }
+        LOG_INFO("host", "x86 census: %zu more bytes INT3 (%zu ranges)", extra, clear.size());
+    }
+    return true;
+}
+
+bool census_resume(uint32_t address) {
+    auto& ranges = census_ranges();
+    const auto it = std::upper_bound(ranges.begin(), ranges.end(), address,
+                                     [](uint32_t a, const CensusRange& r) { return a < r.begin; });
+    if (it == ranges.begin()) return false;
+    CensusRange& range = *std::prev(it);
+    if (address >= range.end || range.original.empty()) return false;
+    std::memcpy(reinterpret_cast<void*>(uintptr_t{range.begin}), range.original.data(), range.original.size());
+    range.original.clear();  // once
+    LOG_INFO("host", "x86 census: ran %08x (range %08x-%08x)", address, range.begin, range.end);
     return true;
 }
 

@@ -14,6 +14,7 @@
 #include <thread>
 
 #include "crash_note.h"
+#include "host_image.h"
 #include "log.h"
 
 namespace loader {
@@ -21,7 +22,12 @@ namespace loader {
 namespace {
 
 void handle_signal(int signal, siginfo_t* info, void* context) {
-    const auto& gregs = static_cast<ucontext_t*>(context)->uc_mcontext.gregs;
+    auto& gregs = static_cast<ucontext_t*>(context)->uc_mcontext.gregs;
+    // Developers' x86 census: an INT3 in a census range logs the address, gets its bytes back and runs again.
+    if (signal == SIGTRAP && census_resume(static_cast<uint32_t>(gregs[REG_EIP]) - 1)) {
+        gregs[REG_EIP] -= 1;
+        return;
+    }
     const auto reg = [&](int index) { return static_cast<uint32_t>(gregs[index]); };
     LOG_ERROR("crash", "%s at %s, fault address %08x", strsignal(signal), describe_address(reg(REG_EIP)).c_str(),
               static_cast<uint32_t>(reinterpret_cast<uintptr_t>(info->si_addr)));
