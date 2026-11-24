@@ -1,5 +1,6 @@
 #include "g_scr_builtins.h"
 
+#include <algorithm>
 #include <cstring>
 
 #include "actor.h"
@@ -603,6 +604,13 @@ void XB_CDECL GScr_GetPadStick(int32_t stick, float* x, float* y) {
     int32_t ix, iy;
     IN_PadCreate();
     IN_PadGetStick(pad, stick, &ix, &iy);
+    // Ours: the movement keys count as the left stick too (with native actions they no longer move it).
+    if (stick == 0 && client_pc_hooks().movement_stick) {
+        int32_t kx = 0, ky = 0;
+        client_pc_hooks().movement_stick(&kx, &ky);
+        ix = std::clamp(ix + kx, -127, 127);
+        iy = std::clamp(iy + ky, -127, 127);
+    }
     const float scale = title_global<float>(0x0083ec60);  // 1/127
     *x = static_cast<float>(ix) * scale;
     *y = static_cast<float>(iy) * scale;

@@ -46,10 +46,30 @@ bool pad_key_silenced(int32_t key) {
     return hooks.native_actions && ((key >= 0x9a && key <= 0x9d) || (key >= 0xd3 && key <= 0xdc));
 }
 constexpr const char* kSilenced = "";
+// The pad keys whose last press ran its layout binding (bit: D-pad 0-3, buttons 4-13): their release runs it too,
+// also when the pad's keys got silenced in between (a replay of an old recording taken over by the player with a
+// button held - else its command, +activate say, stays held for good).
+uint32_t g_pad_key_ran = 0;
+int32_t pad_key_bit(int32_t key) {
+    if (key >= 0x9a && key <= 0x9d) return key - 0x9a;
+    if (key >= 0xd3 && key <= 0xdc) return key - 0xd3 + 4;
+    return -1;
+}
 }  // namespace
 
-const char* native_key_command(int32_t key) {
-    if (pad_key_silenced(key)) return kSilenced;
+const char* native_key_command(int32_t key, bool down) {
+    if (const int32_t bit = pad_key_bit(key); bit >= 0 && client_pc_hooks().native_actions) {
+        const bool silenced = pad_key_silenced(key);
+        if (down) {
+            if (silenced) return kSilenced;
+            g_pad_key_ran |= 1u << bit;
+        } else {
+            const bool ran = g_pad_key_ran >> bit & 1;
+            g_pad_key_ran &= ~(1u << bit);
+            if (silenced && !ran) return kSilenced;
+        }
+        return nullptr;
+    }
     if (!client_pc_hooks().native_actions || key < kNativeKeyFirst || key >= kNativeKeyFirst + kNativeActionCount)
         return nullptr;
     // In src/input/bindings.h's Action order: the commands the default layout (config/default.cfg) gives the pad
@@ -1177,7 +1197,7 @@ void XB_CDECL Key_ClearStates() {
             if (--anykeydown < 0) anykeydown = 0;
             const bool console_key = i == '`' || i == '~';
             const bool menu_escape = title_global<int32_t>(0x009617a8) && (title_global<uint8_t>(0x0092bdf4) & 1) && i == 0x1b;
-            const char* const native = native_key_command(i);
+            const char* const native = native_key_command(i, false);
             const char* binding = native ? native : field<const char*>(key, 4);
             if (!console_key && !menu_escape && binding && binding[0] == '+') {
                 char cmd[0x400];
@@ -1372,7 +1392,7 @@ void XB_REGS3 XB_CDECL CL_KeyEvent(int32_t down, uint32_t, int32_t key, int32_t 
         }
         return;
     }
-    const char* const native = native_key_command(key);
+    const char* const native = native_key_command(key, down != 0);
     const char* const binding = native ? native : field<const char*>(keys + 8 * key, 4);
     if (binding && !*binding && native) return;  // a pad key with native actions: the pad's actions come direct
     char cmd[0x400];
