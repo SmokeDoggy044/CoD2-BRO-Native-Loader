@@ -187,12 +187,14 @@ if(COD_BRO_BUILD_LOADER AND CMAKE_SYSTEM_NAME STREQUAL "Linux")
     # Decompiled functions the campaign never runs, against default.xbe's code mapped at its
     # addresses (tools/leafscan.py --emit writes leaf_functions.inc; skipped without the game
     # files).
-    add_executable(leaf_test leaf_test.cpp)
+    # The game library takes the script stacks' arena (platform::stack_arena) from the program that loads it.
+    add_executable(leaf_test leaf_test.cpp ${PROJECT_SOURCE_DIR}/src/platform/stack_arena.cpp)
+    set_target_properties(leaf_test PROPERTIES ENABLE_EXPORTS ON)
     target_include_directories(leaf_test PRIVATE ${PROJECT_SOURCE_DIR}/src/platform)
     target_compile_definitions(leaf_test PRIVATE
         COD_BRO_DEFAULT_XBE="${PROJECT_SOURCE_DIR}/../unpacked/default.xbe"
         COD_BRO_LEAF_KNOWN="${PROJECT_SOURCE_DIR}/tools/data/leaf_known.csv")
-    target_link_libraries(leaf_test PRIVATE game_code cod_bro_options ${CMAKE_DL_LIBS})
+    target_link_libraries(leaf_test PRIVATE game_code cod_bro_options platform ${CMAKE_DL_LIBS})
     if(COD_BRO_LEVEL_XLAT_DIR)  # the translated rows' entries (tools/leafscan.py --translated)
         target_include_directories(leaf_test PRIVATE ${COD_BRO_LEVEL_XLAT_DIR})
         target_compile_definitions(leaf_test PRIVATE COD_BRO_LEVEL_XLAT=1)
