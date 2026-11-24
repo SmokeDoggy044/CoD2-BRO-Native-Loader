@@ -18683,7 +18683,7 @@ uint32_t XB_CDECL Path_BuildFromNodes(uint32_t entry, uint32_t, uint32_t ebx, ui
         field<uint32_t>(path, 0x1c) = field<uint32_t>(next, 0x44);
         field<uint32_t>(path, 0x20) = field<uint32_t>(next, 0x48);
         field<uint32_t>(path, 0x24) = field<uint32_t>(next, 0x4c);
-        field<uint16_t>(path, 0x34) = field<uint16_t>(next, 0);
+        set_point_node(path + 0x1c, field<uint16_t>(next, 0));  // the second point's handle (+0x34), as a whole word
         count = 2;
         while (addr_of(next) != start) {
             next = field<const uint8_t*>(next, 0x74);
