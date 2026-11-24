@@ -74,21 +74,20 @@ We check every release's Windows programs on [VirusTotal](https://www.virustotal
 publish the results here, with what we have done about them. Each file name links to its
 public VirusTotal page, where you can see every engine's verdict yourself.
 
-Release 1.0.10, checked on 21 November 2026 (1.0.9's numbers for comparison):
+Release 1.0.11, checked on 24 November 2026 (1.0.10's numbers for comparison):
 
-| File | Engines that flag it | 1.0.9 | What they report |
+| File | Engines that flag it | 1.0.10 | What they report |
 |---|---|---|---|
-| [`cod_bro_launcher.exe`](https://www.virustotal.com/gui/file/ef6d540cb48120e60b71f7bbdb21142a8acb4dc711767b5532a4ecf76d1c25db) | 9 of 70 | 8 | `Gen:Variant.Babar.740485` from Bitdefender and six engines that use Bitdefender's (ALYac, Arcabit, Emsisoft, GData, eScan, VIPRE); CTX; a machine-learning score from Trapmine |
-| [`cod_bro.exe`](https://www.virustotal.com/gui/file/b4576aefdfeaac686f0bf35d7113ffb2b9def89fda073d91413880392b59b08f) | 6 of 71 | 6 | `Mal/EncPk-OJ` from Sophos and ZoneAlarm (which uses Sophos'); Malwarebytes' machine-learning `Anomalous`; unnamed verdicts from APEX and Google; `Trojan/Win32.Agent` from Antiy |
-| [`cod_bro_loader.exe`](https://www.virustotal.com/gui/file/752aad63531502c7ecfee83500b00a5ab624a575e10b1166654aa6bcfba792f6) | 6 of 71 | 6 | the same as `cod_bro.exe` (1.0.9's was also flagged by Microsoft's machine-learning `Trojan:Win32/Wacatac.B!ml`; 1.0.10's is not) |
+| [`cod_bro_launcher.exe`](https://www.virustotal.com/gui/file/d49aaba33fa68557da006bc7d881c8b07eef949c21f9526266ea41453db736c9) | 1 of 69 | 9 | a machine-learning score from Trapmine |
+| [`cod_bro.exe`](https://www.virustotal.com/gui/file/f41de1d69f594082119e7b56e9ffe343418f3802768bf98e53c6227b88c7f63e) | 3 of 70 | 6 | Malwarebytes' machine-learning `Anomalous`; Rising's AI-based `Trojan.Kryptik@AI`; an unnamed verdict from APEX |
+| [`cod_bro_loader.exe`](https://www.virustotal.com/gui/file/b9b8af5cc0510e52460981de802678be900104894e2777d2466f312350bdfd94) | 7 of 70 | 6 | `Mal/EncPk-OJ` from Sophos and ZoneAlarm (which uses Sophos'); the same three as `cod_bro.exe`; unnamed verdicts from Google; `Trojan/Win32.Agent` from Antiy |
 
 What we have done:
 
 - **Bitdefender** confirmed `Gen:Variant.Babar.740485` as a false positive (21 November 2026);
-  until their correction is released, the same signature still matches 1.0.10's launcher, and
-  it then reaches the engines that use theirs over the following days.
+  their correction is out, and it no longer flags the launcher, nor do the six engines that use theirs.
 - **Microsoft:** a false-positive report for 1.0.9's starters is in progress; Microsoft's engine
-  does not flag 1.0.10's.
+  does not flag 1.0.10's or 1.0.11's.
 - **The starters stay small and plain on purpose.** Adding an icon to them in a test build
   raised their detections from 6 to about 20, so they have none; the launcher has one.
 
@@ -317,16 +316,26 @@ screenshots and patient retesting. Where each report stands:
 | [dosndr2017-sys](https://github.com/dosndr2017-sys) | [#24](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader/issues/24) Crash in The Great Crusade | Fixed in [1.0.4](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader/releases/tag/v1.0.4) |
 | [KraxxBR1](https://github.com/KraxxBR1) | [#25](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader/issues/25) Game closing at start-up (AMD) | Crash now logged ([1.0.7](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader/releases/tag/v1.0.7)); a change to the shaders for AMD's driver in [1.0.10](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader/releases/tag/v1.0.10), not confirmed yet; Portuguese (Brazil) text added in [1.0.10](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader/releases/tag/v1.0.10) |
 | [kratosac57-cyber](https://github.com/kratosac57-cyber) | [#26](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader/issues/26) Closing after the prologue; quitting to Windows; pause menu delay | Fixed in [1.0.6](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader/releases/tag/v1.0.6); Quit Game in [1.0.7](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader/releases/tag/v1.0.7); pause menu delay: likely cause fixed in [1.0.9](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader/releases/tag/v1.0.9), not confirmed yet |
-| [Jmon86](https://github.com/Jmon86) | [#27](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader/issues/27) Controller crash, black screen, missing sounds, not starting again, hit markers | Fixed in [1.0.6](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader/releases/tag/v1.0.6) and [1.0.8](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader/releases/tag/v1.0.8); hit markers now switch on at once in [1.0.9](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader/releases/tag/v1.0.9) |
-| [invictus39](https://github.com/invictus39) | [#28](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader/issues/28) Vulkan crash on AMD | Crash traced to the first shader compile with [1.0.9](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader/releases/tag/v1.0.9)'s crash report; a change to the shaders in [1.0.10](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader/releases/tag/v1.0.10), not confirmed yet; the pause-menu prompts fixed in [1.0.10](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader/releases/tag/v1.0.10) |
+| [Jmon86](https://github.com/Jmon86) | [#27](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader/issues/27) Controller crash, black screen, missing sounds, not starting again, hit markers | Fixed in [1.0.6](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader/releases/tag/v1.0.6) and [1.0.8](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader/releases/tag/v1.0.8); hit markers now switch on at once in [1.0.9](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader/releases/tag/v1.0.9); not starting after a render scale change fixed in [1.0.11](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader/releases/tag/v1.0.11) |
+| [invictus39](https://github.com/invictus39) | [#28](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader/issues/28) Vulkan crash on AMD | Vulkan works since [1.0.10](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader/releases/tag/v1.0.10) (confirmed); the flicker is still being looked into |
 | [SneakiestDuke68](https://github.com/SneakiestDuke68) | [#29](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader/issues/29) Ambient occlusion lines; Polish | Fixed in [1.0.7](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader/releases/tag/v1.0.7) (confirmed); Polish added in [1.0.7](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader/releases/tag/v1.0.7) |
 | [ninjapro2828](https://github.com/ninjapro2828) | [#30](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader/issues/30) Missing gunfire, silent missions, not starting again | Fixed in [1.0.8](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader/releases/tag/v1.0.8) |
 | [Sol110405](https://github.com/Sol110405) | [#32](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader/issues/32) "Broc Pool empty" | Fixed in [1.0.8](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader/releases/tag/v1.0.8) |
 | [Tuko-Mas](https://github.com/Tuko-Mas) | [#33](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader/issues/33) Closing at start-up (AMD) | A change to the shaders for AMD's driver in [1.0.10](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader/releases/tag/v1.0.10), not confirmed yet |
 | [Lucifer4ikSX](https://github.com/Lucifer4ikSX) | [#28](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader/issues/28) Logs of the AMD Vulkan crash | A change to the shaders for AMD's driver in [1.0.10](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader/releases/tag/v1.0.10), not confirmed yet |
 | [MaximeClonen](https://github.com/MaximeClonen) | [#35](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader/issues/35) Achievements and an Insane difficulty | Suggestion, not planned yet |
-| [Military-Man](https://github.com/Military-Man) | [#38](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader/issues/38) Game not opening | Waiting for a log |
+| [Military-Man](https://github.com/Military-Man) | [#38](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader/issues/38) Game not opening | Resolved (a launcher setting) |
 | [ertup0](https://github.com/ertup0) | [#39](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader/issues/39) Free camera and a UI toggle | Free camera added in [1.0.10](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader/releases/tag/v1.0.10) (Cheats page); the HUD toggle (H) since [1.0.7](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader/releases/tag/v1.0.7) |
+| [AgriSsio](https://github.com/AgriSsio) | [#40](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader/issues/40) Game not starting again | Fixed in [1.0.11](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader/releases/tag/v1.0.11) |
+| [killerkrieger](https://github.com/killerkrieger) | [#40](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader/issues/40) Logs of the start-up problem | Fixed in [1.0.11](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader/releases/tag/v1.0.11) |
+| [IIFLIPII](https://github.com/IIFLIPII) | [#41](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader/issues/41) ADS toggle | Works in the campaign; multiplayer once it moves to our engine |
+| [MaximeClonen](https://github.com/MaximeClonen) | [#42](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader/issues/42) Free camera softlock after dying | Fixed in [1.0.11](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader/releases/tag/v1.0.11) |
+| [YaroslavValerySablin](https://github.com/YaroslavValerySablin) | [#43](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader/issues/43) Russian corrections | In [1.0.11](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader/releases/tag/v1.0.11) |
+| [YaroslavValerySablin](https://github.com/YaroslavValerySablin) | [#44](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader/issues/44) No HUD in Liberators | Not reproduced yet; [1.0.11](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader/releases/tag/v1.0.11) logs what hides the HUD |
+| [mrprzyjemny-creator](https://github.com/mrprzyjemny-creator) | [#45](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader/issues/45) Where to get the texture packs | Answered (the launcher's Data Files tab) |
+| [IDrinkLava](https://github.com/IDrinkLava) | [#46](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader/issues/46) Sounds above heard below with HRTF | Fixed in [1.0.11](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader/releases/tag/v1.0.11) |
+| [SaintsOfHeaven](https://github.com/SaintsOfHeaven) | [#47](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader/issues/47) Uncapped frame rate; not starting again | Frame rate goes up to 1000 already; the start fixed in [1.0.11](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader/releases/tag/v1.0.11) |
+| [IDrinkLava](https://github.com/IDrinkLava) | [#48](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader/issues/48) Bombsight with keyboard and mouse, not starting again, missing HUD | Bombsight and start fixed in [1.0.11](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader/releases/tag/v1.0.11); the HUD not reproduced yet |
 
 Thanks also to everyone who reported an antivirus warning (see [Antivirus warnings](#antivirus-warnings-windows)),
 and to everyone who plays the game this way and tells others about it.
