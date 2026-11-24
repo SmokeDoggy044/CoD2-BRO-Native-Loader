@@ -190,6 +190,18 @@ void to_al(const float in[3], float out[3]) {
     out[2] = -in[2];
 }
 
+// The game's listener "top" (Snd_SetListenerOrientation's second axis) points down in the world, so with HRTF a
+// sound above the player was heard below (#46; stereo and 5.1 have no height, so it never showed there). Mirrored
+// across the listener's level plane (OpenAL Soft's reverse-y), left/right and front/back stay as they were.
+// `v`: an OpenAL position (with `origin`, the listener's) or a direction (origin null); `up`: the listener's top.
+void mirror_height(float v[3], const float* origin, const float up[3]) {
+    const float length = std::sqrt(up[0] * up[0] + up[1] * up[1] + up[2] * up[2]);
+    if (!(length > 0.0f)) return;
+    float d = 0.0f;
+    for (int k = 0; k < 3; ++k) d += (v[k] - (origin ? origin[k] : 0.0f)) * up[k] / length;
+    for (int k = 0; k < 3; ++k) v[k] -= 2.0f * d * up[k] / length;
+}
+
 VoiceImpl* Engine::find(VoiceId id) {
     const auto* header = from_xbox_ptr<const VoiceHeader>(id);
     if (header && header->magic == kMagicVoice) return header->impl;
@@ -283,6 +295,12 @@ void Engine::update(VoiceImpl& v) {
         const bool redirect = v.current.mode != SpatialMode::HeadRelative && feature_on(Feature::Occlusion) &&
                               feature_on(Feature::Openings) && v.transmission.redirect;
         to_al(redirect ? v.transmission.position : v.current.position, params.position);
+        if (params.placement == Output::Placement::World) {
+            float listener[3], up[3];
+            to_al(current_listener.position, listener);
+            to_al(current_listener.top, up);
+            mirror_height(params.position, listener, up);
+        }
     } else if (format.channels == 1) {
         params.placement = Output::Placement::Relative;
         params.position[0] = v.pan;
@@ -349,6 +367,7 @@ void Engine::update_listener() {
     to_al(current_listener.velocity, velocity);
     to_al(current_listener.front, at);
     to_al(current_listener.top, up);
+    mirror_height(velocity, nullptr, up);  // as the sources' positions (mirror_height)
     o->set_listener(position, velocity, at, up);
 }
 
