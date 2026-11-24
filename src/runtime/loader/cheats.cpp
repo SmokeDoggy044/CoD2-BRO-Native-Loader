@@ -37,6 +37,12 @@ constexpr float kSpeed = 300.0f;  // world units per second (the player runs at 
 
 bool held(uint32_t mask, input::Action action) { return mask >> static_cast<unsigned>(action) & 1; }
 
+// The player is dead: the next snapshot's pm_type (+0x34) is 4 or more (CG_OffsetFirstPersonView's death view).
+bool player_dead() {
+    const uint32_t next = game::title_global<uint32_t>(0x00971aac);
+    return next && *reinterpret_cast<const int32_t*>(uintptr_t{next + 0x34}) >= 4;
+}
+
 void stop_flying(const char* why) {
     if (!g_camera.flying && !g_camera.starting) return;
     g_camera.flying = g_camera.starting = false;
@@ -95,6 +101,15 @@ void install_cheats(bool supported, const TitlePatchConfig& config) {
     g_supported = supported;
     if (!supported) return;
     game::client_pc_hooks().free_camera = &free_camera_view;
+    // Diagnostics for #44/#48 (the HUD gone until a restart): every change of what keeps the HUD back.
+    game::client_pc_hooks().hud_state = [](int32_t reason, int32_t dialog) {
+        static const char* const kWhy[] = {"drawn", "held back by a dialog", "held back by the root's flag",
+                                           "hidden (cg_draw2D 0: the Hide HUD key)", "hidden (free camera)"};
+        if (reason == 1)
+            LOG_INFO("ui", "HUD %s (dialog %d)", kWhy[1], dialog);
+        else
+            LOG_INFO("ui", "HUD %s", kWhy[reason >= 0 && reason < 5 ? reason : 0]);
+    };
     set_god_mode(config.god_mode);
     set_infinite_ammo(config.infinite_ammo);
     set_free_camera(config.free_camera);
@@ -124,12 +139,20 @@ bool free_camera() { return g_free_camera_allowed.load(); }
 uint32_t cheats_filter_actions(uint32_t held_actions) {
     if (!g_supported) return held_actions;
     if (!g_free_camera_allowed.load()) stop_flying("cheat switched off");
+    // Dead: the camera comes back and the player keeps every input (the death screen needs it; #42: the key while
+    // dead froze the input for good).
+    const bool dead = player_dead();
+    if (dead) stop_flying("the player died");
+    // A start no view took over within half a second (the view hook does not run): the input comes back.
+    if (g_camera.starting && std::chrono::steady_clock::now() - g_camera.last > std::chrono::milliseconds(500))
+        stop_flying("no view took it");
     const bool key = held(held_actions, input::Action::FreeCamera);
-    if (key && !g_camera.key_down && g_free_camera_allowed.load()) {
+    if (key && !g_camera.key_down && !dead && g_free_camera_allowed.load()) {
         if (g_camera.flying || g_camera.starting)
             stop_flying("the key");
         else {
             g_camera.starting = true;  // the next view hands over where it is
+            g_camera.last = std::chrono::steady_clock::now();
             input::set_player_frozen(true);
         }
     }
