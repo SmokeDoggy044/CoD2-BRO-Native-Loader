@@ -8,7 +8,7 @@
 ![Platforms: Linux | Windows](https://img.shields.io/badge/platforms-Linux%20%7C%20Windows-lightgrey)
 [![Release](https://img.shields.io/github/v/release/SmokeDoggy044/CoD2-BRO-Native-Loader?label=release)](https://github.com/SmokeDoggy044/CoD2-BRO-Native-Loader/releases)
 ![Made with AI](https://img.shields.io/badge/made%20with-AI-8A2BE2)
-[![Antivirus: VirusTotal results](https://img.shields.io/badge/antivirus-VirusTotal%20results-orange)](#antivirus-warnings-windows)
+[![Antivirus: VirusTotal results](docs/images/badge-antivirus.svg)](#antivirus-warnings-windows)
 
 [Play](#play) · [Comparison](#original-and-custom-engine) · [Features](#features) · [Status](#status) · [Build](#build-from-source) · [Documentation](docs/README.md) · [Made with AI](#made-with-ai)
 
