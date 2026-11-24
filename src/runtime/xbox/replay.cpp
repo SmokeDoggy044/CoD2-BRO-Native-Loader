@@ -327,6 +327,18 @@ void go_live() {
     finish();
 }
 
+}  // namespace
+
+bool take_over() {
+    if (g_config.mode != Mode::Replay || g_live) return false;
+    g_config.exit_at_end = false;  // the game goes on with the player's input
+    LOG_INFO("replay", "taken over at frame %u: the player's input from here", g_frame);
+    go_live();
+    return true;
+}
+
+namespace {
+
 // Replay: the next recorded block of this tag into data; false if this frame has none left (data unchanged).
 bool take(char tag, void* data, size_t size) {
     Queue& q = g_queues[static_cast<uint8_t>(tag)];
@@ -763,7 +775,9 @@ bool on_stream() { return on_stream_impl(); }
 
 bool main_thread() { return t_bound; }
 
-bool replaying() { return g_config.mode == Mode::Replay; }
+// Not once the replay went live (the recording ran out, or take_over): from there the run is the player's, and
+// callers that hand out only what the recording lists (the sound engine's finished packets) must act live.
+bool replaying() { return g_config.mode == Mode::Replay && !g_live; }
 
 uint32_t version() { return g_input_version; }
 

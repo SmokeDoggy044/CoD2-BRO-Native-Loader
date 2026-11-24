@@ -143,13 +143,15 @@ void call_title(uint32_t function, std::initializer_list<uint32_t> args) {
 // keep 60 Hz. Presenting does not wait for the display (backend.h): with a blocking
 // present, its wait came on top of the title's, and in heavy scenes frames missed
 // their vertical blank (50 ms frames in clusters, as the two clocks' phases drifted).
+// A replay's speed (BackendConfig::vblank_speed at the start; set_replay_speed changes it, e.g. on taking over).
+std::atomic<double> g_replay_speed{1.0};
+
 void vblank_thread(double hz) {
     if (auto attach = xbox::title_calls().attach_thread) attach();
     using Clock = std::chrono::steady_clock;
-    const auto period = std::chrono::nanoseconds(static_cast<int64_t>(1e9 / hz));
     auto next = Clock::now();
     for (;;) {
-        next += period;
+        next += std::chrono::nanoseconds(static_cast<int64_t>(1e9 / (hz * g_replay_speed.load())));
         std::this_thread::sleep_until(next);
         const uint32_t count = ++g.vblank_count;
         if (const uint32_t callback = g.vblank_callback.load()) {
@@ -228,7 +230,8 @@ bool create_device(uint32_t width, uint32_t height, uint32_t back_buffer_format,
     g.display_hz = display_hz;
     const double vblank_hz = display_hz >= 59 && display_hz <= 61 ? display_hz : kVBlankHz;
     LOG_INFO("render", "vertical blank at %.3f Hz (display %.3f Hz)", vblank_hz * g.config.vblank_speed, display_hz);
-    std::thread(vblank_thread, vblank_hz * g.config.vblank_speed).detach();
+    g_replay_speed = g.config.vblank_speed;
+    std::thread(vblank_thread, vblank_hz).detach();
     return true;
 }
 
@@ -843,11 +846,13 @@ void set_frame_limit(double fps) { g.frame_limit = fps; }
 
 double display_refresh_rate() { return g.display_hz.load(); }
 
+void set_replay_speed(double speed) { g_replay_speed = speed; }
+
 void pace_frame() {
     using Clock = std::chrono::steady_clock;
     double fps = g.frame_limit;
     if (fps <= 0 && !g.config.backend.wait_for_display) fps = g.display_hz > 0 ? g.display_hz.load() : kVBlankHz;
-    fps *= g.config.vblank_speed;
+    fps *= g_replay_speed.load();
     if (fps <= 0) {
         g.frame_start = {};
         return;

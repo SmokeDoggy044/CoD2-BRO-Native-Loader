@@ -300,7 +300,7 @@ void Output::drive_loopback() {
     auto next = steady_clock::now();
     while (!stopping_) {
         if (!paused_) mix(scratch.data(), kChunk);
-        next += nanoseconds(static_cast<int64_t>(kChunk * 1e9 / rate_ / speed_));
+        next += nanoseconds(static_cast<int64_t>(kChunk * 1e9 / rate_ / speed_.load()));
         std::this_thread::sleep_until(next);
     }
 }

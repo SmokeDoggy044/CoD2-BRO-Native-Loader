@@ -995,6 +995,12 @@ void configure(const OutputConfig& config) {
     g.config = config;
 }
 
+void set_replay_speed(double speed) {
+    Guard lock(g.mutex, TestLock::State);
+    g.config.speed = speed;
+    if (g.output) g.output->set_speed(speed);
+}
+
 void set_voice_vtable(uint32_t vtable) {
     Guard lock(g.mutex, TestLock::State);
     g.vtable = vtable;

@@ -22,6 +22,7 @@
 #include "ui_text.h"
 #include "title_crt.h"
 #include "scene_view.h"
+#include "game_window.h"
 #include "replay.h"
 #include "bindings.h"
 #include "compare.h"
@@ -218,6 +219,16 @@ void configure_title_services(const Options& options, const fs::path& assets, co
                               : audio::OutputConfig::Device::Default;
     if (options.audio_capture) audio_config.capture_path = options.audio_capture->string();
     if (fast_replay) audio_config.speed = options.replay_speed;
+#if COD_BRO_DEV_TOOLS
+    // Developers: Ctrl+Shift+L hands a running replay over to the player, at normal speed (a fast replay's sound
+    // stays off: its output is the silent one).
+    if (options.replay.mode == xbox::replay::Mode::Replay)
+        render::set_take_over_key([] {
+            if (!xbox::replay::take_over()) return;
+            render::set_replay_speed(1.0);
+            audio::set_replay_speed(1.0);
+        });
+#endif
     audio_config.device_name = options.audio_device;
     audio_config.speakers = options.speakers;
     render::set_graphics(options.graphics_enhanced, options.graphics_features);

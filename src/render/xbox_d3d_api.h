@@ -86,6 +86,8 @@ void wait_vertical_blank_after(uint32_t seen, uint32_t timeout_ms);
 // by vblank_speed. Title thread.
 void set_frame_limit(double fps);
 void pace_frame();
+// A replay's speed from now on (vertical blank and frame pacing): 1 when the player takes over. Any thread.
+void set_replay_speed(double speed);
 // The display's refresh rate in Hz (0 before the device exists). Any thread.
 double display_refresh_rate();
 

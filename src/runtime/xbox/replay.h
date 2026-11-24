@@ -64,6 +64,9 @@ bool start(const Config& config);
 void bind_current_thread();
 
 bool active();
+// Developers: the player takes over a running replay (Ctrl+Shift+L): it ends here with its report and the game goes
+// on live with the player's input instead of exiting. False when no replay is running. The title's main thread.
+bool take_over();
 
 // Value streams. Each returns what the title gets: the real value (recorded) or the recorded one.
 // `site` (format 7): what the value belongs to when one tag has several readers - a voice, a wait, a call site; a
