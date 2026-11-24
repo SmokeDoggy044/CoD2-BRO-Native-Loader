@@ -51,7 +51,8 @@
       "displayName": "Player release inside the Steam Runtime sniper SDK, without the developer tools (packaging/sniper/inside.sh)",
       "binaryDir": "${sourceDir}/build/sniper/player",
       "cacheVariables": {
-        "COD_BRO_DEV_TOOLS": "OFF"
+        "COD_BRO_DEV_TOOLS": "OFF",
+        "COD_BRO_LEVEL_XLAT_DIR": ""
       }
     },
     {
@@ -98,7 +99,8 @@
       "displayName": "Windows 32-bit player release without the developer tools (cross-built with MinGW-w64)",
       "binaryDir": "${sourceDir}/build/windows-mingw-player",
       "cacheVariables": {
-        "COD_BRO_DEV_TOOLS": "OFF"
+        "COD_BRO_DEV_TOOLS": "OFF",
+        "COD_BRO_LEVEL_XLAT_DIR": ""
       }
     },
     {

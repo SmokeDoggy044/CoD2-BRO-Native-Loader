@@ -2,7 +2,7 @@
 """lift.py: translate level functions (x86-32) to C over a register struct (translator step 2: integer core).
 usage: build/translator_venv/bin/python tools/translator/lift.py [LEVEL] [--class intleaf] [--only ADDR,...]
                                                                   [--out DIR]
-Writes DIR/<level>_xl.cpp (default build/translator/gen): one C function per x86 function plus its entry stub and a
+Writes DIR/<level>_xl.cpp (default src/levels/translated): one C function per x86 function plus its entry stub and a
 game::Function row table (translated_<level>()). Functions using anything the lifter does not handle yet are left out
 (listed with the reason). Runtime: src/levels/xlat_runtime.h.
 
@@ -832,7 +832,7 @@ def main():
     ap.add_argument("--skip", help="addresses left to the original code (bisecting)")
     ap.add_argument("--nan-trace", action="store_true", help="debugging: report the first SSE result that is NaN")
     ap.add_argument("--extra-starts", help="addresses that start a function although no symbol names them")
-    ap.add_argument("--out", default="build/translator/gen")
+    ap.add_argument("--out", default="src/levels/translated")
     ap.add_argument("--verbose", action="store_true")
     args = ap.parse_args()
     functions, _ = fnpack.load_names()
