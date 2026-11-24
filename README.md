@@ -10,7 +10,7 @@
 ![Made with AI](https://img.shields.io/badge/made%20with-AI-8A2BE2)
 [![Antivirus: VirusTotal results](https://img.shields.io/badge/antivirus-VirusTotal%20results-orange)](#antivirus-warnings-windows)
 
-[Play](#play) · [Antivirus warnings](#antivirus-warnings-windows) · [Comparison](#original-and-custom-engine) · [Features](#features) · [Status](#status) · [Build](#build-from-source) · [Documentation](docs/README.md) · [Made with AI](#made-with-ai)
+[Play](#play) · [Comparison](#original-and-custom-engine) · [Features](#features) · [Status](#status) · [Build](#build-from-source) · [Documentation](docs/README.md) · [Made with AI](#made-with-ai)
 
 </div>
 
