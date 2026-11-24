@@ -1,5 +1,5 @@
 # 32-bit Windows build on a Linux host with MinGW-w64 GCC; tests and the game run
-# under Wine. Fedora: sudo dnf install mingw32-gcc-c++ mingw32-winpthreads-static wine
+# under Wine. Fedora: sudo dnf install mingw32-gcc-c++ mingw32-winpthreads wine
 set(CMAKE_SYSTEM_NAME Windows)
 set(CMAKE_SYSTEM_PROCESSOR x86)
 
@@ -18,9 +18,12 @@ set(CMAKE_FIND_ROOT_PATH_MODE_PACKAGE ONLY)
 # (OpenAL Soft's SSE stores into new'd objects crashed half the time without it).
 set(CMAKE_CXX_FLAGS_INIT "-faligned-new=8")
 
-# No MinGW runtime DLLs to ship: libgcc, libstdc++ and winpthreads linked into every
-# executable and DLL (OpenAL Soft stays a DLL: LGPL).
-set(CMAKE_EXE_LINKER_FLAGS_INIT "-static")
-set(CMAKE_SHARED_LINKER_FLAGS_INIT "-static")
+# libgcc and libstdc++ linked into every executable and DLL; winpthreads stays its own DLL
+# (libwinpthread-1.dll, shipped beside the programs): linked in, its thread code put
+# SuspendThread/GetThreadContext/SetThreadContext/IsDebuggerPresent into the import table of
+# every file of ours - calls antivirus heuristics weigh as an injector's. OpenAL Soft stays a
+# DLL as well (LGPL).
+set(CMAKE_EXE_LINKER_FLAGS_INIT "-static-libgcc -static-libstdc++")
+set(CMAKE_SHARED_LINKER_FLAGS_INIT "-static-libgcc -static-libstdc++")
 
 set(CMAKE_CROSSCOMPILING_EMULATOR wine)

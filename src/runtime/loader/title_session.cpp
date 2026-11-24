@@ -26,6 +26,7 @@
 #include "compare.h"
 #include "crash.h"
 #include "diag_summary.h"
+#include "memory_stats.h"
 #include "functions.h"
 #include "gfx_device.h"
 #include "enhanced_graphics.h"
@@ -255,6 +256,36 @@ int check_settings_file() {
 
 }  // namespace
 
+namespace {
+
+// settings.ini lines the game left out at this start (start_session logs them once the log is open).
+std::vector<std::string> g_ignored_settings;
+
+// The settings without the lines the option parser would refuse (unknown key, a value the option does not take,
+// a developer tool's option in a player build): a bad line in settings.ini must never keep the game from starting
+// (1.0.10's settings pages wrote "render-scale = " for Auto, and the next start ended before the log opened).
+platform::Settings usable_settings(const platform::Settings& settings) {
+    platform::Settings usable;
+    for (const auto& [key, value] : settings.entries()) {
+        const platform::SettingDef* def = platform::find_setting(key);
+        std::string error;
+        if (!def)
+            error = "unknown setting";
+        else if (!COD_BRO_DEV_TOOLS && developer_tool_option(def->key))
+            error = "a developer tool";
+        else if (!platform::check_setting(*def, value, &error) && error.empty())
+            error = "not a value it takes";
+        if (!error.empty()) {
+            g_ignored_settings.push_back(key + " = " + value + " (" + error + ")");
+            continue;
+        }
+        usable.set(key, value);
+    }
+    return usable;
+}
+
+}  // namespace
+
 int load_options(int argc, char** argv, std::optional<Options>& parsed_out) {
     for (int i = 1; i < argc; ++i)
         if (std::string_view(argv[i]) == "--check-settings") {
@@ -264,6 +295,14 @@ int load_options(int argc, char** argv, std::optional<Options>& parsed_out) {
             platform::end_process(i + 1 < argc && write_lang_template(argv[i + 1]) ? 0 : 1);
         }
     // settings.ini first, so the command line overrides it. A reboot re-reads it.
+    // Player builds: a developer tool's option is refused before anything acts on it (the recording read below).
+    for (int i = 1; !COD_BRO_DEV_TOOLS && i < argc; ++i) {
+        const std::string name = option_name(argv[i]);
+        if (name.starts_with("--") && developer_tool_option(name.substr(2))) {
+            std::fprintf(stderr, "%s is a developer tool; this build is for players and leaves it out\n", name.c_str());
+            return 2;
+        }
+    }
     // Not with --compare: the comparison runs the game as on the Xbox, whatever the
     // player chose in the launcher.
     bool comparing = false;
@@ -289,9 +328,9 @@ int load_options(int argc, char** argv, std::optional<Options>& parsed_out) {
         text << file.rdbuf();
         settings_text = text.str();
     }
-    const platform::Settings settings = comparing ? platform::Settings{}
-                                        : replaying ? platform::Settings::parse(settings_text)
-                                                    : platform::load_settings();
+    const platform::Settings settings = usable_settings(comparing   ? platform::Settings{}
+                                                        : replaying ? platform::Settings::parse(settings_text)
+                                                                    : platform::load_settings());
     std::vector<std::string> merged = settings.as_args();
     merged.insert(merged.begin(), argv[0]);
     merged.insert(merged.end(), argv + 1, argv + argc);
@@ -358,9 +397,12 @@ bool start_session(const Options& options, int argc, char** argv) {
                  options.diag_dir->string().c_str(), options.diag_seconds);
         // summary.txt when the process ends (not on a reboot: the session goes on).
         // (platform::end_process ends every normal run and skips atexit handlers; atexit stays for any other exit.)
+        loader::start_memory_stats(*options.diag_dir / "memory.txt");
         static const auto write_once = [] {
             static bool written = false;
-            if (!std::exchange(written, true)) loader::write_diag_summary(*g_diag_dir);
+            if (std::exchange(written, true)) return;
+            loader::write_memory_stats();
+            loader::write_diag_summary(*g_diag_dir);
         };
         platform::at_end_process([] { write_once(); });
         std::atexit([] { write_once(); });
@@ -375,8 +417,14 @@ bool start_session(const Options& options, int argc, char** argv) {
         if (!platform::log_set_file(g_log_path.string().c_str(), kPlayerLogLimit))
             std::fprintf(stderr, "cannot write %s\n", g_log_path.string().c_str());
     }
+    if (options.mem_stats_file && !options.diag_dir) {
+        loader::start_memory_stats(*options.mem_stats_file);
+        platform::at_end_process([] { loader::write_memory_stats(); });
+        std::atexit([] { loader::write_memory_stats(); });
+    }
     loader::set_fatal_exit_hook([](bool error) {
         loader::compare::flush();
+        loader::write_memory_stats();
         if (!error) render::save_caches();  // a crash may have left the GPU device unusable
         if (g_diag_dir) loader::write_diag_summary(*g_diag_dir);
         if (error) tell_player("The game stopped after an error.");
@@ -397,6 +445,8 @@ bool start_session(const Options& options, int argc, char** argv) {
         loader::run_fatal_exit_hook(true);
         platform::terminate_now(3);
     });
+    for (const std::string& line : g_ignored_settings)
+        LOG_WARN("loader", "settings.ini: left out \"%s\"; the default is used", line.c_str());
     return true;
 }
 

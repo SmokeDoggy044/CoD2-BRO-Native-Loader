@@ -1,6 +1,8 @@
 #include "xanim.h"
 
 #include <cstring>
+#include <memory>
+#include <vector>
 
 #include "dobj.h"
 #include "g_scr_runtime.h"
@@ -40,7 +42,7 @@ uint8_t* tree_anims(const uint8_t* tree) {
 // weight, +0x24 weight, +0x2c track).
 uint16_t info_index(const uint8_t* tree, uint32_t index) { return *reinterpret_cast<const uint16_t*>(tree + 0x18 + index * 2); }
 
-uint8_t* info_at(uint32_t info) { return &title_global<uint8_t>(0x00965cf0 + info * 0x30); }
+uint8_t* info_at(uint32_t info) { return AnimInfo_At(info); }
 
 float& info_float(uint8_t* info, uint32_t offset) { return *reinterpret_cast<float*>(info + offset); }
 
@@ -676,6 +678,12 @@ void XB_CDECL AnimTree_EnsureAnimLoaded(uint32_t handle, uint32_t* result) {
     *result = clip ? *reinterpret_cast<const uint32_t*>(static_cast<uintptr_t>(clip + 0x38)) : title_global<uint32_t>(0x0083eb20);
 }
 
+bool XAnim_ClipLoaded(uint32_t handle) {
+    uint8_t* node = anim_node(rm_anims(handle >> 16), handle & 0xffff);
+    if (!*reinterpret_cast<const uint32_t*>(node + 0x24)) AnimData_EnsureLoaded(node);
+    return *reinterpret_cast<const uint32_t*>(node + 0x24) != 0;
+}
+
 void XB_REGS1 XB_CDECL AnimTree_FreeNotetracks(uint32_t entry) {
     // Every node of the entry drops its clip, child count and notetracks.
     const uint8_t* anims = rm_anims(entry);
@@ -864,9 +872,46 @@ uint16_t& u16_ref(uint8_t* p, uint32_t offset) { return *reinterpret_cast<uint16
 
 }  // namespace
 
+namespace {
+
+// Ours: the infos past the table, 512 per block (ids 0x200 + n * 0x200 ...), kept for reuse after a reset.
+constexpr uint32_t kInfoTable = 0x200, kInfoBlock = 0x200, kInfoSize = 0x30;
+std::vector<std::unique_ptr<uint8_t[]>> g_info_blocks;
+uint32_t g_info_blocks_used = 0;
+
+// Links one more block of free infos in as the free list (called only when it is empty).
+bool grow_infos() {
+    const uint32_t first = kInfoTable + g_info_blocks_used * kInfoBlock;
+    if (first + kInfoBlock > 0x10000) return false;  // ids are 16-bit
+    if (g_info_blocks_used == g_info_blocks.size())
+        g_info_blocks.push_back(std::make_unique<uint8_t[]>(kInfoBlock * kInfoSize));
+    std::memset(g_info_blocks[g_info_blocks_used].get(), 0, kInfoBlock * kInfoSize);
+    ++g_info_blocks_used;
+    for (uint32_t i = 0; i < kInfoBlock; ++i) {
+        uint8_t* const info = AnimInfo_At(first + i);
+        u16_ref(info, 0xa) = static_cast<uint16_t>(i ? first + i - 1 : 0);
+        u16_ref(info, 0xc) = static_cast<uint16_t>(i + 1 < kInfoBlock ? first + i + 1 : 0);
+    }
+    title_global<uint16_t>(0x00965cfc) = static_cast<uint16_t>(first);
+    return true;
+}
+
+}  // namespace
+
+uint8_t* AnimInfo_At(uint32_t id) {
+    if (id < kInfoTable) return &title_global<uint8_t>(0x00965cf0 + id * kInfoSize);
+    const uint32_t extra = id - kInfoTable;
+    return g_info_blocks[extra / kInfoBlock].get() + (extra % kInfoBlock) * kInfoSize;
+}
+
+void AnimInfo_ResetExtra() { g_info_blocks_used = 0; }
+
+uint32_t AnimInfo_ExtraCount() { return g_info_blocks_used * kInfoBlock; }
+
 uint32_t XB_REGS1 XB_CDECL AnimTree_AllocInfo(uint32_t index, uint8_t* tree) {
     // The head of the free list (info 0 +0xc) becomes node `index`'s info.
     uint16_t& head = title_global<uint16_t>(0x00965cfc);
+    if (!head) grow_infos();  // ours: more infos instead of failing
     const uint16_t id = head;
     if (!id) {
         own_function<void XB_CDECL()>(&Sys_DebugBreak)();  // Sys_DebugBreak

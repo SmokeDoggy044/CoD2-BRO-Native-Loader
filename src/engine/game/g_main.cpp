@@ -1,6 +1,7 @@
 #include "g_main.h"
 
 #include <cstring>
+#include <string>
 
 #include "actor.h"
 #include "cgame.h"
@@ -19,6 +20,7 @@
 #include "sv.h"
 #include "title_crt.h"
 #include "title_data.h"
+#include "title_host.h"
 #include "xanim.h"
 #include "cl.h"
 #include "g_scr_runtime.h"
@@ -1396,13 +1398,31 @@ void XB_REGS1 XB_CDECL G_RestorePlayerLoadout(const uint8_t* saved) {
     G_RestorePlayerHealth(saved);
 }
 
+namespace {
+void save_checkpoint(const char* name, uint8_t* checkpoint, uint32_t at_player);
+}
+
+// Ours around it: a checkpoint really saved (the stored name changed - repeats and refusals return early) goes to
+// the recording/replay checks (title_host.h replay_checkpoint): the run's milestones, compared by name and frame.
+void XB_CDECL G_SaveCheckpoint(const char* name, uint8_t* checkpoint, uint32_t at_player) {
+    const uint32_t before = word_at(checkpoint, 0x558);
+    const std::string before_text = before ? reinterpret_cast<const char*>(uintptr_t{before + 6}) : "";
+    save_checkpoint(name, checkpoint, at_player);
+    const uint32_t after = word_at(checkpoint, 0x558);
+    const char* const after_text = after ? reinterpret_cast<const char*>(uintptr_t{after + 6}) : "";
+    if (after && *after_text && (after != before || before_text != after_text) && title_host().replay_checkpoint)
+        title_host().replay_checkpoint(after_text);
+}
+
 PLATFORM_ASM_ENTRY(G_SaveCheckpoint_entry,
                    "pushl 4(%esp)\n"
                    "pushl %ebx\n"
                    "pushl %eax\n" PLATFORM_ASM_CALL(G_SaveCheckpoint) "addl $12, %esp\n"
                    "ret $4")
 
-void XB_CDECL G_SaveCheckpoint(const char* name, uint8_t* checkpoint, uint32_t at_player) {
+namespace {
+// G_SaveCheckpoint (0x002cd750) as the original.
+void save_checkpoint(const char* name, uint8_t* checkpoint, uint32_t at_player) {
     auto text = [](uint32_t address) { return reinterpret_cast<const char*>(uintptr_t{address}); };
     auto ent_at = [](uint32_t word) { return reinterpret_cast<uint8_t*>(uintptr_t{word}); };
     uint8_t* const letterbox = Cvar_Get(text(0x00835390), text(0x0082e098), 0);  // letterbox_enabled "0"
@@ -1500,6 +1520,7 @@ void XB_CDECL G_SaveCheckpoint(const char* name, uint8_t* checkpoint, uint32_t a
         ++word_at(checkpoint, 0x554);
     }
 }
+}  // namespace
 
 // The module's entry, main and post-init run where the original's calls are (entry - 0xc / - 4, the post-init as a
 // tail call at the entry ESP): level script code leaves its stack below them. The C frame sits below a gap.

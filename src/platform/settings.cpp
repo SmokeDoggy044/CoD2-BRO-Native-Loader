@@ -30,6 +30,10 @@ std::optional<std::string> Settings::get(const std::string& key) const {
 }
 
 void Settings::set(const std::string& key, const std::string& value) {
+    if (value.empty()) {
+        erase(key);
+        return;
+    }
     for (auto& [k, v] : entries_) {
         if (k == key) {
             v = value;

@@ -27,6 +27,10 @@ namespace game {
 // The running fiber's stack range, for the crash handler's backtrace (false on the scheduler's stack).
 bool scr_fiber_stack(uint32_t* limit, uint32_t* base);
 
+// The running fiber's host stack pointer for translated level code (levels/xlat_runtime.cpp; made on first use),
+// null on the scheduler's stack.
+uint32_t* scr_fiber_host_sp();
+
 // Host and thread words a script thread switch leaves describing the suspended frames, which the scheduler
 // overwrites when it switches back (run() below): the fiber's wait ESP, this thread's gap-entry floor, FS:[0]
 // and FS:[0x14], the stack guard's table. The compare harness skips them after a test that ended at the

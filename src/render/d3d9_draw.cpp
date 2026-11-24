@@ -14,6 +14,7 @@
 
 #include "d3d9_shader.h"
 #include "d3d_internal.h"
+#include "kernel_memory.h"
 #include "enhanced_graphics.h"
 #include "gfx_verify.h"
 #include "log.h"
@@ -720,7 +721,7 @@ D3D9Draw::CachedTexture* D3D9Draw::texture_for(uint32_t data, uint32_t format, u
     uint32_t palette_data = 0;
     if (layout.color_format == 0x0B && palette_header) {  // P8
         palette_data = from_xbox_ptr<XbResource>(palette_header)->data;
-        palette = from_xbox_ptr<uint32_t>(palette_data | 0x80000000u);
+        palette = from_xbox_ptr<uint32_t>(palette_data + xbox::contiguous_base());
     }
 
     const uint32_t key_words[4] = {data, format, size_field, palette_data};
@@ -728,7 +729,7 @@ D3D9Draw::CachedTexture* D3D9Draw::texture_for(uint32_t data, uint32_t format, u
     CachedTexture& entry = caches_->textures[key];
     if (entry.texture && entry.checked_frame == frame_) return &entry;
     entry.checked_frame = frame_;
-    const auto* memory = from_xbox_ptr<uint8_t>(data | 0x80000000u);
+    const auto* memory = from_xbox_ptr<uint8_t>(data + xbox::contiguous_base());
     uint64_t sample = sample_texture(memory, layout.total_size);
     if (palette) sample = hash_bytes(palette, 256 * 4, sample);
     const bool full_check = !entry.texture || sample != entry.sample || frame_ - entry.changed_frame < kHotFrames ||

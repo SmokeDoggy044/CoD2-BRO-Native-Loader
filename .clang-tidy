@@ -1,0 +1,30 @@
+# Bug-finding checks only (no style or modernization). Left out: checks that only flag what this code does on
+# purpose - Xbox integer narrowing, Xbox addresses held as integers, function casts through void (*)(), adjacent
+# same-typed parameters, static tables, enums zero-initialized like the original's structures.
+# Run: tools/tidy.sh (the files you changed) or tools/tidy.sh PATH... (first full run 11-21: no bugs found).
+Checks: >
+  -*,
+  bugprone-*,
+  -bugprone-easily-swappable-parameters,
+  -bugprone-narrowing-conversions,
+  -bugprone-implicit-widening-of-multiplication-result,
+  -bugprone-casting-through-void,
+  -bugprone-reserved-identifier,
+  -bugprone-branch-clone,
+  -bugprone-switch-missing-default-case,
+  -bugprone-assignment-in-if-condition,
+  -bugprone-throwing-static-initialization,
+  -bugprone-invalid-enum-default-initialization,
+  clang-analyzer-core.*,
+  clang-analyzer-cplusplus.*,
+  clang-analyzer-unix.*,
+  clang-analyzer-security.*,
+  performance-*,
+  -performance-enum-size,
+  -performance-no-int-to-ptr,
+  misc-redundant-expression,
+  misc-misleading-identifier,
+  misc-misleading-bidirectional
+WarningsAsErrors: ''
+HeaderFilterRegex: 'src/(platform|render|audio|input|online|launcher|runtime|text)/'
+FormatStyle: none

@@ -90,6 +90,8 @@ public:
     void set_echo(const Echo& echo);
     // Stops all output until resumed (the voices do not advance).
     void set_paused(bool paused);
+    // A fast replay's silent output (loopback) mixes at this speed: 1 when the player takes over.
+    void set_speed(double speed) { speed_ = speed; }
     bool paused() const { return paused_; }
 
     bool is_loopback() const { return loopback_; }
@@ -125,7 +127,7 @@ private:
     ALCcontext* context_ = nullptr;
     bool loopback_ = false;
     uint32_t rate_ = 48000;
-    double speed_ = 1;
+    std::atomic<double> speed_{1};
     std::vector<std::unique_ptr<Source>> sources_;
     std::thread driver_;
     std::atomic<bool> stopping_{false};

@@ -3,6 +3,7 @@ set(loader_sources
     compare_common.cpp
     crash.cpp
     diag_summary.cpp
+    memory_stats.cpp
     hooks.cpp
     host_image.cpp
     kernel_stubs.cpp
@@ -16,17 +17,24 @@ set(loader_sources
     cheats.cpp
     game_texts.cpp
     menu_pages.cpp
-    viewer.cpp
-    orbit.cpp
-    menu_walk.cpp
-    profiler.cpp
     seh.cpp
-    shader_dump.cpp
     release_map.cpp
     symbols.cpp
     thread_env.cpp
     xbe.cpp
 )
+# Developer tools (COD_BRO_DEV_TOOLS): their code, or stubs that do nothing (dev_tools_off.cpp). Per system below.
+if(COD_BRO_DEV_TOOLS)
+    list(APPEND loader_sources menu_walk.cpp orbit.cpp profiler.cpp shader_dump.cpp viewer.cpp)
+    if(WIN32)
+        set(loader_dev_sources text_trap_win32.cpp profiler_win32.cpp)
+    else()
+        set(loader_dev_sources text_trap_linux.cpp profiler_linux.cpp)
+    endif()
+else()
+    list(APPEND loader_sources dev_tools_off.cpp)
+    set(loader_dev_sources)
+endif()
 
 if(WIN32)
     # The program proper is a DLL; cod_bro_loader.exe is a stub linked at the XBE's
@@ -35,7 +43,8 @@ if(WIN32)
     # from a console, the loader attaches to it (os_win32.cpp).
     # Two DLLs share the runtime library: cod_bro_loader_core.dll (main.cpp + the kernel) and
     # cod_bro_core.dll (our own engine, host_main.cpp, xbox_host only - no kernel).
-    add_library(cod_bro_runtime STATIC ${loader_sources} compare_win32.cpp crash_win32.cpp text_trap_win32.cpp os_win32.cpp profiler_win32.cpp thread_env_win32.cpp)
+    add_library(cod_bro_runtime STATIC ${loader_sources} compare_win32.cpp crash_win32.cpp os_win32.cpp thread_env_win32.cpp
+        ${loader_dev_sources})
     target_link_libraries(cod_bro_runtime PUBLIC game_code audio input online render text xbox_host platform settings_ui shell32 user32 winmm)
     set(loader_core cod_bro_runtime)
 
@@ -63,8 +72,9 @@ if(WIN32)
 
     # cod_bro.exe: our own engine, the same kind of stub with cod_bro_core.dll's entry.
     add_executable(cod_bro win32_stub.c)
+    # No held ranges: the own engine places its memory wherever Windows has room (MemoryConfig::host_placed).
     target_compile_definitions(cod_bro PRIVATE COD_BRO_LOADER_CORE_DLL="cod_bro_core.dll"
-                               COD_BRO_LOADER_CORE_ENTRY="cod_bro_host_main")
+                               COD_BRO_LOADER_CORE_ENTRY="cod_bro_host_main" COD_BRO_NO_HELD_RANGES)
     target_compile_options(cod_bro PRIVATE -O2 -ffreestanding -fno-stack-protector -fno-asynchronous-unwind-tables)
     # DEP on (1.0.10): the XBE's pages are mapped read-write-execute (os_win32.cpp map_image), our code pieces too
     # (alloc_code), and the title's exception handlers lie in the kept image (keep_executable_headers). Under Wine
@@ -78,7 +88,8 @@ if(WIN32)
     add_dependencies(cod_bro cod_bro_core)
 else()
     # The loader's code as a library: cod_bro_loader (main.cpp) and our own engine cod_bro (host_main.cpp) share it.
-    add_library(cod_bro_runtime STATIC ${loader_sources} compare_linux.cpp crash_posix.cpp text_trap_linux.cpp os_linux.cpp profiler_linux.cpp thread_env_linux.cpp)
+    add_library(cod_bro_runtime STATIC ${loader_sources} compare_linux.cpp crash_posix.cpp os_linux.cpp thread_env_linux.cpp
+        ${loader_dev_sources})
     target_link_libraries(cod_bro_runtime PUBLIC game_code audio input online render text xbox_host platform settings_ui)
     add_executable(cod_bro_loader main.cpp entry_loader_linux.cpp)
     target_link_libraries(cod_bro_loader PRIVATE cod_bro_runtime xbox)  # cod_bro: no kernel (xbox_host only)

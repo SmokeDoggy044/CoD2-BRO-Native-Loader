@@ -33,11 +33,16 @@ struct Config {
     // points: the same frames of one recording, compared between builds or back ends. Empty = none.
     std::vector<uint32_t> shot_frames;
     std::filesystem::path shot_dir;
-    // Replay: exit when the file ends (exit code 0 = every frame matched, 3 = some differed).
+    // Replay: exit when the file ends (exit code 0 = every frame matched, 3 = some differed, 4 = played, state not
+    // compared: a recording from before version 6).
     bool exit_at_end = true;
     // Replay: also write this run's own state records ('E' + 'F', the recording's format) to this file, so runs in
     // different builds can be compared with each other (tools/replay_compare.py). Empty = no.
     std::filesystem::path hashes_out;
+    // Replay: also write a new recording (this format) of the run: every value the replay hands the title, with this
+    // build's state records and memory layout, and the old file's settings and command line - an old recording
+    // brought to the current format (--rerecord). Empty = no.
+    std::filesystem::path rerecord;
     // Replay: another run's state records (a recording or a hashes_out file); the first frame whose state differs
     // from it is logged (differing entities) and written to reference_dump_dir like dump_frame. Empty = no.
     std::filesystem::path reference;
@@ -59,10 +64,17 @@ bool start(const Config& config);
 void bind_current_thread();
 
 bool active();
+// Developers: the player takes over a running replay (Ctrl+Shift+L): it ends here with its report and the game goes
+// on live with the player's input instead of exiting. False when no replay is running. The title's main thread.
+bool take_over();
 
 // Value streams. Each returns what the title gets: the real value (recorded) or the recorded one.
+// `site` (format 7): what the value belongs to when one tag has several readers - a voice, a wait, a call site; a
+// number the same in every run (never a host address). Recorded with the value; a replay that reaches the tag with
+// another site in that frame hands over the one with this site if the frame has it, and counts a fault either way
+// (reads in another order). 0 = one reader, no check.
 int64_t clock(int64_t real);
-uint32_t value(char tag, uint32_t real);
+uint32_t value(char tag, uint32_t real, uint32_t site = 0);
 // A block of bytes (pad state, pointer state): recorded from `data`, or overwritten with the recorded block.
 void bytes(char tag, void* data, size_t size);
 
@@ -74,9 +86,29 @@ bool main_thread();
 // For values that need more than "hand back the recorded one" (a wait that has to wait for the recorded outcome):
 // replay only - the next recorded value of this tag in this frame, false if there is none (the caller then acts
 // live). Record with value() as usual.
-bool recorded(char tag, uint32_t& v);
+bool recorded(char tag, uint32_t& v, uint32_t site = 0);
+// As recorded(), but not copied into a re-recording: the caller writes what it really used with rerecord_value()
+// (a held sound packet the run never produced must not reach the new file).
+bool take_recorded(char tag, uint32_t& v, uint32_t site = 0);
+void rerecord_value(char tag, uint32_t v, uint32_t site = 0);
 bool replaying();
-// The format version of the file being replayed (a recording: the current one). 5 added native key events.
+
+// Replay faults: the run could not hand the title what the recording says it saw. The frame hashes may still match
+// (the run went on live and happened to stay in step), so a replay with faults does not pass (exit code 5).
+enum class Fault {
+    MissedPacket,  // a recorded sound packet completion the run never produced
+    LiveWait,      // a recorded wait outcome the run's objects never reached (it waited live)
+    Order,         // a keyed value read with another site than recorded (or none recorded for it)
+    Thread,        // a title thread started that the recording did not start there (or the other way round)
+};
+void fault(Fault kind);
+// A title thread started by the main thread (its routine): recorded, and checked in a replay (Fault::Thread).
+void thread_started(uint32_t routine);
+// The game saved a checkpoint (its name): logged with its frame in every run; recorded; a replay compares name, order
+// and frame with the recording's (scanned before it starts) and lists them all at its end.
+void checkpoint(const char* name);
+// The input format of the file being replayed (a recording: the current one; a re-recording: its original's, kept
+// in its V record). 5 added native key events.
 uint32_t version();
 
 // Ends a recording (flushed, closed) or a replay (its report; exits if exit_at_end). Before a reboot.

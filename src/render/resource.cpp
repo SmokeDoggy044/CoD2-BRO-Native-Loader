@@ -7,6 +7,7 @@
 
 #include "compiler.h"
 #include "d3d_internal.h"
+#include "kernel_memory.h"
 #include "xbox_d3d.h"
 
 namespace render {
@@ -69,12 +70,12 @@ uint32_t d3d_resource_type(XbPtr resource_address) {
 
 namespace {
 
-// Points the resource at its memory: Data += base, as a physical address (the low 28
-// bits) except for push buffers, which keep the CPU address.
+// Points the resource at its memory: Data += base, as a physical address (the Xbox kept the low 28 bits; ours is
+// the offset into contiguous memory, wherever the host put it) except for push buffers, which keep the CPU address.
 void XB_STDCALL D3DResource_Register(XbPtr resource_address, XbPtr base) {
     auto* resource = from_xbox_ptr<XbResource>(resource_address);
     uint32_t data = resource->data + base;
-    if ((resource->common & kCommonTypeMask) != kCommonTypePushBuffer) data &= 0x0FFFFFFF;
+    if ((resource->common & kCommonTypeMask) != kCommonTypePushBuffer) data -= xbox::contiguous_base();
     resource->data = data;
 }
 

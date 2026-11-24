@@ -145,9 +145,12 @@ uint32_t wait_objects(std::span<XbDispatcherHeader* const> objects, bool wait_al
                       bool alertable = false) {
     if (!timeout || objects.empty() || !replay::on_stream())
         return wait_objects_live(objects, wait_all, timeout, alertable);
+    // The wait's key: how many objects of which types, all or any - a different wait at this point is a fault.
+    const uint32_t site = (static_cast<uint32_t>(objects.size()) & 0xff) << 16 | (wait_all ? 0x8000u : 0u) |
+                          uint32_t{objects.front()->type} << 8 | objects.back()->type | 0x57000000u;
     uint32_t outcome = 0;
-    if (!replay::replaying() || !replay::recorded('W', outcome))
-        return replay::value('W', wait_objects_live(objects, wait_all, timeout, alertable));
+    if (!replay::replaying() || !replay::recorded('W', outcome, site))
+        return replay::value('W', wait_objects_live(objects, wait_all, timeout, alertable), site);
     if (outcome == kStatusTimeout) return kStatusTimeout;
     const size_t index = outcome - kStatusSuccess;
     if (outcome == kStatusUserApc || index >= objects.size()) return wait_objects_live(objects, wait_all, timeout, alertable);
@@ -169,6 +172,7 @@ uint32_t wait_objects(std::span<XbDispatcherHeader* const> objects, bool wait_al
     lock.unlock();
     LOG_WARN("replay", "a wait the recording saw end (%08x) did not end within %lld s; waiting live", outcome,
              static_cast<long long>(kReplayWaitLimit.count()));
+    replay::fault(replay::Fault::LiveWait);
     return wait_objects_live(objects, wait_all, timeout, alertable);
 }
 

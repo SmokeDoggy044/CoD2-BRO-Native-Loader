@@ -11,6 +11,7 @@
 #include "fe.h"
 #include "fx.h"
 #include "lanes.h"
+#include "mem_stats.h"
 #include "movie.h"
 #include "nal_math.h"
 #include "fx_load.h"
@@ -22,6 +23,7 @@
 #include "qcommon_core.h"
 #include "script_string.h"
 #include "snd.h"
+#include "xanim.h"
 #include "sv.h"
 #include "tr_main.h"
 #include "stream.h"
@@ -2366,7 +2368,7 @@ PLATFORM_ASM_ENTRY(Save_CheckVersion_entry,
                    "ret")
 
 uint8_t XB_CDECL Save_CheckVersion(const char* header) {
-    const char* date = reinterpret_cast<const char*>(uintptr_t{title_global<uint8_t>(0x0095e7f8) ? 0x0082ab00 : 0x0082aaf8});
+    const char* date = reinterpret_cast<const char*>(uintptr_t{title_global<uint8_t>(0x0095e7f8) ? 0x0082ab00u : 0x0082aaf8u});
     if (own_function<int32_t XB_CDECL(const char*, const char*, uint32_t)>(&title_strncmp)(header, date, 0x19))  // _strncmp
         return 0;
     const char* a = header + 0x3c0;
@@ -3118,6 +3120,9 @@ void XB_CDECL Com_InitNodeRing() {
     title_global<float>(0x00965d04) = 0.0f;
     title_global<uint16_t>(0x00965d08) = 0;
     title_global<uint16_t>(0x00965d0a) = 0;
+    AnimInfo_ResetExtra();  // ours: the infos added past the table
+    // Ours, developers: COD_BRO_HEAP_SQUEEZE bit 64 leaves 8 table infos free (AnimTree_AllocInfo adds more).
+    if (Heap_TestSqueeze() & 64) title_global<uint16_t>(0x00965cf0 + 8 * 0x30 + 0xc) = 0;
     own_function<void XB_THISCALL(uint8_t*, const char*)>(&ScriptString_AssignCString)(&title_global<uint8_t>(0x00965ce8),
                                                                        tstr(0x00832b28));  // "end"
 }
@@ -4177,6 +4182,7 @@ int32_t XB_CDECL Com_EventLoop() {
 }
 
 void XB_CDECL Com_Frame() {
+    MemStats_Sample();  // ours: --mem-stats / --diag pool counters (reads only)
     own_function<void XB_STDCALL(uint32_t)>(&Actor_UpdateBlockingPairs_entry)(0x0098aa90);  // Actor_UpdateBlockingPairs
     if (title_global<uint8_t>(0x008d50dd)) {
         // The pause screen: 0x008d50dc set = waiting to resume.
@@ -5558,17 +5564,18 @@ uint8_t* XB_CDECL Mem_InitSmallBlockPools(uint32_t effect_pool_size, uint32_t la
     if (large_pools) {
         Mem_InitLargeBlockPools();
     } else {
-        apsAddPool(400, 0x10);
-        apsAddPool(400, 0x20);
-        apsAddPool(400, 0x40);
-        apsAddPool(400, 0x80);
+        const int32_t items = (Heap_TestSqueeze() & 8) ? 4 : 400;  // ours, developers: squeeze
+        apsAddPool(items, 0x10);
+        apsAddPool(items, 0x20);
+        apsAddPool(items, 0x40);
+        apsAddPool(items, 0x80);
     }
     uint8_t* const heap = Z_Malloc(0x494);
     if (!heap) {
         title_global<uint32_t>(0x0095f6d8) = 0;
         return heap;
     }
-    uint8_t* const created = Heap_CreateFromZone(heap, 0x40000);
+    uint8_t* const created = Heap_CreateFromZone(heap, (Heap_TestSqueeze() & 4) ? 0x1000 : 0x40000);  // ours: squeeze
     title_global<uint32_t>(0x0095f6d8) = u32(created);
     return created;
 }
@@ -6918,18 +6925,20 @@ void XB_CDECL Sys_InitHeaps() {
         config[3 + i * 3] = 0;
     }
     static const uint32_t kPools[3][2] = {{0x20, 30000}, {0x40, 2000}, {0x80, 100}};
+    const uint32_t squeeze = Heap_TestSqueeze();  // ours, developers: tiny pools (1) and zone heap (2)
     for (const auto& pool : kPools) {
         const uint32_t n = config[0];
         if (static_cast<int32_t>(n) >= 16) continue;
         config[1 + n * 3] = pool[0];
         config[2 + n * 3] = 4;
-        config[3 + n * 3] = pool[1];
+        config[3 + n * 3] = (squeeze & 1) ? 8 : pool[1];
         config[0] = n + 1;
     }
     uint8_t* small = Z_Malloc(0x3c);
     title_global<uint8_t*>(0x0095f4a4) = small ? SmallHeap_Init(small, config, 0, 1) : nullptr;
     uint8_t* heap = Z_Malloc(0x494);
-    title_global<uint8_t*>(0x0095f4a0) = heap ? Heap_CreateFromZone(heap, 0x0004b000) : nullptr;
+    title_global<uint8_t*>(0x0095f4a0) =
+        heap ? Heap_CreateFromZone(heap, (squeeze & 2) ? 0x1000 : 0x0004b000) : nullptr;
     // One of 32 callbacks (0x00988784, count 0x00988780).
     const int32_t n = title_global<int32_t>(0x00988780);
     if (n < 32) {
@@ -7822,7 +7831,14 @@ uint8_t* XB_CDECL MemHook_AlignedAlloc(uint32_t size, uint32_t align, uint32_t f
     }
     uint32_t previous = 0;
     if (flags) previous = Heap_SelectByIndex(flags & 0x20000 ? 2 : 0);
-    uint8_t* const block = own_function<uint8_t* XB_CDECL(uint32_t, uint32_t)>(&Heap_AllocAligned)(align, size);
+    uint8_t* block = own_function<uint8_t* XB_CDECL(uint32_t, uint32_t)>(&Heap_AllocAligned)(align, size);
+    // Ours: a full write-combined heap lends from the main heap (it grows); every free path (Z_Free) finds the
+    // block by the main heap's region. Write-combining means nothing to our renderer.
+    if (!block && (flags & 0x20000)) {
+        Heap_SelectByIndex(0);
+        block = own_function<uint8_t* XB_CDECL(uint32_t, uint32_t)>(&Heap_AllocAligned)(align, size);
+        if (block) Heap_WCLent(block);
+    }
     if (previous) Heap_SetCurrent(previous);
     // The original breaks into the debugger (INT3) when the allocation failed.
     return block;

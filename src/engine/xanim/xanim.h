@@ -106,6 +106,9 @@ extern "C" void AnimData_EnsureLoaded_entry(void);
 // 0x00250e70 (XMM0): the anim's clip length, loading it first; 1 without a clip.
 extern "C" PLATFORM_HIDDEN void XB_CDECL AnimTree_EnsureAnimLoaded(uint32_t handle, uint32_t* result);
 extern "C" void AnimTree_EnsureAnimLoaded_entry(void);
+// Ours: whether the anim `handle` (anim-tree entry << 16 | node) has a clip in the loaded data (looked up first if
+// it has none yet, as AnimTree_EnsureAnimLoaded does).
+bool XAnim_ClipLoaded(uint32_t handle);
 // 0x002f6840 (entry in EAX): every node of the anim-tree table entry drops its clip, child
 // count and notetracks.
 void XB_REGS1 XB_CDECL AnimTree_FreeNotetracks(uint32_t entry);
@@ -133,7 +136,15 @@ void XB_REGS1 XB_CDECL AnimTree_SetGoalWeight(uint32_t index, uint8_t* tree, uin
 // 0x002c3ed0 (index in EAX): the free list's head info for node `index` (cleared, notetrack
 // -1); a leaf with a clip also gets its first notetrack's name (+4) or its notetracks
 // built, and a track (+0x2c) made in the tree's memory context. 0 when the list is empty.
+// Ours: an empty list gets 512 more infos (AnimInfo_At) instead; the original broke into the debugger and its
+// callers wrote through the 0.
 uint32_t XB_REGS1 XB_CDECL AnimTree_AllocInfo(uint32_t index, uint8_t* tree);
+// Ours: anim info `id` (16-bit, 0 = the free list's head): 1-511 in the table at 0x00965cf0 (0x30 bytes each), the
+// ones past it in our own blocks, added when the table runs out. Every info access goes through this.
+uint8_t* AnimInfo_At(uint32_t id);
+// Ours: forgets the added infos (Com_InitNodeRing: every tree is gone then); how many there are.
+void AnimInfo_ResetExtra();
+uint32_t AnimInfo_ExtraCount();
 // 0x002c3bd0 (goal in XMM2): the siblings of node `index` fade out over the largest weight
 // change among them times the blend time. Keeps XMM5-7.
 extern "C" PLATFORM_HIDDEN void XB_CDECL AnimTree_ClearSiblingGoalWeights(float goal, uint8_t* tree, uint32_t index,

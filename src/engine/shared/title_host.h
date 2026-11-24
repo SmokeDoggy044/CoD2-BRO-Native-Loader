@@ -18,11 +18,17 @@ struct TitleHost {
                          uint32_t* thread_id) = nullptr;
 
     // Record/replay (src/runtime/xbox/replay.h): the calling thread's reads go to the stream; a replay is running;
-    // the next recorded value of `tag` in this frame (replay only); record or replay one value.
+    // the next recorded value of `tag` in this frame (replay only); record or replay one value (`site`: what it
+    // belongs to when the tag has several readers, 0 = one); a replay fault (replay::Fault as int); a title thread
+    // the main thread started.
     bool (*replay_on_stream)() = nullptr;
     bool (*replay_replaying)() = nullptr;
-    bool (*replay_recorded)(char tag, uint32_t* value) = nullptr;
-    uint32_t (*replay_value)(char tag, uint32_t real) = nullptr;
+    bool (*replay_recorded)(char tag, uint32_t* value, uint32_t site) = nullptr;
+    uint32_t (*replay_value)(char tag, uint32_t real, uint32_t site) = nullptr;
+    void (*replay_fault)(int kind) = nullptr;
+    void (*replay_thread_started)(uint32_t routine) = nullptr;
+    // A checkpoint was saved (its name): logged, recorded, checked against a replay's recording.
+    void (*replay_checkpoint)(const char* name) = nullptr;
 
     // The current UTC time, 100 ns units since 1601 (FILETIME).
     int64_t (*system_time)() = nullptr;
@@ -37,6 +43,16 @@ struct TitleHost {
     uint32_t (*protection)(uint32_t address) = nullptr;
     void (*memory_statistics)(uint32_t* total_pages, uint32_t* available_pages, uint32_t* reserved_bytes) = nullptr;
     uint32_t (*reserve)(uint32_t bytes) = nullptr;
+    // Where contiguous ("physical") memory starts, and whether an address lies in it (null: the Xbox's 0x80000000
+    // and the address's top bit). Resource headers hold physical addresses: CPU address = base + physical.
+    uint32_t (*contiguous_base)() = nullptr;
+    bool (*in_contiguous_memory)(uint32_t address) = nullptr;
+    // The game's main heap in a range of its own (Mem_AllocPhysicalPools): its base and size (0 = none: the game
+    // carves its fixed pool from contiguous memory, as on the Xbox), and committing it up to an address as the heap
+    // grows (Heap_Sbrk; false = no room).
+    uint32_t (*game_heap_base)() = nullptr;
+    uint32_t (*game_heap_bytes)() = nullptr;
+    bool (*game_heap_commit)(uint32_t end) = nullptr;
 
     // An in-process restart (own engine host 5b): the title ends here and starts again in this process with `page`
     // (0x1000 bytes) as its LaunchDataPage, on the same window and devices. Called on the title's main thread;
@@ -64,12 +80,18 @@ struct TitleHost {
     // own first record (title_seh.cpp stops there). Null = 0xFFFFFFFF.
     uint32_t (*seh_chain_end)() = nullptr;
     // An unrecoverable error in title code (an unhandled exception): report with a backtrace from `eip`/`ebp` and
-    // end the process. Null = print and abort.
-    [[noreturn]] void (*fatal)(const char* message, uint32_t eip, uint32_t ebp) = nullptr;
+    // end the process; it does not return (callers abort after it anyway: [[noreturn]] belongs to functions, and
+    // clang rejects it on a pointer). Null = print and abort.
+    void (*fatal)(const char* message, uint32_t eip, uint32_t ebp) = nullptr;
 };
 
 void set_title_host(const TitleHost& host);
 const TitleHost& title_host();
+
+// Contiguous memory through the host (TitleHost::contiguous_base / in_contiguous_memory): the CPU address of a
+// physical address (the Xbox's `physical | 0x80000000`), and the Xbox's "top bit set" test for an address.
+uint32_t title_physical_to_cpu(uint32_t physical);
+bool title_in_contiguous_memory(uint32_t address);
 
 // The native platform layer is on (`--own-main`): our XAPI C makes its own objects, files, threads instead of
 // calling the kernel exports. Off, it keeps the kernel path that the compare harness checks against the originals.

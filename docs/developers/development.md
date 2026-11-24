@@ -156,7 +156,8 @@ builds and runs several missions at once and prints one line per function. Detai
 
 ## Tests
 
-`ctest --preset linux-loader` runs the tests in `tests/`:
+`ctest --preset linux-loader` runs the tests in `tests/`; `-L fast` runs all but `leaf_test` (seconds, worth it after
+every change) and `-L slow` only `leaf_test` (the long check of rewritten functions):
 
 - The kernel layer (critical sections, dispatcher, memory, file system, crypto, time,
   frame pacing) and audio: the file tests build a fake disc in a temp folder and the
@@ -177,7 +178,7 @@ They need a 32-bit build because `src/runtime/xbox/` stores the title's pointers
 
 ## Releasing
 
-    packaging/sniper/build.sh   # build/sniper/release/package/cod_bro-<version>-linux.tar.gz
+    packaging/sniper/build.sh   # build/sniper/player/package/cod_bro-<version>-linux.tar.gz
 
 This builds the release in the Steam Runtime 3 "sniper" SDK container (podman;
 Debian 11, glibc 2.31), so it runs on distributions since about 2020 (glibc 2.30+,
@@ -200,11 +201,17 @@ machine's own libraries instead; it only runs on systems as new as this one.
 Windows (cross-built here with MinGW-w64, `cmake/release_windows.cmake`):
 
     packaging/windows-dxvk/build.sh        # once: DXVK's d3d9.dll (podman, Fedora container)
-    cmake --preset windows-mingw-release && cmake --build --preset windows-mingw-release
-    cpack --preset windows-mingw-release   # build/windows-mingw-release/package/cod_bro-<version>-windows.zip
+    cmake --preset windows-mingw-player && cmake --build --preset windows-mingw-player
+    cpack --preset windows-mingw-player   # build/windows-mingw-player/package/cod_bro-<version>-windows.zip
+
+Releases come from the player presets (`windows-mingw-player`, `sniper-player`): the same optimized build without
+the developer tools (`COD_BRO_DEV_TOOLS=OFF`: no profiler, text traps, shader dumps, menu walks, object viewer or
+orbit camera, and the test tools' options - record/replay, scripted presses, `--compare`, `--force` and the
+checkers - are refused). Everyday work and measurements use the `-release` presets, which keep them.
 
 The zip holds the launcher, the loader stub and `cod_bro_loader_core.dll` (with the
-rewritten game code linked in), `OpenAL32.dll` (the only DLL; SDL3 and the GCC
-runtime are linked in), the symbol and signature files, `dxvk/d3d9.dll`, `assets/`,
+rewritten game code linked in), `OpenAL32.dll` and `libwinpthread-1.dll` (MinGW's thread library, a DLL so that
+its thread calls stay out of our files' import tables; SDL3, libgcc and libstdc++ are linked in), the symbol and
+signature files, `dxvk/d3d9.dll`, `assets/`,
 the README and `LICENSES/`. DXVK sits in its own folder so that only the loader
 picks it, and the system's `d3d9.dll` stays reachable as the fallback.

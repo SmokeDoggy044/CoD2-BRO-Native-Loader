@@ -12,6 +12,7 @@
 #include "backend.h"
 #include "compiler.h"
 #include "d3d_internal.h"
+#include "kernel_memory.h"
 #include "float_env.h"
 #include "log.h"
 #include "nv2a.h"
@@ -349,7 +350,7 @@ Vertices static_source(const VertexLayout& layout, const ShaderState& shaders, u
         for (uint32_t b = 0; b < layout.count; ++b)
             if (layout.stream[b] == layout.stream[a])
                 end = std::max(end, layout.offset[b] + attribute_size(layout.format[b]));
-        const auto* base = from_xbox_ptr<uint8_t>(data | 0x80000000u);
+        const auto* base = from_xbox_ptr<uint8_t>(data + xbox::contiguous_base());
         ranges[range_count++] = {base + stream.offset + static_cast<size_t>(first) * stream.stride,
                                  static_cast<size_t>(fetched - 1) * stream.stride + end};
     }
@@ -426,7 +427,7 @@ void draw_streams(uint32_t primitive, uint32_t start_vertex, uint32_t vertex_cou
                 continue;
             }
             const auto* buffer = from_xbox_ptr<XbResource>(stream.vertex_buffer);
-            const auto* base = from_xbox_ptr<uint8_t>(buffer->data | 0x80000000u);
+            const auto* base = from_xbox_ptr<uint8_t>(buffer->data + xbox::contiguous_base());
             fetch_attribute(layout.format[a],
                             base + stream.offset + static_cast<size_t>(first + v) * stream.stride + layout.offset[a], out);
         }

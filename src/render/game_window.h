@@ -32,6 +32,9 @@ void request_pc_menu();
 // mouse capture changes (input::apply_mouse_capture).
 void set_after_events(void (*hook)());
 
+// Developers: Ctrl+Shift+L calls `hook` on the pumping thread (a replay hands over to the player).
+void set_take_over_key(void (*hook)());
+
 class GameWindow {
 public:
     GameWindow() = default;

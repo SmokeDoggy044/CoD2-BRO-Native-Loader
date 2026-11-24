@@ -382,7 +382,6 @@ void XB_CDECL BroLvl_prologue_ActorGoToTag(uint32_t actor, uint32_t ent, ScriptS
 }
 
 void XB_CDECL BroLvl_prologue_Event4FlakFireFx() {
-    using PlaySound = void XB_CDECL(uint32_t, ScriptString*, uint32_t, uint32_t, uint32_t);
     ScriptString text{};
     ScrStringGuard guard_text(&text);
     const uint32_t fx1 = get_ent(from_text(&text, 0x007f503c), 0x0d786b4c);  // "event4_flak_fire_effect_and_sound"

@@ -187,12 +187,18 @@ if(COD_BRO_BUILD_LOADER AND CMAKE_SYSTEM_NAME STREQUAL "Linux")
     # Decompiled functions the campaign never runs, against default.xbe's code mapped at its
     # addresses (tools/leafscan.py --emit writes leaf_functions.inc; skipped without the game
     # files).
-    add_executable(leaf_test leaf_test.cpp)
+    # The game library takes the script stacks' arena (platform::stack_arena) from the program that loads it.
+    add_executable(leaf_test leaf_test.cpp ${PROJECT_SOURCE_DIR}/src/platform/stack_arena.cpp)
+    set_target_properties(leaf_test PROPERTIES ENABLE_EXPORTS ON)
     target_include_directories(leaf_test PRIVATE ${PROJECT_SOURCE_DIR}/src/platform)
     target_compile_definitions(leaf_test PRIVATE
         COD_BRO_DEFAULT_XBE="${PROJECT_SOURCE_DIR}/../unpacked/default.xbe"
         COD_BRO_LEAF_KNOWN="${PROJECT_SOURCE_DIR}/tools/data/leaf_known.csv")
-    target_link_libraries(leaf_test PRIVATE game_code cod_bro_options ${CMAKE_DL_LIBS})
+    target_link_libraries(leaf_test PRIVATE game_code cod_bro_options platform ${CMAKE_DL_LIBS})
+    if(COD_BRO_LEVEL_XLAT_DIR)  # the translated rows' entries (tools/leafscan.py --translated)
+        target_include_directories(leaf_test PRIVATE ${COD_BRO_LEVEL_XLAT_DIR})
+        target_compile_definitions(leaf_test PRIVATE COD_BRO_LEVEL_XLAT=1)
+    endif()
     add_test(NAME leaf_test COMMAND leaf_test)
     set_tests_properties(leaf_test PROPERTIES TIMEOUT 3600 SKIP_RETURN_CODE 77)
 endif()
@@ -208,3 +214,14 @@ add_test(NAME game_files_test COMMAND game_files_test)
 # Developer tool: the launcher's game-file check and disc dump extraction without its window (not a test).
 add_executable(game_files_tool game_files_tool.cpp)
 target_link_libraries(game_files_tool PRIVATE launcher_update)
+
+# Labels: `ctest -L fast` checks a change in seconds (every test but leaf_test, each under a second);
+# `ctest -L slow` is leaf_test, the rewritten functions against the originals (about half an hour in full).
+get_property(cod_bro_tests DIRECTORY PROPERTY TESTS)
+foreach(test IN LISTS cod_bro_tests)
+    if(test STREQUAL "leaf_test")
+        set_tests_properties(${test} PROPERTIES LABELS slow)
+    else()
+        set_tests_properties(${test} PROPERTIES LABELS fast)
+    endif()
+endforeach()

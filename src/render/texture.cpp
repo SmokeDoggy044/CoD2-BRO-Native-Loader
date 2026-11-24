@@ -2,7 +2,7 @@
 // See xbox_d3d_api.h.
 //
 // Layout rules (XDK 5849): surface_layout.h (shared with the compare harness). Data is
-// the physical address; the CPU address is Data | 0x80000000.
+// the physical address; the CPU address is Data + xbox::contiguous_base() (the Xbox's Data | 0x80000000).
 
 #include <algorithm>
 #include <cstring>
@@ -11,6 +11,7 @@
 
 #include "compiler.h"
 #include "d3d_internal.h"
+#include "kernel_memory.h"
 #include "log.h"
 #include "surface_layout.h"
 #include "xbox_d3d.h"
@@ -31,7 +32,9 @@ uint32_t format_of(const XbPixelContainer& pixels) { return surface_layout::form
 
 // Where a face/level of a texture lives (D3D's internal helper at 003ee960).
 SurfaceLevel surface_level(const XbPixelContainer& pixels, uint32_t face, uint32_t level) {
-    return surface_layout::surface_level(pixels.resource.data, pixels.format, pixels.size, face, level);
+    SurfaceLevel out = surface_layout::surface_level(pixels.resource.data, pixels.format, pixels.size, face, level);
+    out.address += xbox::contiguous_base() - 0x80000000u;  // the layout gives the Xbox's Data | 0x80000000
+    return out;
 }
 
 // Surfaces we create for texture levels; deleted when released to zero.
@@ -41,7 +44,7 @@ std::set<XbPtr> g_level_surfaces;
 XbSurface* create_level_surface(XbPtr texture, const SurfaceLevel& level) {
     auto* surface = new XbSurface{};
     surface->container.resource.common = kCommonTypeSurface | kCommonD3DCreated | 1;
-    surface->container.resource.data = level.address & 0x0FFFFFFF;
+    surface->container.resource.data = level.address - xbox::contiguous_base();  // physical
     surface->container.format = level.format;
     surface->container.size = level.size_field;
     surface->parent = texture;
@@ -120,12 +123,12 @@ void XB_STDCALL D3DSurface_LockRect(XbPtr surface, XbPtr locked, XbPtr rect, uin
 
 // Vertex buffers and palettes: their memory, CPU address.
 XbPtr XB_STDCALL D3DVertexBuffer_Lock2(XbPtr buffer, uint32_t /*flags*/) {
-    return from_xbox_ptr<XbResource>(buffer)->data | 0x80000000;
+    return from_xbox_ptr<XbResource>(buffer)->data + xbox::contiguous_base();
 }
 
 XbPtr XB_STDCALL D3DPalette_Lock2(XbPtr palette, uint32_t /*flags*/) {
     texture_written(palette);
-    return from_xbox_ptr<XbResource>(palette)->data | 0x80000000;
+    return from_xbox_ptr<XbResource>(palette)->data + xbox::contiguous_base();
 }
 
 }  // namespace

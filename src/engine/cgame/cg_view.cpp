@@ -1187,7 +1187,6 @@ void XB_CDECL CG_OffsetViewForward(float* distance_slot) {
     // the view pitch (0x00972bf0) re-derived from the view angles' forward times 0x008fef74 as
     // seen from the moved origin (each component (k f + o) - o): -atan2(z, max(1, hypot(x, y)))
     // in degrees, 0 when both are 0.
-    using ext = long double;
     const float distance = *distance_slot;
     float forward[3], right[3], up[3];
     uint32_t args[2] = {0x00972bf0, static_cast<uint32_t>(reinterpret_cast<uintptr_t>(forward))};
@@ -1608,7 +1607,6 @@ void XB_CDECL CG_DrawSkyBoxPortal() {
         title_global<float>(0x00972bb8) = atof(token());
         title_atol(token());  // _atol (unused)
         const float fov_x = CG_GetViewFov();
-        using ext = long double;
         const float x = static_cast<float>(platform_x87_ld(gi(0x00972b98)) /
                                            platform_x87_tan_ext(platform_x87_ld(fov_x) * platform_x87_ld(g(0x0083ecf0))));
         const float y = static_cast<float>(gi(0x00972b9c));
@@ -1664,7 +1662,6 @@ void XB_CDECL CG_OffsetThirdPersonView(uint32_t entry_esp) {
     float sy, cy, sp, cp;
     FastSinCos(&sy, 0, &cy, angles[1] * to_radians);
     FastSinCos(&sp, 0, &cp, focus_pitch * to_radians);
-    using ext = long double;
     angles[0] = static_cast<float>(platform_x87_ld(angles[0]) * platform_x87_ld(title_global<double>(0x0083ecb0)));
     const float reach = g(0x0083ebf4);
     alignas(16) float forward[4];

@@ -14,7 +14,7 @@ out=${1:?usage: $0 OUT_DIR [MISSION] [SECONDS]}
 mission=${2:-4}
 seconds=${3:-130}
 port=$(cd "$(dirname "$0")/.." && pwd)
-loader=${LOADER:-$port/build/linux-loader/bin/cod_bro_loader}
+loader=${LOADER:-$port/build/linux-loader/bin/cod_bro}
 saves=${XDG_DATA_HOME:-$HOME/.local/share}/cod_bro
 
 press="a@10"

@@ -811,7 +811,7 @@ bool read_port(uint32_t port, PadState& state) {
     }
     if (g_ports[port]) read_gamepad(g_ports[port], state);
     if (port == 0) read_keyboard_mouse(state);
-    if (g_player_frozen.load()) {  // the free camera flies: pause and objectives only
+    if (g_player_frozen.load() && !in_menu()) {  // the free camera flies: pause and objectives only (menus: all)
         if (port == 0)  // its sticks for the camera (in play only a gamepad moves them, not the keyboard)
             g_camera_sticks = uint64_t(uint16_t(state.thumb_lx)) | uint64_t(uint16_t(state.thumb_ly)) << 16 |
                               uint64_t(uint16_t(state.thumb_rx)) << 32 | uint64_t(uint16_t(state.thumb_ry)) << 48;

@@ -131,6 +131,7 @@ set(game_code_sources
     levels/levels_prologue_bodies_a.cpp
     levels/levels_prologue_events.cpp
     levels/levels_templates.cpp
+    levels/xlat_runtime.cpp
     client/movie.cpp
     client/movie_vid.cpp
     xanim/nal_anim.cpp
@@ -149,6 +150,7 @@ set(game_code_sources
     qcommon/qcommon_core.cpp
     qcommon/qcommon_fs.cpp
     qcommon/loc_overrides.cpp
+    qcommon/mem_stats.cpp
     renderer/r_init.cpp
     renderer/r_static_init.cpp
     game/ragdoll.cpp
@@ -200,6 +202,26 @@ if(COD_BRO_BUILD_LOADER AND CMAKE_SYSTEM_NAME STREQUAL "Linux")
 else()
     add_library(game_code STATIC ${game_code_sources})
     target_link_libraries(game_code PRIVATE platform)
+endif()
+if(COD_BRO_LEVEL_XLAT_DIR)
+    file(GLOB level_xlat_sources CONFIGURE_DEPENDS ${COD_BRO_LEVEL_XLAT_DIR}/*_xl.cpp)  # one per level
+    target_sources(game_code PRIVATE ${level_xlat_sources})
+    # No auto-vectorization in the generated code: with -msse (no SSE2) GCC vectorizes 64-bit pieces in MMX registers
+    # without emms, which leaves the x87 register stack full of MMX values - the next float code then computes NaN
+    # (LIBEATOR's SetupShipsAndTurrets: ships' movers got NaN positions). Our engine C has none outside the movie
+    # decoder's own MMX code (which ends in emms).
+    set_source_files_properties(${level_xlat_sources} PROPERTIES COMPILE_OPTIONS "-fno-tree-vectorize")
+    target_compile_definitions(game_code PRIVATE COD_BRO_LEVEL_XLAT=1)
+    # The levels register themselves from static initializers, and nothing else names them: a static game_code
+    # (Windows, player builds) left them out of the link. xlat_runtime.cpp names each level's rows from this list.
+    set(xlat_levels "")
+    foreach(source IN LISTS level_xlat_sources)
+        get_filename_component(level ${source} NAME_WE)
+        string(REGEX REPLACE "_xl$" "" level ${level})
+        string(APPEND xlat_levels "XL_LEVEL(${level})\n")
+    endforeach()
+    file(CONFIGURE OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/xlat_levels.inc CONTENT "${xlat_levels}")
+    target_include_directories(game_code PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
 endif()
 # One folder per module; the sources include each other's headers by file name.
 target_include_directories(game_code PUBLIC

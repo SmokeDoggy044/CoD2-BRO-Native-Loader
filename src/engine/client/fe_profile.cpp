@@ -1569,7 +1569,7 @@ void XB_THISCALL CreateProfileMenu_Update(uint8_t* menu, float dt) {
     pc.text_entry();
     uint32_t code = 0;
     pc.take_typed(&code);
-    if (title_host().replay_value) code = title_host().replay_value('T', code);
+    if (title_host().replay_value) code = title_host().replay_value('T', code, 0);
     if (!code) return;
     const int32_t length = field<int32_t>(menu, 0x1ac);
     int32_t key = -1;

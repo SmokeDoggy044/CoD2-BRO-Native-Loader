@@ -3,6 +3,7 @@
 #include <cstring>
 
 #include "ngl_gfx.h"
+#include "qcommon_core.h"
 #include "qcommon_fs.h"
 #include "scr_fiber.h"
 #include "snd.h"
@@ -187,6 +188,7 @@ uint32_t XB_STDCALL title_main_thread(uint32_t) {
 void title_restart_reset() {
     objects::reset();
     title_heap_reset();
+    Heap_ZoneLentReset();
     scr_fiber_reset();
     Snd_RestartTitle();
     ngl_gfx_restart_title();

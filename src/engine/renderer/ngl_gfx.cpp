@@ -25,6 +25,7 @@
 #include "texture_decode.h"
 #include "texture_hash.h"
 #include "title_data.h"
+#include "title_host.h"
 
 namespace game {
 namespace {
@@ -416,7 +417,7 @@ render::TextureId texture_for_content(DeviceObjects& o, uint32_t header, uint32_
     uint32_t palette_data = 0;
     if (layout.color_format == 0x0B && palette_header) {  // P8
         palette_data = reinterpret_cast<const uint32_t*>(static_cast<uintptr_t>(palette_header))[1];
-        palette = reinterpret_cast<const uint32_t*>(static_cast<uintptr_t>(palette_data | 0x80000000u));
+        palette = reinterpret_cast<const uint32_t*>(static_cast<uintptr_t>(title_physical_to_cpu(palette_data)));
     }
     const uint32_t key_words[4] = {data, format, size_field, palette_data};
     const uint64_t key = render::hash_bytes(key_words, sizeof(key_words));
@@ -426,7 +427,7 @@ render::TextureId texture_for_content(DeviceObjects& o, uint32_t header, uint32_
     if (t.shown && t.checked_frame == g_frame) return t.shown;
     t.checked_frame = g_frame;
 
-    const auto* memory = reinterpret_cast<const uint8_t*>(static_cast<uintptr_t>(data | 0x80000000u));
+    const auto* memory = reinterpret_cast<const uint8_t*>(static_cast<uintptr_t>(title_physical_to_cpu(data)));
     const uint32_t size = static_cast<uint32_t>(layout.total_size);
     uint64_t sample = render::sample_texture(memory, size);
     if (palette) sample = render::hash_bytes(palette, 256 * 4, sample);
@@ -1323,7 +1324,7 @@ const uint8_t* stream_memory() {
     const GfxState& s = recorded().state;
     if (!s.stream_buffer) return nullptr;
     const uint32_t data = reinterpret_cast<const uint32_t*>(static_cast<uintptr_t>(s.stream_buffer))[1];
-    return reinterpret_cast<const uint8_t*>(static_cast<uintptr_t>(data | 0x80000000u)) + s.stream_offset;
+    return reinterpret_cast<const uint8_t*>(static_cast<uintptr_t>(title_physical_to_cpu(data))) + s.stream_offset;
 }
 
 }  // namespace

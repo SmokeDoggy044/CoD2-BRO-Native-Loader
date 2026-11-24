@@ -5,6 +5,7 @@
 #include "lanes.h"
 #include "title_crt.h"
 #include "title_data.h"
+#include "title_host.h"
 #include "g_utils.h"
 #include "qcommon_core.h"
 #include "qcommon_fs.h"
@@ -815,7 +816,8 @@ void XB_CDECL Mem_AlignedFree(void* pointer) {
         title_function<Free>(free)(pointer);
         return;
     }
-    if (static_cast<int32_t>(reinterpret_cast<uintptr_t>(pointer)) < 0)
+    // The original: the address's top bit set = contiguous memory; ours asks where the host put it.
+    if (title_in_contiguous_memory(static_cast<uint32_t>(reinterpret_cast<uintptr_t>(pointer))))
         own_function<void XB_STDCALL(void*)>(&XPhysicalFree)(pointer);  // XPhysicalFree
     else
         own_function<Free>(&title_crt_aligned_free)(pointer);  // _aligned_free

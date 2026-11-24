@@ -2178,7 +2178,22 @@ void XB_CDECL UIRoot_DrawHud(uint8_t* root) {
     if (root[0x4f]) return;
     push_ui_scene();
     uint8_t* const active_dialogs = field<uint8_t*>(root, 0x30);
-    if ((!active_dialogs || (field<int32_t>(active_dialogs, 0xc) < 0 && !root[0x49])) && !hud_hidden()) {
+    // Ours, diagnostics: what keeps the HUD back, reported when it changes (ClientPcHooks::hud_state).
+    const int32_t dialog = active_dialogs ? field<int32_t>(active_dialogs, 0xc) : -1;
+    static int32_t last_reason = -1, last_dialog = -2;
+    {
+        const int32_t reason = dialog >= 0                            ? 1
+                               : root[0x49]                           ? 2
+                               : client_pc_hooks().free_camera_active ? 4
+                               : hud_hidden()                         ? 3
+                                                                      : 0;
+        if ((reason != last_reason || dialog != last_dialog) && client_pc_hooks().hud_state) {
+            client_pc_hooks().hud_state(reason, dialog);
+            last_reason = reason;
+            last_dialog = dialog;
+        }
+    }
+    if ((!active_dialogs || (dialog < 0 && !root[0x49])) && !hud_hidden()) {
         const ClientPcHooks& hooks = client_pc_hooks();
         if (hooks.hud_draw_begin) hooks.hud_draw_begin();
         call(field<uint8_t*>(root, 0x20), 0x14);  // HudManager_Draw
@@ -2413,7 +2428,6 @@ PLATFORM_ASM_ENTRY(SaveSlot_Init_entry,
                    "ret $8")
 
 uint32_t XB_CDECL SaveSlot_Init(uint8_t* saves, int32_t slot, uint8_t keep) {
-    using StrNCpy = char* XB_CDECL(char*, const char*, uint32_t);
     title_global<uint8_t>(0x008d50dd) = 0;
     uint8_t* const record = saves + slot * 0x3cc;
     const char* const version = title_global<uint8_t>(0x0095e7f8) ? text_at(0x0082ab00) : text_at(0x0082aaf8);
@@ -2429,7 +2443,6 @@ uint32_t XB_CDECL SaveSlot_Init(uint8_t* saves, int32_t slot, uint8_t keep) {
 }
 
 void XB_STDCALL SaveSlot_InitAll(uint8_t* saves) {
-    using StrNCpy = char* XB_CDECL(char*, const char*, uint32_t);
     uint8_t profile[0x3a4];  // the defaults (the words Profile_SetDefaults leaves are zero on the dead stack)
     for (uint32_t i = 0; i < sizeof profile; ++i) profile[i] = 0;
     title_global<uint8_t>(0x008d50dd) = 0;

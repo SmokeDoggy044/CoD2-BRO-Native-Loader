@@ -582,7 +582,6 @@ void set_transform_constants(int32_t slot, const NglMeshNode* node) {
 
 // Vertex constants 6..9: the node's world * view * projection (transposed).
 void set_world_view_projection(const NglMeshNode* node) {
-    using SetConstants = void XB_FASTCALL(uint32_t, const float*, uint32_t);
     xb::set_vertex_constants(6, draw_node(node)->world_view_projection, 16);  // NotInlineFast
 }
 
@@ -623,7 +622,6 @@ void set_object_lights(const NglMeshNode* node) {
     nglSelectMeshLightSet(draw);
     nglComputeObjectLights(draw, constants + 16, constants + 32);
     std::memcpy(constants, draw->world_view_projection, 64);
-    using SetConstants = void XB_FASTCALL(uint32_t, const float*, uint32_t);
     xb::set_vertex_constants(6, constants, 48);  // NotInlineFast
 }
 
@@ -795,7 +793,6 @@ void compute_object_lights(const NglMeshNode* node, float* constants) {
 }
 
 void set_vertex_constants(uint32_t first, const float* constants, uint32_t count) {
-    using SetConstants = void XB_FASTCALL(uint32_t, const float*, uint32_t);
     xb::set_vertex_constants(first, constants, count);  // NotInlineFast
 }
 
@@ -896,7 +893,6 @@ void XB_THISCALL cdDebug_Draw(const NglMeshNode* node) {
         fog_enabled = 0;
     }
     set_world_view_projection(node);
-    using SetConstant1 = void XB_FASTCALL(uint32_t, const float*);
     xb::set_vertex_constant(0xc, color);  // SetVertexShaderConstant1Fast
     nglSetVertexShaderCached(shader_ref(0x00901f88));
     nglSetPixelShaderProgramCached(shader_ref(0x00901f90));
@@ -1113,7 +1109,6 @@ void XB_THISCALL cdOcean_SetWaveConstants(const NglMeshNode* node) {
     store_lanes(c + 96, mul(mul(splat(wave_z), blend), splat(quarter)));
     using GetSlot = int32_t XB_THISCALL(const NglMeshNode*);
     const int32_t slot = reinterpret_cast<GetSlot*>(node->vtable[6])(node);
-    using SetConstants = void XB_FASTCALL(uint32_t, const float*, uint32_t);
     xb::set_vertex_constants(slot + 0x60, c, 100);  // NotInlineFast
     xb::set_pixel_constants(0, pixel, 1);  // SetPixelShaderConstant
 }

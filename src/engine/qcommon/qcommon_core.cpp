@@ -2,6 +2,8 @@
 
 #include "qcommon_core.h"
 
+#include <atomic>
+#include <cstdlib>
 #include <cstring>
 
 #include "actor.h"
@@ -18,6 +20,7 @@
 #include "title_data.h"
 #include "title_xapi.h"
 #include "title_eh.h"
+#include "title_host.h"
 #include "title_savegame.h"
 #include "unr_methods.h"
 
@@ -713,6 +716,12 @@ uint32_t XB_CDECL Heap_Sbrk(uint32_t size) {
     const uint32_t top = word_at(heap, 0x47c);
     const uint32_t next = size + top;
     if (next >= word_at(heap, 0x478)) return 0xffffffffu;
+    // Ours: the main heap (0x008ff638) in the host's own range is committed as its top moves up (the original's pool
+    // was committed whole). A shrinking top keeps its pages.
+    if (heap == reinterpret_cast<uint8_t*>(uintptr_t{0x008ff638}) && static_cast<int32_t>(size) > 0 &&
+        title_host().game_heap_commit && title_host().game_heap_bytes && title_host().game_heap_bytes() &&
+        !title_host().game_heap_commit(next))
+        return 0xffffffffu;
     word_at(heap, 0x47c) = next;
     return top;
 }
@@ -1695,7 +1704,52 @@ void XB_CDECL Z_Free(uint8_t* mem) {
     if (ptr >= word_at(heap, 0x474) && ptr < word_at(heap, 0x478)) Heap_Free(mem);
 }
 
-void XB_THISCALL Heap_FreeIn2(uint32_t heap, uint8_t* mem) { Heap_FreeIn(heap, mem); }
+namespace {
+
+// Ours: the bytes full zone heaps (Heap_CreateFromZone: the script and effects heaps) have lent from the main heap.
+// The original returned null there and the callers ran into an int3.
+std::atomic<uint32_t> g_zone_lent{0};
+// Ours: bytes the full write-combined heap has lent from the main heap (MemHook_AlignedAlloc), counted when lent
+// (the frees cannot tell them apart; a total, for the memory stats).
+std::atomic<uint32_t> g_wc_lent{0};
+
+uint32_t chunk_bytes(const uint8_t* mem) { return word_at(mem - 4, 0) & ~3u; }
+
+bool heap_holds(const uint8_t* heap, const uint8_t* mem) {
+    const uint32_t ptr = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(mem));
+    return ptr >= word_at(heap, 0x474) && ptr < word_at(heap, 0x478);
+}
+
+uint8_t* zone_lend(uint32_t size, uint32_t align) {
+    const uint32_t saved = Heap_SetCurrent(0x008ff638);
+    uint8_t* const mem = Heap_AllocAligned(align, size);
+    Heap_SetCurrent(saved);
+    if (mem) g_zone_lent += chunk_bytes(mem);
+    return mem;
+}
+
+}  // namespace
+
+uint32_t Heap_ZoneLentBytes() { return g_zone_lent; }
+
+void Heap_ZoneLentReset() {
+    g_zone_lent = 0;
+    g_wc_lent = 0;
+}
+
+void Heap_WCLent(const uint8_t* mem) { g_wc_lent += chunk_bytes(mem); }
+
+uint32_t Heap_WCLentBytes() { return g_wc_lent; }
+
+void XB_THISCALL Heap_FreeIn2(uint32_t heap, uint8_t* mem) {
+    // Ours: a block the zone heap lent from the main heap (Heap_AllocFromHeap) goes back to its owner.
+    if (mem && !heap_holds(heap_ptr(heap), mem)) {
+        g_zone_lent -= chunk_bytes(mem);
+        Z_Free(mem);
+        return;
+    }
+    Heap_FreeIn(heap, mem);
+}
 
 namespace {
 
@@ -1756,11 +1810,32 @@ uint8_t* XB_THISCALL Heap_CreateFromZone(uint8_t* heap, uint32_t size) {
 }
 
 uint8_t* XB_THISCALL Heap_AllocFromHeap(uint8_t* heap, uint32_t size, uint32_t align) {
-    if (word_at(heap, 0x488) + size > word_at(heap, 0x484)) return nullptr;
-    const uint32_t saved = Heap_SetCurrent(static_cast<uint32_t>(reinterpret_cast<uintptr_t>(heap)));
-    uint8_t* const result = Heap_AllocAligned(align, size);
-    Heap_SetCurrent(saved);
+    uint8_t* result = nullptr;
+    if (word_at(heap, 0x488) + size <= word_at(heap, 0x484)) {
+        const uint32_t saved = Heap_SetCurrent(static_cast<uint32_t>(reinterpret_cast<uintptr_t>(heap)));
+        result = Heap_AllocAligned(align, size);
+        Heap_SetCurrent(saved);
+    }
+    // Ours: a full zone heap lends from the main heap (it grows); Heap_FreeIn2 gives the block back. Its own count
+    // (+0x488) stays as it was, so the effects budget (FX_SpawnEffect: 80 % of +0x484) evicts as before.
+    if (!result && heap != heap_ptr(0x008ff638)) result = zone_lend(size, align);
     return result;
+}
+
+uint32_t Heap_TestSqueeze() {
+#if COD_BRO_DEV_TOOLS
+    // Developers: COD_BRO_HEAP_SQUEEZE=bits makes heaps tiny so that their fallbacks run all the time: 1 the script
+    // small heap's pools, 2 the script zone heap, 4 the effects zone heap (changes when effects are evicted), 8 the
+    // effects block pools (4 items each), 16 the write-combined heap (64 KB), 32 the sound memory (1 MB + overflow), 64 the anim infos
+    // (8 of the table's 511).
+    static const uint32_t squeeze = [] {
+        const char* v = std::getenv("COD_BRO_HEAP_SQUEEZE");
+        return v ? static_cast<uint32_t>(std::strtoul(v, nullptr, 10)) : 0u;
+    }();
+    return squeeze;
+#else
+    return 0;
+#endif
 }
 
 uint32_t Mem_ExtraBytes(uint32_t num, uint32_t den) {
@@ -1781,11 +1856,19 @@ uint32_t XB_CDECL Mem_AllocPhysicalPools() {
     title_global<uint32_t>(0x00901afc) = 0xffffffffu;  // debug pool start
     title_global<uint32_t>(0x00901b00) = 0xffffffffu;  // debug pool end
     title_global<uint32_t>(0x00901b04) = 0;            // debug pool size
-    uint32_t size = 0x0232b000 + Mem_ExtraBytes(3, 4);
-    uint32_t physical = physical_alloc(size, 0xffffffffu, 0x1000, 4);  // PAGE_READWRITE
-    if (!physical && size != 0x0232b000) {
-        size = 0x0232b000;
-        physical = physical_alloc(size, 0xffffffffu, 0x1000, 4);
+    uint32_t size = 0;
+    uint32_t physical = 0;
+    if (title_host().game_heap_bytes && title_host().game_heap_bytes()) {
+        // Ours, own engine: the host's game heap range, committed as the heap grows (Heap_Sbrk).
+        physical = title_host().game_heap_base();
+        size = title_host().game_heap_bytes();
+    } else {
+        size = 0x0232b000 + Mem_ExtraBytes(3, 4);
+        physical = physical_alloc(size, 0xffffffffu, 0x1000, 4);  // PAGE_READWRITE
+        if (!physical && size != 0x0232b000) {
+            size = 0x0232b000;
+            physical = physical_alloc(size, 0xffffffffu, 0x1000, 4);
+        }
     }
     title_global<uint32_t>(0x00901af8) = size;  // physPoolSize
     title_global<uint32_t>(0x00901af0) = physical;
@@ -1838,7 +1921,8 @@ uint32_t XB_CDECL Heap_InitDefaultHeaps() {
     if (start < end) Heap_Init(heap_ptr(0x008ff638), start, end, 0);
     const uint32_t wc_start = Mem_GetWCPoolStart();
     if (wc_start < Mem_GetWCPoolEnd()) {
-        const uint32_t wc_end = Mem_GetWCPoolEnd();
+        // Ours, developers: COD_BRO_HEAP_SQUEEZE bit 16 leaves the write-combined heap 64 KB (MemHook_AlignedAlloc lends).
+        const uint32_t wc_end = (Heap_TestSqueeze() & 16) ? wc_start + 0x10000 : Mem_GetWCPoolEnd();
         Heap_Init(heap_ptr(0x008fff60), Mem_GetWCPoolStart(), wc_end, 0);
     }
     if (Mem_GetDebugPoolStart() != 0xffffffffu) {

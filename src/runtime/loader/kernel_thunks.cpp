@@ -113,6 +113,7 @@ uint32_t XB_STDCALL PsCreateSystemThreadEx(xbox::Handle* thread_handle, uint32_t
     if (thread_extension_size)
         LOG_WARN("thread", "ThreadExtensionSize %u is not supported, ignored", thread_extension_size);
 
+    xbox::replay::thread_started(start_routine);  // recorded/checked when the main thread starts it
     ThreadEnv* env = create_thread_env(kernel_stack_size, tls_data_size);
     if (!env) return xbox::kStatusNoMemory;
 

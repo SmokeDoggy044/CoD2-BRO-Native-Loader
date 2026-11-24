@@ -13,6 +13,21 @@ namespace xbox {
 // Reserves the address ranges from `config`. Called by kernel_init.
 bool memory_init(const MemoryConfig& config);
 
+// Where contiguous ("physical") memory starts: physical address P is at contiguous_base() + P. The Xbox's (and the
+// loader's) 0x80000000, or wherever the host placed it (MemoryConfig::host_placed). Any thread, after memory_init.
+uint32_t contiguous_base();
+// The address lies in contiguous memory (what the Xbox told by the address's top bit).
+bool in_contiguous_memory(uint32_t address);
+// The address lies in the title's contiguous memory or its virtual range (where its heaps and objects live).
+bool in_title_memory(uint32_t address);
+
+// The game heap's range (MemoryConfig::heap_bytes): its base (0 = none) and size, and committing it up to `end` (an
+// address in it; page runs are committed in 1 MB steps). False when `end` lies past the range or the host refuses.
+// After an in-process restart the same range is handed out again, decommitted.
+XbPtr game_heap_base();
+uint32_t game_heap_bytes();
+bool game_heap_commit(XbPtr end);
+
 // Charges (positive) or returns (negative) pages for memory the kernel does not
 // allocate itself: the XBE image and its sections. Returns false if the budget is
 // now exceeded; the charge is kept either way.
@@ -36,6 +51,14 @@ struct TitleMemoryStatistics {
 };
 TitleMemoryStatistics title_memory_statistics();
 XbPtr title_reserve(uint32_t bytes);  // reserved and committed, read/write
+
+// The ranges memory_init reserved and how many pages of them are in use (--mem-stats).
+struct MemoryUsage {
+    MemoryConfig layout;
+    uint32_t total_pages, image_pages, contiguous_pages, virtual_committed_pages, virtual_reserved_pages;
+    uint32_t heap_committed;  // bytes of the game heap's range committed (MemoryConfig::heap_bytes)
+};
+MemoryUsage memory_usage();
 
 // An in-process title restart (own engine host 5b): remember every allocation and its contents now (just before the
 // title's entry runs), and later put the memory back exactly like that - everything allocated since is gone, what

@@ -20,6 +20,10 @@ struct ClientPcHooks {
     // (kNativeKeyFirst + n) and CL_KeyEvent runs the action's command - the engine's binding table is not used, so
     // the pad's bindings and the game's button prompts stay as they are.
     uint32_t (XB_CDECL* native_actions)() = nullptr;
+    // With native actions the keyboard no longer moves the pad's left stick, which scripts read directly
+    // (GScr_GetPadStick: the Liberators bombsight, #48): the movement keys held as that stick (-127..127, y as
+    // IN_PadGetStick gives it: up negative). GScr_GetPadStick adds them to the pad's.
+    void (*movement_stick)(int32_t* x, int32_t* y) = nullptr;
     // True while replaying a recording older than format 5, which had the keyboard in the pad state: the pad's own
     // keys then run their layout bindings as when it was recorded (null: never).
     bool (XB_CDECL* pad_keys_run_layout)() = nullptr;
@@ -90,6 +94,10 @@ struct ClientPcHooks {
     // its own. While it does, free_camera_active is set: no view weapon, crosshair or HUD.
     bool (XB_CDECL* free_camera)(float* origin, float* angles) = nullptr;
     bool free_camera_active = false;
+    // Diagnostics (#44/#48: the HUD gone for a whole mission, until a restart): UIRoot_DrawHud reports when what keeps
+    // the HUD panels from drawing changes - 0 drawn; 1 a dialog is active (`dialog` = its index, -1 none); 2 the root's
+    // byte +0x49; 3 cg_draw2D 0; 4 the free camera. The loader logs it.
+    void (*hud_state)(int32_t reason, int32_t dialog) = nullptr;
 };
 ClientPcHooks& client_pc_hooks();
 // Native keyboard, mouse and gamepad (ClientPcHooks::native_actions): the actions' key numbers start at JOY17 (the
@@ -99,9 +107,9 @@ ClientPcHooks& client_pc_hooks();
 // (Escape) and Back (Tab) keep theirs.
 constexpr int32_t kNativeKeyFirst = 0xdf;
 constexpr int32_t kNativeActionCount = 21;
-// The command a native action key runs (null: none, or not a native key while native actions are off).
-const char* native_key_command(int32_t key);
-
+// The command a native action key runs (null: none, or not a native key while native actions are off). `down`: for
+// the key's press or its release - a pad key's release runs its layout binding (null) when its press did.
+const char* native_key_command(int32_t key, bool down);
 
 // The pads: four 0x58-byte blocks at 0x00902400 (+2..+9 analog button bytes, +0xb/+0xd/+0xf/+0x11 stick high
 // bytes, +0x12 digital buttons, +0x1c/+0x26 pressed/released edge words with the analog edges in the bytes after,

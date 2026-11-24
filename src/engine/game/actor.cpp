@@ -41,6 +41,16 @@ namespace game {
 
 namespace {
 
+// A path point (0x1c bytes: position, 2D direction +0xc, length +0x14, node handle +0x18, two bytes of padding) gets
+// its node handle as a whole word. The original wrote 16 bits and later copies whole points (Path_CopyToActor), so
+// the padding kept whatever the stack held - with our C frames on the title stack, addresses of our library, which
+// differ from run to run: the game state (an actor's path) differed between runs of one recording (missions 3, 11).
+void set_point_node(uint8_t* point, uint32_t node) { *reinterpret_cast<uint32_t*>(point + 0x18) = node & 0xffffu; }
+
+}  // namespace
+
+namespace {
+
 uint8_t* sentients() { return title_global<uint8_t*>(0x00985378); }
 int32_t level_time() { return title_global<int32_t>(0x0098540c); }
 
@@ -789,7 +799,7 @@ void XB_CDECL Path_DropPassedPoints(uint32_t count, uint8_t* path) {
         for (uint32_t i = 0; i < 12; i += 4) field<uint32_t>(path, i) = field<uint32_t>(path, 0x3cc + i);
         field<int16_t>(path, 0x382) = 1;
         field<uint32_t>(path, 0x3c8) = 0;
-        field<uint16_t>(path, 0x18) = 0;
+        set_point_node(path, 0);
         field<uint32_t>(path, 0x14) = 0;
         field<uint32_t>(path, 0xc) = 0;
         field<uint32_t>(path, 0x10) = 0;
@@ -3869,7 +3879,7 @@ uint32_t XB_CDECL Path_TrimAtGoal(uint8_t* path, const float* goal, float radius
     }
     Path_DropPassedPoints(uint32_t(i), path);
     const int16_t left_points = field<int16_t>(path, 0x380);
-    field<uint16_t>(path, 0x18) = 0;
+    set_point_node(path, 0);
     if (left_points <= 1) return 1;
     float* const first = reinterpret_cast<float*>(path);
     const float* const second = first + 7;
@@ -5908,7 +5918,7 @@ long double x87_abs(long double v) {
 // map (+0x18), 0 for an unmapped one.
 float anim_weight(uint32_t tree, uint32_t index) {
     const uint16_t anim = title_global<uint16_t>(tree + 0x18 + index * 2);
-    return anim ? title_global<float>(0x00965d14 + anim * 0x30) : 0.0f;
+    return anim ? *reinterpret_cast<const float*>(AnimInfo_At(anim) + 0x24) : 0.0f;
 }
 
 void set_goal_weight(uint32_t index, uint32_t tree, float goal, float blend) {
@@ -6790,7 +6800,7 @@ uint32_t XB_CDECL Actor_Turret_UpdatePose(uint32_t entry, uint32_t ecx0, uint32_
         r.esi = node;
         r.edx = index ? index * 0x30u : at.skip_edx;
         if (index) {
-            info = &title_global<uint8_t>(0x00965cf0 + index * 0x30u);
+            info = AnimInfo_At(index);
         } else if (!no_alloc && goal != 0.0f) {
             const uint32_t args[1] = {tree};
             r.ecx = at.alloc_ecx;
@@ -8807,7 +8817,7 @@ uint32_t XB_CDECL Actor_Grenade_NodeClaimRevoked(uint32_t entry, uint32_t, uint3
 
 AI_GAP_ENTRY(Actor_Grenade_UpdateReaction, 0)
 
-uint32_t XB_CDECL Actor_Grenade_UpdateReaction(uint32_t entry, uint32_t, uint32_t ebx, uint32_t ecx, uint32_t edx,
+uint32_t XB_CDECL Actor_Grenade_UpdateReaction(uint32_t entry, uint32_t, uint32_t ebx, uint32_t /*ecx*/, uint32_t edx,
                                                uint32_t esi, uint32_t edi, uint32_t) {
     // ESI actor: a grenade owned by this actor's entity (or by nobody before the actor threw
     // one, +0x1324) is first tried for a throw back (its result returned when it succeeds; the
@@ -8847,7 +8857,7 @@ uint32_t XB_CDECL Actor_Grenade_UpdateReaction(uint32_t entry, uint32_t, uint32_
 
 AI_GAP_ENTRY(Actor_UpdateOrient, 0)
 
-uint32_t XB_CDECL Actor_UpdateOrient(uint32_t entry, uint32_t eax, uint32_t ebx, uint32_t ecx, uint32_t edx,
+uint32_t XB_CDECL Actor_UpdateOrient(uint32_t entry, uint32_t eax, uint32_t ebx, uint32_t ecx, uint32_t /*edx*/,
                                      uint32_t esi, uint32_t edi, uint32_t) {
     // ECX actor: the orientation record (+0x140 when its mode is set, else +0x12c) by mode -
     // 2: Actor_OrientToMoveHistory (tail jump), 3: Actor_ChooseIdleOrient, 4:
@@ -8895,7 +8905,7 @@ uint32_t XB_CDECL Actor_UpdateOrient(uint32_t entry, uint32_t eax, uint32_t ebx,
 
 AI_GAP_ENTRY(Actor_SetGoalNodeAndTakeCover, 4)
 
-uint32_t XB_CDECL Actor_SetGoalNodeAndTakeCover(uint32_t entry, uint32_t eax, uint32_t ebx, uint32_t ecx, uint32_t edx,
+uint32_t XB_CDECL Actor_SetGoalNodeAndTakeCover(uint32_t entry, uint32_t eax, uint32_t ebx, uint32_t /*ecx*/, uint32_t edx,
                                                 uint32_t esi, uint32_t edi, uint32_t ebp) {
     // EAX sentient, stack node (ret 4): the goal position becomes the node's origin (block
     // (x, y, z, x) at A - 0x10, A = the 16-aligned frame base). For a cover node type (1 <<
@@ -9061,7 +9071,6 @@ uint32_t XB_CDECL Path_ScoreEnemyExposure(uint32_t entry, uint32_t ebx0, uint32_
                                 1, &other);  // PathNode_CanSee_2 (EAX node, EDX blocks; stdcall)
                     if (!(seen & 0xff)) continue;
                 }
-                using ext = long double;
                 const float dx = float(platform_x87_ld(pos[0]) - platform_x87_ld(field<float>(point, 0)));
                 const float dy = float(platform_x87_ld(pos[1]) - platform_x87_ld(field<float>(point, 4)));
                 const float dz = float(platform_x87_ld(pos[2]) - platform_x87_ld(field<float>(point, 8)));
@@ -9575,7 +9584,7 @@ void XB_CDECL Actor_UpdateAimBlend(uint32_t entry, uint32_t check_prone, uint8_t
         const uint16_t index = title_global<uint16_t>(tree + 0x18 + node * 2);
         uint8_t* info = nullptr;
         if (index) {
-            info = &title_global<uint8_t>(0x00965cf0 + index * 0x30u);
+            info = AnimInfo_At(index);
         } else if (goal != zero) {
             info = reinterpret_cast<uint8_t*>(uintptr_t{call_at(F, ret_alloc, own_address(&AnimTree_AllocInfo), TitleRegs{node, tree, 0, 0, node, a},
                                                                 1, &tree)});  // AnimTree_AllocInfo (EAX)
@@ -10750,7 +10759,6 @@ void actor_clip_move(const float* v, const float* p, float* out) {
 
 // x87 dot product of a clip vector and a plane, ((a0 p0 + a1 p1) + a2 p2) in the precision control.
 long double actor_dot_x87(const float* a, const float* p) {
-    using ext = long double;
     return (platform_x87_ld(a[0]) * platform_x87_ld(p[0]) + platform_x87_ld(a[1]) * platform_x87_ld(p[1])) + platform_x87_ld(a[2]) * platform_x87_ld(p[2]);
 }
 
@@ -11325,7 +11333,6 @@ uint32_t XB_CDECL Actor_GrenadeThrow_Fallback(uint32_t entry, const float* start
     stack_word(F) = ebx;
     int32_t count = title_global<int32_t>(0x00985fd4);
     if (!count) return 0;
-    using ext = long double;
     const float dz = target[2] - start[2];
     const float dx = float(platform_x87_ld(target[0]) - platform_x87_ld(start[0]));
     const float dy = float(platform_x87_ld(target[1]) - platform_x87_ld(start[1]));
@@ -18505,7 +18512,7 @@ uint32_t XB_CDECL Actor_MoveAlongPath(uint32_t entry, uint32_t eax, uint32_t ebx
 
 AI_GAP_ENTRY(Actor_RunMovement, 0)
 
-uint32_t XB_CDECL Actor_RunMovement(uint32_t entry, uint32_t eax, uint32_t ebx, uint32_t ecx, uint32_t edx, uint32_t esi,
+uint32_t XB_CDECL Actor_RunMovement(uint32_t entry, uint32_t eax, uint32_t ebx, uint32_t /*ecx*/, uint32_t edx, uint32_t esi,
                                     uint32_t edi, uint32_t ebp) {
     // ESI move record (actor +0x290; g_actorMove): +0x10c, +0x88, +0x121 cleared. A ground
     // entity (handle +0x44) outside a valid cell clears +0x20. Standing on the world (+0x20 =
@@ -18657,9 +18664,9 @@ uint32_t XB_CDECL Path_BuildFromNodes(uint32_t entry, uint32_t, uint32_t ebx, ui
         field<float>(path, 0) = point[0];
         field<float>(path, 4) = point[1];
         field<float>(path, 8) = point[2];
-        field<uint16_t>(path, 0x18) = 0;
+        set_point_node(path, 0);
         if (point[0] == field<float>(end_node, 0x44) && point[1] == field<float>(end_node, 0x48)) {
-            field<uint16_t>(path, 0x18) = field<uint16_t>(end_node, 0);
+            set_point_node(path, field<uint16_t>(end_node, 0));
             next = addr_of(end_node) == start ? nullptr : field<const uint8_t*>(end_node, 0x74);
         } else {
             next = end_node;
@@ -18668,7 +18675,7 @@ uint32_t XB_CDECL Path_BuildFromNodes(uint32_t entry, uint32_t, uint32_t ebx, ui
         field<uint32_t>(path, 0) = field<uint32_t>(end_node, 0x44);
         field<uint32_t>(path, 4) = field<uint32_t>(end_node, 0x48);
         field<uint32_t>(path, 8) = field<uint32_t>(end_node, 0x4c);
-        field<uint16_t>(path, 0x18) = field<uint16_t>(end_node, 0);
+        set_point_node(path, field<uint16_t>(end_node, 0));
         next = addr_of(end_node) == start ? nullptr : field<const uint8_t*>(end_node, 0x74);
     }
     int32_t count = 1;
@@ -18676,7 +18683,7 @@ uint32_t XB_CDECL Path_BuildFromNodes(uint32_t entry, uint32_t, uint32_t ebx, ui
         field<uint32_t>(path, 0x1c) = field<uint32_t>(next, 0x44);
         field<uint32_t>(path, 0x20) = field<uint32_t>(next, 0x48);
         field<uint32_t>(path, 0x24) = field<uint32_t>(next, 0x4c);
-        field<uint16_t>(path, 0x34) = field<uint16_t>(next, 0);
+        set_point_node(path + 0x1c, field<uint16_t>(next, 0));  // the second point's handle (+0x34), as a whole word
         count = 2;
         while (addr_of(next) != start) {
             next = field<const uint8_t*>(next, 0x74);
@@ -18691,7 +18698,7 @@ uint32_t XB_CDECL Path_BuildFromNodes(uint32_t entry, uint32_t, uint32_t ebx, ui
             field<uint32_t>(r, 4) = field<uint32_t>(next, 0x48);
             field<uint32_t>(r, 8) = field<uint32_t>(next, 0x4c);
             ++count;
-            field<uint16_t>(r, 0x18) = field<uint16_t>(next, 0);
+            set_point_node(r, field<uint16_t>(next, 0));
         }
     }
     const uint32_t had80 = field<uint32_t>(path, 0x3bc) & 0x80;
@@ -18936,7 +18943,7 @@ uint32_t XB_CDECL Path_TryDodge(uint32_t entry, uint32_t eax, uint32_t ebx, uint
         point = next;
         field<int16_t>(path, 0x388) = int16_t(idx);
         field<float>(path, 0x3b8) = 0.0f;
-        field<int16_t>(point, 0x18) = 0;
+        set_point_node(point, 0);
     }
     const float ox = slot_f(out1);
     const float oy = slot_f(out1 + 4);
@@ -18958,7 +18965,7 @@ uint32_t XB_CDECL Path_TryDodge(uint32_t entry, uint32_t eax, uint32_t ebx, uint
         field<float>(q, 0) = ox;
         field<float>(q, 4) = slot_f(out1 + 4);
         field<float>(q, 8) = slot_f(out1 + 8);
-        field<int16_t>(q, 0x18) = 0;
+        set_point_node(q, 0);
     }
     uint8_t* const r = path + idx * 0x1c;
     field<float>(r, 0xc) = ox - st[0];
@@ -18982,7 +18989,7 @@ uint32_t XB_CDECL Path_TryDodge(uint32_t entry, uint32_t eax, uint32_t ebx, uint
     field<uint32_t>(path, 0x3cc) = stack_word(start);
     field<uint32_t>(path, 0x3d0) = stack_word(start + 4);
     field<uint32_t>(path, 0x3d4) = stack_word(start + 8);
-    field<int16_t>(e, 0x18) = 0;
+    set_point_node(e, 0);
     field<float>(e, 0x14) = 0.0f;
     field<float>(e, 0xc) = 0.0f;
     field<float>(e, 0x10) = 0.0f;

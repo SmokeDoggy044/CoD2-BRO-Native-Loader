@@ -35,8 +35,8 @@ fi
 port=$(cd "$(dirname "$0")/.." && pwd)
 builds=("$@")
 [ ${#builds[@]} -eq 0 ] && builds=(
-    "release=$port/build/linux-loader-release/bin/cod_bro_loader"
-    "debug=$port/build/linux-loader/bin/cod_bro_loader"
+    "release=$port/build/linux-loader-release/bin/cod_bro"
+    "debug=$port/build/linux-loader/bin/cod_bro"
     "windows=$port/build/wine_wrap.sh")
 rec=$(realpath "$rec")
 saves=$(realpath "$saves")
@@ -73,9 +73,14 @@ for b in "${builds[@]}"; do
     log="$out/$name.txt"
     result=$(grep -a -m1 -oE '(all [0-9]+ frames matched|[0-9]+ of [0-9]+ frames differed, the first at frame [0-9]+)' "$log")
     crash=$(grep -a -m1 -oE 'Segmentation fault at .*|unimplemented .*' "$log")
+    # Faults: the run could not hand the title what the recording saw (missed sound packets, live waits, other read
+    # counts). Matching frames do not make that a pass.
+    faults=$(grep -a -m1 -oE 'replay faults \(the run did not see what the recording saw\): .* - not a pass' "$log" |
+        sed -E 's/^replay faults \(the run did not see what the recording saw\): //; s/ - not a pass$//')
     [ -z "$result" ] && result="no replay result (see $log)"
-    [[ $result == all*matched && -z $crash ]] || failed=1
-    printf '%-10s %-8s %s%s\n' "$name" "$(cat "$out/$name.exit")" "$result" "${crash:+; then CRASH: $crash}"
+    [[ $result == all*matched && -z $crash && -z $faults ]] || failed=1
+    printf '%-10s %-8s %s%s%s\n' "$name" "$(cat "$out/$name.exit")" "$result" "${faults:+; FAULTS: $faults}" \
+        "${crash:+; then CRASH: $crash}"
     rm -f "$out/$name.exit"
 done
 if [ -n "${SHOTS:-}" ]; then

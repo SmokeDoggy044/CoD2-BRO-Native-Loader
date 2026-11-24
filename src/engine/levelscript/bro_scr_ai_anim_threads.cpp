@@ -28,6 +28,7 @@
 #include "scr_field_instances.h"
 #include "script_string.h"
 #include "title_data.h"
+#include "xanim.h"
 #include "g_scr_math.h"
 #include "levels_templates.h"
 #include "levels_twins.h"
@@ -797,7 +798,13 @@ void XB_CDECL Bro_cover_crouch__idle(uint32_t ent) {
         scr_drop(&message);
     }
     using EntFn = void XB_CDECL(uint32_t);
-    const uint32_t weapon = weapon_type(ent);
+    uint32_t weapon = weapon_type(ent);
+    // Ours (engine fix): an actor without a weapon gets the pistol low-wall idles. A level that ships no pistol anims
+    // has no clip for them, and a leaf without a clip shows the skeleton's rest pose: in Kasserine Pass the level
+    // code clears hasweapon on the wrong soldier (level +0x9e8 instead of the jeep Hawkins at +0x880), who then stood
+    // in the bind pose through the closing cutscene. Such an actor keeps the rifle idles there.
+    if (weapon == 0x0036b1a5 && !XAnim_ClipLoaded(title_global<uint32_t>(0x008ceec8)))
+        weapon = 0x071515e5;  // rifle: any type but pistol, none and panzerfaust takes the rifle idles below
     if (weapon == 0xe6a85d8c || weapon == 0x0036b1a5) {  // pistol, none
         const uint32_t idle = *handle_slot(ent, 0xbfc60f36);  // anim_idleset
         if (idle == 0x61) {
@@ -3271,8 +3278,8 @@ void XB_CDECL BroScr_MiscCombatTimer(uint32_t ent) {
     }
 }
 
-void XB_CDECL BroScr_ForceShootAtPoint(uint32_t ent, ScrVec3 point, uint32_t delay, ScriptString name, uint32_t unused7,
-                                       uint32_t target, uint32_t unused9) {
+void XB_CDECL BroScr_ForceShootAtPoint(uint32_t ent, ScrVec3 point, uint32_t delay, ScriptString name, uint32_t /*unused7*/,
+                                       uint32_t target, uint32_t /*unused9*/) {
     ScrStringGuard guard_name(&name);
     end_on(ent, 0x06730ae8);  // death
     end_on(ent, 0x0039894e);

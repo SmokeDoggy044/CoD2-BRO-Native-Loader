@@ -2273,6 +2273,10 @@ uint8_t* XB_REGS1 XB_STDCALL G_InitGentity(uint8_t* ent, int32_t context) {
     auto zero_words = [&](uint32_t begin, uint32_t end) {
         for (uint32_t f = begin; f < end; f += 4) word_at(ent, f) = 0;
     };
+    // Ours: every caller hands in a new block; it starts zeroed. The original left the fields below that it does not
+    // set (+0x5c, +0xcc, +0x138, +0x218, +0x296, ...) as the heap block held them, so a game that read one depended
+    // on where the block came from.
+    std::memset(ent, 0, 0x460);
     EntityState_Clear(ent);
     own_function<void XB_REGS1 XB_CDECL(uint8_t*)>(&Phys_InitBodyState)(ent + 0xd0);  // FUN_002ceb50 (physics state)
     word_at(ent, 0x220) = static_cast<uint32_t>(context);

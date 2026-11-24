@@ -14,6 +14,7 @@
 #include "kernel_memory_impl.h"
 
 #include <algorithm>
+#include <atomic>
 #include <cstring>
 #include <iterator>
 #include <map>
@@ -114,11 +115,25 @@ struct MemoryState {
     std::map<uint32_t, uint32_t> contiguous;  // first page -> page count
     std::vector<uint16_t> contiguous_protect;
 
+    // The game heap (config.heap_base, heap_bytes): bytes committed from its base.
+    uint32_t heap_committed = 0;
+
     uint32_t used_pages() const { return image_pages + contiguous_pages + virtual_committed_pages; }
     bool can_take(uint32_t pages) const { return used_pages() + pages <= total_pages; }
 };
 
 MemoryState& g_memory = immortal<MemoryState>();
+// memory_init's placement, for readers on any thread without the lock (set once, before the title runs).
+std::atomic<uint32_t> g_contiguous_base{0x80000000u};
+std::atomic<uint32_t> g_contiguous_bytes{0};
+std::atomic<uint32_t> g_virtual_base{0};
+std::atomic<uint32_t> g_virtual_bytes{0};
+std::atomic<uint32_t> g_heap_base{0};
+std::atomic<uint32_t> g_heap_bytes{0};
+
+bool in_game_heap(uint32_t address) {
+    return address - g_heap_base.load(std::memory_order_relaxed) < g_heap_bytes.load(std::memory_order_relaxed);
+}
 
 void* host(uint32_t address) { return from_xbox_ptr<void>(address); }
 
@@ -502,6 +517,8 @@ XbPtr MmGetPhysicalAddress(XbPtr base_address) {
 // Protection of one page of contiguous or virtual memory, or 0 if not allocated.
 uint32_t MmQueryAddressProtect(XbPtr address) {
     std::lock_guard lock(g_memory.mutex);
+    if (in_game_heap(address))  // read/write while committed; cache attributes are not kept for it
+        return address - game_heap_base() < g_memory.heap_committed ? kPageReadWrite : 0;
     if (find_contiguous(address) != g_memory.contiguous.end())
         return g_memory.contiguous_protect[(address - g_memory.config.contiguous_base) / kPage];
     if (in_virtual_range(address, address + 1) && g_memory.page_state[page_index(address)] == PageState::Committed)
@@ -520,6 +537,11 @@ void MmSetAddressProtect(XbPtr base_address, uint32_t number_of_bytes, uint32_t 
     }
     const uint32_t start = round_down(base_address, kPage);
     const uint32_t end = round_up(base_address + number_of_bytes, kPage);
+    if (in_game_heap(start)) {
+        // The game heap (stream banks, file buffers): cache attributes mean nothing on the PC; access changes apply.
+        if (!modifiers_only) platform::vmem::protect(host(start), end - start, protection);
+        return;
+    }
     std::lock_guard lock(g_memory.mutex);
     for (uint32_t page = start; page < end; page += kPage) {
         uint16_t* slot = nullptr;
@@ -566,7 +588,34 @@ bool memory_init(const MemoryConfig& config) {
         return false;
     }
     MemoryConfig layout = config;
-    if (!platform::vmem::reserve(layout.contiguous_base, layout.physical_bytes)) {
+    if (config.host_placed) {
+        // Both ranges at the config's bases when they are free (the same place on every machine keeps recordings
+        // comparable: the replay's state hash masks values that fall in these ranges), else wherever the host has
+        // room, aligned to the reservation granularity (alignments the title asks of contiguous memory are of its
+        // physical address, so the base must not break them).
+        const auto place = [](uint32_t preferred, uint32_t size, const char* what) -> uint32_t {
+            if (platform::vmem::reserve(preferred, size)) return preferred;
+            void* const block = platform::vmem::reserve(0, size + kGranularity);
+            if (!block) return 0;
+            const uint32_t base = round_up(static_cast<uint32_t>(reinterpret_cast<uintptr_t>(block)), kGranularity);
+            LOG_WARN("memory", "%s: %08x is in use; at %08x instead (recordings made elsewhere may not compare)", what,
+                     preferred, base);
+            return base;
+        };
+        const uint32_t virtual_size = layout.virtual_end - layout.virtual_base;
+        layout.contiguous_base = place(config.contiguous_base, layout.physical_bytes, "contiguous memory");
+        layout.virtual_base = place(config.virtual_base, virtual_size, "virtual memory");
+        if (layout.heap_bytes) {
+            layout.heap_base = place(config.heap_base, layout.heap_bytes, "the game heap");
+            if (!layout.heap_base) layout.heap_bytes = 0;  // the game takes its old fixed pool instead
+        }
+        layout.virtual_end = layout.virtual_base + virtual_size;
+        if (!layout.contiguous_base || !layout.virtual_base) {
+            LOG_ERROR("memory", "cannot reserve %u MB + %u MB for the title's memory", layout.physical_bytes >> 20,
+                      virtual_size >> 20);
+            return false;
+        }
+    } else if (!platform::vmem::reserve(layout.contiguous_base, layout.physical_bytes)) {
         // More than a retail Xbox's 64 MB is an extra: fall back to 64 when the range is taken.
         constexpr uint32_t kXboxBytes = 64u << 20;
         if (layout.physical_bytes <= kXboxBytes || !platform::vmem::reserve(layout.contiguous_base, kXboxBytes)) {
@@ -578,7 +627,8 @@ bool memory_init(const MemoryConfig& config) {
                  config.contiguous_base);
         layout.physical_bytes = kXboxBytes;
     }
-    if (!platform::vmem::reserve(layout.virtual_base, layout.virtual_end - layout.virtual_base)) {
+    if (!config.host_placed &&
+        !platform::vmem::reserve(layout.virtual_base, layout.virtual_end - layout.virtual_base)) {
         // Something else already lives there (on Windows e.g. a DLL injected at its
         // default base 0x10000000 before our stub ran). The range's place does not
         // matter to the title, only that it is below the contiguous memory: take the
@@ -587,8 +637,9 @@ bool memory_init(const MemoryConfig& config) {
                  layout.virtual_end);
         const uint32_t wanted = layout.virtual_end - layout.virtual_base;
         const uint32_t ceiling = std::min<uint32_t>(config.contiguous_base, 0x80000000u);
+        const uint32_t smallest = std::min(wanted, kMinVirtualRange);  // a range asked smaller is not halved
         bool found = false;
-        for (uint32_t size = wanted; !found && size >= kMinVirtualRange; size /= 2) {
+        for (uint32_t size = wanted; !found && size >= smallest; size /= 2) {
             if (size > ceiling - kVirtualSearchStart) continue;
             for (uint32_t base = kVirtualSearchStart; base <= ceiling - size; base += kVirtualSearchStep) {
                 if (platform::vmem::reserve(base, size)) {
@@ -601,11 +652,17 @@ bool memory_init(const MemoryConfig& config) {
         }
         if (!found) {
             LOG_ERROR("memory", "cannot reserve virtual memory range %08x-%08x (nor any other of %u MB or more)",
-                      config.virtual_base, config.virtual_end, kMinVirtualRange >> 20);
+                      config.virtual_base, config.virtual_end, smallest >> 20);
             return false;
         }
     }
     g_memory.config = layout;
+    g_contiguous_base.store(layout.contiguous_base);
+    g_contiguous_bytes.store(layout.physical_bytes);
+    g_virtual_base.store(layout.virtual_base);
+    g_virtual_bytes.store(layout.virtual_end - layout.virtual_base);
+    g_heap_base.store(layout.heap_bytes ? layout.heap_base : 0);
+    g_heap_bytes.store(layout.heap_bytes);
     g_memory.total_pages = layout.physical_bytes / kPage;
     g_memory.page_state.assign((layout.virtual_end - layout.virtual_base) / kPage, PageState::Free);
     g_memory.page_protect.assign(g_memory.page_state.size(), 0);
@@ -613,7 +670,52 @@ bool memory_init(const MemoryConfig& config) {
     g_memory.initialized = true;
     LOG_INFO("memory", "%u MB physical at %08x, virtual %08x-%08x", layout.physical_bytes >> 20,
              layout.contiguous_base, layout.virtual_base, layout.virtual_end);
+    if (layout.heap_bytes)
+        LOG_INFO("memory", "game heap: up to %u MB at %08x, committed as it grows", layout.heap_bytes >> 20,
+                 layout.heap_base);
     return true;
+}
+
+uint32_t contiguous_base() { return g_contiguous_base.load(std::memory_order_relaxed); }
+
+bool in_contiguous_memory(uint32_t address) {
+    // The game heap counts: on the Xbox (and in the loader) it is a block of contiguous memory.
+    return address - contiguous_base() < g_contiguous_bytes.load(std::memory_order_relaxed) || in_game_heap(address);
+}
+
+XbPtr game_heap_base() { return g_heap_base.load(std::memory_order_relaxed); }
+uint32_t game_heap_bytes() { return g_heap_bytes.load(std::memory_order_relaxed); }
+
+bool game_heap_commit(XbPtr end) {
+    constexpr uint32_t kStep = 1u << 20;
+    const uint32_t base = game_heap_base(), bytes = game_heap_bytes();
+    if (!bytes || end - base > bytes) return false;
+    std::lock_guard lock(g_memory.mutex);
+    const uint32_t wanted = std::min(bytes, round_up(end - base, kStep));
+    if (wanted <= g_memory.heap_committed) return true;
+    if (!platform::vmem::commit(host(base + g_memory.heap_committed), wanted - g_memory.heap_committed,
+                                Protection::ReadWrite)) {
+        LOG_ERROR("memory", "game heap: cannot commit %u MB more", (wanted - g_memory.heap_committed) >> 20);
+        return false;
+    }
+    g_memory.heap_committed = wanted;
+    return true;
+}
+
+bool in_title_memory(uint32_t address) {
+    return in_contiguous_memory(address) ||
+           address - g_virtual_base.load(std::memory_order_relaxed) < g_virtual_bytes.load(std::memory_order_relaxed);
+}
+
+MemoryUsage memory_usage() {
+    std::lock_guard lock(g_memory.mutex);
+    return {g_memory.config,
+            g_memory.total_pages,
+            g_memory.image_pages,
+            g_memory.contiguous_pages,
+            g_memory.virtual_committed_pages,
+            g_memory.virtual_reserved_pages,
+            g_memory.heap_committed};
 }
 
 bool charge_image_pages(int32_t pages) {
@@ -667,7 +769,7 @@ namespace {
 
 struct MemorySnapshot {
     uint32_t image_pages = 0, contiguous_pages = 0, virtual_committed_pages = 0, virtual_reserved_pages = 0,
-             stack_pages = 0;
+             stack_pages = 0, heap_committed = 0;
     std::vector<PageState> page_state;
     std::vector<uint16_t> page_protect;
     std::map<uint32_t, Reservation> reservations;
@@ -712,6 +814,11 @@ void snapshot_memory() {
     s.virtual_committed_pages = m.virtual_committed_pages;
     s.virtual_reserved_pages = m.virtual_reserved_pages;
     s.stack_pages = m.stack_pages;
+    s.heap_committed = m.heap_committed;
+    if (m.heap_committed)
+        save_runs(
+            m.config.heap_base, m.heap_committed / kPage, [](uint32_t) { return true; },
+            [](uint32_t) { return uint16_t{kPageReadWrite}; });
     s.page_state = m.page_state;
     s.page_protect = m.page_protect;
     s.reservations = m.reservations;
@@ -733,6 +840,7 @@ void restore_memory() {
     // Everything back to reserved (contents discarded), then the snapshot's pages committed with their bytes.
     platform::vmem::decommit(host(m.config.virtual_base), m.config.virtual_end - m.config.virtual_base);
     platform::vmem::decommit(host(m.config.contiguous_base), m.config.physical_bytes);
+    if (m.config.heap_bytes) platform::vmem::decommit(host(m.config.heap_base), m.config.heap_bytes);
     for (const MemorySnapshot::Run& run : s.runs) {
         Protection protection = Protection::ReadWrite;
         to_protection(run.protect, protection);
@@ -749,6 +857,7 @@ void restore_memory() {
     m.virtual_committed_pages = s.virtual_committed_pages;
     m.virtual_reserved_pages = s.virtual_reserved_pages;
     m.stack_pages = s.stack_pages;
+    m.heap_committed = s.heap_committed;
     m.page_state = s.page_state;
     m.page_protect = s.page_protect;
     m.reservations = s.reservations;

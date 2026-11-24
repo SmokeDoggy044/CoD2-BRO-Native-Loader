@@ -25,6 +25,7 @@
 #include "crash.h"
 #include "functions.h"
 #include "hooks.h"
+#include "xlat_install.h"
 #include "host_image.h"
 #include "kernel.h"
 #include "kernel_memory.h"
@@ -116,8 +117,14 @@ int host_main(int argc, char** argv) {
                          list.c_str(), changed.size() > 24 ? " ..." : "");
         }
     }
-    if (!loader::clear_code_sections(image, {loader::data_file("code_section_data.txt"),
-                                             loader::data_file("level_eh_code.txt")}))
+    // Developers: COD_BRO_X86_CENSUS=1 (with COD_BRO_XLAT=1) also fills the level EH code and every level function's
+    // instructions with INT3, so any original x86 that still runs traps at its address (the crash log names it).
+    const bool x86_census = COD_BRO_DEV_TOOLS && std::getenv("COD_BRO_X86_CENSUS");
+    std::vector<fs::path> keep_lists{loader::data_file("code_section_data.txt")}, clear_lists;
+    // The census ranges trap once each (Linux: logged as "x86 census: ran", restored, resumed - one run lists them all).
+    if (x86_census) clear_lists.push_back(loader::data_file("level_code_ranges.txt"));
+    (x86_census ? clear_lists : keep_lists).push_back(loader::data_file("level_eh_code.txt"));
+    if (!loader::clear_code_sections(image, keep_lists, clear_lists))
         return loader::startup_failed("cannot prepare the game's image");
 
     static loader::SymbolTable symbols;
@@ -127,13 +134,34 @@ int host_main(int argc, char** argv) {
     loader::install_crash_handler(image, symbols);
     loader::start_profiler(options.profile ? options.profile->c_str() : std::getenv("XB_PROFILE"),
                            static_cast<uint32_t>(options.frame_rate ? options.frame_rate : 60), image, symbols);
-    loader::os::release_reserved_ranges();
 
     // The title's memory: the same allocator and layout as the loader's, so replays compare across both. More than
     // the Xbox's 64 MB by default: the game's physical pool and sound memory grow with it (Mem_ExtraBytes).
     constexpr uint32_t kOwnEngineMemoryMb = 128;
     xbox::MemoryConfig memory;
     memory.physical_bytes = (options.memory_mb ? options.memory_mb : kOwnEngineMemoryMb) * 1024 * 1024;
+    // The title's virtual memory (its CRT heap segments and thread stacks) needs 1 MB in every mission; the Xbox's
+    // 1 GB range only took address space from our renderer and drivers. Both ranges go to the Xbox's places when
+    // free, else where the host has room (our C reaches contiguous memory through xbox::contiguous_base).
+    constexpr uint32_t kOwnEngineVirtualBytes = 64u << 20;
+    memory.virtual_end = memory.virtual_base + kOwnEngineVirtualBytes;
+    memory.host_placed = true;
+    // The game's main heap grows as it needs (Heap_Sbrk commits it): up to 512 MB of address space, where the Xbox
+    // had a fixed 35 MB block (and our 128 MB default 83 MB).
+    memory.heap_bytes = 512u << 20;
+#if COD_BRO_DEV_TOOLS
+    // Developers: COD_BRO_HEAP_BASE / COD_BRO_CONTIGUOUS_BASE / COD_BRO_VIRTUAL_BASE (hex) prefer other places for the
+    // title's memory, same sizes: a replay that differs then shows the game depending on where its memory sits.
+    for (const auto& [name, field] : {std::pair{"COD_BRO_HEAP_BASE", &memory.heap_base},
+                                      std::pair{"COD_BRO_CONTIGUOUS_BASE", &memory.contiguous_base},
+                                      std::pair{"COD_BRO_VIRTUAL_BASE", &memory.virtual_base}})
+        if (const char* v = std::getenv(name)) {
+            const uint32_t size = field == &memory.virtual_base ? memory.virtual_end - memory.virtual_base : 0;
+            *field = static_cast<uint32_t>(std::strtoul(v, nullptr, 16));
+            if (size) memory.virtual_end = memory.virtual_base + size;
+            LOG_INFO("host", "%s = %08x (developer setting)", name, *field);
+        }
+#endif
     if (!xbox::memory_init(memory) || !xbox::place_launch_data_page({}))
         return loader::startup_failed("cannot set up the game's memory");
     xbox::charge_image_pages(loader::initial_image_pages(image));
@@ -189,6 +217,7 @@ int host_main(int argc, char** argv) {
     });
     if (!options.press_script.empty() && !input::set_script(options.press_script)) return 1;
     if (!options.replay_at_switch && !xbox::replay::start(options.replay)) return 1;
+    platform::at_end_process([] { xbox::replay::stop(); });  // closing the window still ends the file properly
     if (!loader::install_sdk_replacements(image, symbols, *title))
         return loader::startup_failed(std::string(title->symbol_file) + " is missing or damaged");
 
@@ -212,6 +241,7 @@ int host_main(int argc, char** argv) {
     hooks.before_fork = audio::hold_for_fork;
     hooks.after_fork = audio::release_after_fork;
     loader::compare::install(game::functions(), hooks);
+    loader::install_translated_levels(true);
 
     // The title's initial thread (no TLS block, as on the Xbox); the XBE entry is our start-up (title_start.cpp).
     loader::ThreadEnv* env = loader::create_thread_env(image.header().pe_stack_commit, 0);

@@ -1,6 +1,7 @@
 # Russian texts for Call of Duty 2: Big Red One (text-language = russian): menus, hints, objectives, subtitles.
 # Keyed by the game's string key hash (msgctxt); msgid is the English disc text, for reference.
-# First version drafted by an AI (Claude); corrections from native speakers are welcome (lang/README.md).
+# First version drafted by an AI (Claude); corrections by YaroslavValerySablin (issue #43, 1.0.11). More corrections
+# from native speakers are welcome (lang/README.md).
 # Keep [TOKENS], ~tokens, %s, the subtitle timings ("12.34|15.60|") and the "|" line breaks as they are.
 msgid ""
 msgstr ""
@@ -54,7 +55,7 @@ msgstr "05.03|08.04|Благодаря беспримерному героизм
 
 msgctxt "0x508f6324"
 msgid "05.70|09.24|following their success over the merciless German |defenders on Omaha Beach,"
-msgstr "05.70|09.24|после победы над беспощадными немецкими |защитниками пляжа Омаха"
+msgstr "05.70|09.24|после победы над беспощадными немецкими |защитниками Омаха-Бич"
 
 msgctxt "0x4ef68e1a"
 msgid "07.90|13.68|the 1st Infantry Division fought valiantly against the well equipped |and more experienced Afrika Korps."
@@ -306,7 +307,7 @@ msgstr "78.77|82.44|и 1-я пехотная дивизия отправляла
 
 msgctxt "0x1caf4327"
 msgid "80.54|86.62|The 1st Infantry Division is tasked with securing a section |of the Normandy coast designated as Omaha Beach."
-msgstr "80.54|86.62|1-й пехотной дивизии поручено захватить участок |побережья Нормандии под названием пляж Омаха."
+msgstr "80.54|86.62|1-й пехотной дивизии поручено захватить участок |побережья Нормандии под названием Омаха-Бич."
 
 msgctxt "0x11ec64df"
 msgid "80.81|83.35|and into the darkest days of occupied France,"
@@ -522,7 +523,7 @@ msgstr "Ось"
 
 msgctxt "0xd8c08246"
 msgid "BAR"
-msgstr "BAR"
+msgstr "BAR M1918A2"
 
 msgctxt "0xca8ff0be"
 msgid "BONUS MATERIALS"
@@ -542,7 +543,7 @@ msgstr "Боевое крещение"
 
 msgctxt "0x24dbbd09"
 msgid "Bazooka"
-msgstr "Базука"
+msgstr "M9 Bazooka"
 
 msgctxt "0x7b4ba2e5"
 msgid "Beretta M1934"
@@ -738,7 +739,7 @@ msgstr "Клиента нет на сервере."
 
 msgctxt "0xb21ad504"
 msgid "Collector's Edition"
-msgstr "Коллекционное издание"
+msgstr "Коллекц. издание"
 
 msgctxt "0x43cdbad5"
 msgid "Colt .45"
@@ -762,7 +763,7 @@ msgstr "На вас подана жалоба. (%s до исключения)"
 
 msgctxt "0x6e5588c0"
 msgid "Concept Arts"
-msgstr "Концепт-арт"
+msgstr "Концепт-арты"
 
 msgctxt "0x7a9d7817"
 msgid "Configuration"
@@ -918,7 +919,7 @@ msgstr "Готово"
 
 msgctxt "0x49519f21"
 msgid "Dragon's Teeth"
-msgstr "«Зубы дракона»"
+msgstr "Зубы дракона"
 
 msgctxt "0x6e57c42a"
 msgid "Easy"
@@ -1158,7 +1159,7 @@ msgstr "Время уровня"
 
 msgctxt "0xaa4a8cff"
 msgid "Liberator"
-msgstr "«Либерейтор»"
+msgstr "Liberator"
 
 msgctxt "0xcbd228f8"
 msgid "Liberators"
@@ -1218,11 +1219,11 @@ msgstr "Luger"
 
 msgctxt "0xc5a4fded"
 msgid "M1 Carbine"
-msgstr "Карабин M1"
+msgstr "M1 Carbine"
 
 msgctxt "0xa19908cc"
 msgid "M1 Garand"
-msgstr "M1 «Гаранд»"
+msgstr "M1 Garand"
 
 msgctxt "0xec640c47"
 msgid "M1919A6 .30 cal"
@@ -1238,27 +1239,27 @@ msgstr "Два пистолета MAS1935"
 
 msgctxt "0xe465ee5e"
 msgid "MAS1935 Pistol"
-msgstr "Пистолет MAS1935"
+msgstr "MAS 1935"
 
 msgctxt "0x02f91935"
 msgid "MAS36 Rifle"
-msgstr "Винтовка MAS36"
+msgstr "MAS 36"
 
 msgctxt "0x5f222da7"
 msgid "MAS38 SMG"
-msgstr "ПП MAS38"
+msgstr "MAS 38"
 
 msgctxt "0x1817d8cf"
 msgid "MG34"
-msgstr "MG34"
+msgstr "MG 34"
 
 msgctxt "0x1817842b"
 msgid "MP40"
-msgstr "MP40"
+msgstr "MP 40"
 
 msgctxt "0x1817842f"
 msgid "MP44"
-msgstr "MP44"
+msgstr "MP 44"
 
 msgctxt "0x0090a65f"
 msgid "Manage the memory card (8MB) (for PlayStation®2)"
@@ -1442,7 +1443,7 @@ msgstr "Задачи обновлены."
 
 msgctxt "0x49519f25"
 msgid "Omaha Beach"
-msgstr "Пляж Омаха"
+msgstr "Омаха-Бич"
 
 msgctxt "0xcbd228f9"
 msgid "Operation Husky"
@@ -1582,11 +1583,11 @@ msgstr "Нажмите [%s], чтобы встать"
 
 msgctxt "0xe6ed3c3c"
 msgid "Press [USE] to commandeer the MG42"
-msgstr "Нажмите [USE], чтобы занять MG42"
+msgstr "Нажмите [USE], чтобы занять MG 42"
 
 msgctxt "0xfa33f52e"
 msgid "Press [USE] to commandeer the MG42"
-msgstr "Нажмите [USE], чтобы занять MG42"
+msgstr "Нажмите [USE], чтобы занять MG 42"
 
 msgctxt "0x29e22ad5"
 msgid "Press [USE] to pick up the %s"
@@ -1614,7 +1615,7 @@ msgstr "Нажмите [USE], чтобы занять .50 cal"
 
 msgctxt "0xa26975b4"
 msgid "Press [USE] to use the BM37"
-msgstr "Нажмите [USE], чтобы занять BM37"
+msgstr "Нажмите [USE], чтобы занять BM 37"
 
 msgctxt "0xe9699203"
 msgid "Press [USE] to use the Flak 88 gun"
@@ -1638,15 +1639,15 @@ msgstr "Нажмите [USE], чтобы занять Hotchkiss"
 
 msgctxt "0xa26eddb7"
 msgid "Press [USE] to use the MG34"
-msgstr "Нажмите [USE], чтобы занять MG34"
+msgstr "Нажмите [USE], чтобы занять MG 34"
 
 msgctxt "0x4efffc9c"
 msgid "Press [USE] to use the MG42"
-msgstr "Нажмите [USE], чтобы занять MG42"
+msgstr "Нажмите [USE], чтобы занять MG 42"
 
 msgctxt "0xa26edd51"
 msgid "Press [USE] to use the MG42"
-msgstr "Нажмите [USE], чтобы занять MG42"
+msgstr "Нажмите [USE], чтобы занять MG 42"
 
 msgctxt "0x80674438"
 msgid "Press [USE] to use the PTRS-41 Anti-Tank Rifle"
@@ -1754,7 +1755,7 @@ msgstr "Пред. оружие"
 
 msgctxt "0xb1bcdc6f"
 msgid "Profile Manager"
-msgstr "Менеджер профилей"
+msgstr "Профили"
 
 msgctxt "0xaa9a105d"
 msgid "Profile appears to be damaged and cannot be used.  Press A to continue."
@@ -2034,7 +2035,7 @@ msgstr "Наблюдатели"
 
 msgctxt "0x88917c6f"
 msgid "Springfield"
-msgstr "Springfield"
+msgstr "Springfield M1903"
 
 msgctxt "0xfaad940f"
 msgid "Sprint (MP only)"
@@ -2090,7 +2091,7 @@ msgstr "Лис пустыни"
 
 msgctxt "0x7a451fcd"
 msgid "The Dragon's Teeth"
-msgstr "«Зубы дракона»"
+msgstr "Зубы дракона"
 
 msgctxt "0x7a451fc9"
 msgid "The Great Crusade"
@@ -2126,7 +2127,7 @@ msgstr "У этого оружия нет другого режима."
 
 msgctxt "0xf1584038"
 msgid "Thompson"
-msgstr "«Томпсон»"
+msgstr "M-1A1 Thompson"
 
 msgctxt "0x05520dd9"
 msgid "Toggle ADS"
@@ -2454,7 +2455,7 @@ msgstr "~cross Выбрать"
 
 msgctxt "0x64e2689a"
 msgid "~cross Select ~menu_back Profile Manager"
-msgstr "~cross Выбрать ~menu_back Менеджер профилей"
+msgstr "~cross Выбрать ~menu_back Профили"
 
 msgctxt "0xf097486d"
 msgid "~menu_back Back"
@@ -2492,7 +2493,7 @@ msgstr "M-1A1, также известный как «Томми-ган», - а�
 
 msgctxt "0xf3635323"
 msgid "Also known as the Panzer VI, the German Tiger I weighed twice as much as Panzer IVs. Primary: 88mm cannon. Secondary: 2x 7.92mm MGs."
-msgstr "Немецкий Tiger I, или Panzer VI, весил вдвое больше Panzer IV. Основное: 88-мм пушка. Доп.: 2 пулемёта 7,92 мм."
+msgstr "Немецкий тяжёлый танк Panzer VI, или более известен как Tiger I, весил вдвое больше Panzer IV. Основное: 88-мм пушка. Доп.: 2 пулемёта 7,92 мм."
 
 msgctxt "0x77386b20"
 msgid "Also known as trinitrotoluene, TNT is a relatively stable chemical compound, and in fact can be treated rather roughly."
@@ -2528,7 +2529,7 @@ msgstr "Штурм"
 
 msgctxt "0x6b73bae1"
 msgid "B-24 Liberator"
-msgstr "B-24 «Либерейтор»"
+msgstr "B-24 Liberator"
 
 msgctxt "0x6542de50"
 msgid "Based on a design dating back to 1891, a similar Italian rifle was linked to the JFK assassination in 1963. Bolt-action, 7.35mm caliber 6-round clip."
@@ -2568,7 +2569,7 @@ msgstr "Browning .30 cal"
 
 msgctxt "0x6741631a"
 msgid "Browning Automatic Rifle"
-msgstr "Автоматическая винтовка Браунинга"
+msgstr "BAR"
 
 msgctxt "0xdd0bc959"
 msgid "Buchholz"
@@ -2576,7 +2577,7 @@ msgstr "Бухгольц"
 
 msgctxt "0xfd0ead5a"
 msgid "COD2 Xbox 360 Trailer"
-msgstr "Трейлер COD2 для Xbox 360"
+msgstr "Трейлер CoD2 для Xbox 360"
 
 msgctxt "0x6541633a"
 msgid "Carcano M38"
@@ -2604,15 +2605,15 @@ msgstr "Chatellerault"
 
 msgctxt "0x3faf6126"
 msgid "Collector's Edition"
-msgstr "Коллекционное издание"
+msgstr "Коллекц. издание"
 
 msgctxt "0xa3cd6a9e"
 msgid "Concept Art"
-msgstr "Концепт-арт"
+msgstr "Концепт-арты"
 
 msgctxt "0x19f79715"
 msgid "Concept Art"
-msgstr "Концепт-арт"
+msgstr "Концепт-арты"
 
 msgctxt "0x34557b15"
 msgid "Credits"
@@ -2664,7 +2665,7 @@ msgstr "Douglas DC-3"
 
 msgctxt "0xdd0bc958"
 msgid "Dragon's Teeth"
-msgstr "«Зубы дракона»"
+msgstr "Зубы дракона"
 
 msgctxt "0xdd0bc95a"
 msgid "Eilendorf"
@@ -2736,7 +2737,7 @@ msgstr "Джон Джексон «Шмитти» Смит"
 
 msgctxt "0x6773bae1"
 msgid "Junkers Ju-87 Stuka"
-msgstr "Junkers Ju-87 «Штука»"
+msgstr "Junkers Ju-87 Stuka"
 
 msgctxt "0x61416312"
 msgid "Karabiner 98k bolt-action"
@@ -2776,7 +2777,7 @@ msgstr "LCI"
 
 msgctxt "0x6773bad9"
 msgid "LCVP Higgins boat"
-msgstr "Катер LCVP «Хиггинс»"
+msgstr "Катер LCVP Higgins"
 
 msgctxt "0xcb34aed2"
 msgid "Land"
@@ -2792,11 +2793,11 @@ msgstr "Концепты уровней"
 
 msgctxt "0x5ee85e4f"
 msgid "Liberator"
-msgstr "«Либерейтор»"
+msgstr "Liberator"
 
 msgctxt "0xc23891ed"
 msgid "Liberator Schematics"
-msgstr "Чертежи «Либерейтора»"
+msgstr "Чертежи Liberator"
 
 msgctxt "0x2e71964b"
 msgid "Locked"
@@ -2812,15 +2813,15 @@ msgstr "M 13/40"
 
 msgctxt "0x61416322"
 msgid "M-1A1 Thompson"
-msgstr "M-1A1 «Томпсон»"
+msgstr "M-1A1 Thompson"
 
 msgctxt "0x6b41633a"
 msgid "M1 Carbine"
-msgstr "Карабин M1"
+msgstr "M1 Carbine"
 
 msgctxt "0x6141633a"
 msgid "M1 Garand"
-msgstr "M1 «Гаранд»"
+msgstr "M1 Garand"
 
 msgctxt "0xff60ee49"
 msgid "M16 Halftrack"
@@ -2840,7 +2841,7 @@ msgstr "105-мм гаубица M2A1"
 
 msgctxt "0x6173baf9"
 msgid "M3 Stuart Light Tank"
-msgstr "Лёгкий танк M3 «Стюарт»"
+msgstr "Лёгкий танк M3 Stuart"
 
 msgctxt "0x6773baf9"
 msgid "M3A1 Halftrack"
@@ -2848,15 +2849,15 @@ msgstr "Бронетранспортёр M3A1"
 
 msgctxt "0xfd60ee49"
 msgid "M4 Sherman"
-msgstr "M4 «Шерман»"
+msgstr "M4 Sherman"
 
 msgctxt "0xe360ee49"
 msgid "M4 Sherman Dozer"
-msgstr "M4 «Шерман» с отвалом"
+msgstr "M4 Sherman с отвалом"
 
 msgctxt "0x61416362"
 msgid "M9 Bazooka"
-msgstr "Базука M9"
+msgstr "M9 Bazooka"
 
 msgctxt "0x6741630a"
 msgid "MAS 1935"
@@ -2876,15 +2877,15 @@ msgstr "Пулемёт MG-42"
 
 msgctxt "0x67416332"
 msgid "MG34"
-msgstr "MG34"
+msgstr "MG 34"
 
 msgctxt "0x65416322"
 msgid "MP40"
-msgstr "MP40"
+msgstr "MP 40"
 
 msgctxt "0x6b41631a"
 msgid "MP44"
-msgstr "MP44"
+msgstr "MP 44"
 
 msgctxt "0xb7a6882f"
 msgid "Manny Castillo"
@@ -2892,7 +2893,7 @@ msgstr "Мэнни Кастильо"
 
 msgctxt "0x61700793"
 msgid "Many U.S. Stuarts were delivered to Britain as part of the Lend-Lease act. Primary: 37mm M3. Secondary: 3x 30-cal Browning."
-msgstr "Многие «Стюарты» попали в Британию по ленд-лизу. Основное: 37-мм M3. Доп.: 3 пулемёта Browning .30."
+msgstr "Многие «Стюарты» попали в британскую армию по ленд-лизу. Основное: 37-мм M3. Доп.: 3 пулемёта Browning .30."
 
 msgctxt "0xfcbf88e5"
 msgid "Maubeuge"
@@ -2904,7 +2905,7 @@ msgstr "Messerschmitt Me 109"
 
 msgctxt "0x6973bae1"
 msgid "Messerschmitt Me323"
-msgstr "Messerschmitt Me323"
+msgstr "Messerschmitt Me 323"
 
 msgctxt "0x55bd0540"
 msgid "Miles Castillo is from Sacramento, California. He attended public school where he sat on the bench of the JV basketball team.  He didn't mind not playing, as he was just happy to be wearing the uniform."
@@ -2952,7 +2953,7 @@ msgstr "Счетверённая установка калибра .50, част
 
 msgctxt "0x5ee85e43"
 msgid "Omaha Beach"
-msgstr "Пляж Омаха"
+msgstr "Омаха-Бич"
 
 msgctxt "0xf9635323"
 msgid "One of the workhorses of the German army, the 3-ton class, diesel-powered Opel truck was used in all theaters of the war."
@@ -3048,7 +3049,7 @@ msgstr "Ракета"
 
 msgctxt "0xb659d8fc"
 msgid "SMG"
-msgstr "ПП"
+msgstr "Пистолет-пулемёт"
 
 msgctxt "0x713bd64a"
 msgid "Satchel Charges"
@@ -3060,7 +3061,7 @@ msgstr "SdKfz 222"
 
 msgctxt "0xfb60ee49"
 msgid "SdKfz 251 Hanomag"
-msgstr "SdKfz 251 «Ганомаг»"
+msgstr "SdKfz 251 Hanomag"
 
 msgctxt "0xb659d9fa"
 msgid "Sea"
@@ -3116,7 +3117,7 @@ msgstr "«D» означало проект 4-го года войны, «U» - 
 
 msgctxt "0xfb635323"
 msgid "The \"Hanomag\" was integral not only in transporting infantry, but also in leading the famous German tank divisions onto the battlefield."
-msgstr "«Ганомаг» не только перевозил пехоту, но и вёл в бой знаменитые немецкие танковые дивизии."
+msgstr "Hanomag не только перевозил пехоту, но и вёл в бой знаменитые немецкие танковые дивизии."
 
 msgctxt "0x6170078b"
 msgid "The British RAF Spitfire is a single-seat fighter that is often credited with winning the Battle of Britain."
@@ -3132,11 +3133,11 @@ msgstr "На немецкий Kar98k ставили оптический при�
 
 msgctxt "0x6542de48"
 msgid "The German MP40 was typically only given to platoon and squad leaders. 9mm caliber 32-round clip. 500 rounds per minute."
-msgstr "Немецкий MP40 обычно выдавали лишь командирам взводов и отделений. Калибр 9 мм, магазин на 32 патрона. 500 выстр./мин."
+msgstr "Немецкий MP 40 обычно выдавали лишь командирам взводов и отделений. Калибр 9 мм, магазин на 32 патрона. 500 выстр./мин."
 
 msgctxt "0x6970078b"
 msgid "The German Me323 was the largest ground-based cargo plane in the war and was capable of carrying 100 combat-ready troops or 15 tons of freight."
-msgstr "Немецкий Me323 - крупнейший сухопутный транспортный самолёт войны: брал 100 солдат в полной выкладке или 15 тонн груза."
+msgstr "Немецкий Me 323 - крупнейший сухопутный транспортный самолёт войны: брал 100 солдат в полной выкладке или 15 тонн груза."
 
 msgctxt "0x6770078b"
 msgid "The German dive-bomber has wind-powered sirens on the wheel covers used to scare its targets."
@@ -3204,7 +3205,7 @@ msgstr "Первая самозарядная винтовка армии США
 
 msgctxt "0xfd635323"
 msgid "The main tank produced by the U.S. in WWII. While underpowered compared to Panzers, their greater numbers were able to overwhelm the Germans."
-msgstr "Основной танк США во Второй мировой. Уступая «панцерам» в мощи, он брал числом и подавлял немцев."
+msgstr "Основной средний танк армии США во Второй мировой. Уступая «панцерам» в мощи, он брал числом и подавлял немцев."
 
 msgctxt "0x6d700793"
 msgid "The origin of the \"Jeep\" name is unknown. It is possibly related to its GP vehicle designation or a character with the same name from a popular 1930s comic."
@@ -3228,7 +3229,7 @@ msgstr "Эта немецкая 88-мм зенитка часто применя
 
 msgctxt "0x6742de48"
 msgid "This French submachine gun has a distinctive bent look to it for a more compact design. 7.65mm caliber 32-round clip. 650 rounds per minute."
-msgstr "Этот французский ПП имеет характерный изгиб для компактности. Калибр 7,65 мм, магазин на 32 патрона. 650 выстр./мин."
+msgstr "Этот французский пистолет-пулемёт имеет характерный изгиб для компактности. Калибр 7,65 мм, магазин на 32 патрона. 650 выстр./мин."
 
 msgctxt "0x6742de00"
 msgid "This French weapon originally had a too-small 30-round clip. 7.92mm caliber 249-round belt."
@@ -3252,7 +3253,7 @@ msgstr "Одна из первых в мире штурмовых винтово
 
 msgctxt "0x6b42de48"
 msgid "This Italian submachine gun was also used by the German and Romanian armies. 9mm caliber 30-round clip."
-msgstr "Этот итальянский ПП применяли также немецкая и румынская армии. Калибр 9 мм, магазин на 30 патронов."
+msgstr "Этот итальянский пистолет-пулемёт применяли также в немецкой и румынской армиях. Калибр 9 мм, магазин на 30 патронов."
 
 msgctxt "0x67700793"
 msgid "This U.S. Halftrack was manufactured by the White Motor Company and used primarily as a transport. Armament: .50cal Browning M2."
@@ -3260,7 +3261,7 @@ msgstr "Этот американский бронетранспортёр вы�
 
 msgctxt "0x6742de60"
 msgid "This became the official French service sidearm in 1936.  The ammunition was only marginally effective in combat. 7.65mm 8-round clip."
-msgstr "С 1936 года - официальный пистолет французской армии. Патрон был малоэффективен в бою. 7,65 мм, магазин на 8 патронов."
+msgstr "Официальный пистолет французской армии с 1936 года. Патрон был малоэффективен в бою. 7,65 мм, магазин на 8 патронов."
 
 msgctxt "0x6142de68"
 msgid "This fragmentation grenade was commonly known as the \"pineapple\" grenade due to its distinctive shape. Blast radius of over 30ft."
@@ -3276,7 +3277,7 @@ msgstr "Этот безоружный планер США брал 13 солда
 
 msgctxt "0x65700793"
 msgid "This was the most common German tank of WWII.  Primary: 75mm cannon.  Secondary: 2 x 7.92mm MGs."
-msgstr "Самый массовый немецкий танк Второй мировой.  Основное: 75-мм пушка.  Доп.: 2 пулемёта 7,92 мм."
+msgstr "Самый массовый немецкий средний танк Второй мировой.  Основное: 75-мм пушка.  Доп.: 2 пулемёта 7,92 мм."
 
 msgctxt "0xf360ee49"
 msgid "Tiger I"
@@ -3320,7 +3321,7 @@ msgstr "Планер WACO"
 
 msgctxt "0x6141630a"
 msgid "Walther P38"
-msgstr "Walther P38"
+msgstr "Walther P 38"
 
 msgctxt "0x1a1f6050"
 msgid "Weapons"
@@ -10106,7 +10107,7 @@ msgstr "16.26|18.80|БРУКЛИН!"
 
 msgctxt "0xa24befb2"
 msgid "20.62|22.29|On your feet, gentlemen."
-msgstr "20.62|22.29|Подъём, господа."
+msgstr "20.62|22.29|Подъём, джентльмены."
 
 msgctxt "0xa24bdbbe"
 msgid "21.06|22.77|We can't stay here!"
@@ -10270,7 +10271,7 @@ msgstr "Это один из них."
 
 msgctxt "0x765bd0c2"
 msgid "The Dragon's Teeth"
-msgstr "«Зубы дракона»"
+msgstr "Зубы дракона"
 
 msgctxt "0x770186e6"
 msgid "The Siegfried Line, Germany"

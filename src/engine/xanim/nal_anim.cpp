@@ -1,5 +1,8 @@
 #include "nal_anim.h"
+#include "xanim.h"
 
+#include <cstdio>
+#include <cstdlib>
 #include <cstring>
 
 #include "nal_math.h"
@@ -440,6 +443,23 @@ void setup_state(AnimState* state, uint8_t* clip, int32_t range) {
     if (!state->data) {
         state->data = static_cast<uint8_t*>(Mem_AlignedAlloc(size, alignment, 0));
         state->owned = 1;
+        // Ours: the block starts as the clip's rest pose (a generic clip's own state at +0xc8, data +0xd0), else
+        // zeroed; the root record (+0xd8) as the identity (quaternion (0, 0, 0, 1), no move - the game's default at
+        // 0x00909850). Channel slot 12 below leaves the root record and the data alone; the original kept the heap
+        // block's old bytes, and AnimTree_CalcPose_r blends a temporary state that a child whose own children all
+        // weigh 0 never writes: another evaluation's pose and root motion (in the prologue an actor moved 3..117
+        // units a frame depending on the heap layout). Such a child now adds the rest pose without moving.
+        if (state->data) {
+            const bool generic = *reinterpret_cast<const uint32_t*>(clip) == title_global<uint32_t>(0x00903fdc);
+            const uint8_t* rest = generic ? *reinterpret_cast<uint8_t* const*>(clip + 0xd0) : nullptr;
+            if (rest && rest != state->data) std::memcpy(state->data, rest, size);
+            else std::memset(state->data, 0, size);
+            const int32_t root = *reinterpret_cast<const int32_t*>(clip + 0xd8);
+            if (generic && root >= 0 && static_cast<uint32_t>(root) + 32 <= size) {
+                const float identity[8] = {0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f};
+                std::memcpy(state->data + root, identity, sizeof identity);
+            }
+        }
     }
     uint8_t* cursor = state->data;
     uint8_t* group = groups(clip);
@@ -630,7 +650,7 @@ uint8_t* tree_node(const uint8_t* tree, uint32_t index) {
     return *reinterpret_cast<uint8_t* const*>(nodes + 8) + index * 0x38;
 }
 uint8_t* anim_info(const uint8_t* tree, uint32_t index) {
-    return &title_global<uint8_t>(0x00965d00 + *reinterpret_cast<const uint16_t*>(tree + 0x18 + index * 2) * 0x30);
+    return AnimInfo_At(*reinterpret_cast<const uint16_t*>(tree + 0x18 + index * 2)) + 0x10;
 }
 uint8_t* current_tree() { return reinterpret_cast<uint8_t*>(static_cast<uintptr_t>(title_global<uint32_t>(0x00928588))); }
 
@@ -760,6 +780,59 @@ uint8_t XB_CDECL AnimTree_CalcPose_r(uint32_t index, AnimState* dst, const AnimS
         NAL_AnimState_Destroy(&a);
     }
     return root_motion;
+}
+
+namespace {
+void tree_summary_r(uint32_t index, std::string& out, int depth) {
+    const uint8_t* tree = current_tree();
+    const uint8_t* node = tree_node(tree, index);
+    const int32_t count = *reinterpret_cast<const uint16_t*>(node + 0x20);
+    char buf[48];
+    if (count == 0) {
+        const bool track = *reinterpret_cast<const uint32_t*>(anim_info(tree, index) + 0x1c) != 0;
+        std::snprintf(buf, sizeof buf, "%u%s", index, track ? "" : "!notrack");
+        out += buf;
+        if (!track) {
+            char more[128];
+            std::snprintf(more, sizeof more, "(name=%.28s hash=%08x clip=%08x notes=%08x stamp=%08x now=%08x flags=%04x)",
+                          reinterpret_cast<const char*>(node + 4), *reinterpret_cast<const uint32_t*>(node),
+                          *reinterpret_cast<const uint32_t*>(node + 0x24), *reinterpret_cast<const uint32_t*>(node + 0x28),
+                          *reinterpret_cast<const uint32_t*>(node + 0x2c), title_global<uint32_t>(0x008d508c),
+                          *reinterpret_cast<const uint16_t*>(node + 0x34));
+            out += more;
+        } else if (std::getenv("COD_BRO_ANIM_TREE_NAMES")) {
+            char more[48];
+            std::snprintf(more, sizeof more, "(%.28s)", reinterpret_cast<const char*>(node + 4));
+            out += more;
+        }
+        return;
+    }
+    int32_t indices[64];
+    float weights[64];
+    const uint32_t first = *reinterpret_cast<const uint16_t*>(node + 0x36);
+    const int32_t n = active_children(node, false, indices, weights);
+    const int32_t m = active_children(node, true, indices + n, weights + n);
+    std::snprintf(buf, sizeof buf, "%u/%d", index, count);
+    out += buf;
+    if (n + m == 0) {
+        out += "{EMPTY}";
+        return;
+    }
+    if (depth > 12) return;
+    out += '{';
+    for (int32_t i = 0; i < n + m; ++i) {
+        if (i) out += ' ';
+        if (i >= n) out += '+';
+        tree_summary_r(first + indices[i], out, depth + 1);
+    }
+    out += '}';
+}
+}  // namespace
+
+std::string AnimTree_DebugSummary() {
+    std::string out;
+    if (current_tree()) tree_summary_r(0, out, 0);
+    return out;
 }
 
 uint32_t XB_CDECL NAL_FindSkeleton(uint32_t name) {

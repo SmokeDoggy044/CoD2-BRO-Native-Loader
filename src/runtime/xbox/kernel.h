@@ -43,6 +43,16 @@ struct MemoryConfig {
     uint32_t contiguous_base = 0x80000000;       // virtual address of physical address 0
     uint32_t virtual_base = 0x10000000;          // range for NtAllocateVirtualMemory
     uint32_t virtual_end = 0x50000000;
+    // Own engine: the bases above are only preferred - taken when free, else the host picks (no fixed addresses
+    // needed: the title's code reaches contiguous memory through contiguous_base() / in_contiguous_memory()).
+    bool host_placed = false;
+    // Own engine: the game's main heap gets an address range of its own, reserved here and committed as the heap
+    // grows (heap_commit, from the game's Heap_Sbrk), instead of a fixed block of contiguous memory. 0 = none.
+    uint32_t heap_bytes = 0;
+    // Preferred, like the bases above. Its range matters beyond room: the replay's state hash masks values inside the
+    // title's memory, so the ranges sit where game data rarely has values - 0x9..0xA... is tiny negative floats and
+    // large negative integers (0x40000000.. would be every positive float from 2.0 up).
+    uint32_t heap_base = 0x90000000;
 };
 
 struct KernelConfig {

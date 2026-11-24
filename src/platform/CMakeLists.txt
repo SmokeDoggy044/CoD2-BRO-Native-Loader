@@ -5,6 +5,7 @@ add_library(platform STATIC
     program.cpp
     settings.cpp
     settings_schema.cpp
+    stack_arena.cpp
     system_info.cpp
     sha256.cpp
     chacha20.cpp

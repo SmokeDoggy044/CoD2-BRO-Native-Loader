@@ -26,6 +26,8 @@ std::span<const xbox::KernelImpl> device_methods();
 
 // Call before the device opens (optional; default: the system's output).
 void configure(const OutputConfig& config);
+// A fast replay's output speed from now on (it stays silent): 1 when the player takes over.
+void set_replay_speed(double speed);
 
 // The title-visible header each voice id points at starts with this vtable (the DirectSound
 // replacement's, so original code can call stream methods through it).

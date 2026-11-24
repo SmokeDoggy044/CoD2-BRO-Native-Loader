@@ -1172,11 +1172,13 @@ private:
             open_folder((data ? fs::path(*data) : platform::user_data_dir()) / "E" / "UDATA");
         }
         help_marker("One folder per game profile with its saves, as on the Xbox hard disk.");
+#if COD_BRO_DEV_TOOLS  // the profiler is a developer tool: player builds leave it out
         ImGui::SeparatorText("Low frame rate");
         ImGui::Checkbox("Measure performance", &profile_);
         help_marker("For reports about a low frame rate: the next game started from here writes to its "
                     "log where the time goes: 10 seconds each time the frame rate drops to under 80% of its setting (at most once a minute). "
                     "It is not saved; tick it again for later reports.");
+#endif
     }
 
     // Options' footer: Back (saves, to the front page) and Reset to defaults.

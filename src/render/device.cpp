@@ -89,7 +89,7 @@ XbSurface* create_surface(uint32_t format, uint32_t width, uint32_t height, uint
     const uint32_t bytes = ((width * bytes_per_pixel + 63) & ~63u) * height;
     const XbPtr memory = xbox::allocate_contiguous(bytes, 0x1000);
     if (!memory) LOG_ERROR("render", "no memory for a %ux%u frame buffer", width, height);
-    surface->container.resource.data = memory & 0x0FFFFFFF;
+    surface->container.resource.data = memory - xbox::contiguous_base();  // physical
     surface->container.format = kFormatDmaChannelA | (2u << kFormatDimensionShift) |
                                 (format << kFormatFormatShift) | (1u << kFormatMipmapShift);
     const uint32_t pitch = (width * bytes_per_pixel + 63) & ~63u;
@@ -143,13 +143,15 @@ void call_title(uint32_t function, std::initializer_list<uint32_t> args) {
 // keep 60 Hz. Presenting does not wait for the display (backend.h): with a blocking
 // present, its wait came on top of the title's, and in heavy scenes frames missed
 // their vertical blank (50 ms frames in clusters, as the two clocks' phases drifted).
+// A replay's speed (BackendConfig::vblank_speed at the start; set_replay_speed changes it, e.g. on taking over).
+std::atomic<double> g_replay_speed{1.0};
+
 void vblank_thread(double hz) {
     if (auto attach = xbox::title_calls().attach_thread) attach();
     using Clock = std::chrono::steady_clock;
-    const auto period = std::chrono::nanoseconds(static_cast<int64_t>(1e9 / hz));
     auto next = Clock::now();
     for (;;) {
-        next += period;
+        next += std::chrono::nanoseconds(static_cast<int64_t>(1e9 / (hz * g_replay_speed.load())));
         std::this_thread::sleep_until(next);
         const uint32_t count = ++g.vblank_count;
         if (const uint32_t callback = g.vblank_callback.load()) {
@@ -228,7 +230,8 @@ bool create_device(uint32_t width, uint32_t height, uint32_t back_buffer_format,
     g.display_hz = display_hz;
     const double vblank_hz = display_hz >= 59 && display_hz <= 61 ? display_hz : kVBlankHz;
     LOG_INFO("render", "vertical blank at %.3f Hz (display %.3f Hz)", vblank_hz * g.config.vblank_speed, display_hz);
-    std::thread(vblank_thread, vblank_hz * g.config.vblank_speed).detach();
+    g_replay_speed = g.config.vblank_speed;
+    std::thread(vblank_thread, vblank_hz).detach();
     return true;
 }
 
@@ -370,7 +373,7 @@ uint32_t XB_STDCALL D3DDevice_Clear(uint32_t rect_count, XbPtr /*rects*/, uint32
 void upload_back_buffer_writes() {
     if (!g.back_buffer_written.exchange(false)) return;
     const auto& pixels = g.back_buffer->container;
-    g.backend->write_back_buffer(xbox::from_xbox_ptr<void>(pixels.resource.data | 0x80000000),
+    g.backend->write_back_buffer(xbox::from_xbox_ptr<void>(pixels.resource.data + xbox::contiguous_base()),
                                  ((pixels.size >> kSizePitchShift) + 1) * 64);
 }
 
@@ -388,6 +391,11 @@ std::atomic<bool> g_frame_rate_changed{false};
 // Session seconds up to which frames_last_second() reports 0 (not measured): the game
 // was paused for a --diag note (the automatic profile took that for a slow spot).
 std::atomic<int64_t> g_unmeasured_until{-1};
+// The last presented frame whose time --diag itself took (a mark's note prompt, the next frame's draw dump and
+// pictures): the gap is no stall. Counting it made an auto mark, whose own dump made the next gap - a run of marks
+// at 1 fps after one F12 (11-22).
+uint32_t g_diag_capture_until_frame = 0;
+bool g_diag_resume_audio = false;  // a mark's pause_audio(false) waits until its captures are done
 
 int64_t session_second() {
     return std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now() -
@@ -459,7 +467,8 @@ std::vector<std::string> diagnostics() {
         fps_text = text;
     }
     if (auto stall = pacing.take_stall())
-        LOG_INFO("frames", "stall %.1f s before frame %u", stall->seconds, stall->frame);
+        LOG_INFO("frames", "stall %.1f s before frame %u%s", stall->seconds, stall->frame,
+                 stall->frame <= g_diag_capture_until_frame + 1 ? " (--diag's mark and captures)" : "");
 
     // COD_BRO_MARKS="900,1500": marks at those presented frames without a note prompt (unattended checks of the
     // mark dumps).
@@ -490,7 +499,7 @@ std::vector<std::string> diagnostics() {
         const auto note = scripted_mark ? std::optional<std::string>("(scripted mark)")
                                         : g.backend->prompt({"MARK " + std::to_string(marks) + " saved - game paused",
                                                              "What is wrong here? (one or two sentences)"});
-        if (g.config.pause_audio && !dev::paused()) g.config.pause_audio(false);  // F7's pause stays
+        g_diag_resume_audio = g.config.pause_audio != nullptr;  // after the next frame's captures (below)
         g_unmeasured_until.store(session_second() + 1, std::memory_order_relaxed);
         std::string text = note ? *note : "";
         if (g.config.dev) text += " [dev: " + dev::state_text() + "]";
@@ -535,7 +544,10 @@ std::vector<std::string> diagnostics() {
         flash = "AUTO MARK " + std::to_string(auto_marks) + ": " + fresh.front().substr(0, 70);
         flash_until = Clock::now() + std::chrono::seconds(4);
     }
-    if (dump) g.backend->dump_next_frame(dump_prefix);
+    if (dump) {
+        g.backend->dump_next_frame(dump_prefix);
+        g_diag_capture_until_frame = g.swap_count + 1;  // this frame (prompt) and the next (dump) are ours
+    }
 
     if (g.backend->take_highlight_toggle()) {
         highlight = !highlight;
@@ -623,9 +635,17 @@ uint32_t present_frame() {
     if (present_s > 1.0) LOG_WARN("render", "presenting frame %u took %.1f s (in the graphics driver)", g.swap_count, present_s);
     if (last_pump != StallClock::time_point{}) {
         const double gap_s = std::chrono::duration<double>(present_end - last_pump).count();
-        if (gap_s > 1.5)
+        if (gap_s > 1.5 && g.swap_count <= g_diag_capture_until_frame) {
+            LOG_INFO("diag", "the mark and its captures took %.1f s (not a stall)", gap_s);
+            g_unmeasured_until.store(session_second() + 1, std::memory_order_relaxed);
+        } else if (gap_s > 1.5) {
             LOG_WARN("render", "the window went %.1f s without handling its events (%.1f s of it presenting; Windows "
                      "calls it not responding after 5 s)", gap_s, present_s);
+        }
+    }
+    if (g_diag_resume_audio && g.swap_count >= g_diag_capture_until_frame) {
+        g_diag_resume_audio = false;
+        if (!dev::paused()) g.config.pause_audio(false);  // F7's pause stays
     }
     const bool open = g.backend->pump_events();
     last_pump = StallClock::now();
@@ -826,11 +846,13 @@ void set_frame_limit(double fps) { g.frame_limit = fps; }
 
 double display_refresh_rate() { return g.display_hz.load(); }
 
+void set_replay_speed(double speed) { g_replay_speed = speed; }
+
 void pace_frame() {
     using Clock = std::chrono::steady_clock;
     double fps = g.frame_limit;
     if (fps <= 0 && !g.config.backend.wait_for_display) fps = g.display_hz > 0 ? g.display_hz.load() : kVBlankHz;
-    fps *= g.config.vblank_speed;
+    fps *= g_replay_speed.load();
     if (fps <= 0) {
         g.frame_start = {};
         return;

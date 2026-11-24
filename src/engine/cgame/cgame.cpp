@@ -1589,7 +1589,7 @@ void start_tree(const WeaponFrame& f, TitleRegs& r, uint32_t tree, bool first, c
         r.ecx = r.eax;
     } else {
         r.eax = index;
-        r.ecx = 0x00965cf0 + index * 0x30u;
+        r.ecx = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(AnimInfo_At(index)));
     }
     const uint32_t info = r.ecx;
     const float one = g(0x0083eb20);
@@ -3652,7 +3652,6 @@ void XB_CDECL CG_ShellShock_f() {
                                                               : reinterpret_cast<const char*>(uintptr_t{0x0082dfeb});
     title_strncpy(text, arg, 0xff);
     text[0xff] = 0;
-    using ext = long double;
     const float seconds = static_cast<float>(title_atof(text) *  // atof
                                              platform_x87_ld(g(0x0083eb9c)));
     CG_ReadShellShockCvars(&title_global<uint8_t>(0x00975b44));
@@ -3897,7 +3896,7 @@ uint8_t XB_THISCALL CG_ViewWeaponAnimsInactive(const uint8_t* tree) {
     for (uint32_t k = 0; k < 4; ++k) {
         const uint16_t index = *reinterpret_cast<const uint16_t*>(tree + kOffsets[k]);
         if (!index) continue;
-        if (!(title_global<float>(0x00965d14 + index * 0x30u) == 0.0f)) return 0;
+        if (!(*reinterpret_cast<const float*>(AnimInfo_At(index) + 0x24) == 0.0f)) return 0;
     }
     return 1;
 }
@@ -3915,7 +3914,7 @@ uint8_t XB_CDECL CG_ViewWeaponAnimsFinished(const uint8_t* tree, uint8_t* weapon
     for (uint32_t i = 4; i < 0x17; ++i) {
         const uint16_t index = *reinterpret_cast<const uint16_t*>(tree + 0x18 + i * 2);
         if (!index) continue;
-        const uint8_t* info = &title_global<uint8_t>(0x00965d00 + index * 0x30u);
+        const uint8_t* info = AnimInfo_At(index) + 0x10;
         if (*reinterpret_cast<const float*>(info + 4) > *reinterpret_cast<const float*>(info)) continue;
         if (*reinterpret_cast<const float*>(info) == one) continue;
         if (*reinterpret_cast<const int16_t*>(info + 8) <= *reinterpret_cast<const int16_t*>(info + 0xa)) {
@@ -3933,7 +3932,7 @@ uint8_t XB_CDECL CG_ViewWeaponAnimsFinished(const uint8_t* tree, uint8_t* weapon
 
 namespace {
 
-uint8_t* view_anim_info(uint32_t info) { return &title_global<uint8_t>(0x00965cf0 + info * 0x30); }
+uint8_t* view_anim_info(uint32_t info) { return AnimInfo_At(info); }
 float& info_f(uint8_t* info, uint32_t offset) { return *reinterpret_cast<float*>(info + offset); }
 
 // The inlined goal-weight setter: goal (+0x20) reached over |goal - weight| x blend (+0x1c;
@@ -4239,7 +4238,6 @@ void XB_REGS1 XB_CDECL CG_ClearState(uint32_t restart) {
     title_global<uint32_t>(0x00973a6c) = 0;
     CG_InitLocalEntities();
     for (int32_t i = 0x10; i < 0x20; ++i) CG_ParseObjective(i);
-    using AtofFn = float XB_CDECL(const char*);
     auto configstring = [](uint32_t address) -> const char* {
         const uint8_t* const string = title_global<const uint8_t*>(address);
         return string ? reinterpret_cast<const char*>(string + 6) : nullptr;
@@ -4749,8 +4747,6 @@ void XB_CDECL CG_ServerCommand() {
     // unknown - also after the music stop - unless one of three ignored hashes.
     using LocalizeFn = const char* XB_CDECL(const char*, uint32_t, uint32_t);
     LocalizeFn* const localize = own_function<LocalizeFn>(&SEH_LocalizeTextMessage);  // SEH_LocalizeTextMessage
-    using AtofFn = float XB_CDECL(const char*);
-    using AtolFn = int32_t XB_CDECL(const char*);
     const char* const first = title_global<uint32_t>(0x00934248) ? title_global<const char*>(0x0092df90)
                                                                   : &title_global<const char>(0x0082dfeb);
     char* const buffer = &title_global<char>(0x0098b958);
@@ -5115,7 +5111,6 @@ void XB_CDECL CG_PredictPlayerState(uint32_t entry_esp, uint32_t ebx, uint32_t e
                         const uint32_t mover[5] = {0x00972550, title_global<uint32_t>(0x009725b0), title_global<uint32_t>(0x00972544),
                                                    title_global<uint32_t>(0x00972540), top + 0x34};
                         call(own_address(&CG_AdjustPositionForMover_entry), 5, mover);  // CG_AdjustPositionForMover
-                        using ext = long double;
                         at(0x10) = static_cast<float>(platform_x87_ld(at(0x20)) - platform_x87_ld(at(0x40)));
                         const int32_t yaw = static_cast<int32_t>(at(0x38) * g(0x0083ebd8)) & 0xffff;
                         title_global<int32_t>(0x009725a8) += yaw;

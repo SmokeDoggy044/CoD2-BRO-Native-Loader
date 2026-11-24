@@ -1,5 +1,6 @@
 #include "g_scr_builtins.h"
 
+#include <algorithm>
 #include <cstring>
 
 #include "actor.h"
@@ -603,6 +604,13 @@ void XB_CDECL GScr_GetPadStick(int32_t stick, float* x, float* y) {
     int32_t ix, iy;
     IN_PadCreate();
     IN_PadGetStick(pad, stick, &ix, &iy);
+    // Ours: the movement keys count as the left stick too (with native actions they no longer move it).
+    if (stick == 0 && client_pc_hooks().movement_stick) {
+        int32_t kx = 0, ky = 0;
+        client_pc_hooks().movement_stick(&kx, &ky);
+        ix = std::clamp(ix + kx, -127, 127);
+        iy = std::clamp(iy + ky, -127, 127);
+    }
     const float scale = title_global<float>(0x0083ec60);  // 1/127
     *x = static_cast<float>(ix) * scale;
     *y = static_cast<float>(iy) * scale;
@@ -3777,7 +3785,7 @@ float XB_CDECL GScr_GetAnimTime(uint32_t handle, uint32_t anim) {
     // The anim node's info (+0x18 per node, 0x30-byte infos at 0x00965d00): its time +0.
     const uint16_t info = field<uint16_t>(anim_tree_of(ent), 0x18 + (anim & 0xffff) * 2);
     if (!info) return 0.0f;
-    return title_global<float>(0x00965d00 + info * 0x30u);
+    return *reinterpret_cast<const float*>(AnimInfo_At(info) + 0x10);
 }
 
 void XB_CDECL GScr_SetAnim(uint32_t handle, uint32_t anim, uint32_t goal, uint32_t blend, uint32_t rate,

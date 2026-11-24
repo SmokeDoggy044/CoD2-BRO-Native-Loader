@@ -109,11 +109,13 @@ double GameWindow::refresh_rate() const {
 namespace {
 std::atomic<bool> g_pc_menu_requested{false};
 std::atomic<void (*)()> g_after_events{nullptr};
+std::atomic<void (*)()> g_take_over_key{nullptr};
 }  // namespace
 
 void request_pc_menu() { g_pc_menu_requested = true; }
 
 void set_after_events(void (*hook)()) { g_after_events = hook; }
+void set_take_over_key(void (*hook)()) { g_take_over_key = hook; }
 
 bool GameWindow::pump_events() {
     if (closed_) return false;
@@ -133,6 +135,9 @@ bool GameWindow::pump_events() {
             mark_requested_ = true;
         if (event.type == SDL_EVENT_KEY_DOWN && event.key.scancode == SDL_SCANCODE_F11 && !event.key.repeat)
             highlight_toggled_ = true;
+        if (event.type == SDL_EVENT_KEY_DOWN && event.key.scancode == SDL_SCANCODE_L && !event.key.repeat &&
+            (event.key.mod & SDL_KMOD_CTRL) && (event.key.mod & SDL_KMOD_SHIFT))
+            if (void (*hook)() = g_take_over_key.load()) hook();
         if (event.type == SDL_EVENT_KEY_DOWN && !event.key.repeat && event.key.scancode >= SDL_SCANCODE_F1 &&
             event.key.scancode <= SDL_SCANCODE_F10)
             function_keys_ |= 1u << (event.key.scancode - SDL_SCANCODE_F1);

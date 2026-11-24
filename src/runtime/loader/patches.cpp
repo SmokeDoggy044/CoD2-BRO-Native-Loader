@@ -270,10 +270,23 @@ bool XB_CDECL pad_keys_run_layout() {
 // older than format 5 had the keyboard in the pad state: none while replaying one.
 // The game gets the first kNativeActionCount actions; ours after them (Free camera) stay on our side.
 static_assert(game::kNativeActionCount <= static_cast<int32_t>(input::kActionCount));
+// The actions the game got at the last input frame (native_actions; replayed in a replay, so the same in every run).
+std::atomic<uint32_t> g_game_actions{0};
+
+// ClientPcHooks::movement_stick: the movement keys as the left stick (-127..127; y as IN_PadGetStick, up negative).
+void movement_stick(int32_t* x, int32_t* y) {
+    const uint32_t a = g_game_actions.load();
+    const auto on = [a](input::Action action) { return int32_t(a >> static_cast<unsigned>(action) & 1); };
+    using A = input::Action;
+    *x = 127 * (on(A::MoveRight) - on(A::MoveLeft));
+    *y = 127 * (on(A::MoveBack) - on(A::MoveForward));
+}
+
 uint32_t XB_CDECL native_actions() {
     const uint32_t held = input::held_actions();
     if (xbox::replay::on_stream() && xbox::replay::replaying() && xbox::replay::version() < 5) return 0;
     const uint32_t value = cheats_filter_actions(xbox::replay::value('Y', held));
+    g_game_actions = value;
     static uint32_t logged = 0;  // --debug: the held actions when they change (keyboard, mouse, gamepad, script)
     if (value != logged && platform::log_enabled(platform::LogLevel::Debug)) {
         std::string names;
@@ -1084,21 +1097,28 @@ void XB_CDECL locked_heap_free_in(uint32_t heap, uint32_t pointer) {
 
 void install_multiplayer_heap_lock() {
     constexpr const char* kWhat = "(heap lock)";
+    // Each hook's original entry (past our jump) as a callable pointer: hook_with_original hands it out as const void*.
+    const auto hook = [](uint32_t address, std::span<const uint8_t> prologue, const void* ours) {
+        return const_cast<void*>(hook_with_original(address, prologue, ours));
+    };
     // push ebx; mov ebx,[esp+8]
-    g_heap_alloc = reinterpret_cast<HeapAlloc>(
-        hook_with_original(title_address(0x00043a10, kWhat), std::to_array<uint8_t>({0x53, 0x8b, 0x5c, 0x24, 0x08}), reinterpret_cast<const void*>(&locked_heap_alloc)));
+    g_heap_alloc = reinterpret_cast<HeapAlloc>(hook(title_address(0x00043a10, kWhat),
+                                                    std::to_array<uint8_t>({0x53, 0x8b, 0x5c, 0x24, 0x08}),
+                                                    reinterpret_cast<const void*>(&locked_heap_alloc)));
     // mov eax,[0x00451638]
     auto aligned_prologue = std::to_array<uint8_t>({0xa1, 0, 0, 0, 0});
     const uint32_t heap_alignment = title_address(0x00451638, kWhat);
     std::memcpy(&aligned_prologue[1], &heap_alignment, 4);
-    g_heap_aligned_alloc = reinterpret_cast<HeapAlignedAlloc>(hook_with_original(
+    g_heap_aligned_alloc = reinterpret_cast<HeapAlignedAlloc>(hook(
         title_address(0x00043850, kWhat), aligned_prologue, reinterpret_cast<const void*>(&locked_heap_aligned_alloc)));
     // push esi; mov esi,[esp+8]
-    g_heap_free = reinterpret_cast<HeapFree>(
-        hook_with_original(title_address(0x00043630, kWhat), std::to_array<uint8_t>({0x56, 0x8b, 0x74, 0x24, 0x08}), reinterpret_cast<const void*>(&locked_heap_free)));
+    g_heap_free = reinterpret_cast<HeapFree>(hook(title_address(0x00043630, kWhat),
+                                                  std::to_array<uint8_t>({0x56, 0x8b, 0x74, 0x24, 0x08}),
+                                                  reinterpret_cast<const void*>(&locked_heap_free)));
     // mov ecx,[esp+8]; mov eax,[esp+4]
-    g_heap_free_in = reinterpret_cast<HeapFreeIn>(hook_with_original(
-        title_address(0x00043470, kWhat), std::to_array<uint8_t>({0x8b, 0x4c, 0x24, 0x08, 0x8b, 0x44, 0x24, 0x04}), reinterpret_cast<const void*>(&locked_heap_free_in)));
+    g_heap_free_in = reinterpret_cast<HeapFreeIn>(
+        hook(title_address(0x00043470, kWhat), std::to_array<uint8_t>({0x8b, 0x4c, 0x24, 0x08, 0x8b, 0x44, 0x24, 0x04}),
+             reinterpret_cast<const void*>(&locked_heap_free_in)));
 }
 
 // --- Wider than 16:9 (experimental) ----------------------------------------------------
@@ -2806,6 +2826,7 @@ void install_title_patches(const TitleInfo& title, const TitlePatchConfig& confi
         // Native keyboard and mouse (0.6c): IN_Frame, CL_KeyEvent and Key_ClearStates as C.
         if (client_c(0x002bdf10) && client_c(0x002cd0c0) && client_c(0x002d57c0)) {
             game::client_pc_hooks().native_actions = &native_actions;
+            game::client_pc_hooks().movement_stick = &movement_stick;
             game::client_pc_hooks().pad_keys_run_layout = &pad_keys_run_layout;
             input::set_native_actions(true);
         }

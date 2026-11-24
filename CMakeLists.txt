@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.24)
-project(cod_bro_port VERSION 1.0.10 LANGUAGES C CXX)
+project(cod_bro_port VERSION 1.0.11 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -71,6 +71,28 @@ else()
 endif()
 
 option(COD_BRO_BUILD_TESTS "Build the tests" ON)
+# Translated level code (tools/translator/lift.py output, src/levels/translated): the folder with one <level>_xl.cpp per
+# level (every one there is built in) and leaf_translated.inc. Empty = none. The game uses it with COD_BRO_XLAT=1.
+set(COD_BRO_LEVEL_XLAT_DIR "${PROJECT_SOURCE_DIR}/src/levels/translated" CACHE PATH
+    "Folder with generated level code (tools/translator/lift.py)")
+
+# Developer tools (profiler, text traps, shader dumps, menu walks, object viewer and orbit camera; the options of the
+# test tools such as record/replay, scripted presses and --compare). ON for our own builds; the player presets
+# (windows-mingw-player, sniper-player) that releases are packaged from leave them out: what players never use is not
+# shipped, and the profiler's thread inspection is not in the release files at all.
+option(COD_BRO_DEV_TOOLS "Build the developer tools into the programs" ON)
+
+# MinGW's winpthreads is a DLL beside the programs (cmake/toolchains/mingw-i686.cmake): copied next to them, so builds
+# run in place (Wine), and installed with the release.
+if(MINGW)
+    find_file(COD_BRO_WINPTHREAD_DLL libwinpthread-1.dll PATH_SUFFIXES bin REQUIRED)
+    file(COPY "${COD_BRO_WINPTHREAD_DLL}" DESTINATION "${CMAKE_BINARY_DIR}/bin")
+endif()
+if(COD_BRO_DEV_TOOLS)
+    add_compile_definitions(COD_BRO_DEV_TOOLS=1)
+else()
+    add_compile_definitions(COD_BRO_DEV_TOOLS=0)
+endif()
 
 # SDL3 (window, gamepads, keyboard): fetched and linked statically on Windows, from
 # the system on Linux (Fedora: SDL3-devel, plus SDL3-devel.i686 for the loader).
