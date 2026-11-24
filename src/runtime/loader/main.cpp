@@ -380,7 +380,7 @@ int loader_main(int argc, char** argv) {
     compare.before_fork = audio::hold_for_fork;
     compare.after_fork = audio::release_after_fork;
     loader::compare::install(game::functions(), compare);
-    loader::install_translated_levels();
+    loader::install_translated_levels(false);
     std::atexit([] { loader::compare::flush(); });
     platform::at_end_process([] { loader::compare::flush(); });
     if (const size_t missed = loader::missed_title_addresses()) {

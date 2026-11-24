@@ -1,7 +1,8 @@
 #pragma once
 
-// Developers: COD_BRO_XLAT=1 runs the translated level code (tools/translator, game::translated_functions())
-// instead of the original x86. Inline: compare_test builds hooks.cpp without the game code.
+// The translated level code (tools/translator, src/levels/translated, game::translated_functions()) in place of the
+// original x86, where a build has it: cod_bro uses it by default (1.0.11; COD_BRO_XLAT=0 runs the original x86),
+// cod_bro_loader only with COD_BRO_XLAT=1. Inline: compare_test builds hooks.cpp without the game code.
 
 #include <algorithm>
 #include <cstddef>
@@ -14,9 +15,13 @@
 
 namespace loader {
 
-inline void install_translated_levels() {
+inline void install_translated_levels(bool by_default) {
+    if (game::translated_functions().empty()) return;  // a build without it
     const char* xlat = std::getenv("COD_BRO_XLAT");
-    if (!xlat || *xlat != '1') return;
+    if (xlat ? *xlat != '1' : !by_default) {
+        if (xlat) LOG_INFO("loader", "translated level code: off (COD_BRO_XLAT=%s); the original x86 runs", xlat);
+        return;
+    }
     const char* why = nullptr;
     if (!game::translated_functions().empty() && !game::translated_levels_usable(&why)) {
         LOG_WARN("loader", "translated level code: not used (%s); the original x86 runs", why);

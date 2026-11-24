@@ -241,7 +241,7 @@ int host_main(int argc, char** argv) {
     hooks.before_fork = audio::hold_for_fork;
     hooks.after_fork = audio::release_after_fork;
     loader::compare::install(game::functions(), hooks);
-    loader::install_translated_levels();
+    loader::install_translated_levels(true);
 
     // The title's initial thread (no TLS block, as on the Xbox); the XBE entry is our start-up (title_start.cpp).
     loader::ThreadEnv* env = loader::create_thread_env(image.header().pe_stack_commit, 0);
