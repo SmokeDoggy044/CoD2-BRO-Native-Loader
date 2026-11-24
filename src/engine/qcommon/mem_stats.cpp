@@ -9,6 +9,8 @@
 #include <utility>
 
 #include "qcommon_core.h"
+#include "snd.h"
+#include "xanim.h"
 #include "title_data.h"
 #include "title_host.h"
 
@@ -92,6 +94,7 @@ struct Frame {
         heap("aps zone heap", word(0x0095f6d8));
         // Ours: what the full zone heaps borrowed from the physical heap (Heap_AllocFromHeap).
         add("zone heaps lent", word(0x008ff638 + 0x484), Heap_ZoneLentBytes());
+        add("write-combined lent (total)", word(0x008ff638 + 0x484), Heap_WCLentBytes());
 
         // Stream (zone load) heaps: the owner list 0x008ff4a8, count 0x008ff5a8, room for 64.
         const uint32_t stream_heaps = std::min<uint32_t>(word(0x008ff5a8), 64);
@@ -133,6 +136,7 @@ struct Frame {
             for (int32_t i = std::max(high, 0); i < 64; ++i) block(i);
             add("sound memory", size, used);
             add("sound blocks", 64, blocks);
+            add("sound overflow", SndMem_OverflowBytes(), SndMem_OverflowUsed());  // ours
         }
 
         small_heap("com small", word(0x00947700));
@@ -156,6 +160,27 @@ struct Frame {
         }
 
         add("corpses (of 16)", 16, word(0x00985418));
+
+        // Anim infos (0x00965cf0, 0x30 bytes, 512 incl. the list head 0): free list from info 0 +0xc, next = +0xc.
+        // Empty = AnimTree_AllocInfo breaks and its callers write through 0.
+        {
+            uint32_t free_infos = 0;
+            const uint32_t total = 511 + AnimInfo_ExtraCount();  // ours: + the added ones
+            for (uint16_t id = title_global<uint16_t>(0x00965cfc); id && free_infos < total; ++free_infos)
+                id = *reinterpret_cast<const uint16_t*>(AnimInfo_At(id) + 0xc);
+            add("anim infos (of 511)", 511, total - std::min(free_infos, total));
+            add("anim infos added", 0x10000 - 0x200, AnimInfo_ExtraCount());
+        }
+        // Fixed tables whose overflow the original does not survive (MAX_CVARS writes on past cvar_indexes,
+        // SP_info_grenade_hint past its 128) or drops content (ragdolls, sound bank slots): how close play gets.
+        add("cvars (of 610)", 610, word(0x009476f8));
+        add("grenade hints (of 128)", 128, word(0x00985fd4));
+        add("ragdolls (of 6)", 6, word(0x008fb484));
+        {
+            uint32_t banks = 0;
+            for (uint32_t i = 0; i < 12; ++i) banks += word(0x008bd770 + i * 0x20 + 4) != 0;  // state (+4), 0 = free
+            add("sound bank slots (of 12)", 12, banks);
+        }
 
         if (title_host().memory_statistics) {
             uint32_t total = 0, available = 0, reserved = 0;

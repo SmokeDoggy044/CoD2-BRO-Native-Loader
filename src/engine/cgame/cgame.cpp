@@ -1589,7 +1589,7 @@ void start_tree(const WeaponFrame& f, TitleRegs& r, uint32_t tree, bool first, c
         r.ecx = r.eax;
     } else {
         r.eax = index;
-        r.ecx = 0x00965cf0 + index * 0x30u;
+        r.ecx = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(AnimInfo_At(index)));
     }
     const uint32_t info = r.ecx;
     const float one = g(0x0083eb20);
@@ -3896,7 +3896,7 @@ uint8_t XB_THISCALL CG_ViewWeaponAnimsInactive(const uint8_t* tree) {
     for (uint32_t k = 0; k < 4; ++k) {
         const uint16_t index = *reinterpret_cast<const uint16_t*>(tree + kOffsets[k]);
         if (!index) continue;
-        if (!(title_global<float>(0x00965d14 + index * 0x30u) == 0.0f)) return 0;
+        if (!(*reinterpret_cast<const float*>(AnimInfo_At(index) + 0x24) == 0.0f)) return 0;
     }
     return 1;
 }
@@ -3914,7 +3914,7 @@ uint8_t XB_CDECL CG_ViewWeaponAnimsFinished(const uint8_t* tree, uint8_t* weapon
     for (uint32_t i = 4; i < 0x17; ++i) {
         const uint16_t index = *reinterpret_cast<const uint16_t*>(tree + 0x18 + i * 2);
         if (!index) continue;
-        const uint8_t* info = &title_global<uint8_t>(0x00965d00 + index * 0x30u);
+        const uint8_t* info = AnimInfo_At(index) + 0x10;
         if (*reinterpret_cast<const float*>(info + 4) > *reinterpret_cast<const float*>(info)) continue;
         if (*reinterpret_cast<const float*>(info) == one) continue;
         if (*reinterpret_cast<const int16_t*>(info + 8) <= *reinterpret_cast<const int16_t*>(info + 0xa)) {
@@ -3932,7 +3932,7 @@ uint8_t XB_CDECL CG_ViewWeaponAnimsFinished(const uint8_t* tree, uint8_t* weapon
 
 namespace {
 
-uint8_t* view_anim_info(uint32_t info) { return &title_global<uint8_t>(0x00965cf0 + info * 0x30); }
+uint8_t* view_anim_info(uint32_t info) { return AnimInfo_At(info); }
 float& info_f(uint8_t* info, uint32_t offset) { return *reinterpret_cast<float*>(info + offset); }
 
 // The inlined goal-weight setter: goal (+0x20) reached over |goal - weight| x blend (+0x1c;

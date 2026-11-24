@@ -5918,7 +5918,7 @@ long double x87_abs(long double v) {
 // map (+0x18), 0 for an unmapped one.
 float anim_weight(uint32_t tree, uint32_t index) {
     const uint16_t anim = title_global<uint16_t>(tree + 0x18 + index * 2);
-    return anim ? title_global<float>(0x00965d14 + anim * 0x30) : 0.0f;
+    return anim ? *reinterpret_cast<const float*>(AnimInfo_At(anim) + 0x24) : 0.0f;
 }
 
 void set_goal_weight(uint32_t index, uint32_t tree, float goal, float blend) {
@@ -6800,7 +6800,7 @@ uint32_t XB_CDECL Actor_Turret_UpdatePose(uint32_t entry, uint32_t ecx0, uint32_
         r.esi = node;
         r.edx = index ? index * 0x30u : at.skip_edx;
         if (index) {
-            info = &title_global<uint8_t>(0x00965cf0 + index * 0x30u);
+            info = AnimInfo_At(index);
         } else if (!no_alloc && goal != 0.0f) {
             const uint32_t args[1] = {tree};
             r.ecx = at.alloc_ecx;
@@ -9584,7 +9584,7 @@ void XB_CDECL Actor_UpdateAimBlend(uint32_t entry, uint32_t check_prone, uint8_t
         const uint16_t index = title_global<uint16_t>(tree + 0x18 + node * 2);
         uint8_t* info = nullptr;
         if (index) {
-            info = &title_global<uint8_t>(0x00965cf0 + index * 0x30u);
+            info = AnimInfo_At(index);
         } else if (goal != zero) {
             info = reinterpret_cast<uint8_t*>(uintptr_t{call_at(F, ret_alloc, own_address(&AnimTree_AllocInfo), TitleRegs{node, tree, 0, 0, node, a},
                                                                 1, &tree)});  // AnimTree_AllocInfo (EAX)

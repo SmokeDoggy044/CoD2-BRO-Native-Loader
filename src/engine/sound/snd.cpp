@@ -7,6 +7,8 @@
 #include <cmath>
 #include <cstdio>
 #include <cstring>
+#include <map>
+#include <mutex>
 #include <string>
 #include <vector>
 
@@ -1103,7 +1105,75 @@ uint32_t& snd_mem_block(int32_t index) { return title_global<uint32_t>(0x0091f54
 int32_t& snd_mem_low_top() { return title_global<int32_t>(0x008bed08); }
 int32_t& snd_mem_high_bottom() { return title_global<int32_t>(0x008bed04); }
 
+// Ours: the overflow area [start, end) after the sound memory, first fit in 576-byte steps (so every block keeps the
+// original's offset grid from the base). Free runs by address; used blocks address -> size.
+struct SndOverflow {
+    std::mutex mutex;
+    uint32_t start = 0, end = 0, used = 0;
+    std::map<uint32_t, uint32_t> free_runs, blocks;
+
+    void reset(uint32_t from, uint32_t to) {
+        std::lock_guard lock(mutex);
+        start = from;
+        end = to > from ? to : from;
+        used = 0;
+        free_runs.clear();
+        blocks.clear();
+        if (end > start) free_runs[start] = end - start;
+    }
+    uint32_t alloc(uint32_t bytes) {
+        std::lock_guard lock(mutex);
+        for (auto it = free_runs.begin(); it != free_runs.end(); ++it) {
+            if (it->second < bytes) continue;
+            const uint32_t address = it->first, rest = it->second - bytes;
+            free_runs.erase(it);
+            if (rest) free_runs[address + bytes] = rest;
+            blocks[address] = bytes;
+            used += bytes;
+            return address;
+        }
+        return 0;
+    }
+    bool free(uint32_t address) {
+        std::lock_guard lock(mutex);
+        if (address < start || address >= end) return false;
+        const auto block = blocks.find(address);
+        if (block == blocks.end()) return true;  // not a block start: ignored, as the original ignores those
+        uint32_t at = address, bytes = block->second;
+        used -= bytes;
+        blocks.erase(block);
+        auto next = free_runs.lower_bound(at);
+        if (next != free_runs.end() && next->first == at + bytes) {
+            bytes += next->second;
+            next = free_runs.erase(next);
+        }
+        if (next != free_runs.begin()) {
+            const auto prev = std::prev(next);
+            if (prev->first + prev->second == at) {
+                at = prev->first;
+                bytes += prev->second;
+                free_runs.erase(prev);
+            }
+        }
+        free_runs[at] = bytes;
+        return true;
+    }
+};
+
+SndOverflow g_snd_overflow;
+
 }  // namespace
+
+void SndMem_SetOverflow(uint32_t end) {
+    const uint32_t start = SndMem_GetBase() + SndMem_GetSize();
+    g_snd_overflow.reset(start, end > start ? start + (end - start) / 0x240 * 0x240 : start);
+}
+
+uint32_t SndMem_BufferBytes() { return g_snd_overflow.end ? g_snd_overflow.end - SndMem_GetBase() : SndMem_GetSize(); }
+
+uint32_t SndMem_OverflowBytes() { return g_snd_overflow.end - g_snd_overflow.start; }
+
+uint32_t SndMem_OverflowUsed() { return g_snd_overflow.used; }
 
 uint32_t XB_CDECL SndMem_Compact(uint32_t* low_end, uint32_t* high_end) {
     int32_t low = snd_mem_low_top();
@@ -1139,10 +1209,11 @@ uint32_t XB_CDECL SndMem_Compact(uint32_t* low_end, uint32_t* high_end) {
 uint32_t XB_CDECL SndMem_Alloc(uint32_t flags, int32_t size) {
     const uint32_t rounded = uint32_t((size + 0x23f) / 0x240 * 0x240);
     uint32_t low_end = 0, high_end = 0;
-    if (SndMem_Compact(&low_end, &high_end) < rounded) return 0;
+    // Ours: no room (bytes or the 64 blocks) -> the overflow area instead of failing.
+    if (SndMem_Compact(&low_end, &high_end) < rounded) return g_snd_overflow.alloc(rounded);
     const int32_t next = snd_mem_low_top() + 1;
     const int32_t high = snd_mem_high_bottom();
-    if (next >= high) return 0;
+    if (next >= high) return g_snd_overflow.alloc(rounded);
     if (flags & 1) {
         const uint32_t address = title_global<uint32_t>(0x0091f648) - rounded + high_end;
         snd_mem_high_bottom() = high - 1;
@@ -1170,6 +1241,7 @@ void XB_CDECL SndMem_Init(uint32_t address, uint32_t size) {
 
 void XB_CDECL SndMem_Free(uint32_t address) {
     if (!address) return;
+    if (g_snd_overflow.free(address)) return;  // ours: a block of the overflow area
     const uint32_t offset = address - title_global<uint32_t>(0x0091f648);
     uint32_t end = title_global<uint32_t>(0x0091f64c);
     if (offset >= end) return;
@@ -3260,11 +3332,11 @@ void setup_slot_stream(uint8_t* slot, uint8_t& kind, uint8_t kind_code, uint32_t
     if (is_3d) set_slot_curve(*reinterpret_cast<uint32_t*>(slot + 0x30));
 }
 
-// A created buffer: the whole sound memory as its data, then (3D) the rolloff curve (defaults as above).
+// A created buffer: the whole sound memory (ours: + its overflow area) as its data, then (3D) the rolloff curve (defaults as above).
 void setup_slot_buffer(uint8_t* slot, uint8_t& kind, uint8_t kind_code, bool is_3d) {
     const audio::VoiceId buffer = *reinterpret_cast<uint32_t*>(slot);
     kind = kind_code;
-    const uint32_t size = SndMem_GetSize();
+    const uint32_t size = SndMem_BufferBytes();  // ours: with the overflow area (the original SndMem_GetSize)
     const uint32_t base = SndMem_GetBase();
     device().set_buffer_data(buffer, reinterpret_cast<const uint8_t*>(uintptr_t{base}), size);
     if (is_3d) set_slot_curve(buffer);
@@ -3364,12 +3436,21 @@ uint32_t XB_CDECL SndSys_InitDirectSound() {
     // Ours: 1/8 of the memory past 64 MB on top (Mem_ExtraBytes; the original 7.5 MB at 64 MB).
     const auto physical_alloc = own_function<uint32_t XB_STDCALL(uint32_t, uint32_t, uint32_t, uint32_t)>(&XPhysicalAlloc);  // XPhysicalAlloc
     uint32_t size = 0x780000 + Mem_ExtraBytes(1, 8);
-    uint32_t memory = physical_alloc(size, 0xffffffffu, 0, 0x204);  // any address, PAGE_READWRITE | PAGE_NOCACHE
+    // Ours: the overflow area (SndMem_SetOverflow) in the same piece, after the sound memory; without room for it
+    // the original sizes alone.
+    constexpr uint32_t kOverflowBytes = 0x2000000;  // 32 MB (normal play uses ~6 MB of the 15.5 MB)
+    uint32_t memory = physical_alloc(size + kOverflowBytes, 0xffffffffu, 0, 0x204);  // PAGE_READWRITE | PAGE_NOCACHE
+    uint32_t overflow = memory ? kOverflowBytes : 0;
+    if (!memory) memory = physical_alloc(size, 0xffffffffu, 0, 0x204);  // any address
     if (!memory && size != 0x780000) {
         size = 0x780000;
         memory = physical_alloc(size, 0xffffffffu, 0, 0x204);
     }
+    const uint32_t end = memory ? memory + size + overflow : 0;
+    // Developers: COD_BRO_HEAP_SQUEEZE bit 32 leaves the stacks 1 MB, so the overflow area is used all the time.
+    if (memory && overflow && (Heap_TestSqueeze() & 32)) size = 0x100000;
     SndMem_Init(memory, size);
+    SndMem_SetOverflow(end);
     own_function<void XB_CDECL(int32_t, int32_t, int32_t, int32_t, int32_t, int32_t, int32_t, int32_t)>(&SndSys_CreateVoiceBuffers_entry)(
         1, 1, 1, 1, 7, 0x24, 7, 0x24);  // SndSys_CreateVoiceBuffers (its entry wants a title caller's stack)
     title_global<uint32_t>(0x003e45f4) = 0;  // a DirectSound library word

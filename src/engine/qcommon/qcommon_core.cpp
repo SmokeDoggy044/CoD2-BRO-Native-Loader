@@ -1709,6 +1709,9 @@ namespace {
 // Ours: the bytes full zone heaps (Heap_CreateFromZone: the script and effects heaps) have lent from the main heap.
 // The original returned null there and the callers ran into an int3.
 std::atomic<uint32_t> g_zone_lent{0};
+// Ours: bytes the full write-combined heap has lent from the main heap (MemHook_AlignedAlloc), counted when lent
+// (the frees cannot tell them apart; a total, for the memory stats).
+std::atomic<uint32_t> g_wc_lent{0};
 
 uint32_t chunk_bytes(const uint8_t* mem) { return word_at(mem - 4, 0) & ~3u; }
 
@@ -1729,7 +1732,14 @@ uint8_t* zone_lend(uint32_t size, uint32_t align) {
 
 uint32_t Heap_ZoneLentBytes() { return g_zone_lent; }
 
-void Heap_ZoneLentReset() { g_zone_lent = 0; }
+void Heap_ZoneLentReset() {
+    g_zone_lent = 0;
+    g_wc_lent = 0;
+}
+
+void Heap_WCLent(const uint8_t* mem) { g_wc_lent += chunk_bytes(mem); }
+
+uint32_t Heap_WCLentBytes() { return g_wc_lent; }
 
 void XB_THISCALL Heap_FreeIn2(uint32_t heap, uint8_t* mem) {
     // Ours: a block the zone heap lent from the main heap (Heap_AllocFromHeap) goes back to its owner.
@@ -1815,7 +1825,9 @@ uint8_t* XB_THISCALL Heap_AllocFromHeap(uint8_t* heap, uint32_t size, uint32_t a
 uint32_t Heap_TestSqueeze() {
 #if COD_BRO_DEV_TOOLS
     // Developers: COD_BRO_HEAP_SQUEEZE=bits makes heaps tiny so that their fallbacks run all the time: 1 the script
-    // small heap's pools, 2 the script zone heap, 4 the effects zone heap (changes when effects are evicted).
+    // small heap's pools, 2 the script zone heap, 4 the effects zone heap (changes when effects are evicted), 8 the
+    // effects block pools (4 items each), 16 the write-combined heap (64 KB), 32 the sound memory (1 MB + overflow), 64 the anim infos
+    // (8 of the table's 511).
     static const uint32_t squeeze = [] {
         const char* v = std::getenv("COD_BRO_HEAP_SQUEEZE");
         return v ? static_cast<uint32_t>(std::strtoul(v, nullptr, 10)) : 0u;
@@ -1909,7 +1921,8 @@ uint32_t XB_CDECL Heap_InitDefaultHeaps() {
     if (start < end) Heap_Init(heap_ptr(0x008ff638), start, end, 0);
     const uint32_t wc_start = Mem_GetWCPoolStart();
     if (wc_start < Mem_GetWCPoolEnd()) {
-        const uint32_t wc_end = Mem_GetWCPoolEnd();
+        // Ours, developers: COD_BRO_HEAP_SQUEEZE bit 16 leaves the write-combined heap 64 KB (MemHook_AlignedAlloc lends).
+        const uint32_t wc_end = (Heap_TestSqueeze() & 16) ? wc_start + 0x10000 : Mem_GetWCPoolEnd();
         Heap_Init(heap_ptr(0x008fff60), Mem_GetWCPoolStart(), wc_end, 0);
     }
     if (Mem_GetDebugPoolStart() != 0xffffffffu) {

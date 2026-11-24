@@ -1041,7 +1041,7 @@ void blend_aim_node(uint8_t* tree, uint32_t node, float goal) {
     float time = title_global<float>(0x0083ebf8);  // 0.1
     uint8_t* info = nullptr;
     if (index) {
-        info = &title_global<uint8_t>(0x00965cf0 + index * 0x30u);
+        info = AnimInfo_At(index);
     } else if (goal != zero) {
         info = reinterpret_cast<uint8_t*>(static_cast<uintptr_t>(AnimTree_AllocInfo(node, tree)));
     }

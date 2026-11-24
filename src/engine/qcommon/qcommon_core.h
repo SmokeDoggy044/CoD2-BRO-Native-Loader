@@ -380,7 +380,10 @@ void XB_CDECL Z_Free(uint8_t* mem);
 void XB_THISCALL Heap_FreeIn2(uint32_t heap, uint8_t* mem);
 // Ours: bytes the full zone heaps have lent from the main heap now; reset by an in-process restart.
 uint32_t Heap_ZoneLentBytes();
-void Heap_ZoneLentReset();
+void Heap_ZoneLentReset();  // also the write-combined total
+// Ours: the full write-combined heap lent `mem` from the main heap (MemHook_AlignedAlloc); the total lent so far.
+void Heap_WCLent(const uint8_t* mem);
+uint32_t Heap_WCLentBytes();
 // Ours, developers: COD_BRO_HEAP_SQUEEZE (0 = off).
 uint32_t Heap_TestSqueeze();
 // 0x00042af0: Heap_MallocAligned in the current heap (default heaps made first), counted in +0x488/peak

@@ -221,7 +221,15 @@ uint32_t XB_CDECL SndMem_GetSize();
 // 0x000c8320: base = address rounded up to 576, size = (size - 576) rounded down to 576, both stacks empty.
 void XB_CDECL SndMem_Init(uint32_t address, uint32_t size);
 // 0x000c8380: marks the block starting at `address` freed (low stack first, then the high one) and compacts.
+// Ours: a block of the overflow area goes back there.
 void XB_CDECL SndMem_Free(uint32_t address);
+// Ours: the overflow area right after the sound memory (SndSys_InitDirectSound allocates both in one piece). When the
+// two block stacks have no room, SndMem_Alloc takes the block from here instead of failing (the original dropped the
+// bank or the stream), so behaviour is the original's until then. The voices' buffer spans both (offsets from base).
+void SndMem_SetOverflow(uint32_t end);
+uint32_t SndMem_BufferBytes();      // size + the overflow area
+uint32_t SndMem_OverflowBytes();    // overflow area size
+uint32_t SndMem_OverflowUsed();     // bytes in use there now
 // 0x000c6240 (out in EAX, in in ECX): Snd_NormalizeVector with another store order; ECX kept.
 extern "C" PLATFORM_HIDDEN float* XB_CDECL Snd_NormalizeVectorDup(float* out, const float* in);
 extern "C" void Snd_NormalizeVectorDup_entry(void);

@@ -4623,7 +4623,7 @@ void XB_CDECL G_AnimScriptedStart(uint32_t entry, uint32_t ecx, uint32_t edx, ui
         auto weight_of = [&](uint32_t slot, float* weight) {
             const uint32_t info = half_at(tree + half_at(actor + slot) * 2 + 0x18);
             if (!info) return false;
-            *weight = title_global<float>(0x00965d14 + info * 0x30);
+            *weight = *reinterpret_cast<const float*>(AnimInfo_At(info) + 0x24);
             return true;
         };
         float weight;

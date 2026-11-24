@@ -1,4 +1,5 @@
 #include "nal_anim.h"
+#include "xanim.h"
 
 #include <cstdio>
 #include <cstdlib>
@@ -649,7 +650,7 @@ uint8_t* tree_node(const uint8_t* tree, uint32_t index) {
     return *reinterpret_cast<uint8_t* const*>(nodes + 8) + index * 0x38;
 }
 uint8_t* anim_info(const uint8_t* tree, uint32_t index) {
-    return &title_global<uint8_t>(0x00965d00 + *reinterpret_cast<const uint16_t*>(tree + 0x18 + index * 2) * 0x30);
+    return AnimInfo_At(*reinterpret_cast<const uint16_t*>(tree + 0x18 + index * 2)) + 0x10;
 }
 uint8_t* current_tree() { return reinterpret_cast<uint8_t*>(static_cast<uintptr_t>(title_global<uint32_t>(0x00928588))); }
 
