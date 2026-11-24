@@ -256,6 +256,36 @@ int check_settings_file() {
 
 }  // namespace
 
+namespace {
+
+// settings.ini lines the game left out at this start (start_session logs them once the log is open).
+std::vector<std::string> g_ignored_settings;
+
+// The settings without the lines the option parser would refuse (unknown key, a value the option does not take,
+// a developer tool's option in a player build): a bad line in settings.ini must never keep the game from starting
+// (1.0.10's settings pages wrote "render-scale = " for Auto, and the next start ended before the log opened).
+platform::Settings usable_settings(const platform::Settings& settings) {
+    platform::Settings usable;
+    for (const auto& [key, value] : settings.entries()) {
+        const platform::SettingDef* def = platform::find_setting(key);
+        std::string error;
+        if (!def)
+            error = "unknown setting";
+        else if (!COD_BRO_DEV_TOOLS && developer_tool_option(def->key))
+            error = "a developer tool";
+        else if (!platform::check_setting(*def, value, &error) && error.empty())
+            error = "not a value it takes";
+        if (!error.empty()) {
+            g_ignored_settings.push_back(key + " = " + value + " (" + error + ")");
+            continue;
+        }
+        usable.set(key, value);
+    }
+    return usable;
+}
+
+}  // namespace
+
 int load_options(int argc, char** argv, std::optional<Options>& parsed_out) {
     for (int i = 1; i < argc; ++i)
         if (std::string_view(argv[i]) == "--check-settings") {
@@ -298,9 +328,9 @@ int load_options(int argc, char** argv, std::optional<Options>& parsed_out) {
         text << file.rdbuf();
         settings_text = text.str();
     }
-    const platform::Settings settings = comparing ? platform::Settings{}
-                                        : replaying ? platform::Settings::parse(settings_text)
-                                                    : platform::load_settings();
+    const platform::Settings settings = usable_settings(comparing   ? platform::Settings{}
+                                                        : replaying ? platform::Settings::parse(settings_text)
+                                                                    : platform::load_settings());
     std::vector<std::string> merged = settings.as_args();
     merged.insert(merged.begin(), argv[0]);
     merged.insert(merged.end(), argv + 1, argv + argc);
@@ -415,6 +445,8 @@ bool start_session(const Options& options, int argc, char** argv) {
         loader::run_fatal_exit_hook(true);
         platform::terminate_now(3);
     });
+    for (const std::string& line : g_ignored_settings)
+        LOG_WARN("loader", "settings.ini: left out \"%s\"; the default is used", line.c_str());
     return true;
 }
 

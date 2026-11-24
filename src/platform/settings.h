@@ -16,6 +16,7 @@ namespace platform {
 class Settings {
 public:
     std::optional<std::string> get(const std::string& key) const;
+    // An empty value erases the key (= the default): an empty "key = " line is not a value any option takes.
     void set(const std::string& key, const std::string& value);
     void erase(const std::string& key);
     bool empty() const { return entries_.empty(); }
@@ -26,8 +27,9 @@ public:
 
     // The settings as command-line options, in file order.
     std::vector<std::string> as_args() const;
+    const std::vector<std::pair<std::string, std::string>>& entries() const { return entries_; }
 
-private:
+  private:
     std::vector<std::pair<std::string, std::string>> entries_;
 };
 
